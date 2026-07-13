@@ -1,0 +1,626 @@
+fun SettingsDialog(
+    viewModel: FinancialViewModel,
+    onDismiss: () -> Unit
+) {
+    val userProfile by viewModel.userProfile.collectAsState()
+    val hotels by viewModel.allHotels.collectAsState()
+    val accounts by viewModel.allBankAccounts.collectAsState()
+
+    var activeSettingTab by remember { mutableStateOf("Profile") }
+
+    // Input fields for Adding
+    var profileName by remember(userProfile) { mutableStateOf(userProfile?.name ?: "") }
+    var profileContact by remember(userProfile) { mutableStateOf(userProfile?.contact ?: "") }
+
+    var prefLanguage by remember(userProfile) { mutableStateOf(userProfile?.language ?: "en") }
+    var prefThemeMode by remember(userProfile) { mutableStateOf(userProfile?.themeMode ?: "Auto") }
+    var prefShowAdvancedPayment by remember(userProfile) { mutableStateOf(userProfile?.showAdvancedPayment ?: false) }
+    var prefAppLockEnabled by remember(userProfile) { mutableStateOf(userProfile?.appLockEnabled ?: false) }
+    var prefAppLockPin by remember(userProfile) { mutableStateOf(userProfile?.appLockPin ?: "") }
+    var prefDefaultHotelId by remember(userProfile) { mutableStateOf(userProfile?.defaultHotelId ?: 1) }
+
+    var newHotelName by remember { mutableStateOf("") }
+    var newHotelAdvanced by remember { mutableStateOf("") }
+
+    var newAccountName by remember { mutableStateOf("") }
+    var newAccountBalance by remember { mutableStateOf("") }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        CompositionLocalProvider(LocalAppTheme provides prefThemeMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(prefThemeMode))
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.background(getGlassBorder(), CircleShape)
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                    }
+
+                    Text(
+                        text = if (prefLanguage == "bn") "কনফিগারেশন" else "Configurations",
+                        color = AppTextColor(),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.width(48.dp)) // Balanced space
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Settings Tabs Selector
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(4.dp)
+                    ) {
+                        listOf("Profile", "Preferences", "Hotels", "Accounts").forEach { tab ->
+                            val isSelected = activeSettingTab == tab
+                            val bg = if (isSelected) Color(0x3300E5FF) else Color.Transparent
+                            val txtColor = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.6f)
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .bounceClick()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(bg)
+                                    .clickable { activeSettingTab = tab }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (prefLanguage == "bn") {
+                                        when (tab) {
+                                            "Profile" -> "প্রোফাইল"
+                                            "Preferences" -> "পছন্দসমূহ"
+                                            "Hotels" -> "হোটেল"
+                                            "Accounts" -> "অ্যাকাউন্ট"
+                                            else -> tab
+                                        }
+                                    } else tab,
+                                    color = txtColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // TAB CONTENTS
+                Column(modifier = Modifier.weight(1f)) {
+                    when (activeSettingTab) {
+                        "Profile" -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text("Edit Profile Data", color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = profileName,
+                                    onValueChange = { profileName = it },
+                                    label = { Text("Display Name", color = AppTextColor().copy(alpha = 0.5f)) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = AppTextColor(),
+                                        unfocusedTextColor = AppTextColor(),
+                                        focusedBorderColor = AccentCyan,
+                                        unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().testTag("profile_name_input")
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = profileContact,
+                                    onValueChange = { profileContact = it },
+                                    label = { Text("Contact Number", color = AppTextColor().copy(alpha = 0.5f)) },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = AppTextColor(),
+                                        unfocusedTextColor = AppTextColor(),
+                                        focusedBorderColor = AccentCyan,
+                                        unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                GlassButton(
+                                    onClick = {
+                                        viewModel.updateProfile(profileName, profileContact, "avatar_premium")
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Apply Profile Updates", color = AccentGreen, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        "Hotels" -> {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Add New Hotel Form
+                                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp)
+                                    ) {
+                                        Text("Register Establishment", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = newHotelName,
+                                            onValueChange = { newHotelName = it },
+                                            label = { Text("Hotel Name", color = AppTextColor().copy(alpha = 0.5f)) },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = AppTextColor(),
+                                                unfocusedTextColor = AppTextColor(),
+                                                focusedBorderColor = AccentCyan,
+                                                unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth().testTag("add_hotel_name_input")
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = newHotelAdvanced,
+                                            onValueChange = { newHotelAdvanced = it },
+                                            label = { Text("Advanced Balance (₹)", color = AppTextColor().copy(alpha = 0.5f)) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = AppTextColor(),
+                                                unfocusedTextColor = AppTextColor(),
+                                                focusedBorderColor = AccentCyan,
+                                                unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        GlassButton(
+                                            onClick = {
+                                                val adv = newHotelAdvanced.toDoubleOrNull() ?: 0.0
+                                                if (newHotelName.isNotBlank()) {
+                                                    viewModel.addHotel(newHotelName, adv)
+                                                    newHotelName = ""
+                                                    newHotelAdvanced = ""
+                                                }
+                                            },
+                                            cornerRadius = 10.dp,
+                                            modifier = Modifier.fillMaxWidth().testTag("add_hotel_confirm_button")
+                                        ) {
+                                            Text("Save Hotel", color = AccentCyan, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // List of Hotels with Delete Trigger
+                                Text("Registered Hotels", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    items(hotels) { hotel ->
+                                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(hotel.name, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                    Text("Advanced Balance: ₹${hotel.advancedPayment.toInt()}", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
+                                                }
+
+                                                // Only allow delete if more than 1 hotel left
+                                                if (hotels.size > 1) {
+                                                    IconButton(
+                                                        onClick = { viewModel.deleteHotel(hotel) },
+                                                        modifier = Modifier
+                                                            .size(28.dp)
+                                                            .background(Color(0x15FF4081), CircleShape)
+                                                    ) {
+                                                        Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        "Accounts" -> {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Add New Account Form
+                                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp)
+                                    ) {
+                                        Text("Register Virtual Account", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = newAccountName,
+                                            onValueChange = { newAccountName = it },
+                                            label = { Text("Account Name (e.g. UPI SBI, GPay)", color = AppTextColor().copy(alpha = 0.5f)) },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = AppTextColor(),
+                                                unfocusedTextColor = AppTextColor(),
+                                                focusedBorderColor = AccentCyan,
+                                                unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth().testTag("add_account_name_input")
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = newAccountBalance,
+                                            onValueChange = { newAccountBalance = it },
+                                            label = { Text("Starting Balance (₹)", color = AppTextColor().copy(alpha = 0.5f)) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = AppTextColor(),
+                                                unfocusedTextColor = AppTextColor(),
+                                                focusedBorderColor = AccentCyan,
+                                                unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        GlassButton(
+                                            onClick = {
+                                                val bal = newAccountBalance.toDoubleOrNull() ?: 0.0
+                                                if (newAccountName.isNotBlank()) {
+                                                    viewModel.addVirtualAccount(newAccountName, bal)
+                                                    newAccountName = ""
+                                                    newAccountBalance = ""
+                                                }
+                                            },
+                                            cornerRadius = 10.dp,
+                                            modifier = Modifier.fillMaxWidth().testTag("add_account_confirm_button")
+                                        ) {
+                                            Text("Save Account", color = AccentCyan, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // List of Virtual Accounts
+                                Text(
+                                    text = if (prefLanguage == "bn") "নিবন্ধিত অ্যাকাউন্টসমূহ" else "Registered Accounts",
+                                    color = AppTextColor().copy(alpha = 0.6f),
+                                    fontSize = 12.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    items(accounts) { acc ->
+                                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(acc.name, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                    Text("Liquid Balance: ₹${acc.balance.toInt()}", color = AccentCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+
+                                                // Only allow delete if more than 1 account left
+                                                if (accounts.size > 1) {
+                                                    IconButton(
+                                                        onClick = { viewModel.deleteVirtualAccount(acc) },
+                                                        modifier = Modifier
+                                                            .size(28.dp)
+                                                            .background(Color(0x15FF4081), CircleShape)
+                                                    ) {
+                                                        Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        "Preferences" -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(
+                                    text = if (prefLanguage == "bn") "অ্যাপ পছন্দসমূহ পরিবর্তন করুন" else "Customize App Preferences",
+                                    color = AppTextColor(),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Language Toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অ্যাপের ভাষা" else "App Language",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = if (prefLanguage == "bn") "বিকল্প: ইংরেজি / বাংলা" else "Options: English / Bengali",
+                                            color = AppTextColor().copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    GlassSwitch(
+                                        checked = prefLanguage == "bn",
+                                        onCheckedChange = { isBn ->
+                                            prefLanguage = if (isBn) "bn" else "en"
+                                        },
+                                        activeText = "বাংলা",
+                                        inactiveText = "EN"
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Theme Toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অ্যাপ থিম" else "App Theme",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = if (prefLanguage == "bn") "মিডনাইট ডার্ক / উজ্জ্বল অরোরা" else "Midnight Dark / Bright Aurora",
+                                            color = AppTextColor().copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(17.dp))
+                                            .background(getGlassIconButtonBg())
+                                            .border(1.dp, getGlassBorder(), RoundedCornerShape(17.dp))
+                                            .clickable {
+                                                prefThemeMode = when (prefThemeMode) {
+                                                    "Dark" -> "Auto"
+                                                    "Auto" -> "Light"
+                                                    else -> "Dark"
+                                                }
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = when (prefThemeMode) {
+                                                "Dark" -> if (prefLanguage == "bn") "ডার্ক (Dark)" else "Dark"
+                                                "Light" -> if (prefLanguage == "bn") "লাইট (Light)" else "Light"
+                                                else -> if (prefLanguage == "bn") "অটো (Auto)" else "Auto"
+                                            },
+                                            color = AppTextColor(),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Default Hotel Dropdown
+                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                    Text(
+                                        text = if (prefLanguage == "bn") "ডিফল্ট হোটেল" else "Default Hotel",
+                                        color = AppTextColor(),
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = if (prefLanguage == "bn") "অ্যাপ খুললে এই হোটেলটি প্রথমে আসবে" else "This hotel will be preselected on app startup",
+                                        color = AppTextColor().copy(alpha = 0.5f),
+                                        fontSize = 11.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Simple scrollable selection row of hotel pills
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        items(hotels) { hotel ->
+                                            val isSelected = prefDefaultHotelId == hotel.id
+                                            val bg = if (isSelected) Color(0x3300E5FF) else Color(0x11FFFFFF)
+                                            val border = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.1f)
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(bg)
+                                                    .border(0.5.dp, border, RoundedCornerShape(10.dp))
+                                                    .clickable { prefDefaultHotelId = hotel.id }
+                                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = hotel.name,
+                                                    color = if (isSelected) AccentCyan else AppTextColor(),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Show/Hide Advanced Payment Toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অগ্রিম পেমেন্ট কার্ড" else "Show Advanced Payment",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = if (prefLanguage == "bn") "ড্যাশবোর্ডে অ্যাডভান্স ব্যালেন্স দেখান" else "Display advance amount on dashboard",
+                                            color = AppTextColor().copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    GlassSwitch(
+                                        checked = prefShowAdvancedPayment,
+                                        onCheckedChange = { prefShowAdvancedPayment = it },
+                                        activeText = if (prefLanguage == "bn") "হ্যাঁ" else "YES",
+                                        inactiveText = if (prefLanguage == "bn") "না" else "NO"
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // App Lock Toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অ্যাপ লক" else "Enable App Lock",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অ্যাপ চালু করতে পাসকোড পিন লাগবে" else "Requires 4-digit PIN to access app",
+                                            color = AppTextColor().copy(alpha = 0.5f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    GlassSwitch(
+                                        checked = prefAppLockEnabled,
+                                        onCheckedChange = { prefAppLockEnabled = it },
+                                        activeText = if (prefLanguage == "bn") "অন" else "ON",
+                                        inactiveText = if (prefLanguage == "bn") "অফ" else "OFF"
+                                    )
+                                }
+
+                                if (prefAppLockEnabled) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = prefAppLockPin,
+                                        onValueChange = {
+                                            if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                                                prefAppLockPin = it
+                                            }
+                                        },
+                                        label = { Text(if (prefLanguage == "bn") "৪-ডিজিট সিকিউরিটি পিন" else "4-digit Security PIN", color = AppTextColor().copy(alpha = 0.5f)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = AppTextColor(),
+                                            unfocusedTextColor = AppTextColor(),
+                                            focusedBorderColor = AccentCyan,
+                                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth().testTag("app_lock_pin_input")
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                GlassButton(
+                                    onClick = {
+                                        viewModel.updatePreferences(
+                                            language = prefLanguage,
+                                            themeMode = prefThemeMode,
+                                            showAdvancedPayment = prefShowAdvancedPayment,
+                                            appLockEnabled = prefAppLockEnabled,
+                                            appLockPin = if (prefAppLockPin.length == 4) prefAppLockPin else "1234",
+                                            defaultHotelId = prefDefaultHotelId
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().testTag("apply_preferences_button")
+                                ) {
+                                    Text(
+                                        text = if (prefLanguage == "bn") "পছন্দসমূহ সংরক্ষণ করুন" else "Apply Preferences",
+                                        color = AccentGreen,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

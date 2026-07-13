@@ -1,0 +1,8 @@
+{
+  "name": "Traker",
+  "description": "An offline-first, personal financial tracking application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

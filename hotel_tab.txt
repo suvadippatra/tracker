@@ -1,0 +1,184 @@
+fun HotelManagementTab(viewModel: FinancialViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hotels by viewModel.allHotels.collectAsState()
+    val activeHotelId by viewModel.activeHotelId.collectAsState()
+    val activeHotel by viewModel.activeHotel.collectAsState()
+    val monthlyTotal by viewModel.activeMonthTotal.collectAsState()
+    val popularMeals by viewModel.popularMeals.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+
+    var showHotelDropdown by remember { mutableStateOf(false) }
+    var showMealHistory by remember { mutableStateOf(false) }
+    var showAddMealFlow by remember { mutableStateOf(false) }
+
+    // Dialog edit fields
+    var showEditHotelDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf<HotelEntity?>(null) }
+    var editHotelName by remember { mutableStateOf("") }
+    var editHotelAdvanced by remember { mutableStateOf("") }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            // PRIMARY GLASS LEDGER CARD
+            if (hotels.isNotEmpty()) {
+                val initialPage = hotels.indexOfFirst { it.id == activeHotelId }.coerceAtLeast(0)
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                    initialPage = initialPage,
+                    pageCount = { hotels.size }
+                )
+                
+                LaunchedEffect(pagerState) {
+                    androidx.compose.runtime.snapshotFlow { pagerState.currentPage }.collect { page ->
+                        if (page in hotels.indices) {
+                            viewModel.activeHotelId.value = hotels[page].id
+                        }
+                    }
+                }
+                
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth(),
+                    pageSpacing = 16.dp,
+                    contentPadding = PaddingValues(horizontal = 0.dp)
+                ) { page ->
+                    val hotel = hotels[page]
+                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                    val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                    Box(modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    }) {
+                        GlassCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = hotel.name,
+                                        color = AppTextColor(),
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = "Call",
+                                            tint = AppTextColor(),
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .padding(end = 4.dp)
+                                                .clickable {
+                                                    if (hotel.phoneNumber.isNotBlank()) {
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:${hotel.phoneNumber}"))
+                                                        context.startActivity(intent)
+                                                    } else {
+                                                        android.widget.Toast.makeText(context, "No phone number added", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = "Info",
+                                            tint = AppTextColor(),
+                                            modifier = Modifier.size(24.dp).padding(end = 4.dp).clickable { showInfoDialog = hotel }
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More",
+                                            tint = AppTextColor(),
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clickable { showHotelDropdown = true }
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "monthly expenditure",
+                                        color = AppTextColor().copy(alpha = 0.9f),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text("₹ ", color = AppTextColor(), fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+                                        RollingNumberText(
+                                            value = if (hotel.id == activeHotelId) monthlyTotal else 0.0,
+                                            style = TextStyle(
+                                                color = AppTextColor(),
+                                                fontSize = 24.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.SansSerif
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (hotel.id == activeHotelId) {
+                            DropdownMenu(
+                                expanded = showHotelDropdown,
+                                onDismissRequest = { showHotelDropdown = false },
+                                modifier = Modifier
+                                    .background(getDialogBackground())
+                                    .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit this hotel", color = AccentCyan) },
+                                                                        onClick = {
+                                        showEditHotelDialog = true
+                                        showHotelDropdown = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export transactions", color = AppTextColor()) },
+                                                                        onClick = {
+                                                                                val txs = viewModel.activeHotelTransactions.value
+                                                                                val sb = java.lang.StringBuilder()
+                                        sb.append("Date,Type,Total\\n")
+                                        val sdf = java.text.SimpleDateFormat("dd MMM yyyy hh:mm a", java.util.Locale.getDefault())
+                                        for (t in txs) {
+                                            sb.append(sdf.format(java.util.Date(t.timestamp))).append(",")
+                                            sb.append(if (t.isNight) "Night" else "Day").append(",")
+                                            sb.append(t.totalAmount).append("\\n")
+                                        }
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/csv"
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "${hotel.name} Transactions")
+                                            putExtra(android.content.Intent.EXTRA_TEXT, sb.toString())
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(intent, "Export Transactions"))
+                                        showHotelDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Empty state if no hotel selected/available
+                EmptyStateCard(message = "No Hotels configured. Create one in Settings!")

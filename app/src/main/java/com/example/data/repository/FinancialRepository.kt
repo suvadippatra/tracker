@@ -1,0 +1,313 @@
+package com.example.data.repository
+
+import android.content.Context
+import android.util.Log
+import com.example.data.AppDatabase
+import com.example.data.model.BankAccountEntity
+import com.example.data.model.ExtraExpenseEntity
+import com.example.data.model.HotelEntity
+import com.example.data.model.HotelTransactionEntity
+import com.example.data.model.MenuEntity
+import com.example.data.model.UserProfileEntity
+import com.example.data.model.MeterReading
+import com.example.data.model.UtilityBill
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+class FinancialRepository(private val db: AppDatabase) {
+
+    private val userProfileDao = db.userProfileDao()
+    private val hotelDao = db.hotelDao()
+    private val menuDao = db.menuDao()
+    private val transactionDao = db.transactionDao()
+    private val bankAccountDao = db.bankAccountDao()
+    private val extraExpenseDao = db.extraExpenseDao()
+    private val meterDao = db.meterDao()
+
+    val userProfile: Flow<UserProfileEntity?> = userProfileDao.getUserProfile()
+    val allHotels: Flow<List<HotelEntity>> = hotelDao.getAllHotels()
+    val deletedHotels: Flow<List<HotelEntity>> = hotelDao.getDeletedHotels()
+    val allBankAccounts: Flow<List<BankAccountEntity>> = bankAccountDao.getAllBankAccounts()
+    val deletedBankAccounts: Flow<List<BankAccountEntity>> = bankAccountDao.getDeletedBankAccounts()
+    val allExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getAllExpenses()
+    val allTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getAllTransactions()
+    val allMenuItems: Flow<List<MenuEntity>> = menuDao.getAllMenuItems()
+
+    val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
+    val allUtilityBills: Flow<List<UtilityBill>> = meterDao.getAllUtilityBills()
+    val allElectricityRates: Flow<List<com.example.data.model.ElectricityRate>> = meterDao.getAllElectricityRates()
+
+    fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double> = meterDao.getSumOfUnitsConsumed(start, end)
+
+    suspend fun insertReading(reading: MeterReading) = meterDao.insertReading(reading)
+    suspend fun insertUtilityBill(bill: UtilityBill) = meterDao.insertUtilityBill(bill)
+    suspend fun deleteReading(reading: MeterReading) = meterDao.deleteReading(reading)
+    suspend fun deleteUtilityBill(bill: UtilityBill) = meterDao.deleteUtilityBill(bill)
+    suspend fun insertElectricityRate(rate: com.example.data.model.ElectricityRate) = meterDao.insertElectricityRate(rate)
+    suspend fun deleteElectricityRate(rate: com.example.data.model.ElectricityRate) = meterDao.deleteElectricityRate(rate)
+
+    fun getMenuForHotel(hotelId: Int): Flow<List<MenuEntity>> {
+        return menuDao.getMenuForHotel(hotelId)
+    }
+
+    fun getDeletedMenuForHotel(hotelId: Int): Flow<List<MenuEntity>> {
+        return menuDao.getDeletedMenuForHotel(hotelId)
+    }
+
+    fun getTransactionsForHotel(hotelId: Int): Flow<List<HotelTransactionEntity>> {
+        return transactionDao.getTransactionsForHotel(hotelId)
+    }
+
+    fun getHotelById(hotelId: Int): Flow<HotelEntity?> {
+        return hotelDao.getHotelById(hotelId)
+    }
+
+    suspend fun saveUserProfile(profile: UserProfileEntity) {
+        userProfileDao.insertOrUpdateProfile(profile)
+    }
+
+    
+    suspend fun insertMenu(menu: MenuEntity) {
+        withContext(Dispatchers.IO) {
+            menuDao.insertMenu(menu)
+        }
+    }
+    suspend fun updateMenu(menu: MenuEntity) {
+        withContext(Dispatchers.IO) {
+            menuDao.updateMenu(menu)
+        }
+    }
+    suspend fun deleteMenu(menu: MenuEntity) {
+        withContext(Dispatchers.IO) {
+            menuDao.deleteMenu(menu)
+        }
+    }
+
+    suspend fun insertHotel(hotel: HotelEntity): Long {
+        return hotelDao.insertHotel(hotel)
+    }
+
+    suspend fun updateHotel(hotel: HotelEntity) {
+        hotelDao.updateHotel(hotel)
+    }
+
+    suspend fun deleteHotel(hotel: HotelEntity) {
+        hotelDao.deleteHotel(hotel)
+    }
+
+    suspend fun insertTransaction(transaction: HotelTransactionEntity): Long {
+        return transactionDao.insertTransaction(transaction)
+    }
+
+    suspend fun deleteTransaction(transaction: HotelTransactionEntity) {
+        transactionDao.deleteTransaction(transaction)
+    }
+
+    suspend fun insertBankAccount(account: BankAccountEntity): Long {
+        return bankAccountDao.insertBankAccount(account)
+    }
+
+    suspend fun updateBankAccount(account: BankAccountEntity) {
+        bankAccountDao.updateBankAccount(account)
+    }
+
+    suspend fun deleteBankAccount(account: BankAccountEntity) {
+        bankAccountDao.deleteBankAccount(account)
+    }
+
+    suspend fun insertExpenseAndDeduct(expense: ExtraExpenseEntity, account: BankAccountEntity) {
+        extraExpenseDao.insertExpense(expense)
+        val change = if (expense.type == "INCOME") expense.amount else -expense.amount
+        val updatedAccount = account.copy(balance = account.balance + change)
+        bankAccountDao.updateBankAccount(updatedAccount)
+    }
+
+    suspend fun deleteExpenseAndRevert(expense: ExtraExpenseEntity, accounts: List<BankAccountEntity>) {
+        extraExpenseDao.deleteExpense(expense)
+        accounts.find { it.id == expense.bankAccountId }?.let { account ->
+            val change = if (expense.type == "INCOME") -expense.amount else expense.amount
+            val updatedAccount = account.copy(balance = account.balance + change)
+            bankAccountDao.updateBankAccount(updatedAccount)
+        }
+    }
+
+    suspend fun initializeDatabaseIfNeeded(context: Context) = withContext(Dispatchers.IO) {
+        try {
+            // 1. Verify User Profile
+            val profile = userProfile.first()
+            if (profile == null) {
+                userProfileDao.insertOrUpdateProfile(UserProfileEntity())
+            }
+        } catch (e: Exception) {
+            Log.e("FinancialRepository", "Error initializing database", e)
+        }
+    }
+
+    private fun normalizeName(name: String): String {
+        val lower = name.lowercase().trim()
+        if (lower.startsWith("thali rice & veg")) return "thali rice & veg"
+        return lower
+    }
+
+    private fun extractEnglishName(text: String): String {
+        val openParen = text.indexOf('(')
+        val closeParen = text.indexOf(')')
+        if (openParen != -1 && closeParen != -1 && closeParen > openParen) {
+            return text.substring(openParen + 1, closeParen).trim()
+        }
+        return text.trim()
+    }
+
+    private suspend fun parseCsvMenu(context: Context): List<MenuEntity> = withContext(Dispatchers.IO) {
+        val menuItems = mutableListOf<MenuEntity>()
+        val generalItems = mutableMapOf<String, Triple<String, String, Double>>() // NormalizedName -> (Bangla, English, Price)
+        val dayItems = mutableSetOf<String>() // Normalized Names
+        val nightItems = mutableSetOf<String>() // Normalized Names
+
+        try {
+            context.assets.open("Smriti_Hotel_Menu.csv").use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream, "UTF-8")).use { reader ->
+                    var line: String?
+                    var currentSection = 0 // 0 = General, 1 = Day Menu, 2 = Night Menu
+
+                    while (reader.readLine().also { line = it } != null) {
+                        val row = line ?: continue
+                        if (row.isBlank()) continue
+
+                        val parts = row.split(",")
+                        if (parts.isEmpty()) continue
+
+                        val firstCell = parts.getOrNull(0)?.trim() ?: ""
+                        val secondCell = parts.getOrNull(1)?.trim() ?: ""
+                        val thirdCell = parts.getOrNull(2)?.trim() ?: ""
+
+                        // Detect sections
+                        if (secondCell.contains("Day Menu") || firstCell.contains("Day Menu")) {
+                            currentSection = 1
+                        } else if (secondCell.contains("Night Menu") || firstCell.contains("Night Menu")) {
+                            currentSection = 2
+                        }
+
+                        when (currentSection) {
+                            0 -> {
+                                // Parse general items: ,নর্মাল ভাত,Plain Rice,35,,,
+                                if (parts.size >= 4 && secondCell.isNotBlank() && thirdCell.isNotBlank()) {
+                                    val price = parts[3].trim().toDoubleOrNull()
+                                    if (price != null) {
+                                        val bangla = secondCell
+                                        val english = thirdCell
+                                        generalItems[normalizeName(english)] = Triple(bangla, english, price)
+                                    }
+                                }
+                            }
+                            1 -> {
+                                // Day Menu: ,,চিকেন পিস (Chicken Piece),,,,
+                                // or ,Day Menu (দুপুর),নর্মাল ভাত (Plain Rice),,,,
+                                val itemCell = parts.getOrNull(2)?.trim() ?: parts.getOrNull(1)?.trim() ?: ""
+                                if (itemCell.isNotBlank() && !itemCell.contains("Day Menu")) {
+                                    val extracted = extractEnglishName(itemCell)
+                                    if (extracted.isNotBlank()) {
+                                        dayItems.add(normalizeName(extracted))
+                                    }
+                                }
+                            }
+                            2 -> {
+                                // Night Menu: ,,চিকেন পিস (Chicken Piece),,,,
+                                // or ,Night Menu (রাত),রুটি (Roti),,,,
+                                val itemCell = parts.getOrNull(2)?.trim() ?: parts.getOrNull(1)?.trim() ?: ""
+                                if (itemCell.isNotBlank() && !itemCell.contains("Night Menu")) {
+                                    val extracted = extractEnglishName(itemCell)
+                                    if (extracted.isNotBlank()) {
+                                        nightItems.add(normalizeName(extracted))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Map general items to their categorized day/night/add-on roles
+            val addOnNames = setOf(
+                "chicken piece", "fish piece", "egg curry", "omelette",
+                "thali extras", "thali vegs", "normal vegs", "curd"
+            )
+
+            // Combine all unique item names from Day and Night lists
+            val allUniqueNames = (dayItems + nightItems).toSet()
+
+            for (normName in allUniqueNames) {
+                val generalInfo = generalItems[normName] ?: generalItems[normalizeName(normName)]
+                if (generalInfo != null) {
+                    val bangla = generalInfo.first
+                    val english = generalInfo.second
+                    val price = generalInfo.third
+                    val isDay = dayItems.contains(normName) || dayItems.contains(normalizeName(english))
+                    val isNight = nightItems.contains(normName) || nightItems.contains(normalizeName(english))
+                    val isAddOn = addOnNames.contains(normalizeName(english))
+
+                    menuItems.add(
+                        MenuEntity(
+                            banglaName = bangla,
+                            englishName = english,
+                            price = price,
+                            isDayMenu = isDay,
+                            isNightMenu = isNight,
+                            isAddOn = isAddOn
+                        )
+                    )
+                }
+            }
+
+            // In case some items from general list are missing in sections, let's include them based on basic rules
+            if (menuItems.isEmpty() && generalItems.isNotEmpty()) {
+                for ((norm, triple) in generalItems) {
+                    val isAddOn = addOnNames.contains(norm)
+                    // Defaults
+                    menuItems.add(
+                        MenuEntity(
+                            banglaName = triple.first,
+                            englishName = triple.second,
+                            price = triple.third,
+                            isDayMenu = !norm.contains("roti") && !norm.contains("luchi") && !norm.contains("aloo paratha"),
+                            isNightMenu = norm.contains("roti") || norm.contains("luchi") || norm.contains("aloo paratha") || norm.contains("chicken") || norm.contains("fish") || norm.contains("egg") || norm.contains("omelette"),
+                            isAddOn = isAddOn
+                        )
+                    )
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e("FinancialRepository", "Error parsing menu CSV", e)
+        }
+
+        return@withContext menuItems
+    }
+
+    private fun getFallbackMenu(): List<MenuEntity> {
+        return listOf(
+            MenuEntity(banglaName = "নর্মাল ভাত", englishName = "Plain Rice", price = 35.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
+            MenuEntity(banglaName = "চিকেন পিস", englishName = "Chicken Piece", price = 20.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
+            MenuEntity(banglaName = "মাছ পিস", englishName = "Fish Piece", price = 20.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
+            MenuEntity(banglaName = "ডিম কারি", englishName = "Egg Curry", price = 15.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
+            MenuEntity(banglaName = "ওমলেট", englishName = "Omelette", price = 15.0, isDayMenu = false, isNightMenu = true, isAddOn = true),
+            MenuEntity(banglaName = "নর্মাল ভাত + থালি ডাল-সবজি", englishName = "Rice + Thali Vegs", price = 50.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
+            MenuEntity(banglaName = "থালি ভাত + থালি ডাল-সবজি", englishName = "Thali Rice & Veg", price = 60.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
+            MenuEntity(banglaName = "ভেজ থালি", englishName = "Veg Thali", price = 70.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
+            MenuEntity(banglaName = "থালির ভাজাভুজি", englishName = "Thali Extras", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
+            MenuEntity(banglaName = "থালি সবজি", englishName = "Thali Vegs", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
+            MenuEntity(banglaName = "নর্মাল সবজি", englishName = "Normal Vegs", price = 10.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
+            MenuEntity(banglaName = "দই", englishName = "Curd", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
+            MenuEntity(banglaName = "খিচুড়ি", englishName = "Khichuri", price = 40.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
+            MenuEntity(banglaName = "পোলাউ", englishName = "Pulao", price = 60.0, isDayMenu = true, isNightMenu = true, isAddOn = false),
+            MenuEntity(banglaName = "ফ্রাইড রাইস + চিকেন", englishName = "Fried Rice + Chicken", price = 80.0, isDayMenu = true, isNightMenu = true, isAddOn = false),
+            MenuEntity(banglaName = "রুটি", englishName = "Roti", price = 5.0, isDayMenu = false, isNightMenu = true, isAddOn = false),
+            MenuEntity(banglaName = "নুচি", englishName = "Luchi", price = 5.0, isDayMenu = false, isNightMenu = true, isAddOn = false),
+            MenuEntity(banglaName = "আলু পরোটা", englishName = "Aloo Paratha", price = 15.0, isDayMenu = false, isNightMenu = true, isAddOn = false)
+        )
+    }
+}
