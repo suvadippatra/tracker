@@ -29,6 +29,8 @@ import com.example.ui.viewmodel.MeterReadingUiState
 import com.example.ui.viewmodel.MeterReadingViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.ui.components.MeterDialPicker
+import com.example.ui.components.CylindricalDateTimePicker
 
 @Composable
 fun BillTrackingTab(
@@ -184,12 +186,14 @@ fun DailyReadingInputScreen(
     isLight: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val lastReadingValue = successState.readings.firstOrNull()?.unitsConsumed ?: 15.0
-    var unitsStr by remember(lastReadingValue) { mutableStateOf(String.format(Locale.US, "%.1f", lastReadingValue)) }
+    val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
+    val initialReading = latestMeterReading?.totalReading ?: 0.0
+    
+    var totalReadingValue by remember(initialReading) { mutableStateOf(initialReading) }
     var readingDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDateTimePicker by remember { mutableStateOf(false) }
 
-    val formatter = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
+    val formatter = remember { SimpleDateFormat("dd MMM, yyyy  HH:mm", Locale.getDefault()) }
 
     LazyColumn(
         modifier = modifier,
@@ -220,21 +224,21 @@ fun DailyReadingInputScreen(
                             .bounceClick()
                             .clip(RoundedCornerShape(12.dp))
                             .background(AppTextColor().copy(alpha = 0.05f))
-                            .clickable { showDatePicker = true }
+                            .clickable { showDateTimePicker = true }
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = "Select Date",
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = "Select Date Time",
                                 tint = AccentCyan,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (language == "bn") "রিডিংয়ের তারিখ:" else "Reading Date:",
+                                text = if (language == "bn") "রিডিংয়ের সময়:" else "Reading Timestamp:",
                                 color = AppTextColor().copy(alpha = 0.6f),
                                 fontSize = 13.sp
                             )
@@ -242,7 +246,7 @@ fun DailyReadingInputScreen(
                         Text(
                             text = formatter.format(Date(readingDateMillis)),
                             color = AccentCyan,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -250,116 +254,24 @@ fun DailyReadingInputScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = if (language == "bn") "ব্যবহৃত বিদ্যুতের ইউনিট" else "Units Consumed",
+                        text = if (language == "bn") "মিটারের রিডিং সেট করুন" else "Set Meter Total Reading",
                         color = AppTextColor().copy(alpha = 0.6f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = unitsStr,
-                            color = AccentCyan,
-                            fontSize = 44.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "kWh",
-                            color = AppTextColor().copy(alpha = 0.4f),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.Bottom)
-                        )
-                    }
-
-                    // Frictionless Stepper & Slider
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                val current = unitsStr.toDoubleOrNull() ?: lastReadingValue
-                                if (current > 0.1) {
-                                    unitsStr = String.format(Locale.US, "%.1f", current - 0.5)
-                                }
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .bounceClick()
-                                .background(AppTextColor().copy(alpha = 0.05f), RoundedCornerShape(10.dp))
-                        ) {
-                            Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = AppTextColor())
-                        }
-
-                        val currentUnits = unitsStr.toDoubleOrNull() ?: lastReadingValue
-                        Slider(
-                            value = currentUnits.toFloat(),
-                            onValueChange = {
-                                unitsStr = String.format(Locale.US, "%.1f", it.toDouble())
-                            },
-                            valueRange = 0f..(lastReadingValue.toFloat() + 100f).coerceAtLeast(150f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = AccentCyan,
-                                activeTrackColor = AccentCyan,
-                                inactiveTrackColor = AppTextColor().copy(alpha = 0.1f)
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 16.dp)
-                        )
-
-                        IconButton(
-                            onClick = {
-                                val current = unitsStr.toDoubleOrNull() ?: lastReadingValue
-                                unitsStr = String.format(Locale.US, "%.1f", current + 0.5)
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .bounceClick()
-                                .background(AppTextColor().copy(alpha = 0.05f), RoundedCornerShape(10.dp))
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Increase", tint = AppTextColor())
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    OutlinedTextField(
-                        value = unitsStr,
-                        onValueChange = {
-                            if (it.isEmpty() || it.toDoubleOrNull() != null || it == ".") {
-                                unitsStr = it
-                            }
-                        },
-                        label = { Text(if (language == "bn") "সরাসরি ইনপুট দিন" else "Direct Unit Entry", color = AppTextColor().copy(alpha = 0.4f)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedBorderColor = AccentCyan,
-                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.2f)
-                        ),
-                        modifier = Modifier.fillMaxWidth(0.8f)
+                    MeterDialPicker(
+                        initialValue = totalReadingValue,
+                        onValueChange = { totalReadingValue = it },
+                        textColor = AppTextColor(),
+                        accentColor = AccentCyan
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
-                            val finalUnits = unitsStr.toDoubleOrNull() ?: lastReadingValue
-                            viewModel.insertReading(finalUnits, readingDateMillis)
-                            unitsStr = String.format(Locale.US, "%.1f", lastReadingValue)
+                            viewModel.insertReading(totalReadingValue, readingDateMillis)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
                         shape = RoundedCornerShape(14.dp),
@@ -418,7 +330,10 @@ fun DailyReadingInputScreen(
                 }
             }
         } else {
-            items(successState.readings.take(8)) { reading ->
+            items(successState.readings.take(20)) { reading ->
+                val readingColor = if (reading.isPaid) AppTextColor() else Color.Red
+                val displayFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
+                
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -437,21 +352,32 @@ fun DailyReadingInputScreen(
                                 Icon(
                                     imageVector = Icons.Default.OfflineBolt,
                                     contentDescription = "Bolt",
-                                    tint = AccentCyan,
+                                    tint = if (reading.isPaid) AccentCyan else Color.Red,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "${reading.unitsConsumed} Units",
+                                        color = readingColor,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (!reading.isPaid) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (language == "bn") "(বাকি)" else "(Unpaid)",
+                                            color = Color.Red,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                                 Text(
-                                    text = "${reading.unitsConsumed} Units",
-                                    color = AppTextColor(),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = formatter.format(Date(reading.readingDate)),
-                                    color = AppTextColor().copy(alpha = 0.5f),
+                                    text = "${displayFormatter.format(Date(reading.readingDate))} | Total: ${reading.totalReading}",
+                                    color = readingColor.copy(alpha = 0.5f),
                                     fontSize = 11.sp
                                 )
                             }
@@ -474,13 +400,31 @@ fun DailyReadingInputScreen(
         }
     }
 
-    if (showDatePicker) {
-        SlidingDatePickerModal(
-            initialDateMillis = readingDateMillis,
-            onDateSelected = { readingDateMillis = it },
-            onDismiss = { showDatePicker = false },
-            textColor = AppTextColor(),
-            backgroundColor = getDialogBackground()
+    if (showDateTimePicker) {
+        AlertDialog(
+            onDismissRequest = { showDateTimePicker = false },
+            containerColor = getDialogBackground(),
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    text = if (language == "bn") "তারিখ ও সময় সেট করুন" else "Set Date & Time",
+                    color = AppTextColor(),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                CylindricalDateTimePicker(
+                    initialDateTime = readingDateMillis,
+                    onDateTimeChange = { readingDateMillis = it },
+                    textColor = AppTextColor()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showDateTimePicker = false }) {
+                    Text("OK", color = AccentCyan, fontWeight = FontWeight.Bold)
+                }
+            }
         )
     }
 }
@@ -495,16 +439,27 @@ fun BillSummaryScreen(
     modifier: Modifier = Modifier
 ) {
     val formatter = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
+    
+    // Logic: Default start date to the oldest unpaid reading
+    val oldestUnpaid = successState.readings.filter { !it.isPaid }.minByOrNull { it.readingDate }
+    val defaultStart = oldestUnpaid?.readingDate ?: (successState.readings.lastOrNull()?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000))
+    val defaultEnd = System.currentTimeMillis()
+
+    var startMillis by remember(successState.readings.size) { mutableStateOf(defaultStart) }
+    var endMillis by remember { mutableStateOf(defaultEnd) }
+    
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
-    val startMillis by viewModel.calculationStartDate.collectAsStateWithLifecycle()
-    val endMillis by viewModel.calculationEndDate.collectAsStateWithLifecycle()
     val flatRate by viewModel.flatRatePerUnit.collectAsStateWithLifecycle()
     val fixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
 
     var showParamEdit by remember { mutableStateOf(false) }
     var showGenerateBillDialog by remember { mutableStateOf(false) }
+
+    // Check if range includes paid session
+    val paidSessionsInRange = successState.readings.filter { it.readingDate in startMillis..endMillis && it.isPaid }
+    val includesPaid = paidSessionsInRange.isNotEmpty()
 
     LazyColumn(
         modifier = modifier,
@@ -526,6 +481,35 @@ fun BillSummaryScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    if (includesPaid) {
+                        val firstPaid = paidSessionsInRange.minByOrNull { it.readingDate }?.readingDate ?: 0L
+                        val lastPaid = paidSessionsInRange.maxByOrNull { it.readingDate }?.readingDate ?: 0L
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AccentPink.copy(alpha = 0.12f))
+                                .border(1.dp, AccentPink.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = AccentPink, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (language == "bn") 
+                                        "সতর্কতা: এই সময়সীমার মধ্যে পরিশোধিত সেশন রয়েছে (${formatter.format(Date(firstPaid))} থেকে ${formatter.format(Date(lastPaid))})" 
+                                        else "Strong Warning: Selected range includes paid sessions from ${formatter.format(Date(firstPaid))} to ${formatter.format(Date(lastPaid))}.",
+                                    color = AccentPink,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -709,15 +693,16 @@ fun BillSummaryScreen(
 
         item {
             Text(
-                text = if (language == "bn") "ঐতিহাসিক বিলসমূহ" else "Generated Bill History",
+                text = if (language == "bn") "পরিশোধিত বিলের ইতিহাস" else "Paid Bill History",
                 color = AppTextColor(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp)
             )
         }
 
-        if (successState.bills.isEmpty()) {
+        val paidBills = successState.bills.filter { it.isPaid }
+        if (paidBills.isEmpty()) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Box(
@@ -735,7 +720,7 @@ fun BillSummaryScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (language == "bn") "কোনো বিল জেনারেট করা হয়নি" else "No bills generated yet.",
+                                text = if (language == "bn") "কোনো পরিশোধিত বিল নেই" else "No paid bill records found.",
                                 color = AppTextColor().copy(alpha = 0.4f),
                                 fontSize = 13.sp
                             )
@@ -744,7 +729,7 @@ fun BillSummaryScreen(
                 }
             }
         } else {
-            items(successState.bills) { bill ->
+            items(paidBills) { bill ->
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier
@@ -825,7 +810,10 @@ fun BillSummaryScreen(
     if (showStartPicker) {
         SlidingDatePickerModal(
             initialDateMillis = startMillis,
-            onDateSelected = { viewModel.setCalculationDateRange(it, endMillis) },
+            onDateSelected = { 
+                startMillis = it
+                viewModel.setCalculationDateRange(it, endMillis) 
+            },
             onDismiss = { showStartPicker = false },
             textColor = AppTextColor(),
             backgroundColor = getDialogBackground()
@@ -835,7 +823,10 @@ fun BillSummaryScreen(
     if (showEndPicker) {
         SlidingDatePickerModal(
             initialDateMillis = endMillis,
-            onDateSelected = { viewModel.setCalculationDateRange(startMillis, it) },
+            onDateSelected = { 
+                endMillis = it
+                viewModel.setCalculationDateRange(startMillis, it) 
+            },
             onDismiss = { showEndPicker = false },
             textColor = AppTextColor(),
             backgroundColor = getDialogBackground()
@@ -843,104 +834,106 @@ fun BillSummaryScreen(
     }
 
     if (showParamEdit) {
+        var chargeInput by remember { mutableStateOf(fixedCharge.toString()) }
         var rateInput by remember { mutableStateOf("") }
         var rateDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
         var showRateDatePicker by remember { mutableStateOf(false) }
-        var chargeInput by remember { mutableStateOf(fixedCharge.toString()) }
 
         AlertDialog(
             onDismissRequest = { showParamEdit = false },
             containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             title = {
-                Text(
-                    text = if (language == "bn") "ইউটিলিটি প্যারামিটার সেটিংস" else "Utility Configuration",
-                    color = AppTextColor(),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.SettingsSuggest, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = if (language == "bn") "ইউটিলিটি প্যারামিটার সেটিংস" else "Utility Configuration",
+                        color = AppTextColor(),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 20.sp
+                    )
+                }
             },
             text = {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp)
                 ) {
                     item {
+                        Text(
+                            text = if (language == "bn") "সার্ভিস প্যারামিটার" else "Service Parameters",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
                         OutlinedTextField(
                             value = chargeInput,
                             onValueChange = { chargeInput = it },
-                            label = { Text(if (language == "bn") "সার্ভিস চার্জ (₹)" else "Fixed Service Charge (₹)", color = AppTextColor().copy(alpha = 0.5f)) },
+                            label = { Text(if (language == "bn") "সার্ভিস চার্জ (₹)" else "Fixed Service Charge (₹)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null, tint = AccentCyan) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = AppTextColor(),
                                 unfocusedTextColor = AppTextColor(),
-                                focusedBorderColor = AccentCyan
+                                focusedBorderColor = AccentCyan,
+                                cursorColor = AccentCyan
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
 
                     item {
-                        Text(
-                            text = if (language == "bn") "তারিখ ভিত্তিক রেট পরিবর্তন" else "Historical Rates over Time",
-                            color = AppTextColor(),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        Text(
-                            text = if (language == "bn") "নির্দিষ্ট তারিখ থেকে নতুন রেট স্বয়ংক্রিয়ভাবে কার্যকর হবে।" else "New rates apply automatically starting from their effective dates.",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+                        Divider(color = AppTextColor().copy(alpha = 0.1f), thickness = 1.dp)
                     }
 
-                    // Add new rate change row
                     item {
-                        GlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text(
-                                    text = if (language == "bn") "নতুন রেট যুক্ত করুন" else "Add New Rate Change",
-                                    color = AccentCyan,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (language == "bn") "নতুন রেট যুক্ত করুন" else "Add New Rate Policy",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        GlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.2f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     OutlinedTextField(
                                         value = rateInput,
                                         onValueChange = { rateInput = it },
-                                        placeholder = { Text("Rate e.g. 8.5", fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.4f)) },
+                                        placeholder = { Text("Price/Unit", fontSize = 12.sp) },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = AppTextColor(),
-                                            unfocusedTextColor = AppTextColor(),
-                                            focusedBorderColor = AccentCyan
-                                        ),
-                                        modifier = Modifier.weight(1.2f)
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f)
                                     )
-
+                                    
                                     Box(
                                         modifier = Modifier
-                                            .weight(1.5f)
-                                            .clip(RoundedCornerShape(8.dp))
+                                            .weight(1.2f)
+                                            .clip(RoundedCornerShape(12.dp))
                                             .background(AppTextColor().copy(alpha = 0.05f))
                                             .clickable { showRateDatePicker = true }
-                                            .padding(8.dp),
+                                            .padding(vertical = 12.dp, horizontal = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = formatter.format(Date(rateDateMillis)),
                                             color = AccentCyan,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-
+                                    
                                     IconButton(
                                         onClick = {
                                             val r = rateInput.toDoubleOrNull()
@@ -949,54 +942,71 @@ fun BillSummaryScreen(
                                                 rateInput = ""
                                             }
                                         },
-                                        modifier = Modifier.background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .background(AccentCyan, RoundedCornerShape(12.dp))
                                     ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Add", tint = AccentCyan)
+                                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.Black)
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Configured historical rates list
+                    item {
+                        Text(
+                            text = if (language == "bn") "সক্রিয় রেট লিস্ট" else "Active Rate Policies",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+
                     if (successState.rates.isEmpty()) {
                         item {
-                            Text(
-                                text = if (language == "bn") "কোনো কাস্টম রেট সেট করা নেই (ডিফল্ট: ₹৭.৫০)" else "No custom rates set (Default: ₹7.50/unit)",
-                                color = AppTextColor().copy(alpha = 0.5f),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (language == "bn") "ডিফল্ট: ₹৭.৫০/ইউনিট" else "Default: ₹7.50 / Unit",
+                                    color = AppTextColor().copy(alpha = 0.4f),
+                                    fontSize = 13.sp
+                                )
+                            }
                         }
                     } else {
                         items(successState.rates) { rate ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(AppTextColor().copy(alpha = 0.03f))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AppTextColor().copy(alpha = 0.05f))
+                                    .padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
                                     Text(
-                                        text = "${currency} ${rate.ratePerUnit}/unit",
+                                        text = "$currency ${rate.ratePerUnit} / Unit",
                                         color = AppTextColor(),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp
                                     )
                                     Text(
                                         text = "${if (language == "bn") "কার্যকর:" else "Effective:"} ${formatter.format(Date(rate.effectiveDate))}",
                                         color = AppTextColor().copy(alpha = 0.5f),
-                                        fontSize = 10.sp
+                                        fontSize = 11.sp
                                     )
                                 }
                                 IconButton(
                                     onClick = { viewModel.deleteElectricityRate(rate) },
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AccentPink, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.DeleteForever, contentDescription = "Delete", tint = AccentPink)
                                 }
                             }
                         }
@@ -1004,14 +1014,16 @@ fun BillSummaryScreen(
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val charge = chargeInput.toDoubleOrNull() ?: fixedCharge
                         viewModel.updateCalculationParameters(flatRate, charge)
                         showParamEdit = false
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (language == "bn") "সম্পন্ন" else "Done", color = AccentCyan, fontWeight = FontWeight.Bold)
+                    Text(if (language == "bn") "সম্পন্ন" else "Done", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         )

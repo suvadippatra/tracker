@@ -54,6 +54,9 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
     val allElectricityRates = repository.allElectricityRates
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val latestMeterReading = repository.latestReading
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     private val dateRangeFlow = combine(calculationStartDate, calculationEndDate) { start, end ->
         start to end
     }
@@ -103,12 +106,17 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MeterReadingUiState.Loading)
 
     // Insertion & Deletion Methods
-    fun insertReading(unitsConsumed: Double, dateMillis: Long) {
+    fun insertReading(totalReading: Double, dateMillis: Long) {
         viewModelScope.launch {
             try {
+                val lastReading = latestMeterReading.value
+                val consumed = if (lastReading == null) 0.0 else totalReading - lastReading.totalReading
+                
                 val reading = MeterReading(
                     readingDate = dateMillis,
-                    unitsConsumed = unitsConsumed
+                    totalReading = totalReading,
+                    unitsConsumed = if (consumed < 0) 0.0 else consumed, // Safety check
+                    isPaid = false
                 )
                 repository.insertReading(reading)
             } catch (e: Exception) {
@@ -138,6 +146,9 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
                     transactionId = transactionId
                 )
                 repository.insertUtilityBill(bill)
+                if (isPaid) {
+                    repository.updateReadingsPaidStatus(startDate, endDate, true)
+                }
             } catch (e: Exception) {
                 // Handled
             }
@@ -168,7 +179,9 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
 
     fun toggleBillPayment(bill: UtilityBill) {
         viewModelScope.launch {
-            repository.insertUtilityBill(bill.copy(isPaid = !bill.isPaid))
+            val newIsPaid = !bill.isPaid
+            repository.insertUtilityBill(bill.copy(isPaid = newIsPaid))
+            repository.updateReadingsPaidStatus(bill.startDate, bill.endDate, newIsPaid)
         }
     }
 

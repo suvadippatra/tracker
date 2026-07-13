@@ -34,7 +34,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UtilityBill::class,
         com.example.data.model.ElectricityRate::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

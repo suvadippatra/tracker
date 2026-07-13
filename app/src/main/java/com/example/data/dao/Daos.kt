@@ -147,6 +147,12 @@ interface MeterDao {
     @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE readingDate >= :start AND readingDate <= :end")
     fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double>
 
+    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE readingDate >= :start AND readingDate <= :end")
+    suspend fun updateReadingsPaidStatus(start: Long, end: Long, isPaid: Boolean)
+
+    @Query("SELECT * FROM meter_readings ORDER BY readingDate DESC LIMIT 1")
+    fun getLatestReading(): Flow<MeterReading?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUtilityBill(bill: UtilityBill)
 

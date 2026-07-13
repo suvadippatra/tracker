@@ -622,6 +622,7 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
 fun GlassCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 20.dp,
+    border: BorderStroke? = null,
     content: @Composable () -> Unit
 ) {
     val isLight = isAppLightMode()
@@ -642,10 +643,13 @@ fun GlassCard(
                 brush = Brush.verticalGradient(colors = bgColors),
                 shape = RoundedCornerShape(cornerRadius)
             )
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(colors = borderColors),
-                shape = RoundedCornerShape(cornerRadius)
+            .then(
+                if (border != null) Modifier.border(border, RoundedCornerShape(cornerRadius))
+                else Modifier.border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(colors = borderColors),
+                    shape = RoundedCornerShape(cornerRadius)
+                )
             )
             .drawBehind {
                 drawRect(

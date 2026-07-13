@@ -40,8 +40,11 @@ class FinancialRepository(private val db: AppDatabase) {
     val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
     val allUtilityBills: Flow<List<UtilityBill>> = meterDao.getAllUtilityBills()
     val allElectricityRates: Flow<List<com.example.data.model.ElectricityRate>> = meterDao.getAllElectricityRates()
+    val latestReading: Flow<MeterReading?> = meterDao.getLatestReading()
 
     fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double> = meterDao.getSumOfUnitsConsumed(start, end)
+
+    suspend fun updateReadingsPaidStatus(start: Long, end: Long, isPaid: Boolean) = meterDao.updateReadingsPaidStatus(start, end, isPaid)
 
     suspend fun insertReading(reading: MeterReading) = meterDao.insertReading(reading)
     suspend fun insertUtilityBill(bill: UtilityBill) = meterDao.insertUtilityBill(bill)

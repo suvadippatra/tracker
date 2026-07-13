@@ -113,8 +113,10 @@ object TransactionSerializer {
 data class MeterReading(
     @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val readingDate: Long,
+    val totalReading: Double,
     val unitsConsumed: Double,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isPaid: Boolean = false
 )
 
 @Entity(tableName = "utility_bills")
