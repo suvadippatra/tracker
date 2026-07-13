@@ -4336,6 +4336,7 @@ fun SettingsDialog(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val userProfile by viewModel.userProfile.collectAsState()
     val hotels by viewModel.allHotels.collectAsState()
     val accounts by viewModel.allBankAccounts.collectAsState()
@@ -5034,6 +5035,11 @@ fun SettingsDialog(
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(12.dp))
                                                     .background(AppTextColor().copy(alpha = 0.04f))
+                                                    .clickable {
+                                                        viewModel.restoreHotel(hotel)
+                                                        val msg = if (prefLanguage == "bn") "${hotel.name} পুনরুদ্ধার করা হয়েছে" else "${hotel.name} restored to Hotels"
+                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
                                                     .padding(12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -5059,7 +5065,11 @@ fun SettingsDialog(
                                                 }
                                                 // Restore Button
                                                 IconButton(
-                                                    onClick = { viewModel.restoreHotel(hotel) }
+                                                    onClick = {
+                                                        viewModel.restoreHotel(hotel)
+                                                        val msg = if (prefLanguage == "bn") "${hotel.name} পুনরুদ্ধার করা হয়েছে" else "${hotel.name} restored to Hotels"
+                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Refresh,
@@ -5089,6 +5099,11 @@ fun SettingsDialog(
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(12.dp))
                                                     .background(AppTextColor().copy(alpha = 0.04f))
+                                                    .clickable {
+                                                        viewModel.restoreVirtualAccount(acc)
+                                                        val msg = if (prefLanguage == "bn") "${acc.name} পুনরুদ্ধার করা হয়েছে" else "${acc.name} restored to Accounts"
+                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
                                                     .padding(12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -5114,7 +5129,11 @@ fun SettingsDialog(
                                                 }
                                                 // Restore Button
                                                 IconButton(
-                                                    onClick = { viewModel.restoreVirtualAccount(acc) }
+                                                    onClick = {
+                                                        viewModel.restoreVirtualAccount(acc)
+                                                        val msg = if (prefLanguage == "bn") "${acc.name} পুনরুদ্ধার করা হয়েছে" else "${acc.name} restored to Accounts"
+                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Refresh,
