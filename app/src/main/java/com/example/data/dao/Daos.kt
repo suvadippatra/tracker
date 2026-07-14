@@ -190,3 +190,33 @@ interface TransactionCategoryDao {
     @Delete
     suspend fun deleteCategory(category: TransactionCategoryEntity)
 }
+
+@Dao
+interface AttachmentDao {
+    @Query("SELECT * FROM attachments WHERE expenseId = :expenseId ORDER BY timestamp ASC")
+    fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAttachment(attachment: com.example.data.model.AttachmentEntity): Long
+
+    @Delete
+    suspend fun deleteAttachment(attachment: com.example.data.model.AttachmentEntity)
+
+    @Query("DELETE FROM attachments WHERE expenseId = :expenseId")
+    suspend fun deleteAttachmentsForExpense(expenseId: Int)
+}
+
+@Dao
+interface OwnerAccountDao {
+    @Query("SELECT * FROM owner_accounts ORDER BY id ASC")
+    fun getAllOwnerAccounts(): Flow<List<com.example.data.model.OwnerAccountEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity): Long
+
+    @Update
+    suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity)
+
+    @Delete
+    suspend fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity)
+}

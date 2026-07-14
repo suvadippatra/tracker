@@ -1,4 +1,5 @@
 package com.example.ui.viewmodel
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 
 import android.app.Application
@@ -16,6 +17,8 @@ import com.example.data.model.OrderedItem
 import com.example.data.model.TransactionSerializer
 import com.example.data.model.UserProfileEntity
 import com.example.data.repository.FinancialRepository
+import com.example.data.model.SearchResult
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -77,6 +80,25 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     val allCategories: StateFlow<List<com.example.data.model.TransactionCategoryEntity>> = repository.allCategories
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = repository.allOwnerAccounts
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> {
+        return repository.getAttachmentsForExpense(expenseId)
+    }
+
+    fun addOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
+        viewModelScope.launch { repository.insertOwnerAccount(account) }
+    }
+
+    fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
+        viewModelScope.launch { repository.updateOwnerAccount(account) }
+    }
+
+    fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
+        viewModelScope.launch { repository.deleteOwnerAccount(account) }
+    }
 
     val allMenuItems: StateFlow<List<MenuEntity>> = activeHotelId
         .flatMapLatest { id -> repository.getMenuForHotel(id) }
@@ -240,7 +262,8 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         receiptUri: String?,
         type: String = "EXPENSE",
         category: String = "General",
-        notes: String = ""
+        notes: String = "",
+        attachments: List<Pair<String, String>> = emptyList() // uri to type
     ) {
         val accounts = allBankAccounts.value
         val selectedAccount = accounts.find { it.id == bankAccountId } ?: return
@@ -256,8 +279,47 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                 category = category,
                 notes = notes
             )
-            repository.insertExpenseAndDeduct(expense, selectedAccount)
+            val id = repository.insertExpenseAndDeduct(expense, selectedAccount)
+            
+            attachments.forEach { (uriString, type) ->
+                val secureUri = copyToInternalStorage(uriString, type)
+                repository.insertAttachment(
+                    com.example.data.model.AttachmentEntity(
+                        expenseId = id.toInt(),
+                        uri = secureUri,
+                        type = type
+                    )
+                )
+            }
         }
+    }
+
+    private fun copyToInternalStorage(uriString: String, type: String): String {
+        if (uriString.startsWith("file:///android_asset/") || uriString.startsWith("content://")) {
+            try {
+                val context = getApplication<Application>()
+                val uri = Uri.parse(uriString)
+                val extension = when(type) {
+                    "IMAGE" -> "jpg"
+                    "PDF" -> "pdf"
+                    "VOICE" -> "amr"
+                    else -> "dat"
+                }
+                val fileName = "secure_${System.currentTimeMillis()}_${(0..1000).random()}.$extension"
+                val file = java.io.File(context.filesDir, "attachments/$fileName")
+                file.parentFile?.mkdirs()
+                
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                return Uri.fromFile(file).toString()
+            } catch (e: Exception) {
+                Log.e("FinancialViewModel", "Failed to copy to internal storage", e)
+            }
+        }
+        return uriString
     }
 
     fun deleteExtraExpense(expense: ExtraExpenseEntity) {
@@ -380,6 +442,37 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
             repository.deleteHotel(hotel)
         }
     }
+
+    // Global Search State
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    val searchResults: StateFlow<List<SearchResult>> = _searchQuery
+        .debounce(300L)
+        .combine(allHotels) { query, hotels -> query to hotels }
+        .combine(allExtraExpenses) { (query, hotels), expenses -> Triple(query, hotels, expenses) }
+        .combine(allBankAccounts) { (query, hotels, expenses), accounts -> 
+            val results = mutableListOf<SearchResult>()
+            if (query.isBlank()) return@combine emptyList<SearchResult>()
+            
+            val lowercaseQuery = query.lowercase()
+            
+            hotels.filter { it.name.lowercase().contains(lowercaseQuery) || it.location.lowercase().contains(lowercaseQuery) }
+                .forEach { results.add(SearchResult(it.id, it.name, "Hotel", it.location)) }
+                
+            expenses.filter { it.name.lowercase().contains(lowercaseQuery) || it.category.lowercase().contains(lowercaseQuery) || it.notes.lowercase().contains(lowercaseQuery) }
+                .forEach { results.add(SearchResult(it.id, it.name, "Expense", "${it.category} - ₹${it.amount}")) }
+                
+            accounts.filter { it.name.lowercase().contains(lowercaseQuery) }
+                .forEach { results.add(SearchResult(it.id, it.name, "Account", "Balance: ₹${it.balance}")) }
+                
+            results
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun updateProfile(name: String, contact: String, avatar: String) {
         viewModelScope.launch {

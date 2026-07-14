@@ -23,6 +23,11 @@ import com.example.data.model.UtilityBill
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+import com.example.data.model.AttachmentEntity
+import com.example.data.model.OwnerAccountEntity
+import com.example.data.dao.AttachmentDao
+import com.example.data.dao.OwnerAccountDao
+
 @Database(
     entities = [
         UserProfileEntity::class,
@@ -34,9 +39,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MeterReading::class,
         UtilityBill::class,
         com.example.data.model.ElectricityRate::class,
-        com.example.data.model.TransactionCategoryEntity::class
+        com.example.data.model.TransactionCategoryEntity::class,
+        AttachmentEntity::class,
+        OwnerAccountEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +55,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun extraExpenseDao(): ExtraExpenseDao
     abstract fun meterDao(): MeterDao
     abstract fun transactionCategoryDao(): TransactionCategoryDao
+    abstract fun attachmentDao(): AttachmentDao
+    abstract fun ownerAccountDao(): OwnerAccountDao
     companion object {
 
         val MIGRATION_8_9 = object : Migration(8, 9) {

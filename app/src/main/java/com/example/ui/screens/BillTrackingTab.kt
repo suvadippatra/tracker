@@ -330,7 +330,7 @@ fun DailyReadingInputScreen(
                 }
             }
         } else {
-            items(successState.readings.take(20)) { reading ->
+            items(successState.readings.take(20), key = { it.id }) { reading ->
                 val readingColor = if (reading.isPaid) AppTextColor() else Color.Red
                 val displayFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
                 
@@ -563,9 +563,11 @@ fun BillSummaryScreen(
     val formatter = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
     
     // Logic: Default start date to the oldest unpaid reading
-    val oldestUnpaid = successState.readings.filter { !it.isPaid }.minByOrNull { it.readingDate }
-    val defaultStart = oldestUnpaid?.readingDate ?: (successState.readings.lastOrNull()?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000))
-    val defaultEnd = System.currentTimeMillis()
+    val defaultStart = remember(successState.readings) {
+        val oldestUnpaid = successState.readings.filter { !it.isPaid }.minByOrNull { it.readingDate }
+        oldestUnpaid?.readingDate ?: (successState.readings.lastOrNull()?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000))
+    }
+    val defaultEnd = remember { System.currentTimeMillis() }
 
     var startMillis by remember(successState.readings.size) { mutableStateOf(defaultStart) }
     var endMillis by remember { mutableStateOf(defaultEnd) }
@@ -851,7 +853,7 @@ fun BillSummaryScreen(
                 }
             }
         } else {
-            items(paidBills) { bill ->
+            items(paidBills, key = { it.id }) { bill ->
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier

@@ -28,6 +28,8 @@ class FinancialRepository(private val db: AppDatabase) {
     private val extraExpenseDao = db.extraExpenseDao()
     private val meterDao = db.meterDao()
     private val categoryDao = db.transactionCategoryDao()
+    private val attachmentDao = db.attachmentDao()
+    private val ownerAccountDao = db.ownerAccountDao()
 
     val userProfile: Flow<UserProfileEntity?> = userProfileDao.getUserProfile()
     val allHotels: Flow<List<HotelEntity>> = hotelDao.getAllHotels()
@@ -38,6 +40,17 @@ class FinancialRepository(private val db: AppDatabase) {
     val allTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getAllTransactions()
     val allMenuItems: Flow<List<MenuEntity>> = menuDao.getAllMenuItems()
     val allCategories: Flow<List<com.example.data.model.TransactionCategoryEntity>> = categoryDao.getAllCategories()
+    val allOwnerAccounts: Flow<List<com.example.data.model.OwnerAccountEntity>> = ownerAccountDao.getAllOwnerAccounts()
+
+    fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> = attachmentDao.getAttachmentsForExpense(expenseId)
+
+    suspend fun insertAttachment(attachment: com.example.data.model.AttachmentEntity) = attachmentDao.insertAttachment(attachment)
+    suspend fun deleteAttachment(attachment: com.example.data.model.AttachmentEntity) = attachmentDao.deleteAttachment(attachment)
+    suspend fun deleteAttachmentsForExpense(expenseId: Int) = attachmentDao.deleteAttachmentsForExpense(expenseId)
+
+    suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.insertOwnerAccount(account)
+    suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.updateOwnerAccount(account)
+    suspend fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.deleteOwnerAccount(account)
 
     val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
     val allUtilityBills: Flow<List<UtilityBill>> = meterDao.getAllUtilityBills()
@@ -128,11 +141,12 @@ class FinancialRepository(private val db: AppDatabase) {
         bankAccountDao.deleteBankAccount(account)
     }
 
-    suspend fun insertExpenseAndDeduct(expense: ExtraExpenseEntity, account: BankAccountEntity) {
-        extraExpenseDao.insertExpense(expense)
+    suspend fun insertExpenseAndDeduct(expense: ExtraExpenseEntity, account: BankAccountEntity): Long {
+        val id = extraExpenseDao.insertExpense(expense)
         val change = if (expense.type == "INCOME") expense.amount else -expense.amount
         val updatedAccount = account.copy(balance = account.balance + change)
         bankAccountDao.updateBankAccount(updatedAccount)
+        return id
     }
 
     suspend fun deleteExpenseAndRevert(expense: ExtraExpenseEntity, accounts: List<BankAccountEntity>) {

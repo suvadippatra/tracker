@@ -88,6 +88,28 @@ data class ExtraExpenseEntity(
     val notes: String = ""
 )
 
+@Entity(tableName = "attachments")
+data class AttachmentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val expenseId: Int,
+    val uri: String,
+    val type: String, // "IMAGE", "PDF", "VOICE"
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "owner_accounts")
+data class OwnerAccountEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val ownerName: String,
+    val ownerMobile: String = "",
+    val accountName: String = "",
+    val accountNumber: String = "",
+    val ifscCode: String = "",
+    val branchName: String = "",
+    val upiId: String = "",
+    val qrCodeUri: String = ""
+)
+
 // Inline simple model for ordered items in a transaction
 data class OrderedItem(
     val name: String,
@@ -96,6 +118,13 @@ data class OrderedItem(
 ) {
     val total: Double get() = quantity * price
 }
+
+data class SearchResult(
+    val id: Int,
+    val title: String,
+    val type: String,
+    val subtitle: String
+)
 
 object TransactionSerializer {
     fun serialize(items: List<OrderedItem>): String {

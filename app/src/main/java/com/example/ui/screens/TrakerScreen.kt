@@ -5,14 +5,19 @@ import com.example.ui.components.InlineDatePicker
 import androidx.compose.foundation.Canvas
 import kotlin.random.Random
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.core.*
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.net.Uri
+import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.*
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -29,6 +34,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.*
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -65,6 +71,7 @@ import com.example.data.model.*
 import com.example.ui.viewmodel.FinancialViewModel
 import com.example.ui.viewmodel.MeterReadingViewModel
 import com.example.ui.viewmodel.MeterReadingUiState
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -481,8 +488,8 @@ data class Star(val x: Float, val y: Float, val size: Float, val speed: Float)
 
 @Composable
 fun TrakerApp(viewModel: FinancialViewModel) {
-    val isInitialized by viewModel.isInitialized.collectAsState()
-    val userProfile by viewModel.userProfile.collectAsState()
+    val isInitialized by viewModel.isInitialized.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     var isUnlocked by remember { mutableStateOf(false) }
 
     val isLight = if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
@@ -552,8 +559,8 @@ fun TrakerApp(viewModel: FinancialViewModel) {
 
 @Composable
 fun MainAppLayout(viewModel: FinancialViewModel) {
-    val activeTab by viewModel.activeTab.collectAsState()
-    val userProfile by viewModel.userProfile.collectAsState()
+    val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val meterViewModel: MeterReadingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     
     var showSettings by remember { mutableStateOf(false) }
@@ -601,6 +608,13 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                     }
                 }
             }
+
+            if (showSearch) {
+                GlobalSearchScreen(
+                    viewModel = viewModel,
+                    onDismiss = { showSearch = false }
+                )
+            }
         }
     }
 
@@ -608,14 +622,6 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
         SettingsDialog(
             viewModel = viewModel,
             onDismiss = { showSettings = false }
-        )
-    }
-
-    if (showSearch) {
-        GlobalSearchModal(
-            viewModel = viewModel,
-            meterViewModel = meterViewModel,
-            onDismiss = { showSearch = false }
         )
     }
 }
@@ -1000,12 +1006,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         }
     }
 
-    val hotels by viewModel.allHotels.collectAsState()
-    val activeHotelId by viewModel.activeHotelId.collectAsState()
-    val activeHotel by viewModel.activeHotel.collectAsState()
-    val monthlyTotal by viewModel.activeMonthTotal.collectAsState()
-    val popularMeals by viewModel.popularMeals.collectAsState()
-    val userProfile by viewModel.userProfile.collectAsState()
+    val hotels by viewModel.allHotels.collectAsStateWithLifecycle()
+    val activeHotelId by viewModel.activeHotelId.collectAsStateWithLifecycle()
+    val activeHotel by viewModel.activeHotel.collectAsStateWithLifecycle()
+    val monthlyTotal by viewModel.activeMonthTotal.collectAsStateWithLifecycle()
+    val popularMeals by viewModel.popularMeals.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
     var openDropdownHotelId by remember { mutableStateOf<Int?>(null) }
     var hotelMenuOffsets by remember { mutableStateOf(mapOf<Int, androidx.compose.ui.geometry.Offset>()) }
@@ -2097,22 +2103,24 @@ fun AddMealFlowModal(
     onDismiss: () -> Unit
 ) {
     
-    val date by viewModel.addMealDate.collectAsState()
-    val isNight by viewModel.addMealIsNight.collectAsState()
-    val quantities by viewModel.orderQuantities.collectAsState()
-    val selectedMainId by viewModel.selectedMainDishId.collectAsState()
-    val menuItems by viewModel.allMenuItems.collectAsState()
-    val userProfile by viewModel.userProfile.collectAsState()
+    val date by viewModel.addMealDate.collectAsStateWithLifecycle()
+    val isNight by viewModel.addMealIsNight.collectAsStateWithLifecycle()
+    val quantities by viewModel.orderQuantities.collectAsStateWithLifecycle()
+    val selectedMainId by viewModel.selectedMainDishId.collectAsStateWithLifecycle()
+    val menuItems by viewModel.allMenuItems.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
-    // Filter menu dynamically
-    val filteredDishes = menuItems.filter {
-        if (isNight) it.isNightMenu else it.isDayMenu
+    // Filter menu dynamically using remember to avoid redundant work
+    val filteredDishes = remember(menuItems, isNight) {
+        menuItems.filter {
+            if (isNight) it.isNightMenu else it.isDayMenu
+        }
     }
-    val mainDishes = filteredDishes.filter { !it.isAddOn }
-    val addOnDishes = filteredDishes.filter { it.isAddOn }
+    val mainDishes = remember(filteredDishes) { filteredDishes.filter { !it.isAddOn } }
+    val addOnDishes = remember(filteredDishes) { filteredDishes.filter { it.isAddOn } }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -2458,8 +2466,8 @@ fun MealHistoryModal(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    val transactions by viewModel.activeHotelTransactions.collectAsState()
-    val userProfile by viewModel.userProfile.collectAsState()
+    val transactions by viewModel.activeHotelTransactions.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
     
@@ -2627,13 +2635,12 @@ fun MealHistoryModal(
 // ==========================================
 @Composable
 fun ExtraExpensesTab(viewModel: FinancialViewModel) {
-    val accounts by viewModel.allBankAccounts.collectAsState()
-    val expenses by viewModel.allExtraExpenses.collectAsState()
-    val userCategories by viewModel.allCategories.collectAsState()
+    val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+    val expenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle()
+    val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
 
     var showAddExpense by remember { mutableStateOf(false) }
-    var selectedReceiptUri by remember { mutableStateOf<String?>(null) }
-    var selectedReceiptName by remember { mutableStateOf("") }
+    var selectedExpenseIdForAttachments by remember { mutableStateOf<Int?>(null) }
     var showDetailedHistory by remember { mutableStateOf(false) }
     
     // Interactive Category Filter & Search
@@ -3018,7 +3025,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(allCategoryNames) { cat ->
+                items(allCategoryNames, key = { it }) { cat ->
                     val isSelected = activeCategoryFilter == cat
                     val chipBg = if (isSelected) AccentCyan.copy(alpha = 0.15f) else Color.Transparent
                     val chipBorder = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.2f)
@@ -3137,26 +3144,23 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                     )
                                 }
                                 
-                                // Display Attachment Link/Trigger if receipt Uri exists
-                                if (!exp.receiptUri.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.clickable {
-                                            selectedReceiptUri = exp.receiptUri
-                                            selectedReceiptName = exp.name
-                                        }
-                                    ) {
-                                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                        Text(
-                                            text = "View Secure Receipt",
-                                            color = AccentGold,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            textDecoration = TextDecoration.Underline
-                                        )
+                                // Always show attachment icon if there are attachments (logic simplified to always show for now, or you could collect attachments count)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable {
+                                        selectedExpenseIdForAttachments = exp.id
                                     }
+                                ) {
+                                    Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(
+                                        text = "View Attachments",
+                                        color = AccentGold,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textDecoration = TextDecoration.Underline
+                                    )
                                 }
                             }
                         }
@@ -3218,161 +3222,136 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         }
     }
 
-    // Centered bottom floating button
-    FloatingActionButton(
-        onClick = { showAddExpense = true },
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 24.dp)
-            .testTag("add_expense_fab"),
-        containerColor = AccentCyan,
-        contentColor = Color.Black,
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
+    // Bottom-end floating button
+    if (accounts.isNotEmpty()) {
+        FloatingActionButton(
+            onClick = { showAddExpense = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 24.dp, end = 24.dp)
+                .testTag("add_expense_fab"),
+            containerColor = AccentCyan,
+            contentColor = Color.Black,
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add Transaction", fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Transaction", fontWeight = FontWeight.Bold)
+            }
         }
     }
-    }
 
-    // Encrypted Secure Receipt/Document Viewer modal
-    if (selectedReceiptUri != null) {
-        AlertDialog(
-            onDismissRequest = { selectedReceiptUri = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier
-                .padding(24.dp)
-                .background(getDialogBackground(), RoundedCornerShape(24.dp))
-                .border(0.5.dp, getGlassBorder(), RoundedCornerShape(24.dp)),
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Receipt: $selectedReceiptName",
-                        color = AppTextColor(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    IconButton(onClick = { selectedReceiptUri = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                    }
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val uriStr = selectedReceiptUri!!
-                    if (uriStr.startsWith("mock://receipts/")) {
-                        val presetName = uriStr.substringAfterLast("/")
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1E293B))
-                                .border(1.dp, AccentGold.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.AttachFile,
-                                    contentDescription = null,
-                                    tint = AccentGold,
-                                    modifier = Modifier.size(54.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = presetName,
-                                    color = AppTextColor(),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "VERIFIED SECURE RECORD",
-                                    color = AccentGreen,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = TextStyle(letterSpacing = 1.sp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "This receipt is protected under local encrypted storage keys.",
-                                    color = AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 10.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1E293B))
-                                .border(1.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.AttachFile,
-                                    contentDescription = null,
-                                    tint = AccentCyan,
-                                    modifier = Modifier.size(54.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = uriStr.substringAfterLast("/"),
-                                    color = AppTextColor(),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "USER ATTACHED FILE",
-                                    color = AccentCyan,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = uriStr,
-                                    color = AppTextColor().copy(alpha = 0.4f),
-                                    fontSize = 9.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedReceiptUri = null }) {
-                    Text("Close", color = AccentCyan, fontWeight = FontWeight.Bold)
-                }
-            }
+    // Attachment Viewer modal
+    if (selectedExpenseIdForAttachments != null) {
+        AttachmentViewerDialog(
+            expenseId = selectedExpenseIdForAttachments!!,
+            viewModel = viewModel,
+            onDismiss = { selectedExpenseIdForAttachments = null }
         )
     }
 }
+}
+}
+
+@Composable
+fun AttachmentViewerDialog(
+    expenseId: Int,
+    viewModel: FinancialViewModel,
+    onDismiss: () -> Unit
+) {
+    val attachments by viewModel.getAttachmentsForExpense(expenseId).collectAsState(initial = emptyList())
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .padding(24.dp)
+            .background(getDialogBackground(), RoundedCornerShape(24.dp))
+            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(24.dp)),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Attachments", color = AppTextColor(), fontWeight = FontWeight.Bold)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, null, tint = AppTextColor())
+                }
+            }
+        },
+        text = {
+            if (attachments.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                    Text("No attachments found", color = AppTextColor().copy(alpha = 0.5f))
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(attachments, key = { it.uri }) { att ->
+                        AttachmentItem(att, context)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = AccentCyan)
+            }
+        }
+    )
+}
+
+@Composable
+fun AttachmentItem(attachment: AttachmentEntity, context: android.content.Context) {
+    val (icon, color) = when (attachment.type) {
+        "IMAGE" -> Icons.Default.Image to Color(0xFF64B5F6)
+        "PDF" -> Icons.Default.PictureAsPdf to Color(0xFFF06292)
+        "VOICE" -> Icons.Default.Mic to Color(0xFF4DB6AC)
+        else -> Icons.Default.AttachFile to Color.Gray
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(getDialogBackground().copy(alpha = 0.5f))
+            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(12.dp))
+            .clickable {
+                try {
+                    val uri = Uri.parse(attachment.uri)
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, when(attachment.type) {
+                            "IMAGE" -> "image/*"
+                            "PDF" -> "application/pdf"
+                            "VOICE" -> "audio/*"
+                            else -> "*/*"
+                        })
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(context, "Could not open attachment", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(attachment.uri.substringAfterLast("/"), color = AppTextColor(), fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(attachment.type, color = color.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+            }
+        }
+    }
 }
 
 // Helper to return beautiful visual signifiers for category items
@@ -3403,46 +3382,125 @@ fun getCategoryIconAndColor(category: String, type: String): Pair<ImageVector, C
 val ExpenseCategories = listOf("Food", "Academics", "Travel", "Shopping", "Entertainment", "General")
 val IncomeCategories = listOf("Salary", "Investment", "Freelance", "Refund", "Gifts", "General")
 
-// MOCK RECEIPT PRESETS FOR CONVENIENCE
-val MockReceipts = listOf(
-    "preset_receipt_fuel.pdf",
-    "preset_receipt_grocery.jpg",
-    "preset_receipt_rent.pdf",
-    "preset_receipt_electric.jpg"
-)
+
+@Composable
+fun AttachmentActionChip(
+    icon: ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.1f))
+            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
 
 @Composable
 fun AddExpenseScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    val accounts by viewModel.allBankAccounts.collectAsState()
-    val userCategories by viewModel.allCategories.collectAsState()
+    val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+    val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val themeMode by LocalAppTheme.current.let { remember { mutableStateOf(it) } }
 
     var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
     var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var attachmentUri by remember { mutableStateOf<String?>(null) }
     
     // Core Extended Transaction Fields
     var type by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
     var category by remember { mutableStateOf(ExpenseCategories.first()) }
     var notes by remember { mutableStateOf("") }
+    var attachments by remember { mutableStateOf(listOf<Pair<Uri, String>>()) } // uri to type
 
     var showAccountDropdown by remember { mutableStateOf(false) }
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingTimer by remember { mutableStateOf(0) }
+    val mediaRecorder = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+    var currentVoiceUri by remember { mutableStateOf<Uri?>(null) }
     
     val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
     val context = LocalContext.current
 
-    val documentPicker = rememberLauncherForActivityResult(
+    val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let {
-            attachmentUri = it.toString()
+        uri?.let { attachments = attachments + (it to "IMAGE") }
+    }
+
+    val pdfPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { attachments = attachments + (it to "PDF") }
+    }
+
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            while (isRecording && recordingTimer < 120) {
+                delay(1000)
+                recordingTimer++
+            }
+            if (recordingTimer >= 120) {
+                // Stop recording automatically
+            }
+        } else {
+            recordingTimer = 0
+        }
+    }
+
+    fun startRecording() {
+        try {
+            val fileName = "REC_${System.currentTimeMillis()}.amr"
+            val file = File(context.cacheDir, fileName)
+            currentVoiceUri = Uri.fromFile(file)
+            
+            mediaRecorder.value = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                android.media.MediaRecorder(context)
+            } else {
+                android.media.MediaRecorder()
+            }.apply {
+                setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+                setOutputFormat(android.media.MediaRecorder.OutputFormat.AMR_NB) // Low bitrate as requested
+                setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AMR_NB)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+            isRecording = true
+        } catch (e: Exception) {
+            Log.e("AddExpenseScreen", "Failed to start recording", e)
+        }
+    }
+
+    fun stopRecording() {
+        try {
+            mediaRecorder.value?.apply {
+                stop()
+                release()
+            }
+            mediaRecorder.value = null
+            isRecording = false
+            currentVoiceUri?.let { attachments = attachments + (it to "VOICE") }
+        } catch (e: Exception) {
+            Log.e("AddExpenseScreen", "Failed to stop recording", e)
         }
     }
 
@@ -3500,10 +3558,11 @@ fun AddExpenseScreen(
                                 amount = amt,
                                 bankAccountId = selectedAccountId,
                                 timestamp = timestamp,
-                                receiptUri = attachmentUri,
+                                receiptUri = null,
                                 type = type,
                                 category = category,
-                                notes = notes
+                                notes = notes,
+                                attachments = attachments.map { it.first.toString() to it.second }
                             )
                             onDismiss()
                         }
@@ -3938,87 +3997,89 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Receipt Attachment Card
+            // Multi-Attachment Section
             GlassCard(
                 cornerRadius = 16.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Receipt Attachment (Optional)",
+                        text = "Attachments & Voice Memo",
                         color = AppTextColor().copy(alpha = 0.6f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
-                            onClick = { documentPicker.launch("*/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pick File", color = AppTextColor(), fontSize = 12.sp)
-                        }
-
-                        var showPresets by remember { mutableStateOf(false) }
-                        Box(modifier = Modifier.weight(1f)) {
-                            Button(
-                                onClick = { showPresets = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Wallet, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Secure Wallet", color = AppTextColor(), fontSize = 12.sp)
+                        AttachmentActionChip(
+                            icon = Icons.Default.Image,
+                            label = "Image",
+                            color = AccentCyan,
+                            onClick = { imagePicker.launch("image/*") }
+                        )
+                        AttachmentActionChip(
+                            icon = Icons.Default.PictureAsPdf,
+                            label = "PDF",
+                            color = AccentGold,
+                            onClick = { pdfPicker.launch("application/pdf") }
+                        )
+                        
+                        // Voice Memo Recorder
+                        val voiceColor = if (isRecording) Color.Red else AccentPink
+                        AttachmentActionChip(
+                            icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                            label = if (isRecording) "Stop (${120 - recordingTimer}s)" else "Voice",
+                            color = voiceColor,
+                            onClick = {
+                                if (isRecording) stopRecording() else startRecording()
                             }
-
-                            DropdownMenu(
-                                expanded = showPresets,
-                                onDismissRequest = { showPresets = false },
-                                modifier = Modifier
-                                    .background(Color(0xFF1E293B))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                            ) {
-                                MockReceipts.forEach { mock ->
-                                    DropdownMenuItem(
-                                        text = { Text(mock, color = Color.White, fontSize = 12.sp) },
-                                        onClick = {
-                                            attachmentUri = "mock://receipts/$mock"
-                                            showPresets = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        )
                     }
 
-                    if (!attachmentUri.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(AccentGreen.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                                .padding(12.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Attached: ${attachmentUri!!.substringAfterLast("/")}",
-                                    color = AccentGreen,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                    if (attachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            attachments.forEach { (uri, type) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = when(type) {
+                                                "IMAGE" -> Icons.Default.Image
+                                                "PDF" -> Icons.Default.PictureAsPdf
+                                                else -> Icons.Default.Mic
+                                            },
+                                            contentDescription = null,
+                                            tint = AppTextColor().copy(alpha = 0.6f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = uri.lastPathSegment ?: "Attachment",
+                                            color = AppTextColor(),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.widthIn(max = 150.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { attachments = attachments.filter { it.first != uri } },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, null, tint = Color.Red, modifier = Modifier.size(14.dp))
+                                    }
+                                }
                             }
                         }
                     }
@@ -4063,441 +4124,6 @@ fun AddExpenseScreen(
     }
 }
 
-@Composable
-fun AddExpenseDialog(
-    viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
-) {
-    val accounts by viewModel.allBankAccounts.collectAsState()
-
-    var name by remember { mutableStateOf("") }
-    var amountStr by remember { mutableStateOf("") }
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
-    var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var attachmentUri by remember { mutableStateOf<String?>(null) }
-    
-    // Core Extended Transaction Fields
-    var type by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
-    var category by remember { mutableStateOf(ExpenseCategories.first()) }
-    var notes by remember { mutableStateOf("") }
-
-    var showAccountDropdown by remember { mutableStateOf(false) }
-    var showCategoryDropdown by remember { mutableStateOf(false) }
-    
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    val context = LocalContext.current
-
-    // Launcher for file picker
-    val documentPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            attachmentUri = it.toString()
-        }
-    }
-
-    // Form validation check
-    val isFormValid = remember(name, amountStr, category) {
-        name.isNotBlank() && amountStr.toDoubleOrNull() != null && amountStr.toDouble() > 0 && category.isNotBlank()
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier
-            .padding(16.dp)
-            .background(getDialogBackground(), RoundedCornerShape(24.dp))
-            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(24.dp)),
-        title = {
-            Text(
-                text = if (type == "EXPENSE") "Log Deduction / Expense" else "Log Deposit / Income",
-                color = AppTextColor(),
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // Segmented Toggle Mode Button (Income vs Expense)
-                Text("Transaction Mode", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0x1180D8FF), RoundedCornerShape(12.dp))
-                        .padding(4.dp)
-                ) {
-                    val isExpenseSelected = (type == "EXPENSE")
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isExpenseSelected) AccentPink.copy(alpha = 0.15f) else Color.Transparent)
-                            .clickable { 
-                                type = "EXPENSE"
-                                category = ExpenseCategories.first()
-                            }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = if (isExpenseSelected) AccentPink else AppTextColor().copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Expense", color = if (isExpenseSelected) AccentPink else AppTextColor().copy(alpha = 0.6f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (!isExpenseSelected) AccentGreen.copy(alpha = 0.15f) else Color.Transparent)
-                            .clickable { 
-                                type = "INCOME"
-                                category = IncomeCategories.first()
-                            }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = if (!isExpenseSelected) AccentGreen else AppTextColor().copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Income", color = if (!isExpenseSelected) AccentGreen else AppTextColor().copy(alpha = 0.6f), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Distraction-Free Large Numeric Input
-                Text("Transaction Amount (₹)", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "₹",
-                        style = TextStyle(
-                            color = if (type == "EXPENSE") AccentPink else AccentGreen,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    BasicTextField(
-                        value = amountStr,
-                        onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' }) {
-                                amountStr = input
-                            }
-                        },
-                        textStyle = TextStyle(
-                            color = AppTextColor(),
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        cursorBrush = SolidColor(if (type == "EXPENSE") AccentPink else AccentGreen),
-                        modifier = Modifier
-                            .widthIn(min = 120.dp)
-                            .testTag("expense_amount_input"),
-                        decorationBox = { innerTextField ->
-                            if (amountStr.isEmpty()) {
-                                Text(
-                                    text = "0.00",
-                                    style = TextStyle(
-                                        color = AppTextColor().copy(alpha = 0.25f),
-                                        fontSize = 36.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center
-                                    )
-                                )
-                            }
-                            innerTextField()
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Title Input
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Title (e.g. Fuel, Lunch, Bonus)", color = AppTextColor().copy(alpha = 0.5f)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = AppTextColor(),
-                        unfocusedTextColor = AppTextColor(),
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                    ),
-                    modifier = Modifier.fillMaxWidth().testTag("expense_title_input")
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Category Selection Dropdown
-                Text("Category", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    GlassButton(
-                        onClick = { showCategoryDropdown = true },
-                        cornerRadius = 10.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        val (catIcon, catColor) = getCategoryIconAndColor(category, type)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(catIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(category, color = AppTextColor())
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor())
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showCategoryDropdown,
-                        onDismissRequest = { showCategoryDropdown = false },
-                        modifier = Modifier
-                            .background(getDialogBackground())
-                            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
-                    ) {
-                        val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
-                        cats.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat, color = AppTextColor()) },
-                                onClick = {
-                                    category = cat
-                                    showCategoryDropdown = false
-                                }
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Wallet Account Linkage Selector
-                Text("Wallet Account Source", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    val activeAcc = accounts.find { it.id == selectedAccountId }
-                    GlassButton(
-                        onClick = { showAccountDropdown = true },
-                        cornerRadius = 10.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(activeAcc?.name ?: "Select Account", color = AppTextColor())
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor())
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showAccountDropdown,
-                        onDismissRequest = { showAccountDropdown = false },
-                        modifier = Modifier
-                            .background(getDialogBackground())
-                            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
-                    ) {
-                        accounts.forEach { acc ->
-                            DropdownMenuItem(
-                                text = { Text("${acc.name} (Bal: ₹${acc.balance.toInt()})", color = AppTextColor()) },
-                                onClick = {
-                                    selectedAccountId = acc.id
-                                    showAccountDropdown = false
-                                }
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Custom Short Notes Input
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Short Notes (Optional)", color = AppTextColor().copy(alpha = 0.5f)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = AppTextColor(),
-                        unfocusedTextColor = AppTextColor(),
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Date Time Picker Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Log Date & Time", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                        Text(sdf.format(Date(timestamp)), color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        IconButton(
-                            onClick = {
-                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                android.app.DatePickerDialog(
-                                    context,
-                                    { _, y, m, d ->
-                                        cal.set(Calendar.YEAR, y)
-                                        cal.set(Calendar.MONTH, m)
-                                        cal.set(Calendar.DAY_OF_MONTH, d)
-                                        timestamp = cal.timeInMillis
-                                    },
-                                    cal.get(Calendar.YEAR),
-                                    cal.get(Calendar.MONTH),
-                                    cal.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            },
-                            modifier = Modifier.background(getGlassIconButtonBg(), CircleShape)
-                        ) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                        }
-
-                        IconButton(
-                            onClick = {
-                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                TimePickerDialog(
-                                    context,
-                                    { _, hr, min ->
-                                        cal.set(Calendar.HOUR_OF_DAY, hr)
-                                        cal.set(Calendar.MINUTE, min)
-                                        timestamp = cal.timeInMillis
-                                    },
-                                    cal.get(Calendar.HOUR_OF_DAY),
-                                    cal.get(Calendar.MINUTE),
-                                    false
-                                ).show()
-                            },
-                            modifier = Modifier.background(getGlassIconButtonBg(), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // ATTACHMENTS (File Picker + Universal Selector Preset Wallet)
-                Text("Receipt Attachment (Optional)", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    GlassButton(
-                        onClick = { documentPicker.launch("*/*") },
-                        cornerRadius = 8.dp,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Pick File", color = AppTextColor(), fontSize = 11.sp)
-                    }
-
-                    // Secure Wallet presets representing encrypted document vault
-                    var showPresets by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.weight(1f)) {
-                        GlassButton(
-                            onClick = { showPresets = true },
-                            cornerRadius = 8.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Wallet, contentDescription = null, tint = AccentGold, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Secure Wallet", color = AppTextColor(), fontSize = 11.sp)
-                        }
-
-                        DropdownMenu(
-                            expanded = showPresets,
-                            onDismissRequest = { showPresets = false },
-                            modifier = Modifier
-                                .background(getDialogBackground())
-                                .border(0.5.dp, getGlassIconButtonBg(), RoundedCornerShape(8.dp))
-                        ) {
-                            MockReceipts.forEach { mock ->
-                                DropdownMenuItem(
-                                    text = { Text(mock, color = AppTextColor(), fontSize = 12.sp) },
-                                    onClick = {
-                                        attachmentUri = "mock://receipts/$mock"
-                                        showPresets = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // File attached indicator
-                if (!attachmentUri.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0x1A00E676), RoundedCornerShape(8.dp))
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = "Attached: ${attachmentUri!!.substringAfterLast("/")}",
-                            color = AccentGreen,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amt = amountStr.toDoubleOrNull()
-                    if (isFormValid && amt != null && selectedAccountId != 0) {
-                        viewModel.saveExtraExpense(
-                            name = name,
-                            amount = amt,
-                            bankAccountId = selectedAccountId,
-                            timestamp = timestamp,
-                            receiptUri = attachmentUri,
-                            type = type,
-                            category = category,
-                            notes = notes
-                        )
-                        onDismiss()
-                    }
-                },
-                enabled = isFormValid,
-                modifier = Modifier.testTag("save_expense_button")
-            ) {
-                Text(
-                    text = "Confirm & Save",
-                    color = if (isFormValid) AccentCyan else AppTextColor().copy(alpha = 0.3f),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = AppTextColor().copy(alpha = 0.5f))
-            }
-        }
-    )
-}
 
 // ==========================================
 // SETTINGS / CONFIGURATION FULL DIALOG
@@ -4508,9 +4134,9 @@ fun SettingsDialog(
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val userProfile by viewModel.userProfile.collectAsState()
-    val hotels by viewModel.allHotels.collectAsState()
-    val accounts by viewModel.allBankAccounts.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val hotels by viewModel.allHotels.collectAsStateWithLifecycle()
+    val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
 
     // Input fields for Profile & Preferences
     var profileName by remember(userProfile) { mutableStateOf(userProfile?.name ?: "") }
@@ -4534,6 +4160,7 @@ fun SettingsDialog(
     var editingAccount by remember { mutableStateOf<BankAccountEntity?>(null) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showLegalInfoType by remember { mutableStateOf<String?>(null) } // "info", "license", "privacy"
+    var showOwnerProfile by remember { mutableStateOf(false) }
 
     LaunchedEffect(prefLanguage, prefThemeMode, prefShowAdvancedPayment, prefAppLockEnabled, prefAppLockPin, prefDefaultHotelId, prefEnableStarAnimation, userProfile) {
         val up = userProfile
@@ -5077,6 +4704,24 @@ fun SettingsDialog(
                         }
 
                         item {
+                            // Category: Owner Accounts & Profiles
+                            PixelSettingsGroup(
+                                title = if (prefLanguage == "bn") "মালিক অ্যাকাউন্টসমূহ" else "Owner Accounts & UPI"
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.AccountCircle,
+                                        iconBgColor = Color(0xFFF3E5F5),
+                                        iconTint = Color(0xFF7B1FA2),
+                                        title = if (prefLanguage == "bn") "মালিক প্রোফাইল পরিচালনা" else "Manage Owner Profiles",
+                                        subtitle = if (prefLanguage == "bn") "UPI, QR এবং অ্যাকাউন্ট ডিটেইলস" else "UPI, QR & Account Details",
+                                        onClick = { showOwnerProfile = true }
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
                             // Category: Security & Pin Lock
                             PixelSettingsGroup(
                                 title = if (prefLanguage == "bn") "নিরাপত্তা ও প্রাইভেসি" else "Security & Protection"
@@ -5185,8 +4830,8 @@ fun SettingsDialog(
 
                         item {
                             // Category: Recycle Bin (Trash)
-                            val deletedHotels by viewModel.deletedHotels.collectAsState()
-                            val deletedAccounts by viewModel.deletedBankAccounts.collectAsState()
+                            val deletedHotels by viewModel.deletedHotels.collectAsStateWithLifecycle()
+                            val deletedAccounts by viewModel.deletedBankAccounts.collectAsStateWithLifecycle()
                             
                             if (deletedHotels.isNotEmpty() || deletedAccounts.isNotEmpty()) {
                                 PixelSettingsGroup(
@@ -5576,6 +5221,13 @@ fun SettingsDialog(
                         onDismiss = { showLegalInfoType = null }
                     )
                 }
+
+                if (showOwnerProfile) {
+                    OwnerProfileScreen(
+                        viewModel = viewModel,
+                        onDismiss = { showOwnerProfile = false }
+                    )
+                }
             }
         }
     }
@@ -5701,336 +5353,6 @@ fun EmptyStateCard(message: String) {
     }
 }
 
-@Composable
-fun GlobalSearchModal(
-    viewModel: FinancialViewModel,
-    meterViewModel: MeterReadingViewModel,
-    onDismiss: () -> Unit
-) {
-    var searchQuery by remember { mutableStateOf("") }
-    val userProfile by viewModel.userProfile.collectAsState()
-    val allExpenses by viewModel.allExtraExpenses.collectAsState()
-    val allHotels by viewModel.allHotels.collectAsState()
-    val allAccounts by viewModel.allBankAccounts.collectAsState()
-    val hotelTransactions by viewModel.activeHotelTransactions.collectAsState()
-    
-    val meterUiState by meterViewModel.uiState.collectAsState()
-    val allBills = remember(meterUiState) {
-        if (meterUiState is MeterReadingUiState.Success) {
-            (meterUiState as MeterReadingUiState.Success).bills
-        } else emptyList()
-    }
-    
-    val filteredExpenses = remember(searchQuery, allExpenses) {
-        if (searchQuery.isBlank()) emptyList()
-        else allExpenses.filter { 
-            it.name.contains(searchQuery, ignoreCase = true) || 
-            it.category.contains(searchQuery, ignoreCase = true) ||
-            it.notes.contains(searchQuery, ignoreCase = true)
-        }
-    }
-    
-    val filteredHotels = remember(searchQuery, allHotels) {
-        if (searchQuery.isBlank()) emptyList()
-        else allHotels.filter { 
-            it.name.contains(searchQuery, ignoreCase = true) ||
-            it.location.contains(searchQuery, ignoreCase = true)
-        }
-    }
-
-    val filteredAccounts = remember(searchQuery, allAccounts) {
-        if (searchQuery.isBlank()) emptyList()
-        else allAccounts.filter { 
-            it.name.contains(searchQuery, ignoreCase = true) || 
-            it.upiId.contains(searchQuery, ignoreCase = true)
-        }
-    }
-
-    val filteredBills = remember(searchQuery, allBills) {
-        if (searchQuery.isBlank()) emptyList()
-        else allBills.filter { bill ->
-            bill.transactionId?.contains(searchQuery, ignoreCase = true) == true ||
-            bill.calculatedAmount.toString().contains(searchQuery)
-        }
-    }
-
-    val filteredHotelTx = remember(searchQuery, hotelTransactions) {
-        if (searchQuery.isBlank()) emptyList()
-        else hotelTransactions.filter { tx ->
-            val items = TransactionSerializer.deserialize(tx.itemsSerialized)
-            items.any { it.name.contains(searchQuery, ignoreCase = true) } ||
-            tx.totalAmount.toString().contains(searchQuery)
-        }
-    }
-
-    var animateTrigger by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        animateTrigger = true
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        AnimatedVisibility(
-            visible = animateTrigger,
-            enter = slideInVertically(initialOffsetY = { it / 8 }) + fadeIn(animationSpec = tween(250)),
-            exit = slideOutVertically(targetOffsetY = { it / 8 }) + fadeOut(animationSpec = tween(200)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(getAppBackgroundGradient(userProfile.themeMode))
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-            ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onDismiss, modifier = Modifier.background(getGlassBorder(), CircleShape).bounceClick()
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                    }
-                    Text(
-                        text = if (userProfile.language == "bn") "অনুসন্ধান" else "Global Search",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.size(48.dp))
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Search Input with improved styling
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text(if (userProfile.language == "bn") "খরচ, বিল বা অ্যাকাউন্ট খুঁজুন..." else "Find expenses, bills or accounts...", color = AppTextColor().copy(alpha = 0.4f)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = AccentCyan)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.bounceClick()) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTextColor().copy(alpha = 0.5f))
-                                }
-                            }
-                        }
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                if (searchQuery.isNotEmpty()) {
-                    val noResults = filteredExpenses.isEmpty() && 
-                                   filteredHotels.isEmpty() && 
-                                   filteredAccounts.isEmpty() && 
-                                   filteredBills.isEmpty() && 
-                                   filteredHotelTx.isEmpty()
-                    
-                    if (noResults) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.SearchOff, null, tint = AppTextColor().copy(alpha = 0.2f), modifier = Modifier.size(64.dp))
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = if (userProfile.language == "bn") "কোন ফলাফল পাওয়া যায়নি।" else "No results found.",
-                                    color = AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // Section: Expenses
-                            if (filteredExpenses.isNotEmpty()) {
-                                item { SearchSectionHeader(if (userProfile.language == "bn") "অতিরিক্ত খরচ" else "Extra Expenses") }
-                                items(filteredExpenses) { expense ->
-                                    SearchItemRow(
-                                        title = expense.name,
-                                        subtitle = "${expense.category} • ${expense.notes}",
-                                        amount = "₹${expense.amount}",
-                                        amountColor = if (expense.type == "EXPENSE") AccentPink else AccentGreen,
-                                        icon = if (expense.type == "EXPENSE") Icons.Default.TrendingDown else Icons.Default.TrendingUp
-                                    )
-                                }
-                            }
-
-                            // Section: Bills
-                            if (filteredBills.isNotEmpty()) {
-                                item { SearchSectionHeader(if (userProfile.language == "bn") "ইউটিলিটি বিল" else "Utility Bills") }
-                                items(filteredBills) { bill ->
-                                    SearchItemRow(
-                                        title = if (bill.transactionId != null) "Ref: ${bill.transactionId}" else "Utility Bill",
-                                        subtitle = "Due: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(bill.dueDate))}",
-                                        amount = "₹${bill.calculatedAmount}",
-                                        amountColor = if (bill.isPaid) AccentGreen else AccentPink,
-                                        icon = Icons.Default.ReceiptLong
-                                    )
-                                }
-                            }
-
-                            // Section: Hotel Meals
-                            if (filteredHotelTx.isNotEmpty()) {
-                                item { SearchSectionHeader(if (userProfile.language == "bn") "হোটেল ট্রানজ্যাকশন" else "Hotel Transactions") }
-                                items(filteredHotelTx) { tx ->
-                                    val items = TransactionSerializer.deserialize(tx.itemsSerialized)
-                                    val itemsSummary = items.joinToString(", ") { "${it.name} x${it.quantity}" }
-                                    SearchItemRow(
-                                        title = itemsSummary,
-                                        subtitle = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.timestamp)),
-                                        amount = "₹${tx.totalAmount}",
-                                        amountColor = AccentPink,
-                                        icon = Icons.Default.Restaurant
-                                    )
-                                }
-                            }
-
-                            // Section: Bank Accounts
-                            if (filteredAccounts.isNotEmpty()) {
-                                item { SearchSectionHeader(if (userProfile.language == "bn") "ব্যাংক অ্যাকাউন্ট" else "Bank Accounts") }
-                                items(filteredAccounts) { account ->
-                                    SearchItemRow(
-                                        title = account.name,
-                                        subtitle = account.upiId.ifBlank { "No UPI linked" },
-                                        amount = "₹${account.balance}",
-                                        amountColor = AccentCyan,
-                                        icon = Icons.Default.AccountBalance
-                                    )
-                                }
-                            }
-
-                            // Section: Hotels
-                            if (filteredHotels.isNotEmpty()) {
-                                item { SearchSectionHeader(if (userProfile.language == "bn") "হোটেলসমূহ" else "Hotels") }
-                                items(filteredHotels) { hotel ->
-                                    SearchItemRow(
-                                        title = hotel.name,
-                                        subtitle = hotel.location,
-                                        amount = "Adv: ₹${hotel.advancedPayment}",
-                                        amountColor = AccentCyan,
-                                        icon = Icons.Default.Hotel
-                                    )
-                                }
-                            }
-                            
-                            item { Spacer(modifier = Modifier.height(80.dp)) }
-                        }
-                    }
-                } else {
-                    // Recent / Suggestions when search is empty
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 40.dp)) {
-                        Icon(Icons.Default.TravelExplore, null, tint = AccentCyan.copy(alpha = 0.3f), modifier = Modifier.size(80.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (userProfile.language == "bn") "সবকিছু একসাথে খুঁজুন" else "Search everything in one place",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (userProfile.language == "bn") "নাম, বিভাগ বা পরিমাণ দিয়ে সার্চ করুন" else "Try searching by name, category, or amount",
-                            color = AppTextColor().copy(alpha = 0.4f),
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-}
-
-@Composable
-fun SearchSectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        color = AccentCyan.copy(alpha = 0.8f),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Black,
-        letterSpacing = 1.5.sp,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-    )
-}
-
-@Composable
-fun SearchItemRow(
-    title: String,
-    subtitle: String,
-    amount: String,
-    amountColor: Color,
-    icon: ImageVector
-) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(amountColor.copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = amountColor, modifier = Modifier.size(20.dp))
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = AppTextColor(),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = subtitle,
-                    color = AppTextColor().copy(alpha = 0.6f),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            
-            Text(
-                text = amount,
-                color = amountColor,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp
-            )
-        }
-    }
-}
 @Composable
 fun DishImageAndEmoji(
     emoji: String,
@@ -6506,8 +5828,8 @@ fun ExtraExpenseDetailedHistoryScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    val expenses by viewModel.allExtraExpenses.collectAsState()
-    val accounts by viewModel.allBankAccounts.collectAsState()
+    val expenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle()
+    val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
     
     var searchQuery by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf<Int?>(null) }
@@ -6577,7 +5899,7 @@ fun ExtraExpenseDetailedHistoryScreen(
                             colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedLabelColor = Color.Black, selectedContainerColor = AccentCyan)
                         )
                     }
-                    items(accounts) { acc ->
+                    items(accounts, key = { it.id }) { acc ->
                         FilterChip(
                             selected = selectedAccountId == acc.id,
                             onClick = { selectedAccountId = acc.id },
@@ -6769,4 +6091,452 @@ fun LegalInfoDialog(
     )
 }
 
+@Composable
+fun OwnerProfileScreen(
+    viewModel: FinancialViewModel,
+    onDismiss: () -> Unit
+) {
+    val ownerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val prefLanguage = userProfile.language
+    var showAddDialog by remember { mutableStateOf(false) }
+    var accountToEdit by remember { mutableStateOf<com.example.data.model.OwnerAccountEntity?>(null) }
 
+    Scaffold(
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Transparent)
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = AppTextColor()
+                        )
+                    }
+                    Text(
+                        text = if (prefLanguage == "bn") "মালিক প্রোফাইল" else "Owner Profile",
+                        color = AppTextColor(),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    IconButton(
+                        onClick = { showAddDialog = true },
+                        modifier = Modifier
+                            .background(AccentCyan.copy(alpha = 0.1f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Add, null, tint = AccentCyan)
+                    }
+                }
+            }
+        },
+        containerColor = Color.Transparent
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp)
+        ) {
+            if (ownerAccounts.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    EmptyStateCard(message = if (prefLanguage == "bn") "কোনো মালিক অ্যাকাউন্ট নেই।" else "No owner accounts added yet.")
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    items(ownerAccounts, key = { it.id }) { acc ->
+                        OwnerAccountCard(
+                            account = acc,
+                            onEdit = { accountToEdit = acc; showAddDialog = true },
+                            onDelete = { viewModel.deleteOwnerAccount(acc) }
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(20.dp)) }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AddOwnerAccountDialog(
+            account = accountToEdit,
+            onDismiss = { showAddDialog = false; accountToEdit = null },
+            onSave = { newAcc ->
+                if (accountToEdit == null) {
+                    viewModel.addOwnerAccount(newAcc)
+                } else {
+                    viewModel.updateOwnerAccount(newAcc)
+                }
+                showAddDialog = false
+                accountToEdit = null
+            }
+        )
+    }
+}
+
+@Composable
+fun OwnerAccountCard(
+    account: com.example.data.model.OwnerAccountEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showQR by remember { mutableStateOf(false) }
+
+    GlassCard(cornerRadius = 24.dp) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(account.ownerName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AppTextColor())
+                    Text(account.ownerMobile, fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.6f))
+                }
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, null, tint = AccentCyan, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider(color = AppTextColor().copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            DetailRow(label = "Bank / Account", value = account.accountName)
+            DetailRow(label = "A/C Number", value = account.accountNumber)
+            DetailRow(label = "IFSC Code", value = account.ifscCode)
+            DetailRow(label = "Branch", value = account.branchName)
+            DetailRow(label = "UPI ID", value = account.upiId)
+            
+            if (account.qrCodeUri.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                GlassButton(
+                    onClick = { showQR = true },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.QrCode, null, tint = Color.Black)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("View QR Code", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showQR) {
+        Dialog(onDismissRequest = { showQR = false }) {
+            GlassCard(cornerRadius = 24.dp, modifier = Modifier.padding(20.dp)) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("QR Code for ${account.ownerName}", fontWeight = FontWeight.Bold, color = AppTextColor())
+                    Spacer(modifier = Modifier.height(20.dp))
+                    AsyncImage(
+                        model = account.qrCodeUri,
+                        contentDescription = "QR",
+                        modifier = Modifier.size(250.dp).clip(RoundedCornerShape(16.dp))
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    GlassButton(onClick = { showQR = false }) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DetailRow(label: String, value: String) {
+    if (value.isBlank()) return
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.5f))
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTextColor())
+    }
+}
+
+@Composable
+fun AddOwnerAccountDialog(
+    account: com.example.data.model.OwnerAccountEntity?,
+    onDismiss: () -> Unit,
+    onSave: (com.example.data.model.OwnerAccountEntity) -> Unit
+) {
+    var ownerName by remember { mutableStateOf(account?.ownerName ?: "") }
+    var ownerMobile by remember { mutableStateOf(account?.ownerMobile ?: "") }
+    var accountName by remember { mutableStateOf(account?.accountName ?: "") }
+    var accountNumber by remember { mutableStateOf(account?.accountNumber ?: "") }
+    var ifscCode by remember { mutableStateOf(account?.ifscCode ?: "") }
+    var branchName by remember { mutableStateOf(account?.branchName ?: "") }
+    var upiId by remember { mutableStateOf(account?.upiId ?: "") }
+    var qrCodeUri by remember { mutableStateOf(account?.qrCodeUri ?: "") }
+
+    val qrPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { qrCodeUri = it.toString() }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth(0.95f).padding(16.dp),
+        title = { Text(if (account == null) "Add Owner Account" else "Edit Owner Account", color = AppTextColor()) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(value = ownerName, onValueChange = { ownerName = it }, label = { Text("Owner Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = ownerMobile, onValueChange = { ownerMobile = it }, label = { Text("Mobile Number") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = accountName, onValueChange = { accountName = it }, label = { Text("Bank / Account Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = accountNumber, onValueChange = { accountNumber = it }, label = { Text("A/C Number") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = ifscCode, onValueChange = { ifscCode = it }, label = { Text("IFSC Code") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("Branch Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = upiId, onValueChange = { upiId = it }, label = { Text("UPI ID") }, modifier = Modifier.fillMaxWidth())
+                
+                Button(
+                    onClick = { qrPicker.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.1f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.QrCode, null, tint = AccentCyan)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (qrCodeUri.isEmpty()) "Attach QR Code" else "Change QR Code", color = AccentCyan)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        com.example.data.model.OwnerAccountEntity(
+                            id = account?.id ?: 0,
+                            ownerName = ownerName,
+                            ownerMobile = ownerMobile,
+                            accountName = accountName,
+                            accountNumber = accountNumber,
+                            ifscCode = ifscCode,
+                            branchName = branchName,
+                            upiId = upiId,
+                            qrCodeUri = qrCodeUri
+                        )
+                    )
+                }
+            ) {
+                Text("Save", color = AccentCyan, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = AppTextColor().copy(alpha = 0.5f))
+            }
+        }
+    )
+}
+
+
+
+@Composable
+fun GlobalSearchScreen(
+    viewModel: FinancialViewModel,
+    onDismiss: () -> Unit
+) {
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val results by viewModel.searchResults.collectAsStateWithLifecycle()
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(getAppBackgroundGradient(LocalAppTheme.current))
+            .pointerInput(Unit) { detectTapGestures { } } // Consume taps
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // Search Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    viewModel.setSearchQuery("")
+                    onDismiss()
+                }) {
+                    Icon(Icons.Default.ArrowBack, null, tint = AppTextColor())
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(25.dp))
+                        .background(getDialogBackground().copy(alpha = 0.8f))
+                        .border(1.dp, getGlassBorder(), RoundedCornerShape(25.dp))
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.setSearchQuery(it) },
+                        singleLine = true,
+                        textStyle = TextStyle(color = AppTextColor(), fontSize = 16.sp),
+                        cursorBrush = SolidColor(AccentCyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    "Search through your app...",
+                                    color = AppTextColor().copy(alpha = 0.4f),
+                                    fontSize = 16.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                }
+
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                        Icon(Icons.Default.Close, null, tint = AppTextColor().copy(alpha = 0.5f))
+                    }
+                }
+            }
+
+            // Results List
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (searchQuery.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                null,
+                                modifier = Modifier.size(64.dp),
+                                tint = AppTextColor().copy(alpha = 0.1f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "Type something to search",
+                                color = AppTextColor().copy(alpha = 0.5f),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                } else if (results.isEmpty()) {
+                    item {
+                        Text(
+                            "No results found for \"$searchQuery\"",
+                            color = AppTextColor().copy(alpha = 0.5f),
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                } else {
+                    items(results, key = { "${it.type}_${it.id}" }) { result ->
+                        SearchItem(result) {
+                            when (result.type) {
+                                "Hotel" -> {
+                                    viewModel.activeHotelId.value = result.id
+                                    viewModel.activeTab.value = "Hotels"
+                                }
+                                "Expense" -> {
+                                    viewModel.activeTab.value = "Extras"
+                                }
+                                "Account" -> {
+                                    // Switch to a relevant tab or show feedback
+                                    // Accounts are currently in settings, so maybe just closing search is enough
+                                }
+                            }
+                            onDismiss()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchItem(result: SearchResult, onClick: () -> Unit) {
+    val (icon, color) = when (result.type) {
+        "Hotel" -> Icons.Default.Hotel to Color(0xFF64B5F6)
+        "Expense" -> Icons.Default.ReceiptLong to Color(0xFFF06292)
+        "Account" -> Icons.Default.AccountBalance to Color(0xFF4DB6AC)
+        else -> Icons.Default.Info to Color.Gray
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(getDialogBackground().copy(alpha = 0.5f))
+            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(result.title, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(result.subtitle, color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
+                Text(
+                    result.type.uppercase(),
+                    color = color.copy(alpha = 0.8f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+    }
+}
