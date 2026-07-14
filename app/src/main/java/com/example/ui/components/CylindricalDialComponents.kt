@@ -63,7 +63,7 @@ fun MeterDialPicker(
                 onDoubleTap = { showEditDialog = i },
                 textColor = textColor
             )
-            if (i < 3) Spacer(modifier = Modifier.width(4.dp))
+            if (i < 3) Spacer(modifier = Modifier.width(22.dp))
         }
         
         Text(
@@ -71,7 +71,7 @@ fun MeterDialPicker(
             color = accentColor,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 4.dp)
+            modifier = Modifier.padding(horizontal = 22.dp)
         )
         
         // Tenths, Hundredths
@@ -85,7 +85,7 @@ fun MeterDialPicker(
                 onDoubleTap = { showEditDialog = i },
                 textColor = textColor
             )
-            if (i == 4) Spacer(modifier = Modifier.width(4.dp))
+            if (i == 4) Spacer(modifier = Modifier.width(22.dp))
         }
     }
 
@@ -127,7 +127,7 @@ private fun DialDigit(
 ) {
     Box(
         modifier = Modifier
-            .size(width = 40.dp, height = 120.dp)
+            .size(width = 44.dp, height = 120.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White.copy(alpha = 0.05f))
             .combinedClickable(

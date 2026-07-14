@@ -38,41 +38,60 @@ fun <T> WheelPicker(
     visibleItemsCount: Int = 5,
     itemContent: @Composable (T, Boolean) -> Unit
 ) {
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = 0)
+    val initialIndex = remember(items, selectedItem) {
+        items.indexOf(selectedItem).coerceAtLeast(0)
+    }
+
+    val paddingItemsCount = remember(visibleItemsCount) { visibleItemsCount / 2 }
+
+    val paddedItems = remember(items, visibleItemsCount) {
+        List(paddingItemsCount) { null } + items + List(paddingItemsCount) { null }
+    }
+
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
-    val density = LocalDensity.current
 
-    val initialIndex = items.indexOf(selectedItem).coerceAtLeast(0)
-    
-    // Empty items for padding at top and bottom
-    val paddingItemsCount = visibleItemsCount / 2
-    val paddedItems = List(paddingItemsCount) { null } + items + List(paddingItemsCount) { null }
-
-    LaunchedEffect(initialIndex) {
-        if (listState.firstVisibleItemIndex != initialIndex) {
-            listState.scrollToItem(initialIndex)
+    val centerIndex by remember(listState, items.size) {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val visibleItemsInfo = layoutInfo.visibleItemsInfo
+            if (visibleItemsInfo.isEmpty()) 0
+            else {
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                val closestToCenter = visibleItemsInfo.minByOrNull { 
+                    val itemCenter = it.offset + it.size / 2
+                    kotlin.math.abs(itemCenter - viewportCenter)
+                }
+                val indexInPadded = closestToCenter?.index ?: 0
+                (indexInPadded - paddingItemsCount).coerceIn(0, items.size - 1)
+            }
         }
     }
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .map { it }
-            .distinctUntilChanged()
-            .collect { index ->
-                if (index in items.indices) {
-                    onItemSelected(items[index])
-                }
-            }
+    // Sync with external changes to selectedItem
+    LaunchedEffect(selectedItem) {
+        val targetIndex = items.indexOf(selectedItem).coerceAtLeast(0)
+        if (targetIndex != centerIndex && !listState.isScrollInProgress) {
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
+    LaunchedEffect(centerIndex) {
+        if (centerIndex in items.indices && items[centerIndex] != selectedItem) {
+            onItemSelected(items[centerIndex])
+        }
     }
 
     LazyColumn(
         state = listState,
         flingBehavior = flingBehavior,
-        modifier = modifier.height(itemHeight * visibleItemsCount)
+        modifier = modifier.height(itemHeight * visibleItemsCount),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         items(paddedItems.size) { index ->
             val item = paddedItems[index]
-            val isSelected = index == listState.firstVisibleItemIndex + paddingItemsCount
+            val paddingItemsCount = visibleItemsCount / 2
+            val isSelected = index - paddingItemsCount == centerIndex
             
             Box(
                 modifier = Modifier

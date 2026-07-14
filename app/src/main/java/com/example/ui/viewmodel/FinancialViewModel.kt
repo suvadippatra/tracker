@@ -75,6 +75,9 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     val allExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.allExtraExpenses
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val allCategories: StateFlow<List<com.example.data.model.TransactionCategoryEntity>> = repository.allCategories
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val allMenuItems: StateFlow<List<MenuEntity>> = activeHotelId
         .flatMapLatest { id -> repository.getMenuForHotel(id) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -264,12 +267,24 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun addCategory(name: String, type: String = "EXPENSE") {
+        viewModelScope.launch {
+            repository.insertCategory(com.example.data.model.TransactionCategoryEntity(name = name, type = type))
+        }
+    }
+
+    fun deleteCategory(category: com.example.data.model.TransactionCategoryEntity) {
+        viewModelScope.launch {
+            repository.deleteCategory(category)
+        }
+    }
+
     // ==========================================
     // SETTINGS / CONFIGURATION ACTIONS
     // ==========================================
-    fun addVirtualAccount(name: String, startingBalance: Double) {
+    fun addVirtualAccount(name: String, startingBalance: Double, upiId: String = "", qrCodeUri: String = "") {
         viewModelScope.launch {
-            repository.insertBankAccount(BankAccountEntity(name = name, balance = startingBalance))
+            repository.insertBankAccount(BankAccountEntity(name = name, balance = startingBalance, upiId = upiId, qrCodeUri = qrCodeUri))
         }
     }
 

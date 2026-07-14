@@ -334,6 +334,20 @@ fun DailyReadingInputScreen(
                 val readingColor = if (reading.isPaid) AppTextColor() else Color.Red
                 val displayFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
                 
+                // Calculate per day usage
+                val previousReading = successState.readings.filter { it.readingDate < reading.readingDate }
+                    .maxByOrNull { it.readingDate }
+                
+                val perDayUsage = if (previousReading != null) {
+                    val units = reading.totalReading - previousReading.totalReading
+                    val timeDiff = reading.readingDate - previousReading.readingDate
+                    val days = timeDiff.toDouble() / (24 * 60 * 60 * 1000)
+                    if (days > 0) units / days else 0.0
+                } else null
+
+                var showMenu by remember { mutableStateOf(false) }
+                var showEditDialog by remember { mutableStateOf(false) }
+
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -342,25 +356,25 @@ fun DailyReadingInputScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                                    .size(40.dp)
+                                    .background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.OfflineBolt,
                                     contentDescription = "Bolt",
                                     tint = if (reading.isPaid) AccentCyan else Color.Red,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "${reading.unitsConsumed} Units",
+                                        text = "${reading.totalReading} Total",
                                         color = readingColor,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
@@ -376,25 +390,133 @@ fun DailyReadingInputScreen(
                                     }
                                 }
                                 Text(
-                                    text = "${displayFormatter.format(Date(reading.readingDate))} | Total: ${reading.totalReading}",
-                                    color = readingColor.copy(alpha = 0.5f),
-                                    fontSize = 11.sp
+                                    text = displayFormatter.format(Date(reading.readingDate)),
+                                    color = AppTextColor().copy(alpha = 0.7f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
+                                if (perDayUsage != null) {
+                                    Text(
+                                        text = String.format(Locale.getDefault(), "Usage: %.2f units/day", perDayUsage),
+                                        color = AccentCyan,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
 
-                        IconButton(
-                            onClick = { viewModel.deleteReading(reading) },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Delete",
-                                tint = AccentPink,
-                                modifier = Modifier.size(18.dp)
-                            )
+                        Box {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = AppTextColor().copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                modifier = Modifier.background(getDialogBackground())
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit", color = AppTextColor()) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        showMenu = false
+                                        showEditDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Remove to bin", color = AccentPink) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        showMenu = false
+                                        viewModel.deleteReading(reading)
+                                    }
+                                )
+                            }
                         }
                     }
+                }
+
+                if (showEditDialog) {
+                    var editTotalValue by remember { mutableDoubleStateOf(reading.totalReading) }
+                    var editDateMillis by remember { mutableLongStateOf(reading.readingDate) }
+                    var showDatePickerInside by remember { mutableStateOf(false) }
+
+                    AlertDialog(
+                        onDismissRequest = { showEditDialog = false },
+                        containerColor = getDialogBackground(),
+                        shape = RoundedCornerShape(24.dp),
+                        title = { Text("Edit Meter Reading", color = AppTextColor()) },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(AppTextColor().copy(alpha = 0.05f))
+                                        .clickable { showDatePickerInside = true }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Timestamp:", color = AppTextColor().copy(alpha = 0.6f), fontSize = 13.sp)
+                                    Text(displayFormatter.format(Date(editDateMillis)), color = AccentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                MeterDialPicker(
+                                    initialValue = editTotalValue,
+                                    onValueChange = { editTotalValue = it },
+                                    textColor = AppTextColor(),
+                                    accentColor = AccentCyan
+                                )
+                                
+                                if (showDatePickerInside) {
+                                    AlertDialog(
+                                        onDismissRequest = { showDatePickerInside = false },
+                                        containerColor = getDialogBackground(),
+                                        title = { Text("Set Date & Time", color = AppTextColor(), fontSize = 16.sp) },
+                                        text = {
+                                            CylindricalDateTimePicker(
+                                                initialDateTime = editDateMillis,
+                                                onDateTimeChange = { editDateMillis = it },
+                                                textColor = AppTextColor()
+                                            )
+                                        },
+                                        confirmButton = {
+                                            TextButton(onClick = { showDatePickerInside = false }) {
+                                                Text("OK", color = AccentCyan)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    viewModel.updateReading(reading.copy(totalReading = editTotalValue, readingDate = editDateMillis))
+                                    showEditDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                            ) {
+                                Text("Update", color = Color.Black)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showEditDialog = false }) {
+                                Text("Cancel", color = AppTextColor().copy(alpha = 0.6f))
+                            }
+                        }
+                    )
                 }
             }
         }

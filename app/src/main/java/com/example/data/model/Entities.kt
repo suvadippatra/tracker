@@ -62,7 +62,17 @@ data class BankAccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val balance: Double,
+    val upiId: String = "",
+    val qrCodeUri: String = "",
     val isDeleted: Boolean = false
+)
+
+@Entity(tableName = "transaction_categories")
+data class TransactionCategoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val type: String = "EXPENSE", // "INCOME" or "EXPENSE"
+    val isSystem: Boolean = false
 )
 
 @Entity(tableName = "extra_expenses")
@@ -116,7 +126,8 @@ data class MeterReading(
     val totalReading: Double,
     val unitsConsumed: Double,
     val timestamp: Long = System.currentTimeMillis(),
-    val isPaid: Boolean = false
+    val isPaid: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "utility_bills")

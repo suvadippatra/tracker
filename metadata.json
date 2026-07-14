@@ -1,6 +1,6 @@
 {
-  "name": "Traker",
-  "description": "An offline-first, personal financial tracking application.",
+  "name": "FinNexus",
+  "description": "A professional-grade, offline-first personal finance and expense tracking application.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

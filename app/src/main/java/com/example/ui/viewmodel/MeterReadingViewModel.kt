@@ -157,7 +157,13 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
 
     fun deleteReading(reading: MeterReading) {
         viewModelScope.launch {
-            repository.deleteReading(reading)
+            repository.softDeleteReading(reading.id)
+        }
+    }
+
+    fun updateReading(reading: MeterReading) {
+        viewModelScope.launch {
+            repository.insertReading(reading)
         }
     }
 

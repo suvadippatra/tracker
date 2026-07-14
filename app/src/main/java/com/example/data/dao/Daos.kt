@@ -13,6 +13,7 @@ import com.example.data.model.HotelTransactionEntity
 import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.MeterReading
+import com.example.data.model.TransactionCategoryEntity
 import com.example.data.model.UtilityBill
 import kotlinx.coroutines.flow.Flow
 
@@ -141,17 +142,20 @@ interface MeterDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReading(reading: MeterReading)
 
-    @Query("SELECT * FROM meter_readings ORDER BY readingDate DESC")
+    @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC")
     fun getAllReadings(): Flow<List<MeterReading>>
 
-    @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE readingDate >= :start AND readingDate <= :end")
+    @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE isDeleted = 0 AND readingDate >= :start AND readingDate <= :end")
     fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double>
 
-    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE readingDate >= :start AND readingDate <= :end")
+    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE isDeleted = 0 AND readingDate >= :start AND readingDate <= :end")
     suspend fun updateReadingsPaidStatus(start: Long, end: Long, isPaid: Boolean)
 
-    @Query("SELECT * FROM meter_readings ORDER BY readingDate DESC LIMIT 1")
+    @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC LIMIT 1")
     fun getLatestReading(): Flow<MeterReading?>
+
+    @Query("UPDATE meter_readings SET isDeleted = 1 WHERE id = :id")
+    suspend fun softDeleteReading(id: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUtilityBill(bill: UtilityBill)
@@ -173,4 +177,16 @@ interface MeterDao {
 
     @Delete
     suspend fun deleteElectricityRate(rate: com.example.data.model.ElectricityRate)
+}
+
+@Dao
+interface TransactionCategoryDao {
+    @Query("SELECT * FROM transaction_categories ORDER BY name ASC")
+    fun getAllCategories(): Flow<List<TransactionCategoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategory(category: TransactionCategoryEntity): Long
+
+    @Delete
+    suspend fun deleteCategory(category: TransactionCategoryEntity)
 }

@@ -27,6 +27,7 @@ class FinancialRepository(private val db: AppDatabase) {
     private val bankAccountDao = db.bankAccountDao()
     private val extraExpenseDao = db.extraExpenseDao()
     private val meterDao = db.meterDao()
+    private val categoryDao = db.transactionCategoryDao()
 
     val userProfile: Flow<UserProfileEntity?> = userProfileDao.getUserProfile()
     val allHotels: Flow<List<HotelEntity>> = hotelDao.getAllHotels()
@@ -36,6 +37,7 @@ class FinancialRepository(private val db: AppDatabase) {
     val allExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getAllExpenses()
     val allTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getAllTransactions()
     val allMenuItems: Flow<List<MenuEntity>> = menuDao.getAllMenuItems()
+    val allCategories: Flow<List<com.example.data.model.TransactionCategoryEntity>> = categoryDao.getAllCategories()
 
     val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
     val allUtilityBills: Flow<List<UtilityBill>> = meterDao.getAllUtilityBills()
@@ -49,9 +51,13 @@ class FinancialRepository(private val db: AppDatabase) {
     suspend fun insertReading(reading: MeterReading) = meterDao.insertReading(reading)
     suspend fun insertUtilityBill(bill: UtilityBill) = meterDao.insertUtilityBill(bill)
     suspend fun deleteReading(reading: MeterReading) = meterDao.deleteReading(reading)
+    suspend fun softDeleteReading(id: String) = meterDao.softDeleteReading(id)
     suspend fun deleteUtilityBill(bill: UtilityBill) = meterDao.deleteUtilityBill(bill)
     suspend fun insertElectricityRate(rate: com.example.data.model.ElectricityRate) = meterDao.insertElectricityRate(rate)
     suspend fun deleteElectricityRate(rate: com.example.data.model.ElectricityRate) = meterDao.deleteElectricityRate(rate)
+
+    suspend fun insertCategory(category: com.example.data.model.TransactionCategoryEntity) = categoryDao.insertCategory(category)
+    suspend fun deleteCategory(category: com.example.data.model.TransactionCategoryEntity) = categoryDao.deleteCategory(category)
 
     fun getMenuForHotel(hotelId: Int): Flow<List<MenuEntity>> {
         return menuDao.getMenuForHotel(hotelId)

@@ -64,6 +64,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.*
 import com.example.ui.viewmodel.FinancialViewModel
 import com.example.ui.viewmodel.MeterReadingViewModel
+import com.example.ui.viewmodel.MeterReadingUiState
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -611,7 +612,11 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
     }
 
     if (showSearch) {
-        GlobalSearchModal(viewModel, onDismiss = { showSearch = false })
+        GlobalSearchModal(
+            viewModel = viewModel,
+            meterViewModel = meterViewModel,
+            onDismiss = { showSearch = false }
+        )
     }
 }
 
@@ -2624,13 +2629,19 @@ fun MealHistoryModal(
 fun ExtraExpensesTab(viewModel: FinancialViewModel) {
     val accounts by viewModel.allBankAccounts.collectAsState()
     val expenses by viewModel.allExtraExpenses.collectAsState()
+    val userCategories by viewModel.allCategories.collectAsState()
 
     var showAddExpense by remember { mutableStateOf(false) }
     var selectedReceiptUri by remember { mutableStateOf<String?>(null) }
     var selectedReceiptName by remember { mutableStateOf("") }
+    var showDetailedHistory by remember { mutableStateOf(false) }
     
-    // Interactive Category Filter
-    val categories = listOf("All", "Food", "Academics", "Travel", "Salary", "Shopping", "Entertainment", "General")
+    // Interactive Category Filter & Search
+    var searchQuery by remember { mutableStateOf("") }
+    val systemCategories = listOf("All", "Food", "Academics", "Travel", "Salary", "Shopping", "Entertainment", "General")
+    val allCategoryNames = remember(userCategories) {
+        (systemCategories + userCategories.map { it.name }).distinct()
+    }
     var activeCategoryFilter by remember { mutableStateOf("All") }
 
     // Asynchronous Calculations using remember & derivedStateOf
@@ -2648,66 +2659,51 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         }
     }
 
-    val filteredExpenses by remember(expenses, activeCategoryFilter) {
+    val filteredExpenses by remember(expenses, activeCategoryFilter, searchQuery) {
         derivedStateOf {
-            if (activeCategoryFilter == "All") expenses
-            else expenses.filter { it.category.lowercase(Locale.getDefault()) == activeCategoryFilter.lowercase(Locale.getDefault()) }
+            expenses.filter { exp ->
+                val matchesCategory = if (activeCategoryFilter == "All") true 
+                                     else exp.category.lowercase() == activeCategoryFilter.lowercase()
+                val matchesSearch = if (searchQuery.isBlank()) true 
+                                   else exp.name.contains(searchQuery, ignoreCase = true) || 
+                                        exp.notes.contains(searchQuery, ignoreCase = true)
+                matchesCategory && matchesSearch
+            }
         }
     }
 
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
 
-    if (showAddExpense) {
+    if (showDetailedHistory) {
+        ExtraExpenseDetailedHistoryScreen(
+            viewModel = viewModel,
+            onDismiss = { showDetailedHistory = false }
+        )
+    } else if (showAddExpense) {
         AddExpenseScreen(
             viewModel = viewModel,
             onDismiss = { showAddExpense = false }
         )
     } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
-            item {
-                // Section Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Accounts & Ledger",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    if (accounts.isNotEmpty()) {
-                        GlassButton(
-                            onClick = { showAddExpense = true },
-                            cornerRadius = 10.dp
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Transaction", color = AppTextColor(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-        item {
-            // Hero Balance Card with split Income and Expense indications
-            Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
             ) {
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 24.dp
-                ) {
+                item {
+                    // Hero Balance Card with split Income and Expense indications
+                    // Move this to top as requested
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 12.dp)
+                            .clickable { showDetailedHistory = true } // Open detailed history on click
+                    ) {
+                        GlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 24.dp
+                        ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2834,77 +2830,144 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
             if (accounts.isEmpty()) {
                 EmptyStateCard(message = "No virtual bank accounts set. Add one in Settings!")
             } else {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(accounts, key = { it.id }) { account ->
-                        Box(
-                            modifier = Modifier
-                                .width(260.dp)
-                                .height(140.dp)
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { accounts.size })
+                
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    pageSpacing = 16.dp
+                ) { page ->
+                    val account = accounts[page]
+                    var showAccountMenu by remember { mutableStateOf(false) }
+                    var showQRDialog by remember { mutableStateOf(false) }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                    ) {
+                        GlassCard(
+                            modifier = Modifier.fillMaxSize(),
+                            cornerRadius = 22.dp
                         ) {
-                            GlassCard(
-                                modifier = Modifier.fillMaxSize(),
-                                cornerRadius = 22.dp
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                    Column {
                                         Text(
                                             text = account.name,
                                             color = AppTextColor(),
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.ExtraBold
                                         )
-                                        Icon(
-                                            imageVector = Icons.Default.AccountBalance,
-                                            contentDescription = null,
-                                            tint = AccentCyan.copy(alpha = 0.8f),
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-
-                                    Column {
-                                        Text(
-                                            text = "Current Balance",
-                                            color = AppTextColor().copy(alpha = 0.5f),
-                                            fontSize = 10.sp
-                                        )
-                                        RollingNumberText(
-                                            value = account.balance,
-                                            style = TextStyle(
-                                                color = AppTextColor(),
-                                                fontSize = 24.sp,
-                                                fontWeight = FontWeight.Bold
+                                        if (account.upiId.isNotBlank()) {
+                                            Text(
+                                                text = account.upiId,
+                                                color = AppTextColor().copy(alpha = 0.5f),
+                                                fontSize = 10.sp
                                             )
-                                        )
+                                        }
                                     }
+                                    
+                                    Row {
+                                        if (account.upiId.isNotBlank() || account.qrCodeUri.isNotBlank()) {
+                                            IconButton(onClick = { showQRDialog = true }) {
+                                                Icon(Icons.Default.Info, contentDescription = "UPI Info", tint = AccentCyan)
+                                            }
+                                        }
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "•••• •••• •••• ${1000 + account.id}",
-                                            color = AppTextColor().copy(alpha = 0.3f),
-                                            fontSize = 11.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                        Text(
-                                            text = "Virtual Wallet",
-                                            color = AccentCyan,
-                                            fontSize = 10.sp,
+                                        Box {
+                                            IconButton(onClick = { showAccountMenu = true }) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = AppTextColor())
+                                            }
+                                            DropdownMenu(
+                                                expanded = showAccountMenu,
+                                                onDismissRequest = { showAccountMenu = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Delete", color = Color.Red) },
+                                                    onClick = {
+                                                        showAccountMenu = false
+                                                        viewModel.deleteVirtualAccount(account)
+                                                    },
+                                                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    Text(
+                                        text = "Current Balance",
+                                        color = AppTextColor().copy(alpha = 0.5f),
+                                        fontSize = 11.sp
+                                    )
+                                    RollingNumberText(
+                                        value = account.balance,
+                                        prefix = "₹",
+                                        style = TextStyle(
+                                            color = AppTextColor(),
+                                            fontSize = 28.sp,
                                             fontWeight = FontWeight.Bold
                                         )
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "•••• •••• •••• ${1000 + account.id}",
+                                        color = AppTextColor().copy(alpha = 0.3f),
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Text(
+                                        text = "Virtual Wallet",
+                                        color = AccentCyan,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (showQRDialog) {
+                            Dialog(onDismissRequest = { showQRDialog = false }) {
+                                GlassCard(
+                                    cornerRadius = 24.dp,
+                                    modifier = Modifier.fillMaxWidth(0.9f).padding(16.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(20.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text("UPI Details", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AppTextColor())
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        if (account.qrCodeUri.isNotBlank()) {
+                                            AsyncImage(
+                                                model = account.qrCodeUri,
+                                                contentDescription = "QR Code",
+                                                modifier = Modifier.size(200.dp).clip(RoundedCornerShape(12.dp))
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                        }
+                                        if (account.upiId.isNotBlank()) {
+                                            Text("UPI ID: ${account.upiId}", color = AppTextColor(), fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(20.dp))
+                                        }
+                                        GlassButton(onClick = { showQRDialog = false }) {
+                                            Text("Close")
+                                        }
                                     }
                                 }
                             }
@@ -2917,18 +2980,35 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         item {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // HISTORICAL LOG TABLE HEADER WITH CATEGORY CHIPS
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Search Bar & Filter Header
+            GlassCard(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                cornerRadius = 16.dp
             ) {
-                Text(
-                    text = "Transaction Ledger",
-                    color = AppTextColor(),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Search, null, tint = AppTextColor().copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+                        textStyle = TextStyle(color = AppTextColor(), fontSize = 16.sp),
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text("Search transactions...", color = AppTextColor().copy(alpha = 0.4f))
+                            }
+                            innerTextField()
+                        }
+                    )
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, null, tint = AppTextColor().copy(alpha = 0.5f))
+                        }
+                    }
+                }
             }
 
             // Horizontal Scrollable Category Chips for Quick Filter
@@ -2938,7 +3018,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(categories) { cat ->
+                items(allCategoryNames) { cat ->
                     val isSelected = activeCategoryFilter == cat
                     val chipBg = if (isSelected) AccentCyan.copy(alpha = 0.15f) else Color.Transparent
                     val chipBorder = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.2f)
@@ -2950,7 +3030,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                             .background(chipBg)
                             .border(1.dp, chipBorder, RoundedCornerShape(50))
                             .clickable { activeCategoryFilter = cat }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = cat,
@@ -3098,13 +3178,34 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                 )
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            IconButton(
-                                onClick = { viewModel.deleteExtraExpense(exp) },
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .background(Color(0x15FF4081), CircleShape)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = AccentPink, modifier = Modifier.size(14.dp))
+                            
+                            var showExpMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showExpMenu = true },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        tint = AppTextColor().copy(alpha = 0.5f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showExpMenu,
+                                    onDismissRequest = { showExpMenu = false },
+                                    modifier = Modifier.background(getDialogBackground())
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = AccentPink) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            showExpMenu = false
+                                            viewModel.deleteExtraExpense(exp)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -3113,7 +3214,28 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+
+    // Centered bottom floating button
+    FloatingActionButton(
+        onClick = { showAddExpense = true },
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 24.dp)
+            .testTag("add_expense_fab"),
+        containerColor = AccentCyan,
+        contentColor = Color.Black,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Add Transaction", fontWeight = FontWeight.Bold)
         }
     }
     }
@@ -3251,6 +3373,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         )
     }
 }
+}
 
 // Helper to return beautiful visual signifiers for category items
 @Composable
@@ -3294,6 +3417,8 @@ fun AddExpenseScreen(
     onDismiss: () -> Unit
 ) {
     val accounts by viewModel.allBankAccounts.collectAsState()
+    val userCategories by viewModel.allCategories.collectAsState()
+    val themeMode by LocalAppTheme.current.let { remember { mutableStateOf(it) } }
 
     var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
@@ -3308,6 +3433,7 @@ fun AddExpenseScreen(
 
     var showAccountDropdown by remember { mutableStateOf(false) }
     var showCategoryDropdown by remember { mutableStateOf(false) }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
     
     val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
     val context = LocalContext.current
@@ -3324,575 +3450,616 @@ fun AddExpenseScreen(
         name.isNotBlank() && amountStr.toDoubleOrNull() != null && amountStr.toDouble() > 0 && category.isNotBlank()
     }
 
-    // High-contrast, beautifully structured Light Mode Container
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF8FAFC)) // Crisp, bright slate-tinted background
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp)
-    ) {
-        // Top Custom Nav Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onDismiss,
+    Scaffold(
+        topBar = {
+            Column(
                 modifier = Modifier
-                    .background(Color(0xFFE2E8F0), CircleShape)
-                    .size(40.dp)
+                    .fillMaxWidth()
+                    .background(Color.Transparent)
+                    .padding(20.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color(0xFF1E293B)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = AppTextColor()
+                        )
+                    }
+                    Text(
+                        text = if (type == "EXPENSE") "Add Expense" else "Add Income",
+                        color = AppTextColor(),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Box(modifier = Modifier.size(40.dp))
+                }
             }
-            Text(
-                text = if (type == "EXPENSE") "Add Expense" else "Add Income",
-                color = Color(0xFF1E293B),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Box(modifier = Modifier.size(40.dp)) // Equalizer spacer
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Transaction Type Switcher Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
+        },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                GlassButton(
+                    onClick = {
+                        val amt = amountStr.toDoubleOrNull()
+                        if (isFormValid && amt != null && selectedAccountId != 0) {
+                            viewModel.saveExtraExpense(
+                                name = name,
+                                amount = amt,
+                                bankAccountId = selectedAccountId,
+                                timestamp = timestamp,
+                                receiptUri = attachmentUri,
+                                type = type,
+                                category = category,
+                                notes = notes
+                            )
+                            onDismiss()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("save_expense_button")
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(if (type == "EXPENSE") AccentPink else AccentGreen),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Register Transaction",
+                            color = Color.Black,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        },
+        containerColor = Color.Transparent
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Transaction Mode",
-                    color = Color(0xFF64748B),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+            // Transaction Type Switcher Card
+            GlassCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Transaction Mode",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                            .padding(4.dp)
+                    ) {
+                        val isExpense = type == "EXPENSE"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isExpense) AccentPink.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable {
+                                    type = "EXPENSE"
+                                    category = ExpenseCategories.first()
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.4f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Deduction",
+                                    color = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (!isExpense) AccentGreen.copy(alpha = 0.2f) else Color.Transparent)
+                                .clickable {
+                                    type = "INCOME"
+                                    category = IncomeCategories.first()
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    tint = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.4f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Deposit",
+                                    color = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Large Amount Input Card
+            GlassCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Amount to Log",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "₹",
+                            style = TextStyle(
+                                color = if (type == "EXPENSE") AccentPink else AccentGreen,
+                                fontSize = 36.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        BasicTextField(
+                            value = amountStr,
+                            onValueChange = { input ->
+                                if (input.all { it.isDigit() || it == '.' }) {
+                                    amountStr = input
+                                }
+                            },
+                            textStyle = TextStyle(
+                                color = AppTextColor(),
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.Black,
+                                textAlign = TextAlign.Start
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            cursorBrush = SolidColor(if (type == "EXPENSE") AccentPink else AccentGreen),
+                            modifier = Modifier
+                                .widthIn(min = 100.dp)
+                                .testTag("expense_amount_input"),
+                            decorationBox = { innerTextField ->
+                                if (amountStr.isEmpty()) {
+                                    Text(
+                                        text = "0.00",
+                                        style = TextStyle(
+                                            color = AppTextColor().copy(alpha = 0.2f),
+                                            fontSize = 40.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Transaction Details Card
+            GlassCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Transaction Details",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Title Input Field
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Title / Purpose") },
+                        placeholder = { Text("e.g. Fuel, Lunch, Bonus") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedLabelColor = AccentCyan,
+                            unfocusedLabelColor = AppTextColor().copy(alpha = 0.5f),
+                            focusedBorderColor = AccentCyan,
+                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f),
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("expense_title_input")
+                    )
+
+                    // Category Selector Input Field
+                    Column {
+                        Text(
+                            text = "Category",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            val (catIcon, catColor) = getCategoryIconAndColor(category, type)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                    .clickable { showCategoryDropdown = true }
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(catIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(category, color = AppTextColor(), fontWeight = FontWeight.Medium)
+                                }
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f))
+                            }
+
+                            DropdownMenu(
+                                expanded = showCategoryDropdown,
+                                onDismissRequest = { showCategoryDropdown = false },
+                                modifier = Modifier
+                                    .background(Color(0xFF1E293B))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            ) {
+                                val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
+                                val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
+                                
+                                allCats.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat, color = Color.White) },
+                                        onClick = {
+                                            category = cat
+                                            showCategoryDropdown = false
+                                        }
+                                    )
+                                }
+                                Divider(color = Color.White.copy(alpha = 0.1f))
+                                DropdownMenuItem(
+                                    text = { Text("+ Add Custom Category", color = AccentCyan) },
+                                    onClick = {
+                                        showCategoryDropdown = false
+                                        showAddCategoryDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Add, null, tint = AccentCyan) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Wallet Linkage Dropdown
+                    Column {
+                        Text(
+                            text = "Virtual Wallet Source",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            val activeAcc = accounts.find { it.id == selectedAccountId }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                    .clickable { showAccountDropdown = true }
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(activeAcc?.name ?: "Select Wallet Account", color = AppTextColor(), fontWeight = FontWeight.Medium)
+                                }
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f))
+                            }
+
+                            DropdownMenu(
+                                expanded = showAccountDropdown,
+                                onDismissRequest = { showAccountDropdown = false },
+                                modifier = Modifier
+                                    .background(Color(0xFF1E293B))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            ) {
+                                accounts.forEach { acc ->
+                                    DropdownMenuItem(
+                                        text = { Text("${acc.name} (Bal: ₹${acc.balance.toInt()})", color = Color.White) },
+                                        onClick = {
+                                            selectedAccountId = acc.id
+                                            showAccountDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Notes input field
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Short Notes (Optional)") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedLabelColor = AccentCyan,
+                            unfocusedLabelColor = AppTextColor().copy(alpha = 0.5f),
+                            focusedBorderColor = AccentCyan,
+                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f),
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Date and Time picker card
+            GlassCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
-                        .padding(4.dp)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val isExpense = type == "EXPENSE"
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isExpense) Color(0xFFFEE2E2) else Color.Transparent) // Beautiful soft light red for expense
-                            .clickable {
-                                type = "EXPENSE"
-                                category = ExpenseCategories.first()
-                            }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowDownward,
-                                contentDescription = null,
-                                tint = if (isExpense) Color(0xFFEF4444) else Color(0xFF94A3B8),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Deduction",
-                                color = if (isExpense) Color(0xFF991B1B) else Color(0xFF64748B),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (!isExpense) Color(0xFFDCFCE7) else Color.Transparent) // Beautiful soft light green for income
-                            .clickable {
-                                type = "INCOME"
-                                category = IncomeCategories.first()
-                            }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowUpward,
-                                contentDescription = null,
-                                tint = if (!isExpense) Color(0xFF22C55E) else Color(0xFF94A3B8),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Deposit",
-                                color = if (!isExpense) Color(0xFF166534) else Color(0xFF64748B),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Large Amount Input Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Amount to Log",
-                    color = Color(0xFF64748B),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "₹",
-                        style = TextStyle(
-                            color = if (type == "EXPENSE") Color(0xFFEF4444) else Color(0xFF22C55E),
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Black
+                    Column {
+                        Text(
+                            text = "Log Date & Time",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    BasicTextField(
-                        value = amountStr,
-                        onValueChange = { input ->
-                            if (input.all { it.isDigit() || it == '.' }) {
-                                amountStr = input
-                            }
-                        },
-                        textStyle = TextStyle(
-                            color = Color(0xFF1E293B),
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.Black,
-                            textAlign = TextAlign.Start
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        cursorBrush = SolidColor(if (type == "EXPENSE") Color(0xFFEF4444) else Color(0xFF22C55E)),
-                        modifier = Modifier
-                            .widthIn(min = 100.dp)
-                            .testTag("expense_amount_input"),
-                        decorationBox = { innerTextField ->
-                            if (amountStr.isEmpty()) {
-                                Text(
-                                    text = "0.00",
-                                    style = TextStyle(
-                                        color = Color(0xFFCBD5E1),
-                                        fontSize = 40.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                )
-                            }
-                            innerTextField()
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = sdf.format(Date(timestamp)),
+                            color = AppTextColor(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(
+                            onClick = {
+                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+                                android.app.DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        cal.set(Calendar.YEAR, y)
+                                        cal.set(Calendar.MONTH, m)
+                                        cal.set(Calendar.DAY_OF_MONTH, d)
+                                        timestamp = cal.timeInMillis
+                                    },
+                                    cal.get(Calendar.YEAR),
+                                    cal.get(Calendar.MONTH),
+                                    cal.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            },
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
                         }
-                    )
+
+                        IconButton(
+                            onClick = {
+                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+                                TimePickerDialog(
+                                    context,
+                                    { _, hr, min ->
+                                        cal.set(Calendar.HOUR_OF_DAY, hr)
+                                        cal.set(Calendar.MINUTE, min)
+                                        timestamp = cal.timeInMillis
+                                    },
+                                    cal.get(Calendar.HOUR_OF_DAY),
+                                    cal.get(Calendar.MINUTE),
+                                    false
+                                ).show()
+                            },
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                                .size(40.dp)
+                        ) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Transaction Details Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            // Receipt Attachment Card
+            GlassCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Transaction Details",
-                    color = Color(0xFF64748B),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                // Title Input Field
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Title / Purpose", color = Color(0xFF64748B)) },
-                    placeholder = { Text("e.g. Fuel, Lunch, Bonus") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1E293B),
-                        unfocusedTextColor = Color(0xFF1E293B),
-                        focusedLabelColor = AccentCyan,
-                        unfocusedLabelColor = Color(0xFF64748B),
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().testTag("expense_title_input")
-                )
-
-                // Category Selector Input Field
-                Column {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Category",
-                        color = Color(0xFF64748B),
+                        text = "Receipt Attachment (Optional)",
+                        color = AppTextColor().copy(alpha = 0.6f),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        fontWeight = FontWeight.Bold
                     )
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        val (catIcon, catColor) = getCategoryIconAndColor(category, type)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFF8FAFC))
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                                .clickable { showCategoryDropdown = true }
-                                .padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = { documentPicker.launch("*/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(catIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(category, color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
-                            }
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B))
+                            Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pick File", color = AppTextColor(), fontSize = 12.sp)
                         }
 
-                        DropdownMenu(
-                            expanded = showCategoryDropdown,
-                            onDismissRequest = { showCategoryDropdown = false },
+                        var showPresets by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            Button(
+                                onClick = { showPresets = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Wallet, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Secure Wallet", color = AppTextColor(), fontSize = 12.sp)
+                            }
+
+                            DropdownMenu(
+                                expanded = showPresets,
+                                onDismissRequest = { showPresets = false },
+                                modifier = Modifier
+                                    .background(Color(0xFF1E293B))
+                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            ) {
+                                MockReceipts.forEach { mock ->
+                                    DropdownMenuItem(
+                                        text = { Text(mock, color = Color.White, fontSize = 12.sp) },
+                                        onClick = {
+                                            attachmentUri = "mock://receipts/$mock"
+                                            showPresets = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (!attachmentUri.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
                             modifier = Modifier
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
+                                .fillMaxWidth()
+                                .background(AccentGreen.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                                .padding(12.dp)
                         ) {
-                            val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
-                            cats.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat, color = Color(0xFF1E293B)) },
-                                    onClick = {
-                                        category = cat
-                                        showCategoryDropdown = false
-                                    }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Attached: ${attachmentUri!!.substringAfterLast("/")}",
+                                    color = AccentGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
                 }
+            }
 
-                // Wallet Linkage Dropdown
-                Column {
-                    Text(
-                        text = "Virtual Wallet Source",
-                        color = Color(0xFF64748B),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        val activeAcc = accounts.find { it.id == selectedAccountId }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFF8FAFC))
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                                .clickable { showAccountDropdown = true }
-                                .padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(activeAcc?.name ?: "Select Wallet Account", color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
-                            }
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B))
-                        }
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
 
-                        DropdownMenu(
-                            expanded = showAccountDropdown,
-                            onDismissRequest = { showAccountDropdown = false },
-                            modifier = Modifier
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                        ) {
-                            accounts.forEach { acc ->
-                                DropdownMenuItem(
-                                    text = { Text("${acc.name} (Bal: ₹${acc.balance.toInt()})", color = Color(0xFF1E293B)) },
-                                    onClick = {
-                                        selectedAccountId = acc.id
-                                        showAccountDropdown = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Notes input field
+    if (showAddCategoryDialog) {
+        var newCatName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddCategoryDialog = false },
+            title = { Text("Add New Category") },
+            text = {
                 OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Short Notes (Optional)", color = Color(0xFF64748B)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1E293B),
-                        unfocusedTextColor = Color(0xFF1E293B),
-                        focusedLabelColor = AccentCyan,
-                        unfocusedLabelColor = Color(0xFF64748B),
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
+                    value = newCatName,
+                    onValueChange = { newCatName = it },
+                    label = { Text("Category Name") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Date and Time picker card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Log Date & Time",
-                        color = Color(0xFF64748B),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = sdf.format(Date(timestamp)),
-                        color = Color(0xFF1E293B),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
-                        onClick = {
-                            val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                            android.app.DatePickerDialog(
-                                context,
-                                { _, y, m, d ->
-                                    cal.set(Calendar.YEAR, y)
-                                    cal.set(Calendar.MONTH, m)
-                                    cal.set(Calendar.DAY_OF_MONTH, d)
-                                    timestamp = cal.timeInMillis
-                                },
-                                cal.get(Calendar.YEAR),
-                                cal.get(Calendar.MONTH),
-                                cal.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                        modifier = Modifier
-                            .background(Color(0xFFF1F5F9), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newCatName.isNotBlank()) {
+                        viewModel.addCategory(newCatName, type)
+                        category = newCatName
+                        showAddCategoryDialog = false
                     }
-
-                    IconButton(
-                        onClick = {
-                            val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                            TimePickerDialog(
-                                context,
-                                { _, hr, min ->
-                                    cal.set(Calendar.HOUR_OF_DAY, hr)
-                                    cal.set(Calendar.MINUTE, min)
-                                    timestamp = cal.timeInMillis
-                                },
-                                cal.get(Calendar.HOUR_OF_DAY),
-                                cal.get(Calendar.MINUTE),
-                                false
-                            ).show()
-                        },
-                        modifier = Modifier
-                            .background(Color(0xFFF1F5F9), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(Icons.Default.Schedule, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Receipt Attachment Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Receipt Attachment (Optional)",
-                    color = Color(0xFF64748B),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = { documentPicker.launch("*/*") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Pick File", color = Color(0xFF1E293B), fontSize = 12.sp)
-                    }
-
-                    var showPresets by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.weight(1f)) {
-                        Button(
-                            onClick = { showPresets = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Wallet, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Secure Wallet", color = Color(0xFF1E293B), fontSize = 12.sp)
-                        }
-
-                        DropdownMenu(
-                            expanded = showPresets,
-                            onDismissRequest = { showPresets = false },
-                            modifier = Modifier
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                        ) {
-                            MockReceipts.forEach { mock ->
-                                DropdownMenuItem(
-                                    text = { Text(mock, color = Color(0xFF1E293B), fontSize = 12.sp) },
-                                    onClick = {
-                                        attachmentUri = "mock://receipts/$mock"
-                                        showPresets = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (!attachmentUri.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFDCFCE7), RoundedCornerShape(10.dp))
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF166534), modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Attached: ${attachmentUri!!.substringAfterLast("/")}",
-                                color = Color(0xFF166534),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Confirm & Save Sticky/Footer Button
-        Button(
-            onClick = {
-                val amt = amountStr.toDoubleOrNull()
-                if (isFormValid && amt != null && selectedAccountId != 0) {
-                    viewModel.saveExtraExpense(
-                        name = name,
-                        amount = amt,
-                        bankAccountId = selectedAccountId,
-                        timestamp = timestamp,
-                        receiptUri = attachmentUri,
-                        type = type,
-                        category = category,
-                        notes = notes
-                    )
-                    onDismiss()
+                }) {
+                    Text("Add")
                 }
             },
-            enabled = isFormValid,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (type == "EXPENSE") Color(0xFFEF4444) else Color(0xFF22C55E),
-                disabledContainerColor = Color(0xFFCBD5E1)
-            ),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-                .testTag("save_expense_button")
-        ) {
-            Text(
-                text = "Save Transaction",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(30.dp))
+            dismissButton = {
+                TextButton(onClick = { showAddCategoryDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -4366,6 +4533,7 @@ fun SettingsDialog(
     var showAddHotelDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<BankAccountEntity?>(null) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
+    var showLegalInfoType by remember { mutableStateOf<String?>(null) } // "info", "license", "privacy"
 
     LaunchedEffect(prefLanguage, prefThemeMode, prefShowAdvancedPayment, prefAppLockEnabled, prefAppLockPin, prefDefaultHotelId, prefEnableStarAnimation, userProfile) {
         val up = userProfile
@@ -5165,6 +5333,40 @@ fun SettingsDialog(
                         }
 
                         item {
+                            // Category: About & Legal
+                            PixelSettingsGroup(
+                                title = if (prefLanguage == "bn") "সম্পর্কে ও আইনি তথ্য" else "About & Legal"
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.Info,
+                                        iconBgColor = Color(0xFFF3E5F5),
+                                        iconTint = Color(0xFF7B1FA2),
+                                        title = if (prefLanguage == "bn") "অ্যাপ তথ্য" else "App Information",
+                                        subtitle = "Version 1.0.0 (Stable)",
+                                        onClick = { showLegalInfoType = "info" }
+                                    )
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.Gavel,
+                                        iconBgColor = Color(0xFFEFEBE9),
+                                        iconTint = Color(0xFF5D4037),
+                                        title = if (prefLanguage == "bn") "লাইসেন্স ও শর্তাবলী" else "Licenses & Terms",
+                                        subtitle = "Usage terms & credits",
+                                        onClick = { showLegalInfoType = "license" }
+                                    )
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.PrivacyTip,
+                                        iconBgColor = Color(0xFFE1F5FE),
+                                        iconTint = Color(0xFF0288D1),
+                                        title = if (prefLanguage == "bn") "প্রাইভেসি পলিসি" else "Privacy Policy",
+                                        subtitle = "Your data safety",
+                                        onClick = { showLegalInfoType = "privacy" }
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
                             Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
@@ -5366,6 +5568,14 @@ fun SettingsDialog(
                         }
                     )
                 }
+
+                if (showLegalInfoType != null) {
+                    LegalInfoDialog(
+                        type = showLegalInfoType!!,
+                        prefLanguage = prefLanguage,
+                        onDismiss = { showLegalInfoType = null }
+                    )
+                }
             }
         }
     }
@@ -5492,28 +5702,64 @@ fun EmptyStateCard(message: String) {
 }
 
 @Composable
-fun GlobalSearchModal(viewModel: FinancialViewModel, onDismiss: () -> Unit) {
+fun GlobalSearchModal(
+    viewModel: FinancialViewModel,
+    meterViewModel: MeterReadingViewModel,
+    onDismiss: () -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
     val userProfile by viewModel.userProfile.collectAsState()
     val allExpenses by viewModel.allExtraExpenses.collectAsState()
     val allHotels by viewModel.allHotels.collectAsState()
-    val allMenuItems by viewModel.allMenuItems.collectAsState()
+    val allAccounts by viewModel.allBankAccounts.collectAsState()
+    val hotelTransactions by viewModel.activeHotelTransactions.collectAsState()
+    
+    val meterUiState by meterViewModel.uiState.collectAsState()
+    val allBills = remember(meterUiState) {
+        if (meterUiState is MeterReadingUiState.Success) {
+            (meterUiState as MeterReadingUiState.Success).bills
+        } else emptyList()
+    }
     
     val filteredExpenses = remember(searchQuery, allExpenses) {
         if (searchQuery.isBlank()) emptyList()
-        else allExpenses.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        else allExpenses.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) || 
+            it.category.contains(searchQuery, ignoreCase = true) ||
+            it.notes.contains(searchQuery, ignoreCase = true)
+        }
     }
     
     val filteredHotels = remember(searchQuery, allHotels) {
         if (searchQuery.isBlank()) emptyList()
-        else allHotels.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        else allHotels.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) ||
+            it.location.contains(searchQuery, ignoreCase = true)
+        }
     }
-    
-    val filteredMenu = remember(searchQuery, allMenuItems) {
+
+    val filteredAccounts = remember(searchQuery, allAccounts) {
         if (searchQuery.isBlank()) emptyList()
-        else allMenuItems.filter { 
-            it.englishName.contains(searchQuery, ignoreCase = true) || 
-            it.banglaName.contains(searchQuery, ignoreCase = true) 
+        else allAccounts.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) || 
+            it.upiId.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    val filteredBills = remember(searchQuery, allBills) {
+        if (searchQuery.isBlank()) emptyList()
+        else allBills.filter { bill ->
+            bill.transactionId?.contains(searchQuery, ignoreCase = true) == true ||
+            bill.calculatedAmount.toString().contains(searchQuery)
+        }
+    }
+
+    val filteredHotelTx = remember(searchQuery, hotelTransactions) {
+        if (searchQuery.isBlank()) emptyList()
+        else hotelTransactions.filter { tx ->
+            val items = TransactionSerializer.deserialize(tx.itemsSerialized)
+            items.any { it.name.contains(searchQuery, ignoreCase = true) } ||
+            tx.totalAmount.toString().contains(searchQuery)
         }
     }
 
@@ -5555,148 +5801,164 @@ fun GlobalSearchModal(viewModel: FinancialViewModel, onDismiss: () -> Unit) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
                     }
                     Text(
-                        text = if (userProfile.language == "bn") "অনুসন্ধান" else "Search",
+                        text = if (userProfile.language == "bn") "অনুসন্ধান" else "Global Search",
                         color = AppTextColor(),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp
                     )
                     Spacer(modifier = Modifier.size(48.dp))
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Search Input
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text(if (userProfile.language == "bn") "এখানে খুঁজুন..." else "Search here...", color = AppTextColor().copy(alpha = 0.6f)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = AppTextColor(),
-                        unfocusedTextColor = AppTextColor(),
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f))
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.bounceClick()) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTextColor().copy(alpha = 0.5f))
+                // Search Input with improved styling
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text(if (userProfile.language == "bn") "খরচ, বিল বা অ্যাকাউন্ট খুঁজুন..." else "Find expenses, bills or accounts...", color = AppTextColor().copy(alpha = 0.4f)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = AccentCyan)
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.bounceClick()) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTextColor().copy(alpha = 0.5f))
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 if (searchQuery.isNotEmpty()) {
-                    if (filteredExpenses.isEmpty() && filteredHotels.isEmpty() && filteredMenu.isEmpty()) {
+                    val noResults = filteredExpenses.isEmpty() && 
+                                   filteredHotels.isEmpty() && 
+                                   filteredAccounts.isEmpty() && 
+                                   filteredBills.isEmpty() && 
+                                   filteredHotelTx.isEmpty()
+                    
+                    if (noResults) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = if (userProfile.language == "bn") "কোন ফলাফল পাওয়া যায়নি।" else "No results found.",
-                                color = AppTextColor().copy(alpha = 0.5f),
-                                fontSize = 14.sp
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.SearchOff, null, tint = AppTextColor().copy(alpha = 0.2f), modifier = Modifier.size(64.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (userProfile.language == "bn") "কোন ফলাফল পাওয়া যায়নি।" else "No results found.",
+                                    color = AppTextColor().copy(alpha = 0.5f),
+                                    fontSize = 16.sp
+                                )
+                            }
                         }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            if (filteredHotels.isNotEmpty()) {
-                                item {
-                                    Text(
-                                        text = if (userProfile.language == "bn") "হোটেল" else "Hotels",
-                                        color = AppTextColor(),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                                items(filteredHotels, key = { it.id }) { hotel ->
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Text(text = hotel.name, color = AppTextColor(), fontWeight = FontWeight.Medium, modifier = Modifier.padding(16.dp))
-                                    }
-                                }
-                            }
-                            
-                            if (filteredMenu.isNotEmpty()) {
-                                item {
-                                    Text(
-                                        text = if (userProfile.language == "bn") "খাবার" else "Menu Items",
-                                        color = AppTextColor(),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                                items(filteredMenu, key = { it.id }) { menu ->
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = if (userProfile.language == "bn") menu.banglaName else menu.englishName, color = AppTextColor(), fontWeight = FontWeight.Medium)
-                                            Text(text = "₹${menu.price}", color = AppTextColor(), fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                            
+                            // Section: Expenses
                             if (filteredExpenses.isNotEmpty()) {
-                                item {
-                                    Text(
-                                        text = if (userProfile.language == "bn") "খরচ" else "Expenses",
-                                        color = AppTextColor(),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
+                                item { SearchSectionHeader(if (userProfile.language == "bn") "অতিরিক্ত খরচ" else "Extra Expenses") }
+                                items(filteredExpenses) { expense ->
+                                    SearchItemRow(
+                                        title = expense.name,
+                                        subtitle = "${expense.category} • ${expense.notes}",
+                                        amount = "₹${expense.amount}",
+                                        amountColor = if (expense.type == "EXPENSE") AccentPink else AccentGreen,
+                                        icon = if (expense.type == "EXPENSE") Icons.Default.TrendingDown else Icons.Default.TrendingUp
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                                items(filteredExpenses, key = { it.id }) { expense ->
-                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text(
-                                                    text = expense.name,
-                                                    color = AppTextColor(),
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                val sdf = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault())
-                                                Text(
-                                                    text = sdf.format(java.util.Date(expense.timestamp)),
-                                                    color = AppTextColor().copy(alpha = 0.5f),
-                                                    fontSize = 11.sp
-                                                )
-                                            }
-                                            Text(
-                                                text = "-₹${expense.amount}",
-                                                color = Color(0xFFFF5252),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp
-                                            )
-                                        }
-                                    }
                                 }
                             }
+
+                            // Section: Bills
+                            if (filteredBills.isNotEmpty()) {
+                                item { SearchSectionHeader(if (userProfile.language == "bn") "ইউটিলিটি বিল" else "Utility Bills") }
+                                items(filteredBills) { bill ->
+                                    SearchItemRow(
+                                        title = if (bill.transactionId != null) "Ref: ${bill.transactionId}" else "Utility Bill",
+                                        subtitle = "Due: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(bill.dueDate))}",
+                                        amount = "₹${bill.calculatedAmount}",
+                                        amountColor = if (bill.isPaid) AccentGreen else AccentPink,
+                                        icon = Icons.Default.ReceiptLong
+                                    )
+                                }
+                            }
+
+                            // Section: Hotel Meals
+                            if (filteredHotelTx.isNotEmpty()) {
+                                item { SearchSectionHeader(if (userProfile.language == "bn") "হোটেল ট্রানজ্যাকশন" else "Hotel Transactions") }
+                                items(filteredHotelTx) { tx ->
+                                    val items = TransactionSerializer.deserialize(tx.itemsSerialized)
+                                    val itemsSummary = items.joinToString(", ") { "${it.name} x${it.quantity}" }
+                                    SearchItemRow(
+                                        title = itemsSummary,
+                                        subtitle = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.timestamp)),
+                                        amount = "₹${tx.totalAmount}",
+                                        amountColor = AccentPink,
+                                        icon = Icons.Default.Restaurant
+                                    )
+                                }
+                            }
+
+                            // Section: Bank Accounts
+                            if (filteredAccounts.isNotEmpty()) {
+                                item { SearchSectionHeader(if (userProfile.language == "bn") "ব্যাংক অ্যাকাউন্ট" else "Bank Accounts") }
+                                items(filteredAccounts) { account ->
+                                    SearchItemRow(
+                                        title = account.name,
+                                        subtitle = account.upiId.ifBlank { "No UPI linked" },
+                                        amount = "₹${account.balance}",
+                                        amountColor = AccentCyan,
+                                        icon = Icons.Default.AccountBalance
+                                    )
+                                }
+                            }
+
+                            // Section: Hotels
+                            if (filteredHotels.isNotEmpty()) {
+                                item { SearchSectionHeader(if (userProfile.language == "bn") "হোটেলসমূহ" else "Hotels") }
+                                items(filteredHotels) { hotel ->
+                                    SearchItemRow(
+                                        title = hotel.name,
+                                        subtitle = hotel.location,
+                                        amount = "Adv: ₹${hotel.advancedPayment}",
+                                        amountColor = AccentCyan,
+                                        icon = Icons.Default.Hotel
+                                    )
+                                }
+                            }
+                            
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
                         }
                     }
                 } else {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    // Recent / Suggestions when search is empty
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 40.dp)) {
+                        Icon(Icons.Default.TravelExplore, null, tint = AccentCyan.copy(alpha = 0.3f), modifier = Modifier.size(80.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = if (userProfile.language == "bn") "হোটেল, খাবার বা খরচ খুঁজতে শুরু করুন।" else "Start typing to search for hotels, meals, or expenses.",
+                            text = if (userProfile.language == "bn") "সবকিছু একসাথে খুঁজুন" else "Search everything in one place",
+                            color = AppTextColor().copy(alpha = 0.6f),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (userProfile.language == "bn") "নাম, বিভাগ বা পরিমাণ দিয়ে সার্চ করুন" else "Try searching by name, category, or amount",
                             color = AppTextColor().copy(alpha = 0.4f),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -5706,7 +5968,69 @@ fun GlobalSearchModal(viewModel: FinancialViewModel, onDismiss: () -> Unit) {
 }
 }
 
+@Composable
+fun SearchSectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        color = AccentCyan.copy(alpha = 0.8f),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 1.5.sp,
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+    )
+}
 
+@Composable
+fun SearchItemRow(
+    title: String,
+    subtitle: String,
+    amount: String,
+    amountColor: Color,
+    icon: ImageVector
+) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(amountColor.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = amountColor, modifier = Modifier.size(20.dp))
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    color = AppTextColor().copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            
+            Text(
+                text = amount,
+                color = amountColor,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp
+            )
+        }
+    }
+}
 @Composable
 fun DishImageAndEmoji(
     emoji: String,
@@ -6176,3 +6500,273 @@ fun UnifiedAccountDialog(
         }
     )
 }
+
+@Composable
+fun ExtraExpenseDetailedHistoryScreen(
+    viewModel: FinancialViewModel,
+    onDismiss: () -> Unit
+) {
+    val expenses by viewModel.allExtraExpenses.collectAsState()
+    val accounts by viewModel.allBankAccounts.collectAsState()
+    
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedAccountId by remember { mutableStateOf<Int?>(null) }
+
+    val filteredExpenses by remember(expenses, searchQuery, selectedAccountId) {
+        derivedStateOf {
+            expenses.filter { exp ->
+                val matchesSearch = searchQuery.isBlank() || exp.name.contains(searchQuery, ignoreCase = true) || exp.notes.contains(searchQuery, ignoreCase = true)
+                val matchesAccount = selectedAccountId == null || exp.bankAccountId == selectedAccountId
+                matchesSearch && matchesAccount
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            Column(modifier = Modifier.background(Color(0xFF1E293B)).padding(top = 16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Text(
+                        "Detailed History",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    cornerRadius = 12.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Search, null, tint = Color.White.copy(alpha = 0.6f))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+                            textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                            decorationBox = { innerTextField ->
+                                if (searchQuery.isEmpty()) {
+                                    Text("Search transactions...", color = Color.White.copy(alpha = 0.4f))
+                                }
+                                innerTextField()
+                            }
+                        )
+                    }
+                }
+                
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedAccountId == null,
+                            onClick = { selectedAccountId = null },
+                            label = { Text("All Accounts") },
+                            colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedLabelColor = Color.Black, selectedContainerColor = AccentCyan)
+                        )
+                    }
+                    items(accounts) { acc ->
+                        FilterChip(
+                            selected = selectedAccountId == acc.id,
+                            onClick = { selectedAccountId = acc.id },
+                            label = { Text(acc.name) },
+                            colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedLabelColor = Color.Black, selectedContainerColor = AccentCyan)
+                        )
+                    }
+                }
+            }
+        },
+        containerColor = Color(0xFF0F172A)
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
+        ) {
+            items(filteredExpenses, key = { it.id }) { expense ->
+                val account = accounts.find { it.id == expense.bankAccountId }
+                TransactionItem(
+                    expense = expense,
+                    accountName = account?.name ?: "Unknown",
+                    onDelete = { viewModel.deleteExtraExpense(expense) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            item { Spacer(modifier = Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+fun TransactionItem(
+    expense: ExtraExpenseEntity,
+    accountName: String,
+    onDelete: () -> Unit
+) {
+    val isIncome = expense.type == "INCOME"
+    val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+    
+    GlassCard(cornerRadius = 16.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(if (isIncome) Color(0x1F00E676) else Color(0x1FFF4081), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                    contentDescription = null,
+                    tint = if (isIncome) AccentGreen else AccentPink,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(expense.name, fontWeight = FontWeight.Bold, color = AppTextColor())
+                Text("$accountName • ${expense.category}", fontSize = 10.sp, color = AppTextColor().copy(alpha = 0.5f))
+                Text(sdf.format(Date(expense.timestamp)), fontSize = 10.sp, color = AppTextColor().copy(alpha = 0.4f))
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${if (isIncome) "+" else "-"}₹${expense.amount}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = if (isIncome) AccentGreen else AccentPink
+                )
+                
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.MoreVert, null, tint = AppTextColor().copy(alpha = 0.5f))
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = Color.Red) },
+                            onClick = { showMenu = false; onDelete() },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LegalInfoDialog(
+    type: String,
+    prefLanguage: String,
+    onDismiss: () -> Unit
+) {
+    val title = when (type) {
+        "info" -> if (prefLanguage == "bn") "অ্যাপ তথ্য" else "App Information"
+        "license" -> if (prefLanguage == "bn") "লাইসেন্স ও শর্তাবলী" else "Licenses & Terms"
+        "privacy" -> if (prefLanguage == "bn") "প্রাইভেসি পলিসি" else "Privacy Policy"
+        else -> ""
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        shape = RoundedCornerShape(28.dp),
+        title = {
+            Text(title, color = AppTextColor(), fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                val content = when (type) {
+                    "info" -> if (prefLanguage == "bn") """
+                        FinNexus v1.0.0 (Nexus Finance)
+                        
+                        Nexus Finance একটি আধুনিক, অফলাইন-ফার্স্ট ব্যক্তিগত আর্থিক ব্যবস্থাপনা অ্যাপ। এটি আপনার খরচ ট্র্যাক করা, একাধিক অ্যাকাউন্ট পরিচালনা এবং মিটারের রিডিং নিখুঁতভাবে পর্যবেক্ষণ করতে সাহায্য করে।
+                        
+                        Jetpack Compose ও Kotlin দিয়ে তৈরি।
+                        © ২০২৬ Nexus দেব টিম।
+                    """.trimIndent() else """
+                        FinNexus v1.0.0 (Nexus Finance)
+                        
+                        Nexus Finance is a modern, offline-first personal financial management tool designed for individuals and business owners to track expenses, manage multiple accounts, and monitor meter readings with precision.
+                        
+                        Developed with Jetpack Compose & Kotlin.
+                        © 2026 Nexus Dev Team.
+                    """.trimIndent()
+                    "license" -> if (prefLanguage == "bn") """
+                        এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
+                        
+                        আপনি লাইসেন্সের শর্তাবলী অনুযায়ী এই সফটওয়্যারটি ব্যবহার, বিতরণ এবং পরিবর্তন করতে পারেন।
+                        
+                        ব্যবহৃত থার্ড-পার্টি লাইব্রেরি:
+                        - Jetpack Compose
+                        - Room Database
+                        - Kotlin Coroutines
+                        - Material Design 3
+                    """.trimIndent() else """
+                        This application is licensed under the Apache License 2.0.
+                        
+                        You may use, distribute, and modify this software in accordance with the terms of the license.
+                        
+                        Third-party libraries used:
+                        - Jetpack Compose
+                        - Room Database
+                        - Kotlin Coroutines
+                        - Material Design 3
+                    """.trimIndent()
+                    "privacy" -> if (prefLanguage == "bn") """
+                        আপনার প্রাইভেসি আমাদের কাছে সবচেয়ে গুরুত্বপূর্ণ।
+                        
+                        FinNexus একটি অফলাইন-ফার্স্ট অ্যাপ্লিকেশন। এর অর্থ:
+                        ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ফোনেই সংরক্ষিত থাকে।
+                        ২. কোনো আর্থিক তথ্য কোনো সার্ভারে পাঠানো হয় না।
+                        ৩. আমরা আপনার কোনো ব্যক্তিগত তথ্য সংগ্রহ বা বিক্রি করি না।
+                        
+                        আপনার তথ্য সম্পূর্ণ আপনার নিয়ন্ত্রণে।
+                    """.trimIndent() else """
+                        Your privacy is our priority.
+                        
+                        FinNexus is an OFFLINE-FIRST application. This means:
+                        1. All your data is stored locally on your device.
+                        2. No financial data is sent to any external server.
+                        3. We do not collect or sell your personal information.
+                        
+                        You are in full control of your data.
+                    """.trimIndent()
+                    else -> ""
+                }
+                Text(
+                    content,
+                    color = AppTextColor().copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    if (prefLanguage == "bn") "বন্ধ করুন" else "Close",
+                    color = AccentCyan,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    )
+}
+
+

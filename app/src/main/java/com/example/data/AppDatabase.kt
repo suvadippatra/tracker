@@ -11,6 +11,7 @@ import com.example.data.dao.MenuDao
 import com.example.data.dao.TransactionDao
 import com.example.data.dao.UserProfileDao
 import com.example.data.dao.MeterDao
+import com.example.data.dao.TransactionCategoryDao
 import com.example.data.model.BankAccountEntity
 import com.example.data.model.ExtraExpenseEntity
 import com.example.data.model.HotelEntity
@@ -32,9 +33,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExtraExpenseEntity::class,
         MeterReading::class,
         UtilityBill::class,
-        com.example.data.model.ElectricityRate::class
+        com.example.data.model.ElectricityRate::class,
+        com.example.data.model.TransactionCategoryEntity::class
     ],
-    version = 13,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bankAccountDao(): BankAccountDao
     abstract fun extraExpenseDao(): ExtraExpenseDao
     abstract fun meterDao(): MeterDao
+    abstract fun transactionCategoryDao(): TransactionCategoryDao
     companion object {
 
         val MIGRATION_8_9 = object : Migration(8, 9) {
