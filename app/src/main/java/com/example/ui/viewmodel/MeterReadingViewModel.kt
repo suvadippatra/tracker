@@ -28,8 +28,8 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
     private val repository: FinancialRepository
 
     // Rate settings StateFlows
-    val flatRatePerUnit = MutableStateFlow(7.5)
-    val fixedServiceCharge = MutableStateFlow(120.0)
+    val flatRatePerUnit = MutableStateFlow(0.0)
+    val fixedServiceCharge = MutableStateFlow(0.0)
 
     // Current Date Range state
     val calculationStartDate = MutableStateFlow<Long>(getStartOfMonthMillis())

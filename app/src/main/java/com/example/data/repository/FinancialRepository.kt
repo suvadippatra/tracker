@@ -165,6 +165,39 @@ class FinancialRepository(private val db: AppDatabase) {
             if (profile == null) {
                 userProfileDao.insertOrUpdateProfile(UserProfileEntity())
             }
+
+            // 2. Add Default Hotel if none exist
+            val hotels = hotelDao.getAllHotels().first()
+            if (hotels.isEmpty()) {
+                val hotelId = hotelDao.insertHotel(
+                    HotelEntity(
+                        name = "Smriti Hotel",
+                        location = "Default Location"
+                    )
+                )
+                
+                val defaultMenuItems = parseCsvMenu(context)
+                defaultMenuItems.forEach { item ->
+                    menuDao.insertMenu(item.copy(hotelId = hotelId.toInt()))
+                }
+            } else {
+                val smritiHotel = hotels.find { it.name == "Smriti Hotel" }
+                if (smritiHotel != null) {
+                    val menuItems = menuDao.getMenuForHotel(smritiHotel.id).first()
+                    val hasOnlyRice = menuItems.any { it.englishName.equals("Only Rice", ignoreCase = true) }
+                    // If the menu items are empty, incomplete, or missing 'Only Rice', clear and re-initialize from CSV
+                    if (menuItems.size < 20 || !hasOnlyRice) {
+                        menuItems.forEach { item ->
+                            menuDao.deleteMenu(item)
+                        }
+                        val defaultMenuItems = parseCsvMenu(context)
+                        defaultMenuItems.forEach { item ->
+                            menuDao.insertMenu(item.copy(hotelId = smritiHotel.id))
+                        }
+                    }
+                }
+            }
+
         } catch (e: Exception) {
             Log.e("FinancialRepository", "Error initializing database", e)
         }
@@ -185,6 +218,23 @@ class FinancialRepository(private val db: AppDatabase) {
         return text.trim()
     }
 
+    private fun getEmojiAndTypeForName(englishName: String): Pair<String, String> {
+        val lower = englishName.lowercase()
+        return when {
+            lower.contains("plain rice") || lower.contains("only rice") -> Pair("🍚", "Rice")
+            lower.contains("chicken") -> Pair("🍗", "Chicken")
+            lower.contains("fish") -> Pair("🐟", "Fish")
+            lower.contains("egg") || lower.contains("omelette") -> Pair("🍳", "Egg")
+            lower.contains("thali") || lower.contains("veg thali") -> Pair("🍛", "Thali")
+            lower.contains("veg") -> Pair("🥗", "Veg")
+            lower.contains("curd") -> Pair("🥛", "Curd")
+            lower.contains("khichuri") -> Pair("🥣", "Khichuri")
+            lower.contains("pulao") -> Pair("🍚", "Pulao")
+            lower.contains("roti") || lower.contains("luchi") || lower.contains("paratha") -> Pair("🫓", "Breads")
+            else -> Pair("🍽️", "Common")
+        }
+    }
+
     private suspend fun parseCsvMenu(context: Context): List<MenuEntity> = withContext(Dispatchers.IO) {
         val menuItems = mutableListOf<MenuEntity>()
         val generalItems = mutableMapOf<String, Triple<String, String, Double>>() // NormalizedName -> (Bangla, English, Price)
@@ -201,7 +251,7 @@ class FinancialRepository(private val db: AppDatabase) {
                         val row = line ?: continue
                         if (row.isBlank()) continue
 
-                        val parts = row.split(",")
+                        val parts = splitCsvRow(row)
                         if (parts.isEmpty()) continue
 
                         val firstCell = parts.getOrNull(0)?.trim() ?: ""
@@ -209,28 +259,26 @@ class FinancialRepository(private val db: AppDatabase) {
                         val thirdCell = parts.getOrNull(2)?.trim() ?: ""
 
                         // Detect sections
-                        if (secondCell.contains("Day Menu") || firstCell.contains("Day Menu")) {
+                        if (firstCell.contains("Day Menu") || secondCell.contains("Day Menu")) {
                             currentSection = 1
-                        } else if (secondCell.contains("Night Menu") || firstCell.contains("Night Menu")) {
+                        } else if (firstCell.contains("Night Menu") || secondCell.contains("Night Menu")) {
                             currentSection = 2
                         }
 
                         when (currentSection) {
                             0 -> {
-                                // Parse general items: ,নর্মাল ভাত,Plain Rice,35,,,
-                                if (parts.size >= 4 && secondCell.isNotBlank() && thirdCell.isNotBlank()) {
-                                    val price = parts[3].trim().toDoubleOrNull()
+                                // Parse general items: বাংলা,English,Price (₹),,,,
+                                // e.g. নর্মাল ভাত,Plain Rice,35,,,,
+                                if (firstCell.isNotBlank() && secondCell.isNotBlank() && !firstCell.startsWith("বাংলা")) {
+                                    val price = thirdCell.toDoubleOrNull()
                                     if (price != null) {
-                                        val bangla = secondCell
-                                        val english = thirdCell
-                                        generalItems[normalizeName(english)] = Triple(bangla, english, price)
+                                        generalItems[normalizeName(secondCell)] = Triple(firstCell, secondCell, price)
                                     }
                                 }
                             }
                             1 -> {
-                                // Day Menu: ,,চিকেন পিস (Chicken Piece),,,,
-                                // or ,Day Menu (দুপুর),নর্মাল ভাত (Plain Rice),,,,
-                                val itemCell = parts.getOrNull(2)?.trim() ?: parts.getOrNull(1)?.trim() ?: ""
+                                // Day Menu: ,নর্মাল ভাত (Plain Rice),,,,,,
+                                val itemCell = if (secondCell.isNotBlank()) secondCell else firstCell
                                 if (itemCell.isNotBlank() && !itemCell.contains("Day Menu")) {
                                     val extracted = extractEnglishName(itemCell)
                                     if (extracted.isNotBlank()) {
@@ -239,9 +287,8 @@ class FinancialRepository(private val db: AppDatabase) {
                                 }
                             }
                             2 -> {
-                                // Night Menu: ,,চিকেন পিস (Chicken Piece),,,,
-                                // or ,Night Menu (রাত),রুটি (Roti),,,,
-                                val itemCell = parts.getOrNull(2)?.trim() ?: parts.getOrNull(1)?.trim() ?: ""
+                                // Night Menu: ,রুটি (Roti),,,,,,
+                                val itemCell = if (secondCell.isNotBlank()) secondCell else firstCell
                                 if (itemCell.isNotBlank() && !itemCell.contains("Night Menu")) {
                                     val extracted = extractEnglishName(itemCell)
                                     if (extracted.isNotBlank()) {
@@ -272,6 +319,7 @@ class FinancialRepository(private val db: AppDatabase) {
                     val isDay = dayItems.contains(normName) || dayItems.contains(normalizeName(english))
                     val isNight = nightItems.contains(normName) || nightItems.contains(normalizeName(english))
                     val isAddOn = addOnNames.contains(normalizeName(english))
+                    val (emoji, type) = getEmojiAndTypeForName(english)
 
                     menuItems.add(
                         MenuEntity(
@@ -280,7 +328,9 @@ class FinancialRepository(private val db: AppDatabase) {
                             price = price,
                             isDayMenu = isDay,
                             isNightMenu = isNight,
-                            isAddOn = isAddOn
+                            isAddOn = isAddOn,
+                            emoji = emoji,
+                            type = type
                         )
                     )
                 }
@@ -290,6 +340,7 @@ class FinancialRepository(private val db: AppDatabase) {
             if (menuItems.isEmpty() && generalItems.isNotEmpty()) {
                 for ((norm, triple) in generalItems) {
                     val isAddOn = addOnNames.contains(norm)
+                    val (emoji, type) = getEmojiAndTypeForName(triple.second)
                     // Defaults
                     menuItems.add(
                         MenuEntity(
@@ -298,7 +349,9 @@ class FinancialRepository(private val db: AppDatabase) {
                             price = triple.third,
                             isDayMenu = !norm.contains("roti") && !norm.contains("luchi") && !norm.contains("aloo paratha"),
                             isNightMenu = norm.contains("roti") || norm.contains("luchi") || norm.contains("aloo paratha") || norm.contains("chicken") || norm.contains("fish") || norm.contains("egg") || norm.contains("omelette"),
-                            isAddOn = isAddOn
+                            isAddOn = isAddOn,
+                            emoji = emoji,
+                            type = type
                         )
                     )
                 }
@@ -308,7 +361,25 @@ class FinancialRepository(private val db: AppDatabase) {
             Log.e("FinancialRepository", "Error parsing menu CSV", e)
         }
 
-        return@withContext menuItems
+        return@withContext if (menuItems.isEmpty()) getFallbackMenu() else menuItems
+    }
+
+    private fun splitCsvRow(row: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = java.lang.StringBuilder()
+        var inQuotes = false
+        for (ch in row) {
+            if (ch == '"') {
+                inQuotes = !inQuotes
+            } else if (ch == ',' && !inQuotes) {
+                result.add(current.toString().trim())
+                current.setLength(0)
+            } else {
+                current.append(ch)
+            }
+        }
+        result.add(current.toString().trim())
+        return result
     }
 
     private fun getFallbackMenu(): List<MenuEntity> {

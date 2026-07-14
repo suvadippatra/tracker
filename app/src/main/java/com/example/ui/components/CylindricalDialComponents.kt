@@ -49,12 +49,13 @@ fun MeterDialPicker(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Thousands, Hundreds, Tens, Units
         for (i in 0 until 4) {
             DialDigit(
+                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                 value = digits[i],
                 onValueChange = { newValue ->
                     digits[i] = newValue
@@ -63,7 +64,6 @@ fun MeterDialPicker(
                 onDoubleTap = { showEditDialog = i },
                 textColor = textColor
             )
-            if (i < 3) Spacer(modifier = Modifier.width(22.dp))
         }
         
         Text(
@@ -71,12 +71,13 @@ fun MeterDialPicker(
             color = accentColor,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 22.dp)
+            modifier = Modifier.padding(horizontal = 2.dp)
         )
         
         // Tenths, Hundredths
         for (i in 4 until 6) {
             DialDigit(
+                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                 value = digits[i],
                 onValueChange = { newValue ->
                     digits[i] = newValue
@@ -85,7 +86,6 @@ fun MeterDialPicker(
                 onDoubleTap = { showEditDialog = i },
                 textColor = textColor
             )
-            if (i == 4) Spacer(modifier = Modifier.width(22.dp))
         }
     }
 
@@ -120,14 +120,15 @@ fun MeterDialPicker(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DialDigit(
+    modifier: Modifier = Modifier,
     value: Int,
     onValueChange: (Int) -> Unit,
     onDoubleTap: () -> Unit,
     textColor: Color
 ) {
     Box(
-        modifier = Modifier
-            .size(width = 44.dp, height = 120.dp)
+        modifier = modifier
+            .height(120.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White.copy(alpha = 0.05f))
             .combinedClickable(

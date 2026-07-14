@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">FinNexus</string>
+    <string name="widget_label_hotel">Hotel Status</string>
+    <string name="widget_label_balance">Account Balance</string>
+    <string name="widget_label_overview">Financial Overview</string>
 </resources>

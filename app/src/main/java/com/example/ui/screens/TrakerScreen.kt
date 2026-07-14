@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.components.*
 import com.example.ui.components.SlidingDatePickerModal
 import com.example.ui.components.InlineDatePicker
 import androidx.compose.foundation.Canvas
@@ -75,146 +76,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Glassmorphism design tokens
-val GlassBackground = Color(0x26FFFFFF) // 15% opacity white
-val GlassBorderTop = Color(0x66FFFFFF) // 40% opacity white for upper highlights
-val GlassBorderBottom = Color(0x13FFFFFF) // 7% opacity white
-val GlassShadowColor = Color(0x1F000000)
 
-// Vibrant Backdrop Gradients
-val DarkBackgroundGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFF070414), // Deep indigo midnight
-        Color(0xFF0F0B26), // Midnight sky
-        Color(0xFF1B0E3D), // Soft purple dusk
-        Color(0xFF2C0F4A)  // Liquid violet
-    )
-)
-
-val LightBackgroundGradient = Brush.linearGradient(
-    colors = listOf(
-        Color(0xFF81D4FA), // Deep Sky Blue
-        Color(0xFFCE93D8), // Vibrant Purple
-        Color(0xFFFFCC80)  // Saturated Orange
-    )
-)
-
-@Composable
-fun getAppBackgroundGradient(themeMode: String): Brush {
-    val isLight = if (themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else themeMode == "Light"
-    return if (isLight) LightBackgroundGradient else DarkBackgroundGradient
-}
-
-val LocalAppTheme = compositionLocalOf { "Auto" }
-
-@Composable
-fun getDialogBackground(): Color {
-    return if (isAppLightMode()) Color(0xFFFFFFFF) else Color(0xFF140D2D)
-}
-
-@Composable
-fun getGlassBorder(): Color {
-    return if (isAppLightMode()) Color(0x40000000) else Color(0x33FFFFFF)
-}
-
-@Composable
-fun getGlassIconButtonBg(): Color {
-    return if (isAppLightMode()) Color(0x1A000000) else Color(0x33FFFFFF)
-}
-
-@Composable
-fun isAppLightMode(): Boolean {
-    val themeMode = LocalAppTheme.current
-    return if (themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else themeMode == "Light"
-}
-
-@Composable
-fun AppTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF0A0A0A) else Color(0xFFFFFFFF)
-}
-
-object Localizer {
-    private val strings = mapOf(
-        "en" to mapOf(
-            "init_app" to "Initializing Pocket...",
-            "configurations" to "Configurations",
-            "profile" to "Profile",
-            "hotels" to "Hotels",
-            "accounts" to "Accounts",
-            "preferences" to "Preferences",
-            "edit_profile" to "Edit Profile Data",
-            "display_name" to "Display Name",
-            "contact_no" to "Contact Number",
-            "apply_profile" to "Apply Profile Updates",
-            "app_language" to "App Language",
-            "app_theme" to "App Theme",
-            "default_hotel" to "Default Hotel",
-            "show_adv" to "Show Advanced Payment Card",
-            "app_lock" to "App Lock",
-            "save_pref" to "Save Preferences",
-            "reg_hotel" to "Register Establishment",
-            "hotel_name" to "Hotel Name",
-            "adv_bal" to "Advanced Balance (₹)",
-            "save_hotel" to "Save Hotel",
-            "reg_hotels" to "Registered Hotels",
-            "reg_acc" to "Register Virtual Account",
-            "acc_name" to "Account Name (e.g. GPay, UPI)",
-            "start_bal" to "Starting Balance (₹)",
-            "save_acc" to "Save Account",
-            "reg_accounts" to "Registered Accounts",
-            "spending_month" to "Your spending this month",
-            "adv_payment" to "Advanced Payment",
-            "view_meals" to "View Meal History",
-            "add_meal" to "Add Meal",
-            "add_expense" to "Add Expense",
-            "liquid_bal" to "Liquid Balance",
-            "recent_tx" to "Recent Transactions",
-            "view_all" to "View All History",
-            "extra_expenses" to "Extras"
-        ),
-        "bn" to mapOf(
-            "init_app" to "পকেট চালু হচ্ছে...",
-            "configurations" to "কনফিগারেশন",
-            "profile" to "প্রোফাইল",
-            "hotels" to "হোটেল",
-            "accounts" to "অ্যাকাউন্ট",
-            "preferences" to "পছন্দসমূহ",
-            "edit_profile" to "প্রোফাইল পরিবর্তন করুন",
-            "display_name" to "নাম",
-            "contact_no" to "যোগাযোগ নম্বর",
-            "apply_profile" to "প্রোফাইল আপডেট করুন",
-            "app_language" to "অ্যাপের ভাষা",
-            "app_theme" to "অ্যাপ থিম",
-            "default_hotel" to "ডিফল্ট হোটেল",
-            "show_adv" to "অগ্রিম পেমেন্ট কার্ড দেখান",
-            "app_lock" to "অ্যাপ লক",
-            "save_pref" to "পছন্দ সংরক্ষণ করুন",
-            "reg_hotel" to "নতুন হোটেল যুক্ত করুন",
-            "hotel_name" to "হোটেলের নাম",
-            "adv_bal" to "অগ্রিম ব্যালেন্স (₹)",
-            "save_hotel" to "হোটেল সংরক্ষণ করুন",
-            "reg_hotels" to "নিবন্ধিত হোটেলসমূহ",
-            "reg_acc" to "ভার্চুয়াল অ্যাকাউন্ট যুক্ত করুন",
-            "acc_name" to "অ্যাকাউন্টের নাম (যেমন- GPay, UPI)",
-            "start_bal" to "শুরুর ব্যালেন্স (₹)",
-            "save_acc" to "অ্যাকাউন্ট সংরক্ষণ করুন",
-            "reg_accounts" to "নিবন্ধিত অ্যাকাউন্টসমূহ",
-            "spending_month" to "এই মাসে আপনার খরচ",
-            "adv_payment" to "অগ্রিম পেমেন্ট",
-            "view_meals" to "খাবারের ইতিহাস দেখুন",
-            "add_meal" to "খাবার যোগ করুন",
-            "add_expense" to "খরচ যোগ করুন",
-            "liquid_bal" to "টোটাল ব্যালেন্স",
-            "recent_tx" to "সাম্প্রতিক লেনদেনসমূহ",
-            "view_all" to "সব ইতিহাস দেখুন",
-            "extra_expenses" to "অন্যান্য খরচ"
-        )
-    )
-
-    fun getString(key: String, lang: String): String {
-        return strings[lang]?.get(key) ?: strings["en"]?.get(key) ?: key
-    }
-}
 
 @Composable
 fun GlassSwitch(
@@ -419,13 +281,6 @@ fun AppLockScreen(
     }
 }
 
-val AccentGold = Color(0xFFD84315)
-val AccentCyan = Color(0xFF0091EA)
-val AccentPink = Color(0xFFC2185B)
-val AccentGreen = Color(0xFF00B0FF)
-
-
-
 @Composable
 fun MovingStarsBackground(isLight: Boolean) {
     val starCount = if (isLight) 25 else 45
@@ -516,7 +371,20 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         }
     }
 
-    CompositionLocalProvider(LocalAppTheme provides userProfile.themeMode) {
+    val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+    val customFontScale = when (userProfile.textSize) {
+        "Small" -> 0.85f
+        "Large" -> 1.15f
+        else -> 1.0f
+    }
+
+    CompositionLocalProvider(
+        LocalAppTheme provides userProfile.themeMode,
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = customFontScale
+        )
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -560,50 +428,85 @@ fun TrakerApp(viewModel: FinancialViewModel) {
 @Composable
 fun MainAppLayout(viewModel: FinancialViewModel) {
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
+    val isBottomBarVisible by viewModel.isBottomBarVisible.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val meterViewModel: MeterReadingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     
     var showSettings by remember { mutableStateOf(false) }
+    var showQRViewer by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var showOwnerProfile by remember { mutableStateOf(false) }
+    var showBin by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSettings) {
+        viewModel.registerSubScreen("Settings", showSettings)
+    }
+    LaunchedEffect(showQRViewer) {
+        viewModel.registerSubScreen("QRViewer", showQRViewer)
+    }
+    LaunchedEffect(showSearch) {
+        viewModel.registerSubScreen("Search", showSearch)
+    }
+    LaunchedEffect(showOwnerProfile) {
+        viewModel.registerSubScreen("OwnerProfile", showOwnerProfile)
+    }
+    LaunchedEffect(showBin) {
+        viewModel.registerSubScreen("Bin", showBin)
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent, // Let the background gradient bleed through
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
         topBar = {
-            GlassHeader(
-                userProfile = userProfile,
-                onSettingsClicked = { showSettings = true },
-                onSearchClicked = { showSearch = true }
-            )
+            if (isBottomBarVisible) {
+                GlassHeader(
+                    userProfile = userProfile,
+                    onSettingsClicked = { showSettings = true },
+                    onSearchClicked = { showSearch = true },
+                    onProfileClicked = { showOwnerProfile = true },
+                    onGreetingDoubleClicked = { showQRViewer = true }
+                )
+            }
         },
         bottomBar = {
-            GlassBottomNavigation(
-                activeTab = activeTab,
-                onTabSelected = { viewModel.activeTab.value = it },
-                language = userProfile?.language ?: "en"
-            )
+            AnimatedVisibility(
+                visible = isBottomBarVisible,
+                enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)),
+                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300))
+            ) {
+                GlassBottomNavigation(
+                    activeTab = activeTab,
+                    onTabSelected = { viewModel.activeTab.value = it },
+                    language = userProfile?.language ?: "en"
+                )
+            }
         }
     ) { innerPadding ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         ) {
-            AnimatedContent(
-                targetState = activeTab,
-                transitionSpec = {
-                    val duration = 220
-                    fadeIn(animationSpec = tween(duration)) + scaleIn(initialScale = 0.94f, animationSpec = tween(duration)) togetherWith 
-                            fadeOut(animationSpec = tween(duration)) + scaleOut(targetScale = 0.94f, animationSpec = tween(duration))
-                },
-                label = "tab_transition"
-            ) { tab ->
-                when (tab) {
-                    "Hotels" -> HotelManagementTab(viewModel)
-                    "Extras" -> ExtraExpensesTab(viewModel)
-                    "Bill" -> {
-                        userProfile?.let { profile ->
-                            BillTrackingTab(meterViewModel, profile)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (isBottomBarVisible) innerPadding else PaddingValues(0.dp))
+            ) {
+                AnimatedContent(
+                    targetState = activeTab,
+                    transitionSpec = {
+                        val duration = 250
+                        slideInHorizontally(animationSpec = tween(duration), initialOffsetX = { fullWidth -> fullWidth }) + fadeIn(animationSpec = tween(duration)) togetherWith 
+                                slideOutHorizontally(animationSpec = tween(duration), targetOffsetX = { fullWidth -> -fullWidth }) + fadeOut(animationSpec = tween(duration))
+                    },
+                    label = "tab_transition"
+                ) { tab ->
+                    when (tab) {
+                        "Hotels" -> HotelManagementTab(viewModel)
+                        "Extras" -> ExtraExpensesTab(viewModel)
+                        "Bill" -> {
+                            userProfile?.let { profile ->
+                                BillTrackingTab(meterViewModel, profile)
+                            }
                         }
                     }
                 }
@@ -615,133 +518,41 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                     onDismiss = { showSearch = false }
                 )
             }
+            
+            if (showOwnerProfile) {
+                OwnerProfileScreen(
+                    viewModel = viewModel,
+                    onDismiss = { showOwnerProfile = false }
+                )
+            }
+            
+            if (showBin) {
+                BinScreen(
+                    viewModel = viewModel,
+                    onDismiss = { showBin = false }
+                )
+            }
+            
+            if (showQRViewer) {
+                OwnerQRViewerDialog(
+                    viewModel = viewModel,
+                    onDismiss = { showQRViewer = false }
+                )
+            }
         }
     }
 
     if (showSettings) {
         SettingsDialog(
             viewModel = viewModel,
-            onDismiss = { showSettings = false }
+            onDismiss = { showSettings = false },
+            onOpenBin = { showBin = true;   },
+            onOpenOwnerProfile = { showOwnerProfile = true;   }
         )
     }
 }
 
-// ==========================================
-// CUSTOM GLASSMORPHIC COMPONENT
-// ==========================================
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    cornerRadius: Dp = 20.dp,
-    border: BorderStroke? = null,
-    content: @Composable () -> Unit
-) {
-    val isLight = isAppLightMode()
-    val bgColors = if (isLight) {
-        listOf(Color(0xB3FFFFFF), Color(0x80FFFFFF)) // More opaque for solid liquid glass feel in light mode
-    } else {
-        listOf(Color(0x33FFFFFF), Color(0x1AFFFFFF))
-    }
-    val borderColors = if (isLight) {
-        listOf(Color(0xFFFFFFFF), Color(0x4D000000)) // White highlight top, subtle shadow bottom
-    } else {
-        listOf(GlassBorderTop, GlassBorderBottom)
-    }
-
-    Box(
-        modifier = modifier
-            .background(
-                brush = Brush.verticalGradient(colors = bgColors),
-                shape = RoundedCornerShape(cornerRadius)
-            )
-            .then(
-                if (border != null) Modifier.border(border, RoundedCornerShape(cornerRadius))
-                else Modifier.border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(colors = borderColors),
-                    shape = RoundedCornerShape(cornerRadius)
-                )
-            )
-            .drawBehind {
-                drawRect(
-                    color = Color.Transparent,
-                    topLeft = Offset.Zero,
-                    size = size
-                )
-            }
-            .clip(RoundedCornerShape(cornerRadius))
-    ) {
-        content()
-    }
-}
-
-@Composable
-fun GlassButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    cornerRadius: Dp = 14.dp,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-    borderBrush: Brush? = null,
-    content: @Composable RowScope.() -> Unit
-) {
-    Row(
-        modifier = modifier
-            .bounceClick()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = if (isAppLightMode()) listOf(Color(0xE6FFFFFF), Color(0xB3FFFFFF))
-                             else listOf(Color(0x3DFFFFFF), Color(0x18FFFFFF))
-                ),
-                shape = RoundedCornerShape(cornerRadius)
-            )
-            .border(
-                width = 1.dp,
-                brush = borderBrush ?: Brush.verticalGradient(
-                    colors = if (isAppLightMode()) listOf(Color(0xFFFFFFFF), Color(0x26000000))
-                             else listOf(GlassBorderTop, GlassBorderBottom)
-                ),
-                shape = RoundedCornerShape(cornerRadius)
-            )
-            .clip(RoundedCornerShape(cornerRadius))
-            .clickable(onClick = onClick)
-            .padding(contentPadding),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-        content = content
-    )
-}
-
-// Bounce Tactile Feedback Modifier
-fun Modifier.bounceClick(): Modifier = composed {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "bounce"
-    )
-    val view = androidx.compose.ui.platform.LocalView.current
-    this
-        .graphicsLayer(scaleX = scale, scaleY = scale)
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent()
-                    val anyPressed = event.changes.any { it.pressed }
-                    if (anyPressed != isPressed) {
-                        isPressed = anyPressed
-                        if (isPressed) {
-                            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-                        }
-                    }
-                }
-            }
-        }
-}
-
-// Smooth number roll
+// smooth number roll
 @Composable
 fun RollingNumberText(
     value: Double,
@@ -778,7 +589,9 @@ fun Modifier.verticalCenterTransition(): Modifier = this.wrapContentSize(Alignme
 fun GlassHeader(
     userProfile: UserProfileEntity,
     onSettingsClicked: () -> Unit,
-    onSearchClicked: () -> Unit
+    onSearchClicked: () -> Unit,
+    onProfileClicked: () -> Unit,
+    onGreetingDoubleClicked: () -> Unit
 ) {
     val currentHour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
     val greeting = remember(currentHour) {
@@ -801,7 +614,18 @@ fun GlassHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { onProfileClicked() },
+                            onDoubleTap = { onGreetingDoubleClicked() }
+                        )
+                    }
+                    .padding(4.dp)
+            ) {
                 Column {
                     if (userProfile.name.isNotBlank()) {
                         Text(
@@ -1021,8 +845,28 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
     // Dialog edit fields
     var hotelToEdit by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
     var showInfoDialog by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
+
+    LaunchedEffect(showMealHistory) {
+        viewModel.registerSubScreen("MealHistory", showMealHistory)
+    }
+    LaunchedEffect(showAddMealFlow) {
+        viewModel.registerSubScreen("AddMeal", showAddMealFlow)
+    }
+    LaunchedEffect(hotelToEdit) {
+        viewModel.registerSubScreen("EditHotel", hotelToEdit != null)
+    }
+    LaunchedEffect(showInfoDialog) {
+        viewModel.registerSubScreen("InfoDialog", showInfoDialog != null)
+    }
     var editHotelName by remember { mutableStateOf("") }
     var editHotelAdvanced by remember { mutableStateOf("") }
+
+    if (hotels.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            EmptyStateCard(message = "No Hotels configured. Create one in Settings!")
+        }
+        return
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -1062,7 +906,8 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                         state = pagerState,
                         modifier = Modifier.fillMaxWidth(),
                         pageSpacing = 16.dp,
-                        contentPadding = PaddingValues(horizontal = 0.dp)
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                        userScrollEnabled = hotels.size > 1
                     ) { page ->
                         val hotel = hotels[page]
                         val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
@@ -2113,10 +1958,16 @@ fun AddMealFlowModal(
     val context = LocalContext.current
     val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
+    var showAllDishes by remember { mutableStateOf(false) }
+
     // Filter menu dynamically using remember to avoid redundant work
-    val filteredDishes = remember(menuItems, isNight) {
+    val filteredDishes = remember(menuItems, isNight, showAllDishes) {
         menuItems.filter {
-            if (isNight) it.isNightMenu else it.isDayMenu
+            if (showAllDishes) {
+                true
+            } else {
+                if (isNight) it.isNightMenu else it.isDayMenu
+            }
         }
     }
     val mainDishes = remember(filteredDishes) { filteredDishes.filter { !it.isAddOn } }
@@ -2126,17 +1977,27 @@ fun AddMealFlowModal(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
             dismissOnBackPress = true,
             dismissOnClickOutside = false
         )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient(userProfile.themeMode))
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
+        val dialogWindow = (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        LaunchedEffect(dialogWindow) {
+            dialogWindow?.let { window ->
+                window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+        }
+
+        com.example.ui.components.AppThemeProvider(viewModel) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(userProfile.themeMode))
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2295,7 +2156,7 @@ fun AddMealFlowModal(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // MAIN DISHES GRID SECTION
+                    // MAIN DISHES LIST SECTION
                     Text(
                         text = "Main Dishes (Select One to View Add-ons)",
                         color = AppTextColor(),
@@ -2304,29 +2165,54 @@ fun AddMealFlowModal(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    // Standard fluid wrapping flow/grid of frosted tiles
+                    // Standard vertical list of dishes for better text readability and image presentation
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val rows = mainDishes.chunked(2)
-                        rows.forEach { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                row.forEach { dish ->
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        DishCard(
-                                            dish = dish,
-                                            qty = quantities[dish.id] ?: 0,
-                                            isSelected = selectedMainId == dish.id,
-                                            onSelect = { viewModel.selectMainDish(dish.id) },
-                                            onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) }
-                                        )
-                                    }
-                                }
-                                if (row.size < 2) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
+                        mainDishes.forEach { dish ->
+                            DishCard(
+                                dish = dish,
+                                qty = quantities[dish.id] ?: 0,
+                                isSelected = selectedMainId == dish.id,
+                                onSelect = { viewModel.selectMainDish(dish.id) },
+                                onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // View More Dishes menu item / toggle button
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bounceClick()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    listOf(AccentCyan.copy(alpha = 0.15f), AccentPink.copy(alpha = 0.15f))
+                                ),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                            .clickable { showAllDishes = !showAllDishes }
+                            .padding(vertical = 12.dp, horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (showAllDishes) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = AccentCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (showAllDishes) "View Less Dishes" else "View More Dishes (Show ${if (isNight) "Day" else "Night"} Dishes)",
+                                color = AppTextColor(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 
@@ -2450,10 +2336,13 @@ fun AddMealFlowModal(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
     }
+        }
     
 
 }
@@ -2472,6 +2361,7 @@ fun MealHistoryModal(
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
     
     var monthOffset by remember { mutableStateOf(0) }
+    var isDayWiseView by remember { mutableStateOf(false) }
     
     val filteredTransactions = remember(transactions, monthOffset) {
         val cal = Calendar.getInstance()
@@ -2494,15 +2384,27 @@ fun MealHistoryModal(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient(userProfile.themeMode))
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
+        val dialogWindow = (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        LaunchedEffect(dialogWindow) {
+            dialogWindow?.let { window ->
+                window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+        }
+
+        com.example.ui.components.AppThemeProvider(viewModel) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(userProfile.themeMode))
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2539,7 +2441,24 @@ fun MealHistoryModal(
                     IconButton(onClick = { monthOffset -= 1 }, modifier = Modifier.bounceClick()) {
                         Icon(Icons.Default.ArrowBack, "Previous Month", tint = AppTextColor())
                     }
-                    Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentCyan.copy(alpha = 0.15f))
+                                .border(0.5.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .clickable { isDayWiseView = !isDayWiseView }
+                                .padding(vertical = 4.dp, horizontal = 12.dp)
+                        ) {
+                            Text(
+                                text = if (isDayWiseView) "Show All Logs" else "Show Day-Wise Summary",
+                                color = AccentCyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                     IconButton(onClick = { monthOffset += 1 }, enabled = monthOffset < 0) {
                         Icon(Icons.Default.ArrowForward, "Next Month", tint = if (monthOffset < 0) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
                     }
@@ -2551,11 +2470,112 @@ fun MealHistoryModal(
                         EmptyStateCard(message = "No past meal logs for $currentDisplayMonth.")
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(filteredTransactions, key = { it.id }) { tx ->
+                    if (isDayWiseView) {
+                        val dayFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
+                        val dayGroups = remember(filteredTransactions) {
+                            filteredTransactions.groupBy { tx ->
+                                dayFormat.format(Date(tx.timestamp))
+                            }.toSortedMap(compareByDescending {
+                                dayFormat.parse(it)?.time ?: 0L
+                            })
+                        }
+                        
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(dayGroups.keys.toList()) { dateStr ->
+                                val dayTxs = dayGroups[dateStr] ?: emptyList()
+                                val amountsStr = dayTxs.joinToString(" + ") { it.totalAmount.toInt().toString() }
+                                val dayTotal = dayTxs.sumOf { it.totalAmount }
+                                
+                                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = AccentCyan,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = dateStr,
+                                                    color = AppTextColor(),
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Text(
+                                                text = "₹${dayTotal.toInt()}",
+                                                color = AccentGreen,
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "$dateStr → $amountsStr = ${dayTotal.toInt()}",
+                                            color = AppTextColor().copy(alpha = 0.7f),
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            val grandTotal = filteredTransactions.sumOf { it.totalAmount }
+                            item {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                GlassCard(
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Calculate,
+                                                contentDescription = null,
+                                                tint = AccentGreen,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Total Sum",
+                                                color = AppTextColor(),
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = "₹${grandTotal.toInt()}",
+                                            color = AccentGreen,
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(filteredTransactions, key = { it.id }) { tx ->
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier
@@ -2629,6 +2649,8 @@ fun MealHistoryModal(
         }
     }
 }
+}
+}
 
 // ==========================================
 // MODULE B: EXTRA EXPENSES TAB
@@ -2681,13 +2703,27 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
 
+    if (accounts.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            EmptyStateCard(message = "No Bank Accounts configured. Create one in Settings!")
+        }
+        return
+    }
+
+    LaunchedEffect(showDetailedHistory) {
+        viewModel.registerSubScreen("DetailedHistory", showDetailedHistory)
+    }
+    LaunchedEffect(showAddExpense) {
+        viewModel.registerSubScreen("AddExpense", showAddExpense)
+    }
+
     if (showDetailedHistory) {
         ExtraExpenseDetailedHistoryScreen(
             viewModel = viewModel,
             onDismiss = { showDetailedHistory = false }
         )
     } else if (showAddExpense) {
-        AddExpenseScreen(
+        AddTransactionScreen(
             viewModel = viewModel,
             onDismiss = { showAddExpense = false }
         )
@@ -2842,7 +2878,8 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                 androidx.compose.foundation.pager.HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxWidth().height(160.dp),
-                    pageSpacing = 16.dp
+                    pageSpacing = 16.dp,
+                    userScrollEnabled = accounts.size > 1
                 ) { page ->
                     val account = accounts[page]
                     var showAccountMenu by remember { mutableStateOf(false) }
@@ -3228,19 +3265,26 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
             onClick = { showAddExpense = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 24.dp, end = 24.dp)
+                .padding(bottom = 24.dp, end = 16.dp)
+                .bounceClick()
                 .testTag("add_expense_fab"),
-            containerColor = AccentCyan,
-            contentColor = Color.Black,
-            shape = RoundedCornerShape(16.dp)
+            shape = CircleShape,
+            containerColor = Color.Transparent,
+            elevation = FloatingActionButtonDefaults.elevation(0.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .background(if (isAppLightMode()) Color.White else Color(0xFF0F0B26), shape = CircleShape)
+                    .border(2.dp, AccentCyan, CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Transaction", fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Transaction",
+                    tint = AccentCyan,
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     }
@@ -3268,7 +3312,10 @@ fun AttachmentViewerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        ),
         modifier = Modifier
             .padding(24.dp)
             .background(getDialogBackground(), RoundedCornerShape(24.dp))
@@ -3311,10 +3358,21 @@ fun AttachmentViewerDialog(
 
 @Composable
 fun AttachmentItem(attachment: AttachmentEntity, context: android.content.Context) {
+    var showImageViewer by remember { mutableStateOf(false) }
+    var isPlayingAudio by remember { mutableStateOf(false) }
+    val mediaPlayer = remember { android.media.MediaPlayer() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (mediaPlayer.isPlaying) mediaPlayer.stop()
+            mediaPlayer.release()
+        }
+    }
+
     val (icon, color) = when (attachment.type) {
         "IMAGE" -> Icons.Default.Image to Color(0xFF64B5F6)
         "PDF" -> Icons.Default.PictureAsPdf to Color(0xFFF06292)
-        "VOICE" -> Icons.Default.Mic to Color(0xFF4DB6AC)
+        "VOICE" -> if (isPlayingAudio) Icons.Default.Stop to Color(0xFFE57373) else Icons.Default.PlayArrow to Color(0xFF4DB6AC)
         else -> Icons.Default.AttachFile to Color.Gray
     }
 
@@ -3327,16 +3385,32 @@ fun AttachmentItem(attachment: AttachmentEntity, context: android.content.Contex
             .clickable {
                 try {
                     val uri = Uri.parse(attachment.uri)
-                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, when(attachment.type) {
-                            "IMAGE" -> "image/*"
-                            "PDF" -> "application/pdf"
-                            "VOICE" -> "audio/*"
-                            else -> "*/*"
-                        })
-                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    if (attachment.type == "IMAGE") {
+                        showImageViewer = true
+                    } else if (attachment.type == "VOICE") {
+                        if (isPlayingAudio) {
+                            mediaPlayer.stop()
+                            isPlayingAudio = false
+                        } else {
+                            mediaPlayer.reset()
+                            mediaPlayer.setDataSource(context, uri)
+                            mediaPlayer.prepare()
+                            mediaPlayer.start()
+                            isPlayingAudio = true
+                            mediaPlayer.setOnCompletionListener {
+                                isPlayingAudio = false
+                            }
+                        }
+                    } else {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, when(attachment.type) {
+                                "PDF" -> "application/pdf"
+                                else -> "*/*"
+                            })
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(intent)
                     }
-                    context.startActivity(intent)
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(context, "Could not open attachment", android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -3348,7 +3422,32 @@ fun AttachmentItem(attachment: AttachmentEntity, context: android.content.Contex
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(attachment.uri.substringAfterLast("/"), color = AppTextColor(), fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(attachment.type, color = color.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Text(if (attachment.type == "VOICE" && isPlayingAudio) "PLAYING..." else attachment.type, color = color.copy(alpha = 0.8f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+            }
+        }
+    }
+
+    if (showImageViewer) {
+        Dialog(
+            onDismissRequest = { showImageViewer = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.9f))
+                    .clickable { showImageViewer = false },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = attachment.uri,
+                    contentDescription = "Image Viewer",
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
             }
         }
     }
@@ -3383,755 +3482,15 @@ val ExpenseCategories = listOf("Food", "Academics", "Travel", "Shopping", "Enter
 val IncomeCategories = listOf("Salary", "Investment", "Freelance", "Refund", "Gifts", "General")
 
 
-@Composable
-fun AttachmentActionChip(
-    icon: ImageVector,
-    label: String,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.1f))
-            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun AddExpenseScreen(
-    viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
-) {
-    val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
-    val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
-    val themeMode by LocalAppTheme.current.let { remember { mutableStateOf(it) } }
-
-    var name by remember { mutableStateOf("") }
-    var amountStr by remember { mutableStateOf("") }
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
-    var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    
-    // Core Extended Transaction Fields
-    var type by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
-    var category by remember { mutableStateOf(ExpenseCategories.first()) }
-    var notes by remember { mutableStateOf("") }
-    var attachments by remember { mutableStateOf(listOf<Pair<Uri, String>>()) } // uri to type
-
-    var showAccountDropdown by remember { mutableStateOf(false) }
-    var showCategoryDropdown by remember { mutableStateOf(false) }
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-
-    var isRecording by remember { mutableStateOf(false) }
-    var recordingTimer by remember { mutableStateOf(0) }
-    val mediaRecorder = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
-    var currentVoiceUri by remember { mutableStateOf<Uri?>(null) }
-    
-    val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-    val context = LocalContext.current
-
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { attachments = attachments + (it to "IMAGE") }
-    }
-
-    val pdfPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { attachments = attachments + (it to "PDF") }
-    }
-
-    LaunchedEffect(isRecording) {
-        if (isRecording) {
-            while (isRecording && recordingTimer < 120) {
-                delay(1000)
-                recordingTimer++
-            }
-            if (recordingTimer >= 120) {
-                // Stop recording automatically
-            }
-        } else {
-            recordingTimer = 0
-        }
-    }
-
-    fun startRecording() {
-        try {
-            val fileName = "REC_${System.currentTimeMillis()}.amr"
-            val file = File(context.cacheDir, fileName)
-            currentVoiceUri = Uri.fromFile(file)
-            
-            mediaRecorder.value = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                android.media.MediaRecorder(context)
-            } else {
-                android.media.MediaRecorder()
-            }.apply {
-                setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
-                setOutputFormat(android.media.MediaRecorder.OutputFormat.AMR_NB) // Low bitrate as requested
-                setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AMR_NB)
-                setOutputFile(file.absolutePath)
-                prepare()
-                start()
-            }
-            isRecording = true
-        } catch (e: Exception) {
-            Log.e("AddExpenseScreen", "Failed to start recording", e)
-        }
-    }
-
-    fun stopRecording() {
-        try {
-            mediaRecorder.value?.apply {
-                stop()
-                release()
-            }
-            mediaRecorder.value = null
-            isRecording = false
-            currentVoiceUri?.let { attachments = attachments + (it to "VOICE") }
-        } catch (e: Exception) {
-            Log.e("AddExpenseScreen", "Failed to stop recording", e)
-        }
-    }
-
-    val isFormValid = remember(name, amountStr, category) {
-        name.isNotBlank() && amountStr.toDoubleOrNull() != null && amountStr.toDouble() > 0 && category.isNotBlank()
-    }
-
-    Scaffold(
-        topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Transparent)
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-                    Text(
-                        text = if (type == "EXPENSE") "Add Expense" else "Add Income",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Box(modifier = Modifier.size(40.dp))
-                }
-            }
-        },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                GlassButton(
-                    onClick = {
-                        val amt = amountStr.toDoubleOrNull()
-                        if (isFormValid && amt != null && selectedAccountId != 0) {
-                            viewModel.saveExtraExpense(
-                                name = name,
-                                amount = amt,
-                                bankAccountId = selectedAccountId,
-                                timestamp = timestamp,
-                                receiptUri = null,
-                                type = type,
-                                category = category,
-                                notes = notes,
-                                attachments = attachments.map { it.first.toString() to it.second }
-                            )
-                            onDismiss()
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .testTag("save_expense_button")
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(if (type == "EXPENSE") AccentPink else AccentGreen),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Register Transaction",
-                            color = Color.Black,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                }
-            }
-        },
-        containerColor = Color.Transparent
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
-            // Transaction Type Switcher Card
-            GlassCard(
-                cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Transaction Mode",
-                        color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                            .padding(4.dp)
-                    ) {
-                        val isExpense = type == "EXPENSE"
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isExpense) AccentPink.copy(alpha = 0.2f) else Color.Transparent)
-                                .clickable {
-                                    type = "EXPENSE"
-                                    category = ExpenseCategories.first()
-                                }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    tint = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.4f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Deduction",
-                                    color = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (!isExpense) AccentGreen.copy(alpha = 0.2f) else Color.Transparent)
-                                .clickable {
-                                    type = "INCOME"
-                                    category = IncomeCategories.first()
-                                }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
-                                    contentDescription = null,
-                                    tint = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.4f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Deposit",
-                                    color = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Large Amount Input Card
-            GlassCard(
-                cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Amount to Log",
-                        color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "₹",
-                            style = TextStyle(
-                                color = if (type == "EXPENSE") AccentPink else AccentGreen,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        BasicTextField(
-                            value = amountStr,
-                            onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
-                                    amountStr = input
-                                }
-                            },
-                            textStyle = TextStyle(
-                                color = AppTextColor(),
-                                fontSize = 40.sp,
-                                fontWeight = FontWeight.Black,
-                                textAlign = TextAlign.Start
-                            ),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            cursorBrush = SolidColor(if (type == "EXPENSE") AccentPink else AccentGreen),
-                            modifier = Modifier
-                                .widthIn(min = 100.dp)
-                                .testTag("expense_amount_input"),
-                            decorationBox = { innerTextField ->
-                                if (amountStr.isEmpty()) {
-                                    Text(
-                                        text = "0.00",
-                                        style = TextStyle(
-                                            color = AppTextColor().copy(alpha = 0.2f),
-                                            fontSize = 40.sp,
-                                            fontWeight = FontWeight.Black
-                                        )
-                                    )
-                                }
-                                innerTextField()
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Transaction Details Card
-            GlassCard(
-                cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Text(
-                        text = "Transaction Details",
-                        color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    // Title Input Field
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Title / Purpose") },
-                        placeholder = { Text("e.g. Fuel, Lunch, Bonus") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedLabelColor = AccentCyan,
-                            unfocusedLabelColor = AppTextColor().copy(alpha = 0.5f),
-                            focusedBorderColor = AccentCyan,
-                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f),
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("expense_title_input")
-                    )
-
-                    // Category Selector Input Field
-                    Column {
-                        Text(
-                            text = "Category",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            val (catIcon, catColor) = getCategoryIconAndColor(category, type)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
-                                    .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                    .clickable { showCategoryDropdown = true }
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(catIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(category, color = AppTextColor(), fontWeight = FontWeight.Medium)
-                                }
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f))
-                            }
-
-                            DropdownMenu(
-                                expanded = showCategoryDropdown,
-                                onDismissRequest = { showCategoryDropdown = false },
-                                modifier = Modifier
-                                    .background(Color(0xFF1E293B))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                            ) {
-                                val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
-                                val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
-                                
-                                allCats.forEach { cat ->
-                                    DropdownMenuItem(
-                                        text = { Text(cat, color = Color.White) },
-                                        onClick = {
-                                            category = cat
-                                            showCategoryDropdown = false
-                                        }
-                                    )
-                                }
-                                Divider(color = Color.White.copy(alpha = 0.1f))
-                                DropdownMenuItem(
-                                    text = { Text("+ Add Custom Category", color = AccentCyan) },
-                                    onClick = {
-                                        showCategoryDropdown = false
-                                        showAddCategoryDialog = true
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.Add, null, tint = AccentCyan) }
-                                )
-                            }
-                        }
-                    }
-
-                    // Wallet Linkage Dropdown
-                    Column {
-                        Text(
-                            text = "Virtual Wallet Source",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            val activeAcc = accounts.find { it.id == selectedAccountId }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
-                                    .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                    .clickable { showAccountDropdown = true }
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(activeAcc?.name ?: "Select Wallet Account", color = AppTextColor(), fontWeight = FontWeight.Medium)
-                                }
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f))
-                            }
-
-                            DropdownMenu(
-                                expanded = showAccountDropdown,
-                                onDismissRequest = { showAccountDropdown = false },
-                                modifier = Modifier
-                                    .background(Color(0xFF1E293B))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                            ) {
-                                accounts.forEach { acc ->
-                                    DropdownMenuItem(
-                                        text = { Text("${acc.name} (Bal: ₹${acc.balance.toInt()})", color = Color.White) },
-                                        onClick = {
-                                            selectedAccountId = acc.id
-                                            showAccountDropdown = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Notes input field
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        label = { Text("Short Notes (Optional)") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedLabelColor = AccentCyan,
-                            unfocusedLabelColor = AppTextColor().copy(alpha = 0.5f),
-                            focusedBorderColor = AccentCyan,
-                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f),
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Date and Time picker card
-            GlassCard(
-                cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Log Date & Time",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = sdf.format(Date(timestamp)),
-                            color = AppTextColor(),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(
-                            onClick = {
-                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                android.app.DatePickerDialog(
-                                    context,
-                                    { _, y, m, d ->
-                                        cal.set(Calendar.YEAR, y)
-                                        cal.set(Calendar.MONTH, m)
-                                        cal.set(Calendar.DAY_OF_MONTH, d)
-                                        timestamp = cal.timeInMillis
-                                    },
-                                    cal.get(Calendar.YEAR),
-                                    cal.get(Calendar.MONTH),
-                                    cal.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            },
-                            modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.05f), CircleShape)
-                                .size(40.dp)
-                        ) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                        }
-
-                        IconButton(
-                            onClick = {
-                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                TimePickerDialog(
-                                    context,
-                                    { _, hr, min ->
-                                        cal.set(Calendar.HOUR_OF_DAY, hr)
-                                        cal.set(Calendar.MINUTE, min)
-                                        timestamp = cal.timeInMillis
-                                    },
-                                    cal.get(Calendar.HOUR_OF_DAY),
-                                    cal.get(Calendar.MINUTE),
-                                    false
-                                ).show()
-                            },
-                            modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.05f), CircleShape)
-                                .size(40.dp)
-                        ) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Multi-Attachment Section
-            GlassCard(
-                cornerRadius = 16.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Attachments & Voice Memo",
-                        color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AttachmentActionChip(
-                            icon = Icons.Default.Image,
-                            label = "Image",
-                            color = AccentCyan,
-                            onClick = { imagePicker.launch("image/*") }
-                        )
-                        AttachmentActionChip(
-                            icon = Icons.Default.PictureAsPdf,
-                            label = "PDF",
-                            color = AccentGold,
-                            onClick = { pdfPicker.launch("application/pdf") }
-                        )
-                        
-                        // Voice Memo Recorder
-                        val voiceColor = if (isRecording) Color.Red else AccentPink
-                        AttachmentActionChip(
-                            icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                            label = if (isRecording) "Stop (${120 - recordingTimer}s)" else "Voice",
-                            color = voiceColor,
-                            onClick = {
-                                if (isRecording) stopRecording() else startRecording()
-                            }
-                        )
-                    }
-
-                    if (attachments.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            attachments.forEach { (uri, type) ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = when(type) {
-                                                "IMAGE" -> Icons.Default.Image
-                                                "PDF" -> Icons.Default.PictureAsPdf
-                                                else -> Icons.Default.Mic
-                                            },
-                                            contentDescription = null,
-                                            tint = AppTextColor().copy(alpha = 0.6f),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = uri.lastPathSegment ?: "Attachment",
-                                            color = AppTextColor(),
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.widthIn(max = 150.dp)
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = { attachments = attachments.filter { it.first != uri } },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Close, null, tint = Color.Red, modifier = Modifier.size(14.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(100.dp))
-        }
-    }
-
-    if (showAddCategoryDialog) {
-        var newCatName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showAddCategoryDialog = false },
-            title = { Text("Add New Category") },
-            text = {
-                OutlinedTextField(
-                    value = newCatName,
-                    onValueChange = { newCatName = it },
-                    label = { Text("Category Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (newCatName.isNotBlank()) {
-                        viewModel.addCategory(newCatName, type)
-                        category = newCatName
-                        showAddCategoryDialog = false
-                    }
-                }) {
-                    Text("Add")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddCategoryDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-
 // ==========================================
 // SETTINGS / CONFIGURATION FULL DIALOG
 // ==========================================
 @Composable
 fun SettingsDialog(
     viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenBin: () -> Unit,
+    onOpenOwnerProfile: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
@@ -4152,17 +3511,23 @@ fun SettingsDialog(
     var showSecurityUnlockDialog by remember { mutableStateOf(false) }
     var prefDefaultHotelId by remember(userProfile) { mutableStateOf(userProfile?.defaultHotelId ?: 1) }
     var prefEnableStarAnimation by remember(userProfile) { mutableStateOf(userProfile?.enableStarAnimation ?: true) }
+    var prefTextSize by remember(userProfile) { mutableStateOf(userProfile?.textSize ?: "Medium") }
+
+    val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+    val customFontScale = when (prefTextSize) {
+        "Small" -> 0.85f
+        "Large" -> 1.15f
+        else -> 1.0f
+    }
 
     // Dialog trigger states
-    var showProfileEditDialog by remember { mutableStateOf(false) }
     var editingHotel by remember { mutableStateOf<HotelEntity?>(null) }
     var showAddHotelDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<BankAccountEntity?>(null) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showLegalInfoType by remember { mutableStateOf<String?>(null) } // "info", "license", "privacy"
-    var showOwnerProfile by remember { mutableStateOf(false) }
 
-    LaunchedEffect(prefLanguage, prefThemeMode, prefShowAdvancedPayment, prefAppLockEnabled, prefAppLockPin, prefDefaultHotelId, prefEnableStarAnimation, userProfile) {
+    LaunchedEffect(prefLanguage, prefThemeMode, prefShowAdvancedPayment, prefAppLockEnabled, prefAppLockPin, prefDefaultHotelId, prefEnableStarAnimation, prefTextSize, userProfile) {
         val up = userProfile
         if (up != null && (
             prefLanguage != up.language ||
@@ -4171,7 +3536,8 @@ fun SettingsDialog(
             prefAppLockEnabled != up.appLockEnabled ||
             prefAppLockPin != up.appLockPin ||
             prefDefaultHotelId != up.defaultHotelId ||
-            prefEnableStarAnimation != up.enableStarAnimation
+            prefEnableStarAnimation != up.enableStarAnimation ||
+            prefTextSize != up.textSize
         )) {
             viewModel.updatePreferences(
                 language = prefLanguage,
@@ -4180,7 +3546,8 @@ fun SettingsDialog(
                 appLockEnabled = prefAppLockEnabled,
                 appLockPin = prefAppLockPin,
                 defaultHotelId = prefDefaultHotelId,
-                enableStarAnimation = prefEnableStarAnimation
+                enableStarAnimation = prefEnableStarAnimation,
+                textSize = prefTextSize
             )
         }
     }
@@ -4192,9 +3559,26 @@ fun SettingsDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        CompositionLocalProvider(LocalAppTheme provides prefThemeMode) {
+        val dialogWindow = (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        LaunchedEffect(dialogWindow) {
+            dialogWindow?.let { window ->
+                window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+        }
+
+        CompositionLocalProvider(
+            LocalAppTheme provides prefThemeMode,
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                density = currentDensity.density,
+                fontScale = customFontScale
+            )
+        ) {
             AnimatedVisibility(
                 visible = animateTrigger,
                 enter = slideInVertically(initialOffsetY = { it / 8 }) + fadeIn(animationSpec = tween(250)),
@@ -4252,44 +3636,23 @@ fun SettingsDialog(
                             .height(52.dp)
                             .clip(RoundedCornerShape(26.dp))
                             .background(AppTextColor().copy(alpha = 0.06f))
-                            .clickable { showProfileEditDialog = true }
+                            .clickable { /* Handle search settings */ }
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = AppTextColor().copy(alpha = 0.6f),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (prefLanguage == "bn") "সেটিংস খুঁজুন..." else "Search settings...",
-                                    color = AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 14.sp
-                                )
-                            }
-                            // Decorative/Clickable user profile avatar on the right
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(AccentCyan),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = profileName.take(1).uppercase(),
-                                    color = Color.Black,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = AppTextColor().copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (prefLanguage == "bn") "সেটিংস খুঁজুন..." else "Search settings...",
+                                color = AppTextColor().copy(alpha = 0.5f),
+                                fontSize = 14.sp
+                            )
                         }
                     }
 
@@ -4304,16 +3667,26 @@ fun SettingsDialog(
                         item {
                             // Category: Profile
                             PixelSettingsGroup(
-                                title = if (prefLanguage == "bn") "মালিকের প্রোফাইল" else "Owner Profile"
+                                title = if (prefLanguage == "bn") "মালিকের প্রোফাইল ও ব্যবস্থাপনা" else "Owner Profile & Management"
                             ) {
-                                PixelSettingsItem(
-                                    icon = Icons.Default.Phone,
-                                    iconBgColor = Color(0xFFE3F2FD),
-                                    iconTint = Color(0xFF1976D2),
-                                    title = profileName,
-                                    subtitle = if (profileContact.isNotBlank()) profileContact else (if (prefLanguage == "bn") "কোনো নম্বর নেই" else "No phone number set"),
-                                    onClick = { showProfileEditDialog = true }
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.AccountCircle,
+                                        iconBgColor = Color(0xFFE3F2FD),
+                                        iconTint = Color(0xFF1976D2),
+                                        title = profileName.ifBlank { if (prefLanguage == "bn") "মালিক প্রোফাইল" else "Owner Profile" },
+                                        subtitle = if (profileContact.isNotBlank()) profileContact else (if (prefLanguage == "bn") "মালিক প্রোফাইল পরিচালনা" else "Manage Owner Details & UPI"),
+                                        onClick = { onOpenOwnerProfile() }
+                                    )
+                                    PixelSettingsItem(
+                                        icon = Icons.Default.DeleteOutline,
+                                        iconBgColor = Color(0xFFECEFF1),
+                                        iconTint = Color(0xFF455A64),
+                                        title = if (prefLanguage == "bn") "রিসাইকেল বিন" else "Recycle Bin",
+                                        subtitle = if (prefLanguage == "bn") "মুছে ফেলা আইটেমগুলো দেখুন" else "View and restore deleted items",
+                                        onClick = { onOpenBin() }
+                                    )
+                                }
                             }
                         }
 
@@ -4426,6 +3799,64 @@ fun SettingsDialog(
                                             }
                                         }
                                     }
+                                }
+
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+
+                                // Text Size Slider
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "অক্ষরের আকার" else "Text Size",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = prefTextSize,
+                                            color = AccentCyan,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    
+                                    var localSliderValue by remember(prefTextSize) { 
+                                        mutableFloatStateOf(
+                                            when (prefTextSize) {
+                                                "Small" -> 0f
+                                                "Large" -> 2f
+                                                else -> 1f
+                                            }
+                                        )
+                                    }
+                                    androidx.compose.material3.Slider(
+                                        value = localSliderValue,
+                                        onValueChange = { newVal ->
+                                            localSliderValue = newVal
+                                        },
+                                        onValueChangeFinished = {
+                                            prefTextSize = when (Math.round(localSliderValue)) {
+                                                0 -> "Small"
+                                                2 -> "Large"
+                                                else -> "Medium"
+                                            }
+                                        },
+                                        valueRange = 0f..2f,
+                                        steps = 1,
+                                        colors = androidx.compose.material3.SliderDefaults.colors(
+                                            thumbColor = AccentCyan,
+                                            activeTrackColor = AccentCyan,
+                                            inactiveTrackColor = AppTextColor().copy(alpha = 0.2f)
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    )
                                 }
 
                                 HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
@@ -4704,24 +4135,6 @@ fun SettingsDialog(
                         }
 
                         item {
-                            // Category: Owner Accounts & Profiles
-                            PixelSettingsGroup(
-                                title = if (prefLanguage == "bn") "মালিক অ্যাকাউন্টসমূহ" else "Owner Accounts & UPI"
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    PixelSettingsItem(
-                                        icon = Icons.Default.AccountCircle,
-                                        iconBgColor = Color(0xFFF3E5F5),
-                                        iconTint = Color(0xFF7B1FA2),
-                                        title = if (prefLanguage == "bn") "মালিক প্রোফাইল পরিচালনা" else "Manage Owner Profiles",
-                                        subtitle = if (prefLanguage == "bn") "UPI, QR এবং অ্যাকাউন্ট ডিটেইলস" else "UPI, QR & Account Details",
-                                        onClick = { showOwnerProfile = true }
-                                    )
-                                }
-                            }
-                        }
-
-                        item {
                             // Category: Security & Pin Lock
                             PixelSettingsGroup(
                                 title = if (prefLanguage == "bn") "নিরাপত্তা ও প্রাইভেসি" else "Security & Protection"
@@ -4829,155 +4242,6 @@ fun SettingsDialog(
                         }
 
                         item {
-                            // Category: Recycle Bin (Trash)
-                            val deletedHotels by viewModel.deletedHotels.collectAsStateWithLifecycle()
-                            val deletedAccounts by viewModel.deletedBankAccounts.collectAsStateWithLifecycle()
-                            
-                            if (deletedHotels.isNotEmpty() || deletedAccounts.isNotEmpty()) {
-                                PixelSettingsGroup(
-                                    title = if (prefLanguage == "bn") "রিসাইকেল বিন" else "Recycle Bin (Trash)"
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Text(
-                                            text = if (prefLanguage == "bn") "সম্পূর্ণ মুছে ফেলার আগে এখান থেকে যেকোনো তথ্য পুনরুদ্ধার করতে পারবেন।" else "You can restore binned items below or permanently delete them.",
-                                            color = AppTextColor().copy(alpha = 0.6f),
-                                            fontSize = 11.sp,
-                                            modifier = Modifier.padding(bottom = 4.dp)
-                                        )
-                                        
-                                        // Deleted Hotels List
-                                        deletedHotels.forEach { hotel ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(AppTextColor().copy(alpha = 0.04f))
-                                                    .clickable {
-                                                        viewModel.restoreHotel(hotel)
-                                                        val msg = if (prefLanguage == "bn") "${hotel.name} পুনরুদ্ধার করা হয়েছে" else "${hotel.name} restored to Hotels"
-                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                    .padding(12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Restaurant,
-                                                    contentDescription = null,
-                                                    tint = AppTextColor().copy(alpha = 0.5f),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = hotel.name,
-                                                        color = AppTextColor(),
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp
-                                                    )
-                                                    Text(
-                                                        text = if (prefLanguage == "bn") "হোটেল" else "Hotel",
-                                                        color = AppTextColor().copy(alpha = 0.5f),
-                                                        fontSize = 10.sp
-                                                    )
-                                                }
-                                                // Restore Button
-                                                IconButton(
-                                                    onClick = {
-                                                        viewModel.restoreHotel(hotel)
-                                                        val msg = if (prefLanguage == "bn") "${hotel.name} পুনরুদ্ধার করা হয়েছে" else "${hotel.name} restored to Hotels"
-                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Refresh,
-                                                        contentDescription = "Restore",
-                                                        tint = AccentGreen,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                                // Permanent Delete Button
-                                                IconButton(
-                                                    onClick = { viewModel.deleteHotelPermanently(hotel) }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = "Delete Permanently",
-                                                        tint = AccentPink,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        
-                                        // Deleted Accounts List
-                                        deletedAccounts.forEach { acc ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(AppTextColor().copy(alpha = 0.04f))
-                                                    .clickable {
-                                                        viewModel.restoreVirtualAccount(acc)
-                                                        val msg = if (prefLanguage == "bn") "${acc.name} পুনরুদ্ধার করা হয়েছে" else "${acc.name} restored to Accounts"
-                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                    .padding(12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AccountBalance,
-                                                    contentDescription = null,
-                                                    tint = AppTextColor().copy(alpha = 0.5f),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = acc.name,
-                                                        color = AppTextColor(),
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp
-                                                    )
-                                                    Text(
-                                                        text = if (prefLanguage == "bn") "ব্যাংক অ্যাকাউন্ট" else "Bank Account",
-                                                        color = AppTextColor().copy(alpha = 0.5f),
-                                                        fontSize = 10.sp
-                                                    )
-                                                }
-                                                // Restore Button
-                                                IconButton(
-                                                    onClick = {
-                                                        viewModel.restoreVirtualAccount(acc)
-                                                        val msg = if (prefLanguage == "bn") "${acc.name} পুনরুদ্ধার করা হয়েছে" else "${acc.name} restored to Accounts"
-                                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Refresh,
-                                                        contentDescription = "Restore",
-                                                        tint = AccentGreen,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                                // Permanent Delete Button
-                                                IconButton(
-                                                    onClick = { viewModel.deleteVirtualAccountPermanently(acc) }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = "Delete Permanently",
-                                                        tint = AccentPink,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
                             // Category: About & Legal
                             PixelSettingsGroup(
                                 title = if (prefLanguage == "bn") "সম্পর্কে ও আইনি তথ্য" else "About & Legal"
@@ -5020,73 +4284,6 @@ fun SettingsDialog(
                 // =======================================================
                 // ALL DIALOGS (Styled like beautiful Pixel dynamic alerts)
                 // =======================================================
-
-                // 1. Edit Profile Dialog
-                if (showProfileEditDialog) {
-                    var nameInput by remember { mutableStateOf(profileName) }
-                    var contactInput by remember { mutableStateOf(profileContact) }
-
-                    AlertDialog(
-                        onDismissRequest = { showProfileEditDialog = false },
-                        containerColor = getDialogBackground(),
-                        shape = RoundedCornerShape(28.dp),
-                        title = {
-                            Text(
-                                text = if (prefLanguage == "bn") "প্রোফাইল সংশোধন" else "Edit Profile Details",
-                                color = AppTextColor(),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                        },
-                        text = {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = nameInput,
-                                    onValueChange = { nameInput = it },
-                                    label = { Text(if (prefLanguage == "bn") "ডিসপ্লে নাম" else "Display Name") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = AppTextColor(),
-                                        unfocusedTextColor = AppTextColor()
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                OutlinedTextField(
-                                    value = contactInput,
-                                    onValueChange = { contactInput = it },
-                                    label = { Text(if (prefLanguage == "bn") "যোগাযোগ নম্বর" else "Contact Number") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = AppTextColor(),
-                                        unfocusedTextColor = AppTextColor()
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            Button(
-                                onClick = {
-                                    if (nameInput.isNotBlank()) {
-                                        profileName = nameInput
-                                        profileContact = contactInput
-                                        viewModel.updateProfile(nameInput, contactInput, "avatar_premium")
-                                        showProfileEditDialog = false
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
-                            ) {
-                                Text(if (prefLanguage == "bn") "সংরক্ষণ করুন" else "Save", color = Color.Black, fontWeight = FontWeight.Bold)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showProfileEditDialog = false }) {
-                                Text(if (prefLanguage == "bn") "বাতিল" else "Cancel", color = AppTextColor())
-                            }
-                        }
-                    )
-                }
 
                 // 2. EditHotelModal (The best editing screen, unified for both Add and Edit with superior features!)
                 if (showAddHotelDialog || editingHotel != null) {
@@ -5222,15 +4419,9 @@ fun SettingsDialog(
                     )
                 }
 
-                if (showOwnerProfile) {
-                    OwnerProfileScreen(
-                        viewModel = viewModel,
-                        onDismiss = { showOwnerProfile = false }
-                    )
-                }
-            }
         }
     }
+}
 }
 }
 
@@ -5325,33 +4516,6 @@ fun PixelSettingsItem(
 // ==========================================
 // PLACEHOLDER / EMPTY STATE CARD
 // ==========================================
-@Composable
-fun EmptyStateCard(message: String) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = null,
-                tint = AccentCyan.copy(alpha = 0.6f),
-                modifier = Modifier.size(36.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = message,
-                color = AppTextColor().copy(alpha = 0.6f),
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
-        }
-    }
-}
 
 @Composable
 fun DishImageAndEmoji(
@@ -5403,13 +4567,15 @@ fun DishCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 130.dp)
-            .bounceClick()
             .background(
                 brush = if (isSelected) {
-                    androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x4000E5FF), Color(0x1F00E5FF)))
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color(0x3300E5FF), Color(0x1100E5FF))
+                    )
                 } else {
-                    androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x09FFFFFF)))
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color(0x1FFFFFFF), Color(0x09FFFFFF))
+                    )
                 },
                 shape = RoundedCornerShape(18.dp)
             )
@@ -5419,74 +4585,105 @@ fun DishCard(
                 shape = RoundedCornerShape(18.dp)
             )
             .clip(RoundedCornerShape(18.dp))
-            .clickable { onSelect() }
             .padding(12.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // Left part: Dish Image/Emoji + Name Details (Clickable to select with premium bounce & haptic feedback)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top
+                modifier = Modifier
+                    .weight(1f)
+                    .bounceClick()
+                    .clickable { onSelect() },
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 DishImageAndEmoji(
                     emoji = dish.emoji,
                     imageUri = dish.imageUri,
-                    size = 44.dp
+                    size = 54.dp // Large and prominent, resolving "image text not optimized"
                 )
-                Column(modifier = Modifier.weight(1f)) {
+                
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = dish.banglaName,
                         color = AppTextColor(),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = dish.englishName,
                         color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 11.sp
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "₹${dish.price.toInt()}",
+                        color = AccentGold,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Text(
-                    text = "₹${dish.price.toInt()}",
-                    color = AccentGold,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
 
-            // Quantity Controls
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Right part: Optimized Quantity Controller (+ - button)
+            // No bounceClick on this block to avoid any tactile vibration distraction on repetitive addition clicks
             if (qty == 0) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .background(Color(0x1AFFFFFF), RoundedCornerShape(16.dp))
-                        .clickable { onUpdateQty(1) },
+                        .width(72.dp)
+                        .height(34.dp)
+                        .background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(17.dp))
+                        .border(0.5.dp, AccentCyan.copy(alpha = 0.4f), RoundedCornerShape(17.dp))
+                        .clickable { 
+                            onSelect()
+                            onUpdateQty(1) 
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Add +", color = AppTextColor(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Add +",
+                        color = AccentCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             } else {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-                        .border(0.5.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                        .width(88.dp)
+                        .height(34.dp)
+                        .background(AccentCyan.copy(alpha = 0.25f), RoundedCornerShape(17.dp))
+                        .border(1.dp, AccentCyan.copy(alpha = 0.6f), RoundedCornerShape(17.dp)),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier.weight(1f).fillMaxHeight().clickable { onUpdateQty(-1) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onUpdateQty(-1) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "-", tint = AccentCyan, modifier = Modifier.size(14.dp))
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "-",
+                            tint = AppTextColor(),
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                     Text(
                         text = "$qty",
@@ -5495,10 +4692,18 @@ fun DishCard(
                         fontWeight = FontWeight.Bold
                     )
                     Box(
-                        modifier = Modifier.weight(1f).fillMaxHeight().clickable { onUpdateQty(1) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onUpdateQty(1) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "+", tint = AccentCyan, modifier = Modifier.size(14.dp))
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "+",
+                            tint = AppTextColor(),
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
@@ -5524,6 +4729,11 @@ fun UnifiedHotelDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        ),
+        modifier = Modifier.padding(16.dp).navigationBarsPadding(),
         containerColor = getDialogBackground(),
         shape = RoundedCornerShape(28.dp),
         title = {
@@ -6092,274 +5302,6 @@ fun LegalInfoDialog(
 }
 
 @Composable
-fun OwnerProfileScreen(
-    viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
-) {
-    val ownerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle()
-    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
-    val prefLanguage = userProfile.language
-    var showAddDialog by remember { mutableStateOf(false) }
-    var accountToEdit by remember { mutableStateOf<com.example.data.model.OwnerAccountEntity?>(null) }
-
-    Scaffold(
-        topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Transparent)
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-                    Text(
-                        text = if (prefLanguage == "bn") "মালিক প্রোফাইল" else "Owner Profile",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    IconButton(
-                        onClick = { showAddDialog = true },
-                        modifier = Modifier
-                            .background(AccentCyan.copy(alpha = 0.1f), CircleShape)
-                            .size(40.dp)
-                    ) {
-                        Icon(Icons.Default.Add, null, tint = AccentCyan)
-                    }
-                }
-            }
-        },
-        containerColor = Color.Transparent
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp)
-        ) {
-            if (ownerAccounts.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyStateCard(message = if (prefLanguage == "bn") "কোনো মালিক অ্যাকাউন্ট নেই।" else "No owner accounts added yet.")
-                }
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(ownerAccounts, key = { it.id }) { acc ->
-                        OwnerAccountCard(
-                            account = acc,
-                            onEdit = { accountToEdit = acc; showAddDialog = true },
-                            onDelete = { viewModel.deleteOwnerAccount(acc) }
-                        )
-                    }
-                    item { Spacer(modifier = Modifier.height(20.dp)) }
-                }
-            }
-        }
-    }
-
-    if (showAddDialog) {
-        AddOwnerAccountDialog(
-            account = accountToEdit,
-            onDismiss = { showAddDialog = false; accountToEdit = null },
-            onSave = { newAcc ->
-                if (accountToEdit == null) {
-                    viewModel.addOwnerAccount(newAcc)
-                } else {
-                    viewModel.updateOwnerAccount(newAcc)
-                }
-                showAddDialog = false
-                accountToEdit = null
-            }
-        )
-    }
-}
-
-@Composable
-fun OwnerAccountCard(
-    account: com.example.data.model.OwnerAccountEntity,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var showQR by remember { mutableStateOf(false) }
-
-    GlassCard(cornerRadius = 24.dp) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(account.ownerName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AppTextColor())
-                    Text(account.ownerMobile, fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.6f))
-                }
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, null, tint = AccentCyan, modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(20.dp))
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = AppTextColor().copy(alpha = 0.1f))
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            DetailRow(label = "Bank / Account", value = account.accountName)
-            DetailRow(label = "A/C Number", value = account.accountNumber)
-            DetailRow(label = "IFSC Code", value = account.ifscCode)
-            DetailRow(label = "Branch", value = account.branchName)
-            DetailRow(label = "UPI ID", value = account.upiId)
-            
-            if (account.qrCodeUri.isNotBlank()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                GlassButton(
-                    onClick = { showQR = true },
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.QrCode, null, tint = Color.Black)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("View QR Code", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-
-    if (showQR) {
-        Dialog(onDismissRequest = { showQR = false }) {
-            GlassCard(cornerRadius = 24.dp, modifier = Modifier.padding(20.dp)) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("QR Code for ${account.ownerName}", fontWeight = FontWeight.Bold, color = AppTextColor())
-                    Spacer(modifier = Modifier.height(20.dp))
-                    AsyncImage(
-                        model = account.qrCodeUri,
-                        contentDescription = "QR",
-                        modifier = Modifier.size(250.dp).clip(RoundedCornerShape(16.dp))
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    GlassButton(onClick = { showQR = false }) {
-                        Text("Close")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DetailRow(label: String, value: String) {
-    if (value.isBlank()) return
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.5f))
-        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTextColor())
-    }
-}
-
-@Composable
-fun AddOwnerAccountDialog(
-    account: com.example.data.model.OwnerAccountEntity?,
-    onDismiss: () -> Unit,
-    onSave: (com.example.data.model.OwnerAccountEntity) -> Unit
-) {
-    var ownerName by remember { mutableStateOf(account?.ownerName ?: "") }
-    var ownerMobile by remember { mutableStateOf(account?.ownerMobile ?: "") }
-    var accountName by remember { mutableStateOf(account?.accountName ?: "") }
-    var accountNumber by remember { mutableStateOf(account?.accountNumber ?: "") }
-    var ifscCode by remember { mutableStateOf(account?.ifscCode ?: "") }
-    var branchName by remember { mutableStateOf(account?.branchName ?: "") }
-    var upiId by remember { mutableStateOf(account?.upiId ?: "") }
-    var qrCodeUri by remember { mutableStateOf(account?.qrCodeUri ?: "") }
-
-    val qrPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { qrCodeUri = it.toString() }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = getDialogBackground(),
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.fillMaxWidth(0.95f).padding(16.dp),
-        title = { Text(if (account == null) "Add Owner Account" else "Edit Owner Account", color = AppTextColor()) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(value = ownerName, onValueChange = { ownerName = it }, label = { Text("Owner Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = ownerMobile, onValueChange = { ownerMobile = it }, label = { Text("Mobile Number") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = accountName, onValueChange = { accountName = it }, label = { Text("Bank / Account Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = accountNumber, onValueChange = { accountNumber = it }, label = { Text("A/C Number") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = ifscCode, onValueChange = { ifscCode = it }, label = { Text("IFSC Code") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("Branch Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = upiId, onValueChange = { upiId = it }, label = { Text("UPI ID") }, modifier = Modifier.fillMaxWidth())
-                
-                Button(
-                    onClick = { qrPicker.launch("image/*") },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.1f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.QrCode, null, tint = AccentCyan)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (qrCodeUri.isEmpty()) "Attach QR Code" else "Change QR Code", color = AccentCyan)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onSave(
-                        com.example.data.model.OwnerAccountEntity(
-                            id = account?.id ?: 0,
-                            ownerName = ownerName,
-                            ownerMobile = ownerMobile,
-                            accountName = accountName,
-                            accountNumber = accountNumber,
-                            ifscCode = ifscCode,
-                            branchName = branchName,
-                            upiId = upiId,
-                            qrCodeUri = qrCodeUri
-                        )
-                    )
-                }
-            ) {
-                Text("Save", color = AccentCyan, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = AppTextColor().copy(alpha = 0.5f))
-            }
-        }
-    )
-}
-
-
-
-@Composable
 fun GlobalSearchScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
@@ -6382,6 +5324,7 @@ fun GlobalSearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
             // Search Header
             Row(

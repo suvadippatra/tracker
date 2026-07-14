@@ -16,7 +16,8 @@ data class UserProfileEntity(
     val appLockEnabled: Boolean = false,
     val appLockPin: String = "",
     val defaultHotelId: Int = 1,
-    val enableStarAnimation: Boolean = true
+    val enableStarAnimation: Boolean = true,
+    val textSize: String = "Medium" // "Small", "Medium", "Large"
 )
 
 @Entity(tableName = "hotels")

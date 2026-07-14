@@ -1,0 +1,28 @@
+package com.example.ui.components
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.viewmodel.FinancialViewModel
+import com.example.ui.components.LocalAppTheme
+
+@Composable
+fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> Unit) {
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+    val customFontScale = when (userProfile.textSize) {
+        "Small" -> 0.85f
+        "Large" -> 1.15f
+        else -> 1.0f
+    }
+    CompositionLocalProvider(
+        LocalAppTheme provides userProfile.themeMode,
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = customFontScale
+        )
+    ) {
+        content()
+    }
+}

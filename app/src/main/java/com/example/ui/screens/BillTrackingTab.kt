@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.MeterReading
 import com.example.data.model.UtilityBill
+import com.example.ui.components.*
 import com.example.ui.components.SlidingDatePickerModal
 import com.example.ui.viewmodel.MeterReadingUiState
 import com.example.ui.viewmodel.MeterReadingViewModel
@@ -229,7 +231,10 @@ fun DailyReadingInputScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = "Select Date Time",
@@ -240,14 +245,18 @@ fun DailyReadingInputScreen(
                             Text(
                                 text = if (language == "bn") "রিডিংয়ের সময়:" else "Reading Timestamp:",
                                 color = AppTextColor().copy(alpha = 0.6f),
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = formatter.format(Date(readingDateMillis)),
                             color = AccentCyan,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
                         )
                     }
 
@@ -580,6 +589,11 @@ fun BillSummaryScreen(
 
     var showParamEdit by remember { mutableStateOf(false) }
     var showGenerateBillDialog by remember { mutableStateOf(false) }
+
+    if (successState.readings.isEmpty() && flatRate == 0.0 && fixedCharge == 0.0) {
+        EmptyStateCard(message = if (language == "bn") "কোনো রিডিং যোগ করা হয়নি এবং রেট সেট করা হয়নি।" else "No readings added and rates are not set. Start logging to generate bills.")
+        return
+    }
 
     // Check if range includes paid session
     val paidSessionsInRange = successState.readings.filter { it.readingDate in startMillis..endMillis && it.isPaid }

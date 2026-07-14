@@ -39,6 +39,19 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     // UI Tab State
     val activeTab = MutableStateFlow("Hotels")
+    val isBottomBarVisible = MutableStateFlow(true)
+    private val activeSubScreens = MutableStateFlow<Set<String>>(emptySet())
+
+    fun registerSubScreen(key: String, isActive: Boolean) {
+        val current = activeSubScreens.value.toMutableSet()
+        if (isActive) {
+            current.add(key)
+        } else {
+            current.remove(key)
+        }
+        activeSubScreens.value = current
+        isBottomBarVisible.value = current.isEmpty()
+    }
 
     // Active Hotel Selection
     val activeHotelId = MutableStateFlow(1)
@@ -211,6 +224,10 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         _orderQuantities.value = current
     }
 
+    private fun updateWidgets() {
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication())
+    }
+
     fun saveHotelTransaction() {
         val hotelId = activeHotelId.value
         val isNight = _addMealIsNight.value
@@ -242,12 +259,14 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
             )
             repository.insertTransaction(transaction)
             resetOrderFlow()
+            updateWidgets()
         }
     }
 
     fun deleteTransaction(transaction: HotelTransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+            updateWidgets()
         }
     }
 
@@ -291,6 +310,7 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 )
             }
+            updateWidgets()
         }
     }
 
@@ -326,6 +346,7 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         val accounts = allBankAccounts.value
         viewModelScope.launch {
             repository.deleteExpenseAndRevert(expense, accounts)
+            updateWidgets()
         }
     }
 
@@ -347,30 +368,35 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     fun addVirtualAccount(name: String, startingBalance: Double, upiId: String = "", qrCodeUri: String = "") {
         viewModelScope.launch {
             repository.insertBankAccount(BankAccountEntity(name = name, balance = startingBalance, upiId = upiId, qrCodeUri = qrCodeUri))
+            updateWidgets()
         }
     }
 
     fun editVirtualAccount(account: BankAccountEntity) {
         viewModelScope.launch {
             repository.updateBankAccount(account)
+            updateWidgets()
         }
     }
 
     fun deleteVirtualAccount(account: BankAccountEntity) {
         viewModelScope.launch {
             repository.updateBankAccount(account.copy(isDeleted = true))
+            updateWidgets()
         }
     }
 
     fun restoreVirtualAccount(account: BankAccountEntity) {
         viewModelScope.launch {
             repository.updateBankAccount(account.copy(isDeleted = false))
+            updateWidgets()
         }
     }
 
     fun deleteVirtualAccountPermanently(account: BankAccountEntity) {
         viewModelScope.launch {
             repository.deleteBankAccount(account)
+            updateWidgets()
         }
     }
 
@@ -397,6 +423,12 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun deleteMenuPermanently(menu: com.example.data.model.MenuEntity) {
+        viewModelScope.launch {
+            repository.deleteMenu(menu)
+        }
+    }
+
     fun addHotel(
         name: String,
         advancedPayment: Double,
@@ -416,30 +448,35 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                     qrCodeUri = qrCodeUri
                 )
             )
+            updateWidgets()
         }
     }
 
     fun editHotel(hotel: HotelEntity) {
         viewModelScope.launch {
             repository.updateHotel(hotel)
+            updateWidgets()
         }
     }
 
     fun deleteHotel(hotel: HotelEntity) {
         viewModelScope.launch {
             repository.updateHotel(hotel.copy(isDeleted = true))
+            updateWidgets()
         }
     }
 
     fun restoreHotel(hotel: HotelEntity) {
         viewModelScope.launch {
             repository.updateHotel(hotel.copy(isDeleted = false))
+            updateWidgets()
         }
     }
 
     fun deleteHotelPermanently(hotel: HotelEntity) {
         viewModelScope.launch {
             repository.deleteHotel(hotel)
+            updateWidgets()
         }
     }
 
@@ -488,7 +525,8 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         appLockEnabled: Boolean,
         appLockPin: String,
         defaultHotelId: Int,
-        enableStarAnimation: Boolean
+        enableStarAnimation: Boolean,
+        textSize: String
     ) {
         viewModelScope.launch {
             val current = userProfile.value
@@ -501,9 +539,11 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                         appLockEnabled = appLockEnabled,
                         appLockPin = appLockPin,
                         defaultHotelId = defaultHotelId,
-                        enableStarAnimation = enableStarAnimation
+                        enableStarAnimation = enableStarAnimation,
+                        textSize = textSize
                     )
                 )
+            updateWidgets()
         }
     }
 }

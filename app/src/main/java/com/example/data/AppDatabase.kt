@@ -43,7 +43,7 @@ import com.example.data.dao.OwnerAccountDao
         AttachmentEntity::class,
         OwnerAccountEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -58,6 +58,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attachmentDao(): AttachmentDao
     abstract fun ownerAccountDao(): OwnerAccountDao
     companion object {
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE user_profile ADD COLUMN textSize TEXT NOT NULL DEFAULT 'Medium'")
+            }
+        }
 
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -91,7 +97,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "traker_database"
                 )
                 .fallbackToDestructiveMigration(true)
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17)
                 .build()
                 INSTANCE = instance
                 instance

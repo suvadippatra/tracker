@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
@@ -21,29 +22,22 @@ class HotelWidgetProvider : AppWidgetProvider() {
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java),
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val pendingResult = goAsync()
         val scope = CoroutineScope(Dispatchers.IO)
-        
-        for (appWidgetId in appWidgetIds) {
-            val views = RemoteViews(context.packageName, R.layout.widget_hotel)
-            views.setOnClickPendingIntent(R.id.hotel_name, pendingIntent)
-            views.setOnClickPendingIntent(R.id.hotel_total, pendingIntent)
-            views.setOnClickPendingIntent(R.id.hotel_status, pendingIntent)
-
-            scope.launch {
-                val db = AppDatabase.getDatabase(context)
+        scope.launch {
+            try {
+                val db = AppDatabase.getDatabase(context.applicationContext)
                 val user = db.userProfileDao().getUserProfileSync()
                 val hotelId = user?.defaultHotelId ?: 1
                 val hotel = db.hotelDao().getHotelByIdSync(hotelId)
                 
                 val cal = Calendar.getInstance()
-                val month = cal.get(Calendar.MONTH) + 1
-                val year = cal.get(Calendar.YEAR)
-                
-                // Set start/end of month
                 cal.set(Calendar.DAY_OF_MONTH, 1)
                 cal.set(Calendar.HOUR_OF_DAY, 0)
                 cal.set(Calendar.MINUTE, 0)
@@ -60,13 +54,20 @@ class HotelWidgetProvider : AppWidgetProvider() {
                 val total = txs.sumOf { it.totalAmount }
                 
                 withContext(Dispatchers.Main) {
-                    views.setTextViewText(R.id.hotel_name, hotel?.name ?: "Grand Hotel")
-                    views.setTextViewText(R.id.hotel_total, "₹ $total")
-                    views.setTextViewText(R.id.hotel_status, "Current Month")
-                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                    for (appWidgetId in appWidgetIds) {
+                        val views = RemoteViews(context.packageName, R.layout.widget_hotel)
+                        views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+                        views.setTextViewText(R.id.hotel_name, hotel?.name ?: "No Hotel Selected")
+                        views.setTextViewText(R.id.hotel_total, "₹ $total")
+                        views.setTextViewText(R.id.hotel_status, "Current Month")
+                        appWidgetManager.updateAppWidget(appWidgetId, views)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e("HotelWidget", "Error updating widget", e)
+            } finally {
+                pendingResult.finish()
             }
-            appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
 }
