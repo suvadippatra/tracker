@@ -151,8 +151,29 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 EmptyStateCard(message = "No Bank Accounts configured. Create one here or in Settings!")
-                GlassButton(onClick = { showAddAccountDialog = true }) {
-                    Text("Add Account")
+                Button(
+                    onClick = { showAddAccountDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 240.dp)
+                        .height(50.dp)
+                        .bounceClick()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (prefLanguage == "bn") "অ্যাকাউন্ট যোগ করুন" else "Add Account",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
                 }
             }
         }

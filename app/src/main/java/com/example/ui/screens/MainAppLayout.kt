@@ -95,6 +95,176 @@ fun ImportFormatItem(title: String, columns: String) {
 
 
 @Composable
+fun TabContentArea(
+    activeTab: String,
+    viewModel: FinancialViewModel,
+    meterViewModel: MeterReadingViewModel,
+    userProfile: com.example.data.model.UserProfileEntity?,
+    onOpenUtilityConfig: () -> Unit
+) {
+    AnimatedContent(
+        targetState = activeTab,
+        transitionSpec = {
+            val tabOrder = listOf("Hotels", "Extras", "Bill")
+            val initialIndex = tabOrder.indexOf(initialState)
+            val targetIndex = tabOrder.indexOf(targetState)
+            val direction = if (targetIndex > initialIndex) 1 else -1
+
+            (slideInHorizontally(
+                animationSpec = spring(
+                    dampingRatio = 0.85f,
+                    stiffness = 350f
+                ),
+                initialOffsetX = { fullWidth -> (fullWidth * 0.15f * direction).toInt() }
+            ) + fadeIn(
+                animationSpec = spring(
+                    dampingRatio = 0.85f,
+                    stiffness = 350f
+                )
+            ) + scaleIn(
+                animationSpec = spring(
+                    dampingRatio = 0.85f,
+                    stiffness = 350f
+                ),
+                initialScale = 0.92f
+            )) togetherWith (
+                slideOutHorizontally(
+                    animationSpec = spring(
+                        dampingRatio = 0.85f,
+                        stiffness = 350f
+                    ),
+                    targetOffsetX = { fullWidth -> (-fullWidth * 0.15f * direction).toInt() }
+                ) + fadeOut(
+                    animationSpec = spring(
+                        dampingRatio = 0.85f,
+                        stiffness = 350f
+                    )
+                ) + scaleOut(
+                    animationSpec = spring(
+                        dampingRatio = 0.85f,
+                        stiffness = 350f
+                    ),
+                    targetScale = 0.92f
+                )
+            )
+        },
+        label = "tab_transition"
+    ) { tab ->
+        when (tab) {
+            "Hotels" -> HotelManagementTab(viewModel)
+            "Extras" -> ExtraExpensesTab(viewModel)
+            "Bill" -> {
+                userProfile?.let { profile ->
+                    BillTrackingTab(
+                        viewModel = meterViewModel,
+                        userProfile = profile,
+                        financialViewModel = viewModel,
+                        onOpenUtilityConfig = onOpenUtilityConfig
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GlassSideNavigation(
+    activeTab: String,
+    onTabSelected: (String) -> Unit,
+    language: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)
+    ) {
+        GlassCard(
+            modifier = Modifier.fillMaxHeight().width(110.dp),
+            cornerRadius = 24.dp,
+            containerAlpha = 4.5f
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(vertical = 16.dp, horizontal = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Restaurant,
+                    contentDescription = null,
+                    tint = AccentCyan,
+                    modifier = Modifier.size(32.dp).padding(bottom = 12.dp)
+                )
+
+                listOf("Hotels", "Extras", "Bill").forEach { tab ->
+                    val isSelected = activeTab == tab
+                    val tabColor by animateColorAsState(
+                        targetValue = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.5f),
+                        animationSpec = tween(300),
+                        label = "tab_color"
+                    )
+                    val activeBackground = if (isSelected) Color(0x2900E5FF) else Color.Transparent
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bounceClick()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(activeBackground)
+                            .clickable { onTabSelected(tab) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = when (tab) {
+                                    "Hotels" -> Icons.Default.Restaurant
+                                    "Extras" -> Icons.Default.AccountBalance
+                                    "Bill" -> Icons.Default.Bolt
+                                    else -> Icons.Default.Settings
+                                },
+                                contentDescription = tab,
+                                tint = tabColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (language == "bn") {
+                                    when (tab) {
+                                        "Hotels" -> "হোটেল"
+                                        "Extras" -> "খরচ"
+                                        "Bill" -> "বিল"
+                                        else -> "সেটিংস"
+                                    }
+                                } else {
+                                    when (tab) {
+                                        "Bill" -> "Bill"
+                                        "Extras" -> "Extra"
+                                        "Hotels" -> "Hotel"
+                                        else -> "Util"
+                                    }
+                                },
+                                color = tabColor,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun MainAppLayout(viewModel: FinancialViewModel) {
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val isBottomBarVisible by viewModel.isBottomBarVisible.collectAsStateWithLifecycle()
@@ -127,107 +297,92 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
         viewModel.registerSubScreen("UtilConfig", showUtilConfig)
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Transparent, // Let the background gradient bleed through
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
-        topBar = {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val isTablet = configuration.screenWidthDp >= 600
+    val useSideNavigation = isLandscape || isTablet
+
+    if (useSideNavigation) {
+        Row(modifier = Modifier.fillMaxSize()) {
             if (isBottomBarVisible) {
-                GlassHeader(
-                    userProfile = userProfile,
-                    onSettingsClicked = { showSettings = true },
-                    onSearchClicked = { showSearch = true },
-                    onProfileClicked = { showOwnerProfile = true },
-                    onGreetingDoubleClicked = { showQRViewer = true }
-                )
-            }
-        },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = isBottomBarVisible,
-                enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)),
-                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300))
-            ) {
-                GlassBottomNavigation(
+                GlassSideNavigation(
                     activeTab = activeTab,
                     onTabSelected = { viewModel.activeTab.value = it },
                     language = userProfile?.language ?: "en"
                 )
             }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        top = if (isBottomBarVisible) innerPadding.calculateTopPadding() else 0.dp
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                if (isBottomBarVisible) {
+                    GlassHeader(
+                        userProfile = userProfile,
+                        onSettingsClicked = { showSettings = true },
+                        onSearchClicked = { showSearch = true },
+                        onProfileClicked = { showOwnerProfile = true },
+                        onGreetingDoubleClicked = { showQRViewer = true }
                     )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 4.dp)
+                ) {
+                    TabContentArea(
+                        activeTab = activeTab,
+                        viewModel = viewModel,
+                        meterViewModel = meterViewModel,
+                        userProfile = userProfile,
+                        onOpenUtilityConfig = { showUtilConfig = true }
+                    )
+                }
+            }
+        }
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent, // Let the background gradient bleed through
+            contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+            topBar = {
+                if (isBottomBarVisible) {
+                    GlassHeader(
+                        userProfile = userProfile,
+                        onSettingsClicked = { showSettings = true },
+                        onSearchClicked = { showSearch = true },
+                        onProfileClicked = { showOwnerProfile = true },
+                        onGreetingDoubleClicked = { showQRViewer = true }
+                    )
+                }
+            },
+            bottomBar = {
+                AnimatedVisibility(
+                    visible = isBottomBarVisible,
+                    enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)),
+                    exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300))
+                ) {
+                    GlassBottomNavigation(
+                        activeTab = activeTab,
+                        onTabSelected = { viewModel.activeTab.value = it },
+                        language = userProfile?.language ?: "en"
+                    )
+                }
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier.fillMaxSize()
             ) {
-                AnimatedContent(
-                    targetState = activeTab,
-                    transitionSpec = {
-                        val tabOrder = listOf("Hotels", "Extras", "Bill")
-                        val initialIndex = tabOrder.indexOf(initialState)
-                        val targetIndex = tabOrder.indexOf(targetState)
-                        val direction = if (targetIndex > initialIndex) 1 else -1
-
-                        (slideInHorizontally(
-                            animationSpec = spring(
-                                dampingRatio = 0.85f,
-                                stiffness = 350f
-                            ),
-                            initialOffsetX = { fullWidth -> (fullWidth * 0.15f * direction).toInt() }
-                        ) + fadeIn(
-                            animationSpec = spring(
-                                dampingRatio = 0.85f,
-                                stiffness = 350f
-                            )
-                        ) + scaleIn(
-                            animationSpec = spring(
-                                dampingRatio = 0.85f,
-                                stiffness = 350f
-                            ),
-                            initialScale = 0.92f
-                        )) togetherWith (
-                            slideOutHorizontally(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = 350f
-                                ),
-                                targetOffsetX = { fullWidth -> (-fullWidth * 0.15f * direction).toInt() }
-                            ) + fadeOut(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = 350f
-                                )
-                            ) + scaleOut(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = 350f
-                                ),
-                                targetScale = 0.92f
-                            )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = if (isBottomBarVisible) innerPadding.calculateTopPadding() else 0.dp
                         )
-                    },
-                    label = "tab_transition"
-                ) { tab ->
-                    when (tab) {
-                        "Hotels" -> HotelManagementTab(viewModel)
-                        "Extras" -> ExtraExpensesTab(viewModel)
-                        "Bill" -> {
-                            userProfile?.let { profile ->
-                                BillTrackingTab(
-                                    viewModel = meterViewModel,
-                                    userProfile = profile,
-                                    financialViewModel = viewModel,
-                                    onOpenUtilityConfig = { showUtilConfig = true }
-                                )
-                            }
-                        }
-                    }
+                ) {
+                    TabContentArea(
+                        activeTab = activeTab,
+                        viewModel = viewModel,
+                        meterViewModel = meterViewModel,
+                        userProfile = userProfile,
+                        onOpenUtilityConfig = { showUtilConfig = true }
+                    )
                 }
             }
         }

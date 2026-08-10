@@ -105,6 +105,8 @@ interface TransactionDao {
     fun getAllTransactions(): Flow<List<HotelTransactionEntity>>
     @Query("SELECT * FROM hotel_transactions WHERE isDeleted = 1 ORDER BY timestamp DESC")
     fun getDeletedTransactions(): Flow<List<HotelTransactionEntity>>
+    @Query("DELETE FROM hotel_transactions WHERE isDeleted = 1")
+    suspend fun emptyDeletedTransactionsPermanently()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: HotelTransactionEntity): Long
@@ -145,6 +147,8 @@ interface ExtraExpenseDao {
     suspend fun getAllExpensesSync(): List<ExtraExpenseEntity>
     @Query("SELECT * FROM extra_expenses WHERE isDeleted = 1 ORDER BY timestamp DESC")
     fun getDeletedExpenses(): Flow<List<ExtraExpenseEntity>>
+    @Query("DELETE FROM extra_expenses WHERE isDeleted = 1")
+    suspend fun emptyDeletedExpensesPermanently()
     
     @Query("SELECT * FROM extra_expenses WHERE isDeleted = 0 AND timestamp >= :start AND timestamp <= :end")
     suspend fun getExpensesForDateRange(start: Long, end: Long): List<ExtraExpenseEntity>
@@ -190,6 +194,10 @@ interface MeterDao {
 
     @Query("UPDATE meter_readings SET isDeleted = 1 WHERE id = :id")
     suspend fun softDeleteReading(id: String)
+    @Query("UPDATE meter_readings SET isDeleted = 0 WHERE id = :id")
+    suspend fun restoreReading(id: String)
+    @Query("DELETE FROM meter_readings WHERE isDeleted = 1")
+    suspend fun emptyDeletedReadingsPermanently()
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 1 ORDER BY readingDate DESC")
     fun getDeletedReadings(): Flow<List<MeterReading>>
 

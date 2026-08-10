@@ -132,6 +132,15 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     val deletedBankAccounts: StateFlow<List<BankAccountEntity>> = repository.deletedBankAccounts
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val deletedTransactions: StateFlow<List<HotelTransactionEntity>> = repository.deletedTransactions
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val deletedExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.deletedExtraExpenses
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val deletedMeterReadings: StateFlow<List<MeterReading>> = repository.deletedMeterReadings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val allExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.allExtraExpenses
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -619,6 +628,67 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteHotelPermanently(hotel: HotelEntity) {
         viewModelScope.launch {
             repository.deleteHotel(hotel)
+            updateWidgets()
+        }
+    }
+
+    fun deleteReading(reading: MeterReading) {
+        viewModelScope.launch {
+            repository.deleteReading(reading)
+            updateWidgets()
+        }
+    }
+
+    fun emptyDeletedHotelsPermanently() {
+        viewModelScope.launch {
+            deletedHotels.value.forEach {
+                repository.deleteHotel(it)
+            }
+            updateWidgets()
+        }
+    }
+
+    fun emptyDeletedBankAccountsPermanently() {
+        viewModelScope.launch {
+            deletedBankAccounts.value.forEach {
+                repository.deleteBankAccount(it)
+            }
+            updateWidgets()
+        }
+    }
+
+    fun emptyDeletedMenuItemsPermanently() {
+        viewModelScope.launch {
+            deletedMenuItems.value.forEach {
+                repository.deleteMenu(it)
+            }
+        }
+    }
+
+    fun emptyDeletedReadingsPermanently() {
+        viewModelScope.launch {
+            repository.emptyDeletedReadingsPermanently()
+            updateWidgets()
+        }
+    }
+
+    fun emptyDeletedTransactionsPermanently() {
+        viewModelScope.launch {
+            repository.emptyDeletedTransactionsPermanently()
+            updateWidgets()
+        }
+    }
+
+    fun emptyDeletedExpensesPermanently() {
+        viewModelScope.launch {
+            repository.emptyDeletedExpensesPermanently()
+            updateWidgets()
+        }
+    }
+
+    fun restoreMeterReading(id: String) {
+        viewModelScope.launch {
+            repository.restoreReading(id)
             updateWidgets()
         }
     }

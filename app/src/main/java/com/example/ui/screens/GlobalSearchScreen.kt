@@ -49,6 +49,13 @@ fun GlobalSearchScreen(
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
     val results by viewModel.searchResults.collectAsStateWithLifecycle()
 
+    val hotels by viewModel.allHotels.collectAsStateWithLifecycle()
+    val expenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle()
+    val bankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+    val menuItems by viewModel.allMenuItems.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isBengali = userProfile?.language == "bn"
+
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -56,15 +63,40 @@ fun GlobalSearchScreen(
         listOf("All", "Expenses", "Meals & Menus", "Hotels", "Accounts", "Bills")
     }
 
-    val quickSuggestions = remember {
-        listOf(
-            "Chicken" to "🍽️",
-            "Grocery" to "🛒",
-            "Electricity" to "⚡",
-            "Hotel" to "🏨",
-            "UPI" to "💳",
-            "Salary" to "💰"
-        )
+    val quickSuggestions = remember(hotels, expenses, bankAccounts, menuItems, isBengali) {
+        val list = mutableListOf<Pair<String, String>>()
+        
+        // 1. Add actual active hotels
+        hotels.filter { !it.isDeleted }.forEach { hotel ->
+            if (hotel.name.isNotBlank()) {
+                list.add(hotel.name to "🏨")
+            }
+        }
+        
+        // 2. Add actual active bank accounts
+        bankAccounts.filter { !it.isDeleted }.forEach { account ->
+            if (account.name.isNotBlank()) {
+                list.add(account.name to "💳")
+            }
+        }
+        
+        // 3. Add actual active menu items configured by the user
+        menuItems.filter { !it.isDeleted }.forEach { menu ->
+            val name = if (isBengali) menu.banglaName else menu.englishName
+            if (name.isNotBlank()) {
+                list.add(name to (if (menu.emoji.isNotBlank()) menu.emoji else "🍽️"))
+            }
+        }
+
+        // 4. Add actual active extra expenses configured by the user
+        expenses.filter { !it.isDeleted }.forEach { expense ->
+            if (expense.name.isNotBlank()) {
+                list.add(expense.name to "🛒")
+            }
+        }
+        
+        // Deduplicate by lowercased trimmed name and take top 10 items
+        list.distinctBy { it.first.lowercase().trim() }.take(10)
     }
 
     LaunchedEffect(Unit) {
@@ -240,45 +272,52 @@ fun GlobalSearchScreen(
                                 )
                             }
                         }
-                    }
-
-                    // Quick Suggestions Shortcuts
+                             // Quick Suggestions Shortcuts
                     item {
                         Column(modifier = Modifier.padding(top = 10.dp)) {
                             Text(
-                                "Popular Quick Search",
+                                text = if (isBengali) "আপনার ব্যবহার অনুযায়ী খুঁজুন" else "Suggested Searches",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = AppTextColor().copy(alpha = 0.7f),
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(quickSuggestions) { (title, emoji) ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(getDialogBackground().copy(alpha = 0.6f))
-                                            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(16.dp))
-                                            .clickable { viewModel.setSearchQuery(title) }
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(emoji, fontSize = 16.sp)
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                title,
-                                                color = AppTextColor(),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                            if (quickSuggestions.isEmpty()) {
+                                Text(
+                                    text = if (isBengali) "কোনো সাম্প্রতিক ব্যবহার নেই। আপনার তৈরি হোটেল, ব্যাংক অ্যাকাউন্ট বা খরচ এখানে শর্টকাট হিসেবে প্রদর্শিত হবে।" else "No recent usage found. Your configured hotels, bank accounts, and meals will appear here as search shortcuts.",
+                                    color = AppTextColor().copy(alpha = 0.5f),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            } else {
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(quickSuggestions) { (title, emoji) ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(getDialogBackground().copy(alpha = 0.6f))
+                                                .border(0.5.dp, getGlassBorder(), RoundedCornerShape(16.dp))
+                                                .clickable { viewModel.setSearchQuery(title) }
+                                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(emoji, fontSize = 16.sp)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    title,
+                                                    color = AppTextColor(),
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    }             }
 
                     item {
                         Box(

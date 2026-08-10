@@ -218,20 +218,20 @@ fun EditProfileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Owner Profile") },
+        title = { Text("Edit Owner Profile", color = AppTextColor(), fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(
-                    modifier = Modifier.size(80.dp).clip(CircleShape).background(Color.Gray.copy(alpha = 0.2f)).clickable { photoPicker.launch("image/*") }.align(Alignment.CenterHorizontally),
+                    modifier = Modifier.size(80.dp).clip(CircleShape).background(if (isAppLightMode()) Color.Black.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.1f)).clickable { photoPicker.launch("image/*") }.align(Alignment.CenterHorizontally),
                     contentAlignment = Alignment.Center
                 ) {
                     if (avatar.isNotBlank()) {
                         AsyncImage(model = avatar, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
-                        Icon(Icons.Default.CameraAlt, null, tint = Color.Gray)
+                        Icon(Icons.Default.CameraAlt, null, tint = AppTextColor().copy(alpha = 0.6f))
                     }
                 }
                 GlassTextField(
@@ -253,11 +253,12 @@ fun EditProfileDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name, contact, avatar) }) { Text("Save") }
+            TextButton(onClick = { onSave(name, contact, avatar) }) { Text("Save", color = AccentCyan, fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = AppTextColor().copy(alpha = 0.6f)) }
+        },
+        containerColor = getDialogBackground()
     )
 }
 
@@ -334,7 +335,10 @@ fun OwnerAccountCard(
                         androidx.compose.material3.DropdownMenu(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
-                            modifier = Modifier.background(getDialogBackground())
+                            modifier = Modifier
+                                .background(getDialogBackground())
+                                .border(BorderStroke(1.dp, getGlassBorder()), RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(12.dp))
                         ) {
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text("Delete Account", color = AccentPink) },
@@ -377,9 +381,9 @@ fun OwnerAccountCard(
                     modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.QrCode, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.QrCode, null, tint = AppTextColor(), modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("View QR", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("View QR", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
@@ -388,7 +392,11 @@ fun OwnerAccountCard(
 
     if (showQR) {
         Dialog(onDismissRequest = { showQR = false }) {
-            Box(modifier = Modifier.background(getDialogBackground(), RoundedCornerShape(24.dp))) {
+            Box(
+                modifier = Modifier
+                    .background(getDialogBackground(), RoundedCornerShape(24.dp))
+                    .border(BorderStroke(1.dp, getGlassBorder()), RoundedCornerShape(24.dp))
+            ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -398,10 +406,14 @@ fun OwnerAccountCard(
                     AsyncImage(
                         model = account.qrCodeUri,
                         contentDescription = "QR",
-                        modifier = Modifier.size(250.dp).clip(RoundedCornerShape(16.dp))
+                        modifier = Modifier
+                            .size(250.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .padding(12.dp)
                     )
                     Spacer(modifier = Modifier.height(20.dp))
-                    TextButton(onClick = { showQR = false }) { Text("Close", color = AccentCyan) }
+                    TextButton(onClick = { showQR = false }) { Text("Close", color = AccentCyan, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -423,16 +435,20 @@ fun DetailRowItem(label: String, value: String) {
 
     if (showLargeView) {
         Dialog(onDismissRequest = { showLargeView = false }) {
-            GlassCard(cornerRadius = 24.dp) {
+            Box(
+                modifier = Modifier
+                    .background(getDialogBackground(), RoundedCornerShape(24.dp))
+                    .border(BorderStroke(1.dp, getGlassBorder()), RoundedCornerShape(24.dp))
+            ) {
                 Column(
                     modifier = Modifier.padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(label, color = AppTextColor().copy(alpha = 0.5f), fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(value, color = AppTextColor(), fontSize = 32.sp, fontWeight = FontWeight.Black)
+                    Text(value, color = AppTextColor(), fontSize = 28.sp, fontWeight = FontWeight.Black)
                     Spacer(modifier = Modifier.height(32.dp))
-                    TextButton(onClick = { showLargeView = false }) { Text("Close") }
+                    TextButton(onClick = { showLargeView = false }) { Text("Close", color = AccentCyan, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -461,7 +477,7 @@ fun AddOwnerAccountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (account == null) "Add Account Details" else "Edit Account Details") },
+        title = { Text(if (account == null) "Add Account Details" else "Edit Account Details", color = AppTextColor(), fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier
@@ -522,14 +538,19 @@ fun AddOwnerAccountDialog(
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
+                OutlinedButton(
                     onClick = { qrPicker.launch("image/*") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.1f), contentColor = AccentCyan)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = AccentCyan,
+                        containerColor = if (isAppLightMode()) AccentCyan.copy(alpha = 0.05f) else AccentCyan.copy(alpha = 0.12f)
+                    )
                 ) {
-                    Icon(Icons.Default.QrCodeScanner, null)
+                    Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (qrCodeUri.isEmpty()) "Upload UPI QR" else "QR Uploaded")
+                    Text(if (qrCodeUri.isEmpty()) "Upload UPI QR" else "QR Uploaded", fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -545,11 +566,12 @@ fun AddOwnerAccountDialog(
                     upiId = upiId,
                     qrCodeUri = qrCodeUri
                 ))
-            }) { Text("Save") }
+            }) { Text("Save", color = AccentCyan, fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = AppTextColor().copy(alpha = 0.6f)) }
+        },
+        containerColor = getDialogBackground()
     )
 }
 
