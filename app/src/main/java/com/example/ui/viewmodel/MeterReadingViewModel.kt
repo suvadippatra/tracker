@@ -28,27 +28,69 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
     private val repository: FinancialRepository
 
     // Rate settings StateFlows
-    val flatRatePerUnit = MutableStateFlow(0.0)
     val fixedServiceCharge = MutableStateFlow(0.0)
 
     // Current Date Range state
+    var isManualDateRangeSet = false
     val calculationStartDate = MutableStateFlow<Long>(getStartOfMonthMillis())
     val calculationEndDate = MutableStateFlow<Long>(getEndOfDayMillis())
 
     init {
         val db = AppDatabase.getDatabase(application)
         repository = FinancialRepository(db)
+
+        viewModelScope.launch {
+            combine(
+                repository.allUtilityBills,
+                repository.allMeterReadingsSorted
+            ) { bills, sortedReadings ->
+                val lastPaidBill = bills.filter { it.isPaid }.maxByOrNull { it.endDate }
+                if (lastPaidBill != null) {
+                    lastPaidBill.endDate
+                } else {
+                    sortedReadings.firstOrNull()?.readingDate ?: getStartOfMonthMillis()
+                }
+            }.collect { autoStart ->
+                if (!isManualDateRangeSet) {
+                    calculationStartDate.value = autoStart
+                }
+            }
+        }
     }
 
     // Reactive computation of units consumed in selected range
     val unitsConsumedInRange: StateFlow<Double> = combine(
         calculationStartDate,
-        calculationEndDate
-    ) { start, end ->
-        start to end
-    }.flatMapLatest { (start, end) ->
-        repository.getSumOfUnitsConsumed(start, end)
+        calculationEndDate,
+        repository.allMeterReadingsSorted
+    ) { start, end, readings ->
+        if (readings.isEmpty()) return@combine 0.0
+        
+        val startVal = estimateReadingAt(start, readings)
+        val endVal = estimateReadingAt(end, readings)
+        
+        if (startVal != null && endVal != null) {
+            (endVal - startVal).coerceAtLeast(0.0)
+        } else {
+            // Fallback: sum of deltas within range
+            readings.filter { it.readingDate in (start + 1)..end }.sumOf { it.unitsConsumed }
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    private fun getDayStart(time: Long): Long {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = time
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
+    private fun estimateReadingAt(time: Long, readings: List<MeterReading>): Double? {
+        val timeDay = getDayStart(time)
+        return readings.find { getDayStart(it.readingDate) == timeDay }?.totalReading
+    }
 
     // Expose rates
     val allElectricityRates = repository.allElectricityRates
@@ -61,32 +103,68 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
         start to end
     }
 
-    private val ratesFlow = combine(allElectricityRates, flatRatePerUnit, fixedServiceCharge) { rates, defaultRate, charge ->
-        Triple(rates, defaultRate, charge)
+    private val ratesFlow = combine(allElectricityRates, fixedServiceCharge) { rates, charge ->
+        Pair(rates, charge)
     }
 
     // Reactive computation of projected bill based on historical rate intervals
     val currentProjectedBill: StateFlow<Double> = combine(
-        repository.allMeterReadings,
+        repository.allMeterReadingsSorted,
         dateRangeFlow,
         ratesFlow
-    ) { readings, dateRange, ratesTriple ->
+    ) { sortedReadings, dateRange, ratesPair ->
         val (start, end) = dateRange
-        val (rates, defaultRate, charge) = ratesTriple
-        val filteredReadings = readings.filter { it.readingDate in start..end }
-        var totalCost = 0.0
-        filteredReadings.forEach { reading ->
-            // Find rate effective on or before the reading's date
-            val activeRate = rates
-                .filter { it.effectiveDate <= reading.readingDate }
-                .maxByOrNull { it.effectiveDate }
-                ?.ratePerUnit ?: defaultRate
-            totalCost += reading.unitsConsumed * activeRate
+        val (rates, charge) = ratesPair
+        if (start >= end || sortedReadings.isEmpty()) return@combine 0.0
+
+        val startReading = estimateReadingAt(start, sortedReadings)
+        val endReading = estimateReadingAt(end, sortedReadings)
+        
+        if (startReading == null || endReading == null) return@combine 0.0
+        
+        val totalUnits = (endReading - startReading).coerceAtLeast(0.0)
+        
+        val startDay = getDayStart(start)
+        val endDay = getDayStart(end)
+        val totalDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(endDay - startDay).coerceAtLeast(1)
+        val dailyUnits = totalUnits / totalDays.toDouble()
+
+        val validRates = rates.sortedBy { it.effectiveDate }
+        
+        val breakpoints = mutableListOf<Long>()
+        breakpoints.add(startDay)
+        
+        validRates.forEach { rate ->
+            val rateDay = getDayStart(rate.effectiveDate)
+            if (rateDay > startDay && rateDay < endDay) {
+                breakpoints.add(rateDay)
+            }
         }
+        if (!breakpoints.contains(endDay)) {
+            breakpoints.add(endDay)
+        }
+        breakpoints.sort()
+
+        var totalCost = 0.0
+
+        for (i in 0 until breakpoints.size - 1) {
+            val periodStart = breakpoints[i]
+            val periodEnd = breakpoints[i + 1]
+            
+            val periodDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(periodEnd - periodStart).coerceAtLeast(0)
+            val periodUnits = dailyUnits * periodDays
+            
+            val activeRate = validRates
+                .filter { getDayStart(it.effectiveDate) <= periodStart }
+                .maxByOrNull { it.effectiveDate }
+                ?.ratePerUnit
+                ?: 0.0
+                
+            totalCost += periodUnits * activeRate
+        }
+
         totalCost + charge
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
-
-    // Exposed consolidated UI State flow
     val uiState: StateFlow<MeterReadingUiState> = combine(
         repository.allMeterReadings,
         repository.allUtilityBills,
@@ -174,12 +252,12 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun setCalculationDateRange(start: Long, end: Long) {
+        isManualDateRangeSet = true
         calculationStartDate.value = start
         calculationEndDate.value = end
     }
 
-    fun updateCalculationParameters(rate: Double, charge: Double) {
-        flatRatePerUnit.value = rate
+    fun updateCalculationParameters(charge: Double) {
         fixedServiceCharge.value = charge
     }
 
@@ -210,7 +288,8 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
 
     // Accumulation logic calculation function as requested in guidelines
     fun calculateProjectedBill(totalUnits: Double): Double {
-        return totalUnits * flatRatePerUnit.value + fixedServiceCharge.value
+        val currentRate = allElectricityRates.value.maxByOrNull { it.effectiveDate }?.ratePerUnit ?: 0.0
+        return totalUnits * currentRate + fixedServiceCharge.value
     }
 
     // Helper functions for calendar millisecond calculation

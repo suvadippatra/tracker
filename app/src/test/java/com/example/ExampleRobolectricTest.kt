@@ -21,7 +21,12 @@ class ExampleRobolectricTest {
     fun testSettingsDialog() {
         val viewModel = FinancialViewModel(ApplicationProvider.getApplicationContext())
         composeTestRule.setContent {
-            SettingsDialog(viewModel = viewModel, onDismiss = {})
+            SettingsDialog(
+                viewModel = viewModel,
+                onDismiss = {},
+                onOpenBin = {},
+                onOpenOwnerProfile = {}
+            )
         }
     }
 }

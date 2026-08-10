@@ -23,7 +23,7 @@ class ExpensesWidgetProvider : AppWidgetProvider() {
             context,
             0,
             Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -34,30 +34,39 @@ class ExpensesWidgetProvider : AppWidgetProvider() {
             try {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val accounts = db.bankAccountDao().getAllBankAccountsSync()
-                val totalBalance = accounts.sumOf { it.balance }
-                
-                val cal = Calendar.getInstance()
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                val start = cal.timeInMillis
-                
-                cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-                cal.set(Calendar.HOUR_OF_DAY, 23)
-                cal.set(Calendar.MINUTE, 59)
-                cal.set(Calendar.SECOND, 59)
-                val end = cal.timeInMillis
+                val activeAccounts = accounts.filter { !it.isDeleted }
+                val totalBalance = activeAccounts.sumOf { it.balance }
 
-                val expenses = db.extraExpenseDao().getExpensesForDateRange(start, end)
-                val totalSpent = expenses.sumOf { it.amount }
+                val isConfigured = activeAccounts.isNotEmpty()
+                val targetAction = if (isConfigured) "ADD_EXPENSE" else "ADD_ACCOUNT"
+                val buttonLabel = if (isConfigured) "+ Expense" else "+ Add Account"
+
+                val actionIntent = Intent(context, MainActivity::class.java).apply {
+                    action = targetAction
+                    putExtra("action", targetAction)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingActionIntent = PendingIntent.getActivity(
+                    context,
+                    2,
+                    actionIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val accountLabel = when (activeAccounts.size) {
+                    0 -> "No Accounts"
+                    1 -> activeAccounts[0].name
+                    else -> "Accounts (${activeAccounts.size})"
+                }
                 
                 withContext(Dispatchers.Main) {
                     for (appWidgetId in appWidgetIds) {
                         val views = RemoteViews(context.packageName, R.layout.widget_expenses)
                         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                        views.setTextViewText(R.id.expenses_balance, "Total Balance: ₹ $totalBalance")
-                        views.setTextViewText(R.id.expenses_total, "Spent this month: ₹ $totalSpent")
+                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingActionIntent)
+                        views.setTextViewText(R.id.btn_add_expense, buttonLabel)
+                        views.setTextViewText(R.id.expenses_title, "💳 $accountLabel")
+                        views.setTextViewText(R.id.expenses_balance, "₹ $totalBalance")
                         appWidgetManager.updateAppWidget(appWidgetId, views)
                     }
                 }

@@ -23,7 +23,7 @@ class OverallWidgetProvider : AppWidgetProvider() {
             context,
             0,
             Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -34,26 +34,63 @@ class OverallWidgetProvider : AppWidgetProvider() {
             try {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val user = db.userProfileDao().getUserProfileSync()
-                val hotelId = user?.defaultHotelId ?: 1
-                
-                val cal = Calendar.getInstance()
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                val start = cal.timeInMillis
-                
-                cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-                cal.set(Calendar.HOUR_OF_DAY, 23)
-                cal.set(Calendar.MINUTE, 59)
-                cal.set(Calendar.SECOND, 59)
-                val end = cal.timeInMillis
+                val allHotels = db.hotelDao().getAllHotelsSync()
+                val targetHotelId = user?.defaultHotelId ?: allHotels.firstOrNull()?.id ?: 1
+                val hotel = db.hotelDao().getHotelByIdSync(targetHotelId) ?: allHotels.firstOrNull()
+                val menus = if (hotel != null) db.menuDao().getMenusForHotelSync(hotel.id) else emptyList()
 
-                val txs = db.transactionDao().getTransactionsForHotelAndDateRange(hotelId, start, end)
-                val totalHotel = txs.sumOf { it.totalAmount }
+                val isHotelConfigured = allHotels.isNotEmpty() && hotel != null && menus.isNotEmpty()
+                val hotelAction = if (isHotelConfigured) "ADD_MEAL_LOG" else "ADD_HOTEL"
+                val hotelBtnLabel = if (isHotelConfigured) "+ Meal" else "+ Hotel"
 
-                val expenses = db.extraExpenseDao().getExpensesForDateRange(start, end)
-                val totalExpenses = expenses.sumOf { it.amount }
+                val hotelActionIntent = Intent(context, MainActivity::class.java).apply {
+                    action = hotelAction
+                    putExtra("action", hotelAction)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingHotelIntent = PendingIntent.getActivity(
+                    context,
+                    1,
+                    hotelActionIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val accounts = db.bankAccountDao().getAllBankAccountsSync().filter { !it.isDeleted }
+                val isAccountConfigured = accounts.isNotEmpty()
+                val expenseAction = if (isAccountConfigured) "ADD_EXPENSE" else "ADD_ACCOUNT"
+                val expenseBtnLabel = if (isAccountConfigured) "+ Expense" else "+ Account"
+
+                val expenseActionIntent = Intent(context, MainActivity::class.java).apply {
+                    action = expenseAction
+                    putExtra("action", expenseAction)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingExpenseIntent = PendingIntent.getActivity(
+                    context,
+                    2,
+                    expenseActionIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val hotelName = if (isHotelConfigured) (hotel?.name ?: "Hotels") else "No Hotel"
+                
+                val now = Calendar.getInstance()
+                val currentMonth = now.get(Calendar.MONTH)
+                val currentYear = now.get(Calendar.YEAR)
+
+                val allTxs = if (hotel != null) db.transactionDao().getTransactionsForHotelSync(hotel.id) else emptyList()
+                val monthTxs = allTxs.filter { tx ->
+                    val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+                    txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+                }
+                val totalHotel = monthTxs.sumOf { it.totalAmount }
+
+                val allExpenses = db.extraExpenseDao().getAllExpensesSync()
+                val monthExpenses = allExpenses.filter { ex ->
+                    val exCal = Calendar.getInstance().apply { timeInMillis = ex.timestamp }
+                    exCal.get(Calendar.MONTH) == currentMonth && exCal.get(Calendar.YEAR) == currentYear
+                }
+                val totalExpenses = monthExpenses.sumOf { it.amount }
                 
                 val totalNet = totalHotel + totalExpenses
 
@@ -61,8 +98,13 @@ class OverallWidgetProvider : AppWidgetProvider() {
                     for (appWidgetId in appWidgetIds) {
                         val views = RemoteViews(context.packageName, R.layout.widget_overall)
                         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+                        views.setOnClickPendingIntent(R.id.btn_add_meal, pendingHotelIntent)
+                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingExpenseIntent)
+                        views.setTextViewText(R.id.btn_add_meal, hotelBtnLabel)
+                        views.setTextViewText(R.id.btn_add_expense, expenseBtnLabel)
+                        views.setTextViewText(R.id.overall_title, "📊 Overall ($hotelName)")
                         views.setTextViewText(R.id.overall_net, "Net: ₹ $totalNet")
-                        views.setTextViewText(R.id.overall_breakdown, "Hotel: ₹ $totalHotel\nExpenses: ₹ $totalExpenses")
+                        views.setTextViewText(R.id.overall_breakdown, "Hotel: ₹ $totalHotel | Exp: ₹ $totalExpenses")
                         appWidgetManager.updateAppWidget(appWidgetId, views)
                     }
                 }

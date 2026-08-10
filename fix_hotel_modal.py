@@ -1,95 +1,152 @@
 import re
 
-with open("app/src/main/java/com/example/ui/screens/SmritiPocketScreen.kt", "r") as f:
+with open("app/src/main/java/com/example/ui/screens/EditHotelModal.kt", "r") as f:
     content = f.read()
 
-# Add editQrCode to EditHotelModal
-old_edit_upi = "var editUpiId by remember { mutableStateOf(hotel.upiId) }"
-new_edit_upi = """var editUpiId by remember { mutableStateOf(hotel.upiId) }
-    var editQrCodeUri by remember { mutableStateOf(hotel.qrCodeUri) }"""
+old_top_bar = r"""            topBar = \{
+                Row\(
+                    modifier = Modifier
+                        \.fillMaxWidth\(\)
+                        \.background\(getDialogBackground\(\)\)
+                        \.padding\(horizontal = 24\.dp, vertical = 16\.dp\),
+                    verticalAlignment = Alignment\.CenterVertically
+                \) \{
+                    IconButton\(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            \.size\(40\.dp\)
+                            \.background\(getGlassIconButtonBg\(\), CircleShape\)
+                            \.bounceClick\(\)
+                    \) \{
+                        Icon\(
+                            Icons\.Default\.ArrowBack,
+                            contentDescription = "Back",
+                            tint = AppTextColor\(\)
+                        \)
+                    \}
+                    Spacer\(modifier = Modifier\.width\(16\.dp\)\)
+                    Text\(
+                        text = if \(hotel == null\) "Add Hotel" else "Edit Hotel Info",
+                        color = AppTextColor\(\),
+                        fontSize = 22\.sp,
+                        fontWeight = FontWeight\.Bold,
+                    \)
+                    Spacer\(modifier = Modifier\.weight\(1f\)\)
+                    Button\(
+                        onClick = \{
+                            // Save logic
+                            val adv = editHotelAdvanced\.toDoubleOrNull\(\) \?: 0\.0
+                            if \(editHotelName\.isNotBlank\(\)\) \{
+                                if \(hotel == null\) \{
+                                    viewModel\.addHotel\(HotelEntity\(
+                                        name = editHotelName,
+                                        advancedPayment = adv,
+                                        phoneNumber = editPhone,
+                                        location = editLocation,
+                                        upiId = editUpiId,
+                                        qrCodeUri = editQrCodeUris\.joinToString\(","\)
+                                    \)\)
+                                \} else \{
+                                    viewModel\.updateHotel\(hotel\.copy\(
+                                        name = editHotelName,
+                                        advancedPayment = adv,
+                                        phoneNumber = editPhone,
+                                        location = editLocation,
+                                        upiId = editUpiId,
+                                        qrCodeUri = editQrCodeUris\.joinToString\(","\)
+                                    \)\)
+                                \}
+                                onDismiss\(\)
+                            \}
+                        \},
+                        colors = ButtonDefaults\.buttonColors\(containerColor = AccentCyan\),
+                        shape = RoundedCornerShape\(12\.dp\),
+                        modifier = Modifier\.height\(48\.dp\)\.bounceClick\(\)
+                    \) \{
+                        Text\(if \(hotel == null\) "Add Hotel" else "Save Changes", color = Color\.Black, fontWeight = FontWeight\.Bold\)
+                    \}
+                \}
+            \}"""
 
-content = content.replace(old_edit_upi, new_edit_upi)
-
-old_upi_textfield = """OutlinedTextField(
-                value = editUpiId,
-                onValueChange = { editUpiId = it },
-                label = { Text("UPI ID", color = AppTextColor().copy(alpha = 0.6f)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = AppTextColor(), unfocusedTextColor = AppTextColor(),
-                    focusedBorderColor = AccentCyan, unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )"""
-
-new_upi_textfield = """OutlinedTextField(
-                value = editUpiId,
-                onValueChange = { editUpiId = it },
-                label = { Text("UPI ID", color = AppTextColor().copy(alpha = 0.6f)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = AppTextColor(), unfocusedTextColor = AppTextColor(),
-                    focusedBorderColor = AccentCyan, unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = editQrCodeUri,
-                onValueChange = { editQrCodeUri = it },
-                label = { Text("QR Code/UPI Scan URI", color = AppTextColor().copy(alpha = 0.6f)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = AppTextColor(), unfocusedTextColor = AppTextColor(),
-                    focusedBorderColor = AccentCyan, unfocusedBorderColor = AppTextColor().copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )"""
-            
-content = content.replace(old_upi_textfield, new_upi_textfield)
-
-# Update the save button for Hotel
-old_save_hotel = """TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = AccentPink)
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(
-                    onClick = {
-                        val advanced = editHotelAdvanced.toDoubleOrNull() ?: hotel.advancedPayment
-                        viewModel.updateHotel(hotel.copy(
-                            name = editHotelName,
-                            advancedPayment = advanced,
-                            phoneNumber = editPhone,
-                            location = editLocation,
-                            upiId = editUpiId
-                        ))
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+new_top_bar = """            topBar = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(getDialogBackground())
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Save Changes", color = Color.Black)
-                }"""
-                
-new_save_hotel = """TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = AccentPink)
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(getGlassIconButtonBg(), CircleShape)
+                            .bounceClick()
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = AppTextColor()
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = if (hotel == null) "Add Hotel" else "Edit Hotel Info",
+                        color = AppTextColor(),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(
-                    onClick = {
-                        val advanced = editHotelAdvanced.toDoubleOrNull() ?: hotel.advancedPayment
-                        viewModel.updateHotel(hotel.copy(
-                            name = editHotelName,
-                            advancedPayment = advanced,
-                            phoneNumber = editPhone,
-                            location = editLocation,
-                            upiId = editUpiId,
-                            qrCodeUri = editQrCodeUri
-                        ))
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
-                ) {
-                    Text("Save Changes", color = Color.Black)
-                }"""
+            }"""
 
-content = content.replace(old_save_hotel, new_save_hotel)
+content = re.sub(old_top_bar, new_top_bar, content, flags=re.DOTALL)
 
-with open("app/src/main/java/com/example/ui/screens/SmritiPocketScreen.kt", "w") as f:
+old_bottom = r"""                    if \(hotel != null\) \{
+                        Spacer\(modifier = Modifier\.height\(32\.dp\)\)
+                        Divider\(color = AppTextColor\(\)\.copy\(alpha = 0\.1f\)\)"""
+
+new_bottom = """                    Spacer(modifier = Modifier.height(32.dp))
+                    Button(
+                        onClick = {
+                            // Save logic
+                            val adv = editHotelAdvanced.toDoubleOrNull() ?: 0.0
+                            if (editHotelName.isNotBlank()) {
+                                if (hotel == null) {
+                                    viewModel.addHotel(HotelEntity(
+                                        name = editHotelName,
+                                        advancedPayment = adv,
+                                        phoneNumber = editPhone,
+                                        location = editLocation,
+                                        upiId = editUpiId,
+                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                    ))
+                                } else {
+                                    viewModel.updateHotel(hotel.copy(
+                                        name = editHotelName,
+                                        advancedPayment = adv,
+                                        phoneNumber = editPhone,
+                                        location = editLocation,
+                                        upiId = editUpiId,
+                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                    ))
+                                }
+                                onDismiss()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp).bounceClick()
+                    ) {
+                        Text(if (hotel == null) "Add Hotel" else "Save Changes", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    
+                    if (hotel != null) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Divider(color = AppTextColor().copy(alpha = 0.1f))"""
+
+content = re.sub(old_bottom, new_bottom, content)
+
+with open("app/src/main/java/com/example/ui/screens/EditHotelModal.kt", "w") as f:
     f.write(content)
+print("Updated successfully!")

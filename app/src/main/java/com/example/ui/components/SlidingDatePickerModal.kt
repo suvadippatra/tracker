@@ -31,8 +31,8 @@ fun SlidingDatePickerModal(
     var selectedYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
     
     val days = (1..31).toList()
-    // Short months like Jan, Feb, Mar...
-    val monthsStr = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    // Short months like Jan(01), Feb(02), Mar(03)...
+    val monthsStr = listOf("Jan(01)", "Feb(02)", "Mar(03)", "Apr(04)", "May(05)", "Jun(06)", "Jul(07)", "Aug(08)", "Sep(09)", "Oct(10)", "Nov(11)", "Dec(12)")
     val years = (1900..2100).toList()
 
     // Determine max days in current month/year
@@ -179,7 +179,7 @@ fun InlineDatePicker(
     var selectedMonth by remember { mutableIntStateOf(calendar.get(Calendar.MONTH)) }
     var selectedYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
 
-    val monthsStr = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val monthsStr = listOf("Jan(01)", "Feb(02)", "Mar(03)", "Apr(04)", "May(05)", "Jun(06)", "Jul(07)", "Aug(08)", "Sep(09)", "Oct(10)", "Nov(11)", "Dec(12)")
     val years = (1900..2100).toList()
 
     val maxDaysInMonth = remember(selectedMonth, selectedYear) {

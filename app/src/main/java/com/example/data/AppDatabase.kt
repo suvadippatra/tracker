@@ -41,9 +41,10 @@ import com.example.data.dao.OwnerAccountDao
         com.example.data.model.ElectricityRate::class,
         com.example.data.model.TransactionCategoryEntity::class,
         AttachmentEntity::class,
-        OwnerAccountEntity::class
+        OwnerAccountEntity::class,
+        com.example.data.model.HotelPaymentEntity::class
     ],
-    version = 17,
+    version = 22,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,6 +58,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionCategoryDao(): TransactionCategoryDao
     abstract fun attachmentDao(): AttachmentDao
     abstract fun ownerAccountDao(): OwnerAccountDao
+    abstract fun hotelPaymentDao(): com.example.data.dao.HotelPaymentDao
     companion object {
 
         val MIGRATION_16_17 = object : Migration(16, 17) {
@@ -86,6 +88,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN accountNumber TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN ifsc TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN branchName TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE user_profile ADD COLUMN mealGroupPosition TEXT NOT NULL DEFAULT 'BottomBar'")
+                database.execSQL("ALTER TABLE user_profile ADD COLUMN bgPreset TEXT NOT NULL DEFAULT 'Default'")
+                database.execSQL("ALTER TABLE user_profile ADD COLUMN customBgUri TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -97,7 +115,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "traker_database"
                 )
                 .fallbackToDestructiveMigration(true)
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22)
                 .build()
                 INSTANCE = instance
                 instance

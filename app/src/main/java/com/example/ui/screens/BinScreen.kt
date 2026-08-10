@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.example.data.model.BankAccountEntity
 import com.example.data.model.HotelEntity
 import com.example.data.model.MenuEntity
@@ -43,22 +45,22 @@ fun BinScreen(
 
     var activeSection by remember { mutableStateOf("Hotels") }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        com.example.ui.components.AppThemeProvider(viewModel) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(getAppBackgroundGradient(userProfile.themeMode))
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-            ) {
+    androidx.activity.compose.BackHandler {
+        onDismiss()
+    }
+    
+    com.example.ui.components.AppThemeProvider(viewModel) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(getDialogBackground())
+                .pointerInput(Unit) { detectTapGestures { } }
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
             Scaffold(
+                modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
                 containerColor = Color.Transparent,
                 contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
                 topBar = {
@@ -73,7 +75,7 @@ fun BinScreen(
                             onClick = onDismiss,
                             modifier = Modifier.background(getGlassBorder().copy(alpha = 0.1f), CircleShape).bounceClick()
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = AppTextColor())
+                            Icon(Icons.Default.ArrowBack, "Back", tint = AppTextColor())
                         }
                         Text("Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                         Box(modifier = Modifier.size(48.dp))
@@ -114,7 +116,7 @@ fun BinScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 20.dp)
+                        contentPadding = PaddingValues(bottom = 4.dp)
                     ) {
                         when (activeSection) {
                             "Hotels" -> {
@@ -163,7 +165,6 @@ fun BinScreen(
                     }
                 }
             }
-        }
         }
     }
 }

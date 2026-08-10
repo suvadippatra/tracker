@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,8 +47,31 @@ import com.example.ui.viewmodel.FinancialViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
+
+fun copyUriToLocalFile(context: Context, uri: Uri, prefix: String): Uri {
+    try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        if (inputStream != null) {
+            val extension = when (prefix) {
+                "IMG" -> "jpg"
+                "PDF" -> "pdf"
+                else -> "bin"
+            }
+            val file = File(context.cacheDir, "${prefix}_${System.currentTimeMillis()}.$extension")
+            val outputStream = FileOutputStream(file)
+            inputStream.copyTo(outputStream)
+            inputStream.close()
+            outputStream.close()
+            return Uri.fromFile(file)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return uri
+}
 
 @Composable
 fun AddTransactionScreen(
@@ -84,31 +108,54 @@ fun AddTransactionScreen(
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { attachments = attachments + (it to "IMAGE") }
+        uri?.let {
+            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "IMG")
+            attachments = attachments + (localUri to "IMAGE")
+        }
     }
 
     val pdfPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { attachments = attachments + (it to "PDF") }
+        uri?.let {
+            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "PDF")
+            attachments = attachments + (localUri to "PDF")
+        }
     }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { attachments = attachments + (it to "FILE") }
+        uri?.let {
+            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "FILE")
+            attachments = attachments + (localUri to "FILE")
+        }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
-        bitmap?.let {
-            // Save bitmap to file and add to attachments
-            val file = File(context.cacheDir, "CAM_${System.currentTimeMillis()}.jpg")
-            file.outputStream().use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+        try {
+            bitmap?.let {
+                // Save bitmap to file and add to attachments
+                val file = File(context.cacheDir, "CAM_${System.currentTimeMillis()}.jpg")
+                file.outputStream().use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                attachments = attachments + (Uri.fromFile(file) to "IMAGE")
             }
-            attachments = attachments + (Uri.fromFile(file) to "IMAGE")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(null)
+        } else {
+            android.widget.Toast.makeText(context, "Camera permission denied", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -126,47 +173,50 @@ fun AddTransactionScreen(
         }
     }
 
-    val isFormValid = remember(name, amountStr, category) {
-        name.isNotBlank() && amountStr.toDoubleOrNull() != null && amountStr.toDouble() > 0 && category.isNotBlank()
+    LaunchedEffect(accounts) {
+        if ((selectedAccountId == 0 || accounts.none { it.id == selectedAccountId }) && accounts.isNotEmpty()) {
+            selectedAccountId = accounts.first().id
+        }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        )
-    ) {
+    val isFormValid = remember(name, amountStr, category) {
+        name.isNotBlank() && amountStr.toDoubleOrNull() != null && (amountStr.toDoubleOrNull() ?: 0.0) > 0 && category.isNotBlank()
+    }
+
+    androidx.activity.compose.BackHandler { onDismiss() }
+
+    if (true) {
         com.example.ui.components.AppThemeProvider(viewModel) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(com.example.ui.components.getAppBackgroundGradient(userProfile.themeMode))
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-            ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(com.example.ui.components.getAppBackgroundGradient(userProfile.themeMode))
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding(),
+            contentAlignment = Alignment.TopCenter
+        ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    .widthIn(max = 840.dp)
             ) {
                 // Header
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.Center
                 ) {
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
+                            .align(Alignment.CenterStart)
                             .background(getGlassBorder().copy(alpha = 0.1f), CircleShape)
                             .bounceClick()
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
                             tint = AppTextColor()
                         )
@@ -175,33 +225,52 @@ fun AddTransactionScreen(
                         text = if (type == "EXPENSE") "Add Expense" else "Add Income",
                         color = AppTextColor(),
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.align(Alignment.Center)
                     )
-                    // Modern Save Button
-                    GlassButton(
+                    // High-contrast Save Button
+                    Button(
                         onClick = {
-                            val amt = amountStr.toDoubleOrNull()
-                            if (isFormValid && amt != null && selectedAccountId != 0) {
-                                viewModel.saveExtraExpense(
-                                    name = name,
-                                    amount = amt,
-                                    bankAccountId = selectedAccountId,
-                                    timestamp = timestamp,
-                                    receiptUri = null,
-                                    type = type,
-                                    category = category,
-                                    notes = notes,
-                                    attachments = attachments.map { it.first.toString() to it.second }
-                                )
-                                onDismiss()
+                            if (name.isBlank()) {
+                                android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে শিরোনাম লিখুন" else "Please enter a title", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
                             }
+                            val amt = amountStr.toDoubleOrNull()
+                            if (amt == null || amt <= 0) {
+                                android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে সঠিক পরিমাণ লিখুন" else "Please enter a valid amount", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            var accId = selectedAccountId
+                            if (accId == 0) {
+                                if (accounts.isNotEmpty()) {
+                                    accId = accounts.first().id
+                                } else {
+                                    android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে অ্যাকাউন্ট সিলেক্ট করুন" else "Please select an account", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                            }
+                            viewModel.saveExtraExpense(
+                                name = name,
+                                amount = amt,
+                                bankAccountId = accId,
+                                timestamp = timestamp,
+                                receiptUri = null,
+                                type = type,
+                                category = category,
+                                notes = notes,
+                                attachments = attachments.map { it.first.toString() to it.second }
+                            )
+                            onDismiss()
                         },
-                        cornerRadius = 12.dp,
-                        borderBrush = Brush.linearGradient(listOf(AccentCyan, AccentPink)),
-                        modifier = Modifier.testTag("save_transaction_button").height(40.dp).width(80.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .testTag("save_transaction_button")
+                            .bounceClick()
                     ) {
                         Text(
-                            text = "Save",
+                            text = if (userProfile.language == "bn") "সংরক্ষণ" else "Save",
                             color = Color.Black,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
@@ -213,7 +282,7 @@ fun AddTransactionScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
                 ) {
                     // Type Switcher
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -272,7 +341,11 @@ fun AddTransactionScreen(
                                         fontWeight = FontWeight.Black,
                                         textAlign = TextAlign.Center
                                     ),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
                                     cursorBrush = SolidColor(AccentCyan),
                                     modifier = Modifier.fillMaxWidth().testTag("transaction_amount_input"),
                                     decorationBox = { inner ->
@@ -290,17 +363,14 @@ fun AddTransactionScreen(
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             // Title
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = name,
                                 onValueChange = { name = it },
                                 label = { Text("Title") },
                                 placeholder = { Text("e.g. Fuel, Lunch") },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentCyan,
-                                    unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f)
-                                )
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
                             )
 
                             // Account
@@ -326,11 +396,11 @@ fun AddTransactionScreen(
                                     DropdownMenu(
                                         expanded = showAccountDropdown,
                                         onDismissRequest = { showAccountDropdown = false },
-                                        modifier = Modifier.background(Color(0xFF1E293B))
+                                        modifier = Modifier.background(getDialogBackground())
                                     ) {
                                         accounts.forEach { acc ->
                                             DropdownMenuItem(
-                                                text = { Text(acc.name, color = Color.White) },
+                                                text = { Text(acc.name, color = AppTextColor()) },
                                                 onClick = { selectedAccountId = acc.id; showAccountDropdown = false }
                                             )
                                         }
@@ -360,17 +430,17 @@ fun AddTransactionScreen(
                                     DropdownMenu(
                                         expanded = showCategoryDropdown,
                                         onDismissRequest = { showCategoryDropdown = false },
-                                        modifier = Modifier.background(Color(0xFF1E293B))
+                                        modifier = Modifier.background(getDialogBackground())
                                     ) {
                                         val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
                                         val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
                                         allCats.forEach { cat ->
                                             DropdownMenuItem(
-                                                text = { Text(cat, color = Color.White) },
+                                                text = { Text(cat, color = AppTextColor()) },
                                                 onClick = { category = cat; showCategoryDropdown = false }
                                             )
                                         }
-                                        Divider(color = Color.White.copy(alpha = 0.1f))
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                                         DropdownMenuItem(
                                             text = { Text("+ Custom", color = AccentCyan) },
                                             onClick = { showCategoryDropdown = false; showAddCategoryDialog = true }
@@ -380,16 +450,13 @@ fun AddTransactionScreen(
                             }
 
                             // Notes
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = notes,
                                 onValueChange = { notes = it },
                                 label = { Text("Notes (Optional)") },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentCyan,
-                                    unfocusedBorderColor = AppTextColor().copy(alpha = 0.1f)
-                                )
+                                singleLine = false,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                             )
                         }
                     }
@@ -438,7 +505,7 @@ fun AddTransactionScreen(
                             // Horizontal flow of action chips
                             Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 AttachmentActionChip(icon = Icons.Default.CameraAlt, label = "Camera", color = AccentCyan) {
-                                    cameraLauncher.launch(null)
+                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                 }
                                 AttachmentActionChip(icon = Icons.Default.Image, label = "Gallery", color = AccentCyan) {
                                     imagePicker.launch("image/*")
@@ -448,17 +515,6 @@ fun AddTransactionScreen(
                                 }
                                 AttachmentActionChip(icon = Icons.Default.AttachFile, label = "File", color = AccentGold) {
                                     filePicker.launch("*/*")
-                                }
-                                AttachmentActionChip(
-                                    icon = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                    label = if (isRecording) "${120 - recordingTimer}s" else "Voice",
-                                    color = if (isRecording) Color.Red else AccentPink
-                                ) {
-                                    if (isRecording) {
-                                        stopRecording(context, mediaRecorder, { isRecording = it }, { currentVoiceUri }, { attachments = attachments + (it to "VOICE") })
-                                    } else {
-                                        startRecording(context, mediaRecorder, { isRecording = it }, { currentVoiceUri = it })
-                                    }
                                 }
                             }
 
@@ -496,7 +552,7 @@ fun AddTransactionScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
             }
         }
@@ -509,7 +565,16 @@ fun AddTransactionScreen(
             onDismissRequest = { showAddCategoryDialog = false },
             title = { Text("New Category") },
             text = {
-                OutlinedTextField(value = newCatName, onValueChange = { newCatName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                Box(modifier = Modifier.imePadding()) {
+                    GlassTextField(
+                        value = newCatName,
+                        onValueChange = { newCatName = it },
+                        label = { Text("Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

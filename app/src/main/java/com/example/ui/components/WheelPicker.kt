@@ -5,8 +5,13 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.geometry.Offset
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -82,12 +92,43 @@ fun <T> WheelPicker(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        flingBehavior = flingBehavior,
-        modifier = modifier.height(itemHeight * visibleItemsCount),
-        horizontalAlignment = Alignment.CenterHorizontally
+    // Consume remaining scroll so parent doesn't scroll when wheel reaches ends
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return available // Consume everything left
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .height(itemHeight * visibleItemsCount)
+            .fillMaxWidth()
+            .nestedScroll(nestedScrollConnection),
+        contentAlignment = Alignment.Center
     ) {
+        // Selection Highlight
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(itemHeight)
+                .padding(horizontal = 8.dp),
+            color = AppTextColor().copy(alpha = 0.05f),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, AppTextColor().copy(alpha = 0.1f))
+        ) {}
+
+        LazyColumn(
+            state = listState,
+            flingBehavior = flingBehavior,
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         items(paddedItems.size) { index ->
             val item = paddedItems[index]
             val paddingItemsCount = visibleItemsCount / 2
@@ -102,7 +143,7 @@ fun <T> WheelPicker(
                 if (item != null) {
                     val alpha by remember(listState) {
                         derivedStateOf {
-                            val viewIndex = listState.firstVisibleItemIndex + paddingItemsCount
+                            val viewIndex = centerIndex + paddingItemsCount
                             val diff = kotlin.math.abs(index - viewIndex)
                             when (diff) {
                                 0 -> 1f
@@ -114,7 +155,7 @@ fun <T> WheelPicker(
                     }
                     val scale by remember(listState) {
                         derivedStateOf {
-                            val viewIndex = listState.firstVisibleItemIndex + paddingItemsCount
+                            val viewIndex = centerIndex + paddingItemsCount
                             val diff = kotlin.math.abs(index - viewIndex)
                             when (diff) {
                                 0 -> 1.1f
@@ -136,4 +177,5 @@ fun <T> WheelPicker(
             }
         }
     }
+}
 }

@@ -4,16 +4,29 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    
+    <!-- Base Background with Gradient -->
     <path android:pathData="M0,0h108v108h-108z">
         <gradient
-            android:startY="0"
             android:startX="0"
-            android:endY="108"
+            android:startY="0"
             android:endX="108"
+            android:endY="108"
             android:type="linear">
-            <item android:offset="0" android:color="#FF070414"/>
-            <item android:offset="0.5" android:color="#FF160E35"/>
-            <item android:offset="1" android:color="#FF2C0F4A"/>
+            <item android:offset="0" android:color="#FF08051A"/>
+            <item android:offset="0.45" android:color="#FF130B30"/>
+            <item android:offset="1" android:color="#FF0B2236"/>
         </gradient>
     </path>
+
+    <!-- Top-Right Ambient Cyan Glow -->
+    <path
+        android:fillColor="#1F00E5FF"
+        android:pathData="M108,0 M58,0 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0" />
+
+    <!-- Bottom-Left Ambient Violet Glow -->
+    <path
+        android:fillColor="#257C4DFF"
+        android:pathData="M0,108 M-10,108 a45,45 0 1,0 90,0 a45,45 0 1,0 -90,0" />
 </vector>
+

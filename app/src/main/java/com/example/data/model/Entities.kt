@@ -17,7 +17,13 @@ data class UserProfileEntity(
     val appLockPin: String = "",
     val defaultHotelId: Int = 1,
     val enableStarAnimation: Boolean = true,
-    val textSize: String = "Medium" // "Small", "Medium", "Large"
+    val textSize: String = "Medium", // "Small", "Medium", "Large"
+    val biometricEnabled: Boolean = false,
+    val securityQuestion: String = "",
+    val securityAnswer: String = "",
+    val mealGroupPosition: String = "BottomBar", // "BottomBar" or "PageBottom"
+    val bgPreset: String = "Default", // "Default", "Midnight Blue", "Emerald Dark", "Sunset Warm", "Purple Twilight", "Soft Minimal Light"
+    val customBgUri: String = ""
 )
 
 @Entity(tableName = "hotels")
@@ -55,7 +61,8 @@ data class HotelTransactionEntity(
     val timestamp: Long,
     val isNight: Boolean,
     val itemsSerialized: String, // format: "Name:quantity:price;Name:quantity:price"
-    val totalAmount: Double
+    val totalAmount: Double,
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "bank_accounts")
@@ -65,6 +72,9 @@ data class BankAccountEntity(
     val balance: Double,
     val upiId: String = "",
     val qrCodeUri: String = "",
+    val accountNumber: String = "",
+    val ifsc: String = "",
+    val branchName: String = "",
     val isDeleted: Boolean = false
 )
 
@@ -73,7 +83,8 @@ data class TransactionCategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val type: String = "EXPENSE", // "INCOME" or "EXPENSE"
-    val isSystem: Boolean = false
+    val isSystem: Boolean = false,
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "extra_expenses")
@@ -86,7 +97,8 @@ data class ExtraExpenseEntity(
     val receiptUri: String? = null,
     val type: String = "EXPENSE", // "INCOME" or "EXPENSE"
     val category: String = "General",
-    val notes: String = ""
+    val notes: String = "",
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "attachments")
@@ -95,7 +107,8 @@ data class AttachmentEntity(
     val expenseId: Int,
     val uri: String,
     val type: String, // "IMAGE", "PDF", "VOICE"
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "owner_accounts")
@@ -108,7 +121,8 @@ data class OwnerAccountEntity(
     val ifscCode: String = "",
     val branchName: String = "",
     val upiId: String = "",
-    val qrCodeUri: String = ""
+    val qrCodeUri: String = "",
+    val isDeleted: Boolean = false
 )
 
 // Inline simple model for ordered items in a transaction
@@ -120,11 +134,22 @@ data class OrderedItem(
     val total: Double get() = quantity * price
 }
 
+data class MealGroup(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val items: List<OrderedItem>
+) {
+    val subtotal: Double get() = items.sumOf { it.total }
+}
+
 data class SearchResult(
     val id: Int,
     val title: String,
-    val type: String,
-    val subtitle: String
+    val type: String, // "Hotel", "Expense", "Income", "Meal", "Menu", "Account", "Meter"
+    val subtitle: String,
+    val dateOrExtra: String = "",
+    val amount: Double? = null,
+    val hotelId: Int? = null,
+    val category: String = ""
 )
 
 object TransactionSerializer {
@@ -132,22 +157,60 @@ object TransactionSerializer {
         return items.joinToString(";") { "${it.name}:${it.quantity}:${it.price}" }
     }
 
+    fun serializeGroups(groups: List<MealGroup>): String {
+        return groups.joinToString("||") { serialize(it.items) }
+    }
+
     fun deserialize(serialized: String): List<OrderedItem> {
         if (serialized.isBlank()) return emptyList()
         return try {
-            serialized.split(";").mapNotNull { itemStr ->
-                val parts = itemStr.split(":")
-                if (parts.size == 3) {
-                    OrderedItem(parts[0], parts[1].toInt(), parts[2].toDouble())
-                } else {
-                    null
+            serialized.split("||").flatMap { groupStr ->
+                if (groupStr.isBlank()) emptyList()
+                else groupStr.split(";").mapNotNull { itemStr ->
+                    val parts = itemStr.split(":")
+                    if (parts.size == 3) {
+                        OrderedItem(
+                            name = parts[0],
+                            quantity = parts[1].toIntOrNull() ?: 1,
+                            price = parts[2].toDoubleOrNull() ?: 0.0
+                        )
+                    } else {
+                        null
+                    }
                 }
             }
         } catch (e: Exception) {
             emptyList()
         }
     }
+
+    fun deserializeGroups(serialized: String): List<MealGroup> {
+        if (serialized.isBlank()) return emptyList()
+        return try {
+            val groupStrings = serialized.split("||")
+            groupStrings.mapNotNull { groupStr ->
+                val items = deserialize(groupStr)
+                if (items.isNotEmpty()) {
+                    MealGroup(items = items)
+                } else null
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
+
+@Entity(tableName = "hotel_payments")
+data class HotelPaymentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val hotelId: Int,
+    val year: Int,
+    val month: Int, // 0-11
+    val amountPaid: Double,
+    val paymentDate: Long,
+    val note: String = "",
+    val isDeleted: Boolean = false
+)
 
 @Entity(tableName = "meter_readings")
 data class MeterReading(
@@ -169,12 +232,14 @@ data class UtilityBill(
     val calculatedAmount: Double,
     val dueDate: Long,
     val isPaid: Boolean,
-    val transactionId: String? = null
+    val transactionId: String? = null,
+    val isDeleted: Boolean = false
 )
 
 @Entity(tableName = "electricity_rates")
 data class ElectricityRate(
     @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val effectiveDate: Long,
-    val ratePerUnit: Double
+    val ratePerUnit: Double,
+    val isDeleted: Boolean = false
 )

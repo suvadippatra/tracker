@@ -1,15 +1,19 @@
 name: Build & Release Android App
 
 on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
     inputs:
       tag_name:
         description: 'Tag name for the release (e.g., v1.0.0)'
-        required: true
+        required: false
         default: 'v1.0.0'
       release_name:
         description: 'Name of the release'
-        required: true
+        required: false
         default: 'Production Release'
 
 jobs:
@@ -32,12 +36,26 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.10 # Using a modern Gradle version for AGP 8.x/9.x
+          gradle-version: 8.10
 
-      - name: Build APK and AAB (Release)
-        run: gradle assembleRelease bundleRelease
+      - name: Ensure Environment Files
+        run: |
+          touch .env
+          touch .env.example
 
-      - name: Create Release and Upload Assets
+      - name: Build APK and AAB
+        run: gradle assembleDebug assembleRelease bundleRelease
+
+      - name: Upload Build Artifacts (APKs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-apks
+          path: |
+            app/build/outputs/apk/**/*.apk
+            app/build/outputs/bundle/**/*.aab
+
+      - name: Create Release and Upload Assets (Manual Trigger Only)
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag_name }}

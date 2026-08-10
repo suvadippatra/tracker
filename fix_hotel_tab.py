@@ -1,10 +1,12 @@
-import sys
-with open('app/src/main/java/com/example/ui/screens/TrakerScreen.kt', 'r') as f:
-    lines = f.readlines()
+import re
+with open('app/src/main/java/com/example/ui/screens/HotelManagementTab.kt', 'r') as f:
+    content = f.read()
 
-new_lines = []
-skip = False
-for i, line in enumerate(lines):
-    if "if (hotels.isNotEmpty()) {" in line and i > 800 and i < 830:
-        pass
-    new_lines.append(line)
+content = content.replace(
+    'if (manageMenuForHotel != null) { MenuManagementScreen(hotel = manageMenuForHotel!!, viewModel = viewModel, onBack = { manageMenuForHotel = null }) }',
+    'if (manageMenuForHotel != null) { MenuManagementScreen(hotel = manageMenuForHotel!!, viewModel = viewModel, onBack = { hotelToEdit = manageMenuForHotel; manageMenuForHotel = null }) }'
+)
+
+with open('app/src/main/java/com/example/ui/screens/HotelManagementTab.kt', 'w') as f:
+    f.write(content)
+print("done")

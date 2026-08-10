@@ -95,13 +95,15 @@ fun MeterDialPicker(
             onDismissRequest = { showEditDialog = null },
             title = { Text("Enter Digit") },
             text = {
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = { if (it.length <= 1 && it.all { c -> c.isDigit() }) textInput = it },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Box(modifier = Modifier.fillMaxWidth().imePadding()) {
+                    GlassTextField(
+                        value = textInput,
+                        onValueChange = { if (it.length <= 1 && it.all { c -> c.isDigit() }) textInput = it },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -181,7 +183,8 @@ fun CylindricalDateTimePicker(
     val minute = calendar.get(Calendar.MINUTE)
     
     val years = (2024..2030).map { it.toString() }
-    val months = (1..12).map { String.format(Locale.US, "%02d", it) }
+    val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val months = (0..11).map { i -> "${monthNames[i]}(${String.format(Locale.US, "%02d", i + 1)})" }
     val days = (1..31).map { String.format(Locale.US, "%02d", it) }
     val hours12List = (1..12).map { String.format(Locale.US, "%02d", it) }
     val minutes = (0..59).map { String.format(Locale.US, "%02d", it) }
@@ -214,7 +217,8 @@ fun CylindricalDateTimePicker(
                     onDateTimeChange(calendar.timeInMillis)
                 },
                 textColor = textColor,
-                label = "MM"
+                label = "MM",
+                width = 80.dp
             )
             DateTimePickerWheel(
                 startIndex = years.indexOf(year.toString()).coerceAtLeast(0),

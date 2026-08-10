@@ -30,6 +30,7 @@ class FinancialRepository(private val db: AppDatabase) {
     private val categoryDao = db.transactionCategoryDao()
     private val attachmentDao = db.attachmentDao()
     private val ownerAccountDao = db.ownerAccountDao()
+    private val hotelPaymentDao = db.hotelPaymentDao()
 
     val userProfile: Flow<UserProfileEntity?> = userProfileDao.getUserProfile()
     val allHotels: Flow<List<HotelEntity>> = hotelDao.getAllHotels()
@@ -48,11 +49,16 @@ class FinancialRepository(private val db: AppDatabase) {
     suspend fun deleteAttachment(attachment: com.example.data.model.AttachmentEntity) = attachmentDao.deleteAttachment(attachment)
     suspend fun deleteAttachmentsForExpense(expenseId: Int) = attachmentDao.deleteAttachmentsForExpense(expenseId)
 
+    fun getPaymentsForHotel(hotelId: Int) = hotelPaymentDao.getPaymentsForHotel(hotelId)
+    suspend fun insertHotelPayment(payment: com.example.data.model.HotelPaymentEntity) = hotelPaymentDao.insertPayment(payment)
+    suspend fun deleteHotelPayment(payment: com.example.data.model.HotelPaymentEntity) = hotelPaymentDao.deletePayment(payment)
+
     suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.insertOwnerAccount(account)
     suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.updateOwnerAccount(account)
     suspend fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.deleteOwnerAccount(account)
 
     val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
+    val allMeterReadingsSorted: Flow<List<MeterReading>> = meterDao.getAllReadingsSorted()
     val allUtilityBills: Flow<List<UtilityBill>> = meterDao.getAllUtilityBills()
     val allElectricityRates: Flow<List<com.example.data.model.ElectricityRate>> = meterDao.getAllElectricityRates()
     val latestReading: Flow<MeterReading?> = meterDao.getLatestReading()
@@ -125,6 +131,10 @@ class FinancialRepository(private val db: AppDatabase) {
         return transactionDao.insertTransaction(transaction)
     }
 
+    suspend fun updateTransaction(transaction: HotelTransactionEntity) {
+        transactionDao.updateTransaction(transaction)
+    }
+
     suspend fun deleteTransaction(transaction: HotelTransactionEntity) {
         transactionDao.deleteTransaction(transaction)
     }
@@ -141,6 +151,10 @@ class FinancialRepository(private val db: AppDatabase) {
         bankAccountDao.deleteBankAccount(account)
     }
 
+    suspend fun insertExpense(expense: ExtraExpenseEntity): Long {
+        return extraExpenseDao.insertExpense(expense)
+    }
+
     suspend fun insertExpenseAndDeduct(expense: ExtraExpenseEntity, account: BankAccountEntity): Long {
         val id = extraExpenseDao.insertExpense(expense)
         val change = if (expense.type == "INCOME") expense.amount else -expense.amount
@@ -149,8 +163,8 @@ class FinancialRepository(private val db: AppDatabase) {
         return id
     }
 
-    suspend fun deleteExpenseAndRevert(expense: ExtraExpenseEntity, accounts: List<BankAccountEntity>) {
-        extraExpenseDao.deleteExpense(expense)
+    suspend fun softDeleteExpenseAndRevert(expense: ExtraExpenseEntity, accounts: List<BankAccountEntity>) {
+        extraExpenseDao.insertExpense(expense.copy(isDeleted = true))
         accounts.find { it.id == expense.bankAccountId }?.let { account ->
             val change = if (expense.type == "INCOME") -expense.amount else expense.amount
             val updatedAccount = account.copy(balance = account.balance + change)
@@ -158,46 +172,26 @@ class FinancialRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun restoreExpenseAndApply(expense: ExtraExpenseEntity, accounts: List<BankAccountEntity>) {
+        extraExpenseDao.insertExpense(expense.copy(isDeleted = false))
+        accounts.find { it.id == expense.bankAccountId }?.let { account ->
+            val change = if (expense.type == "INCOME") expense.amount else -expense.amount
+            val updatedAccount = account.copy(balance = account.balance + change)
+            bankAccountDao.updateBankAccount(updatedAccount)
+        }
+    }
+
+    suspend fun deleteExpensePermanently(expense: ExtraExpenseEntity) {
+        extraExpenseDao.deleteExpense(expense)
+    }
+
     suspend fun initializeDatabaseIfNeeded(context: Context) = withContext(Dispatchers.IO) {
         try {
             // 1. Verify User Profile
-            val profile = userProfile.first()
+            val profile = userProfileDao.getUserProfileSync()
             if (profile == null) {
                 userProfileDao.insertOrUpdateProfile(UserProfileEntity())
             }
-
-            // 2. Add Default Hotel if none exist
-            val hotels = hotelDao.getAllHotels().first()
-            if (hotels.isEmpty()) {
-                val hotelId = hotelDao.insertHotel(
-                    HotelEntity(
-                        name = "Smriti Hotel",
-                        location = "Default Location"
-                    )
-                )
-                
-                val defaultMenuItems = parseCsvMenu(context)
-                defaultMenuItems.forEach { item ->
-                    menuDao.insertMenu(item.copy(hotelId = hotelId.toInt()))
-                }
-            } else {
-                val smritiHotel = hotels.find { it.name == "Smriti Hotel" }
-                if (smritiHotel != null) {
-                    val menuItems = menuDao.getMenuForHotel(smritiHotel.id).first()
-                    val hasOnlyRice = menuItems.any { it.englishName.equals("Only Rice", ignoreCase = true) }
-                    // If the menu items are empty, incomplete, or missing 'Only Rice', clear and re-initialize from CSV
-                    if (menuItems.size < 20 || !hasOnlyRice) {
-                        menuItems.forEach { item ->
-                            menuDao.deleteMenu(item)
-                        }
-                        val defaultMenuItems = parseCsvMenu(context)
-                        defaultMenuItems.forEach { item ->
-                            menuDao.insertMenu(item.copy(hotelId = smritiHotel.id))
-                        }
-                    }
-                }
-            }
-
         } catch (e: Exception) {
             Log.e("FinancialRepository", "Error initializing database", e)
         }

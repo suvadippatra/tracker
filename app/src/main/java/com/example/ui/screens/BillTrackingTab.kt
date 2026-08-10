@@ -1,43 +1,88 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.shape.CircleShape
+
+
 import androidx.compose.ui.text.style.TextOverflow
+
 import androidx.compose.animation.*
+
 import androidx.compose.animation.core.tween
+
+import androidx.compose.ui.window.Dialog
+
+import androidx.compose.ui.window.DialogProperties
+
 import androidx.compose.foundation.*
+
 import androidx.compose.foundation.layout.*
+
 import androidx.compose.foundation.lazy.LazyColumn
+
 import androidx.compose.foundation.lazy.items
+
 import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.foundation.text.KeyboardOptions
+
 import androidx.compose.material.icons.Icons
+
 import androidx.compose.material.icons.filled.*
+
 import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
+
 import androidx.compose.ui.Alignment
+
 import androidx.compose.ui.Modifier
+
 import androidx.compose.ui.draw.clip
+
 import androidx.compose.ui.graphics.Brush
+
 import androidx.compose.ui.graphics.Color
+
 import androidx.compose.ui.text.font.FontWeight
+
 import androidx.compose.ui.text.input.KeyboardType
+
 import androidx.compose.ui.unit.dp
+
 import androidx.compose.ui.unit.sp
+
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import com.example.data.model.MeterReading
+
 import com.example.data.model.UtilityBill
+
 import com.example.ui.components.*
+
 import com.example.ui.components.SlidingDatePickerModal
+
 import com.example.ui.viewmodel.MeterReadingUiState
+
 import com.example.ui.viewmodel.MeterReadingViewModel
+
+import androidx.compose.ui.text.input.ImeAction
+
 import java.text.SimpleDateFormat
+
 import java.util.*
+
 import com.example.ui.components.MeterDialPicker
+
 import com.example.ui.components.CylindricalDateTimePicker
+
+import com.example.ui.viewmodel.FinancialViewModel
 
 @Composable
 fun BillTrackingTab(
     viewModel: MeterReadingViewModel,
-    userProfile: com.example.data.model.UserProfileEntity
+    userProfile: com.example.data.model.UserProfileEntity,
+    financialViewModel: FinancialViewModel? = null,
+    onOpenUtilityConfig: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isLight = isAppLightMode()
@@ -88,7 +133,8 @@ fun BillTrackingTab(
                                 language = language,
                                 currency = currency,
                                 isLight = isLight,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                financialViewModel = financialViewModel
                             )
                         }
                     }
@@ -100,7 +146,7 @@ fun BillTrackingTab(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             val tabs = listOf("Log", "Summary")
@@ -143,7 +189,7 @@ fun BillTrackingTab(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 12.dp)
                         ) {
                             AnimatedContent(
                                 targetState = subTab,
@@ -167,7 +213,9 @@ fun BillTrackingTab(
                                         language = language,
                                         currency = currency,
                                         isLight = isLight,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        financialViewModel = financialViewModel,
+                                        onOpenUtilityConfig = onOpenUtilityConfig
                                     )
                                 }
                             }
@@ -200,14 +248,14 @@ fun DailyReadingInputScreen(
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -318,7 +366,7 @@ fun DailyReadingInputScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -339,8 +387,11 @@ fun DailyReadingInputScreen(
                 }
             }
         } else {
+            val initialReadingId = successState.readings.minByOrNull { it.readingDate }?.id
+            
             items(successState.readings.take(20), key = { it.id }) { reading ->
-                val readingColor = if (reading.isPaid) AppTextColor() else Color.Red
+                val isInitialReading = reading.id == initialReadingId
+                val readingColor = if (isInitialReading || reading.isPaid) AppTextColor() else Color.Red
                 val displayFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
                 
                 // Calculate per day usage
@@ -356,6 +407,15 @@ fun DailyReadingInputScreen(
 
                 var showMenu by remember { mutableStateOf(false) }
                 var showEditDialog by remember { mutableStateOf(false) }
+                var showDeleteDialog by remember { mutableStateOf(false) }
+
+                if (showDeleteDialog) {
+                    com.example.ui.components.Tier1DeleteDialog(
+                        itemTitle = "Meter Reading (${reading.totalReading})",
+                        onConfirm = { viewModel.deleteReading(reading) },
+                        onDismiss = { showDeleteDialog = false }
+                    )
+                }
 
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -375,7 +435,7 @@ fun DailyReadingInputScreen(
                                 Icon(
                                     imageVector = Icons.Default.OfflineBolt,
                                     contentDescription = "Bolt",
-                                    tint = if (reading.isPaid) AccentCyan else Color.Red,
+                                    tint = if (isInitialReading || reading.isPaid) AccentCyan else Color.Red,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -388,7 +448,7 @@ fun DailyReadingInputScreen(
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (!reading.isPaid) {
+                                    if (!isInitialReading && !reading.isPaid) {
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = if (language == "bn") "(বাকি)" else "(Unpaid)",
@@ -415,7 +475,7 @@ fun DailyReadingInputScreen(
                             }
                         }
 
-                        Box {
+                        Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                             IconButton(
                                 onClick = { showMenu = true },
                                 modifier = Modifier.size(36.dp)
@@ -445,7 +505,7 @@ fun DailyReadingInputScreen(
                                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
                                     onClick = {
                                         showMenu = false
-                                        viewModel.deleteReading(reading)
+                                        showDeleteDialog = true
                                     }
                                 )
                             }
@@ -464,7 +524,7 @@ fun DailyReadingInputScreen(
                         shape = RoundedCornerShape(24.dp),
                         title = { Text("Edit Meter Reading", color = AppTextColor()) },
                         text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.verticalScroll(rememberScrollState())) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -567,14 +627,16 @@ fun BillSummaryScreen(
     language: String,
     currency: String,
     isLight: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    financialViewModel: FinancialViewModel? = null,
+    onOpenUtilityConfig: () -> Unit = {}
 ) {
     val formatter = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
     
     // Logic: Default start date to the oldest unpaid reading
-    val defaultStart = remember(successState.readings) {
-        val oldestUnpaid = successState.readings.filter { !it.isPaid }.minByOrNull { it.readingDate }
-        oldestUnpaid?.readingDate ?: (successState.readings.lastOrNull()?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000))
+    val defaultStart = remember(successState.readings, successState.bills) {
+        val lastPaidBill = successState.bills.filter { it.isPaid }.maxByOrNull { it.endDate }
+        lastPaidBill?.endDate ?: successState.readings.minByOrNull { it.readingDate }?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
     }
     val defaultEnd = remember { System.currentTimeMillis() }
 
@@ -584,13 +646,23 @@ fun BillSummaryScreen(
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
-    val flatRate by viewModel.flatRatePerUnit.collectAsStateWithLifecycle()
     val fixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
 
-    var showParamEdit by remember { mutableStateOf(false) }
     var showGenerateBillDialog by remember { mutableStateOf(false) }
+    var deletingBill by remember { mutableStateOf<UtilityBill?>(null) }
 
-    if (successState.readings.isEmpty() && flatRate == 0.0 && fixedCharge == 0.0) {
+    if (deletingBill != null) {
+        com.example.ui.components.Tier1DeleteDialog(
+            itemTitle = "Utility Bill (${deletingBill?.totalUnits} units)",
+            onConfirm = {
+                deletingBill?.let { viewModel.deleteUtilityBill(it) }
+                deletingBill = null
+            },
+            onDismiss = { deletingBill = null }
+        )
+    }
+
+    if (successState.readings.isEmpty() && successState.rates.isEmpty() && fixedCharge == 0.0) {
         EmptyStateCard(message = if (language == "bn") "কোনো রিডিং যোগ করা হয়নি এবং রেট সেট করা হয়নি।" else "No readings added and rates are not set. Start logging to generate bills.")
         return
     }
@@ -602,7 +674,7 @@ fun BillSummaryScreen(
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         // Billing Period Selector Card
         item {
@@ -610,14 +682,33 @@ fun BillSummaryScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 12.dp, vertical = 14.dp)
                 ) {
-                    Text(
-                        text = if (language == "bn") "বিল হিসাব করার সময়সীমা" else "Billing Period Selection",
-                        color = AppTextColor(),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (language == "bn") "বিল হিসাব করার সময়সীমা" else "Billing Period Selection",
+                            color = AppTextColor(),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = onOpenUtilityConfig,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(AppTextColor().copy(alpha = 0.05f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Utility Configuration",
+                                tint = AccentCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     if (includesPaid) {
@@ -721,7 +812,7 @@ fun BillSummaryScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(
@@ -735,12 +826,6 @@ fun BillSummaryScreen(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        IconButton(
-                            onClick = { showParamEdit = true },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = AccentCyan, modifier = Modifier.size(16.dp))
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -782,8 +867,9 @@ fun BillSummaryScreen(
                                 color = AppTextColor().copy(alpha = 0.5f),
                                 fontSize = 11.sp
                             )
+                            val activeRate = successState.rates.maxByOrNull { it.effectiveDate }?.ratePerUnit ?: 0.0
                             Text(
-                                text = String.format(Locale.getDefault(), "%s %.2f", currency, flatRate),
+                                text = String.format(Locale.getDefault(), "%s %.2f", currency, activeRate),
                                 color = AppTextColor(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
@@ -846,7 +932,7 @@ fun BillSummaryScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -931,13 +1017,6 @@ fun BillSummaryScreen(
                                 color = AppTextColor().copy(alpha = 0.5f),
                                 fontSize = 11.sp
                             )
-
-                            IconButton(
-                                onClick = { viewModel.deleteUtilityBill(bill) },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Bill", tint = AccentPink, modifier = Modifier.size(16.dp))
-                            }
                         }
                     }
                 }
@@ -971,212 +1050,6 @@ fun BillSummaryScreen(
         )
     }
 
-    if (showParamEdit) {
-        var chargeInput by remember { mutableStateOf(fixedCharge.toString()) }
-        var rateInput by remember { mutableStateOf("") }
-        var rateDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-        var showRateDatePicker by remember { mutableStateOf(false) }
-
-        AlertDialog(
-            onDismissRequest = { showParamEdit = false },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(28.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.SettingsSuggest, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = if (language == "bn") "ইউটিলিটি প্যারামিটার সেটিংস" else "Utility Configuration",
-                        color = AppTextColor(),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 20.sp
-                    )
-                }
-            },
-            text = {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp)
-                ) {
-                    item {
-                        Text(
-                            text = if (language == "bn") "সার্ভিস প্যারামিটার" else "Service Parameters",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        OutlinedTextField(
-                            value = chargeInput,
-                            onValueChange = { chargeInput = it },
-                            label = { Text(if (language == "bn") "সার্ভিস চার্জ (₹)" else "Fixed Service Charge (₹)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null, tint = AccentCyan) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = AppTextColor(),
-                                unfocusedTextColor = AppTextColor(),
-                                focusedBorderColor = AccentCyan,
-                                cursorColor = AccentCyan
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    item {
-                        Divider(color = AppTextColor().copy(alpha = 0.1f), thickness = 1.dp)
-                    }
-
-                    item {
-                        Text(
-                            text = if (language == "bn") "নতুন রেট যুক্ত করুন" else "Add New Rate Policy",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        GlassCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.2f))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    OutlinedTextField(
-                                        value = rateInput,
-                                        onValueChange = { rateInput = it },
-                                        placeholder = { Text("Price/Unit", fontSize = 12.sp) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1.2f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(AppTextColor().copy(alpha = 0.05f))
-                                            .clickable { showRateDatePicker = true }
-                                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = formatter.format(Date(rateDateMillis)),
-                                            color = AccentCyan,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    
-                                    IconButton(
-                                        onClick = {
-                                            val r = rateInput.toDoubleOrNull()
-                                            if (r != null) {
-                                                viewModel.insertElectricityRate(r, rateDateMillis)
-                                                rateInput = ""
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .background(AccentCyan, RoundedCornerShape(12.dp))
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.Black)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Text(
-                            text = if (language == "bn") "সক্রিয় রেট লিস্ট" else "Active Rate Policies",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-
-                    if (successState.rates.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (language == "bn") "ডিফল্ট: ₹৭.৫০/ইউনিট" else "Default: ₹7.50 / Unit",
-                                    color = AppTextColor().copy(alpha = 0.4f),
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    } else {
-                        items(successState.rates) { rate ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(AppTextColor().copy(alpha = 0.05f))
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "$currency ${rate.ratePerUnit} / Unit",
-                                        color = AppTextColor(),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp
-                                    )
-                                    Text(
-                                        text = "${if (language == "bn") "কার্যকর:" else "Effective:"} ${formatter.format(Date(rate.effectiveDate))}",
-                                        color = AppTextColor().copy(alpha = 0.5f),
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { viewModel.deleteElectricityRate(rate) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.DeleteForever, contentDescription = "Delete", tint = AccentPink)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val charge = chargeInput.toDoubleOrNull() ?: fixedCharge
-                        viewModel.updateCalculationParameters(flatRate, charge)
-                        showParamEdit = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(if (language == "bn") "সম্পন্ন" else "Done", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-
-        if (showRateDatePicker) {
-            SlidingDatePickerModal(
-                initialDateMillis = rateDateMillis,
-                onDateSelected = { rateDateMillis = it },
-                onDismiss = { showRateDatePicker = false },
-                textColor = AppTextColor(),
-                backgroundColor = getDialogBackground()
-            )
-        }
-    }
-
     if (showGenerateBillDialog) {
         var isPaidSelected by remember { mutableStateOf(false) }
         var dueDateMillis by remember { mutableStateOf(System.currentTimeMillis() + 10 * 24 * 60 * 60 * 1000L) }
@@ -1195,7 +1068,10 @@ fun BillSummaryScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
                     Text(
                         text = if (language == "bn") {
                             "আপনি কি নিচের প্রাক্কলন অনুযায়ী একটি বিল নথিবদ্ধ করতে চান?"

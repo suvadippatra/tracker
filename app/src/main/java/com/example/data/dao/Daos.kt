@@ -13,6 +13,7 @@ import com.example.data.model.HotelTransactionEntity
 import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.MeterReading
+import com.example.data.model.HotelPaymentEntity
 import com.example.data.model.TransactionCategoryEntity
 import com.example.data.model.UtilityBill
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,9 @@ interface UserProfileDao {
 interface HotelDao {
     @Query("SELECT * FROM hotels WHERE isDeleted = 0 ORDER BY id ASC")
     fun getAllHotels(): Flow<List<HotelEntity>>
+
+    @Query("SELECT * FROM hotels WHERE isDeleted = 0 ORDER BY id ASC")
+    suspend fun getAllHotelsSync(): List<HotelEntity>
 
     @Query("SELECT * FROM hotels WHERE isDeleted = 1 ORDER BY id ASC")
     fun getDeletedHotels(): Flow<List<HotelEntity>>
@@ -70,6 +74,9 @@ interface MenuDao {
     @Query("SELECT * FROM menu_items WHERE hotelId = :hotelId AND isDeleted = 0 ORDER BY id ASC")
     fun getMenuForHotel(hotelId: Int): Flow<List<MenuEntity>>
 
+    @Query("SELECT * FROM menu_items WHERE hotelId = :hotelId AND isDeleted = 0 ORDER BY id ASC")
+    suspend fun getMenusForHotelSync(hotelId: Int): List<MenuEntity>
+
     @Query("SELECT * FROM menu_items WHERE hotelId = :hotelId AND isDeleted = 1 ORDER BY id ASC")
     fun getDeletedMenuForHotel(hotelId: Int): Flow<List<MenuEntity>>
 
@@ -82,14 +89,22 @@ interface MenuDao {
 
 @Dao
 interface TransactionDao {
-    @Query("SELECT * FROM hotel_transactions WHERE hotelId = :hotelId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM hotel_transactions WHERE hotelId = :hotelId AND isDeleted = 0 ORDER BY timestamp DESC")
     fun getTransactionsForHotel(hotelId: Int): Flow<List<HotelTransactionEntity>>
     
-    @Query("SELECT * FROM hotel_transactions WHERE hotelId = :hotelId AND timestamp >= :start AND timestamp <= :end")
+    @Query("SELECT * FROM hotel_transactions WHERE hotelId = :hotelId AND isDeleted = 0 ORDER BY timestamp DESC")
+    suspend fun getTransactionsForHotelSync(hotelId: Int): List<HotelTransactionEntity>
+    
+    @Query("SELECT * FROM hotel_transactions WHERE isDeleted = 0 ORDER BY timestamp DESC")
+    suspend fun getAllTransactionsSync(): List<HotelTransactionEntity>
+    
+    @Query("SELECT * FROM hotel_transactions WHERE hotelId = :hotelId AND isDeleted = 0 AND timestamp >= :start AND timestamp <= :end")
     suspend fun getTransactionsForHotelAndDateRange(hotelId: Int, start: Long, end: Long): List<HotelTransactionEntity>
 
-    @Query("SELECT * FROM hotel_transactions ORDER BY timestamp DESC")
+    @Query("SELECT * FROM hotel_transactions WHERE isDeleted = 0 ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<HotelTransactionEntity>>
+    @Query("SELECT * FROM hotel_transactions WHERE isDeleted = 1 ORDER BY timestamp DESC")
+    fun getDeletedTransactions(): Flow<List<HotelTransactionEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: HotelTransactionEntity): Long
@@ -124,10 +139,14 @@ interface BankAccountDao {
 
 @Dao
 interface ExtraExpenseDao {
-    @Query("SELECT * FROM extra_expenses ORDER BY timestamp DESC")
+    @Query("SELECT * FROM extra_expenses WHERE isDeleted = 0 ORDER BY timestamp DESC")
     fun getAllExpenses(): Flow<List<ExtraExpenseEntity>>
+    @Query("SELECT * FROM extra_expenses WHERE isDeleted = 0 ORDER BY timestamp DESC")
+    suspend fun getAllExpensesSync(): List<ExtraExpenseEntity>
+    @Query("SELECT * FROM extra_expenses WHERE isDeleted = 1 ORDER BY timestamp DESC")
+    fun getDeletedExpenses(): Flow<List<ExtraExpenseEntity>>
     
-    @Query("SELECT * FROM extra_expenses WHERE timestamp >= :start AND timestamp <= :end")
+    @Query("SELECT * FROM extra_expenses WHERE isDeleted = 0 AND timestamp >= :start AND timestamp <= :end")
     suspend fun getExpensesForDateRange(start: Long, end: Long): List<ExtraExpenseEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -138,6 +157,18 @@ interface ExtraExpenseDao {
 }
 
 @Dao
+interface HotelPaymentDao {
+    @Query("SELECT * FROM hotel_payments WHERE hotelId = :hotelId ORDER BY paymentDate DESC")
+    fun getPaymentsForHotel(hotelId: Int): Flow<List<HotelPaymentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPayment(payment: HotelPaymentEntity)
+
+    @Delete
+    suspend fun deletePayment(payment: HotelPaymentEntity)
+}
+
+@Dao
 interface MeterDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReading(reading: MeterReading)
@@ -145,10 +176,13 @@ interface MeterDao {
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC")
     fun getAllReadings(): Flow<List<MeterReading>>
 
-    @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE isDeleted = 0 AND readingDate >= :start AND readingDate <= :end")
+    @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE isDeleted = 0 AND readingDate > :start AND readingDate <= :end")
     fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double>
 
-    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE isDeleted = 0 AND readingDate >= :start AND readingDate <= :end")
+    @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate ASC")
+    fun getAllReadingsSorted(): Flow<List<MeterReading>>
+
+    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE isDeleted = 0 AND readingDate > :start AND readingDate <= :end")
     suspend fun updateReadingsPaidStatus(start: Long, end: Long, isPaid: Boolean)
 
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC LIMIT 1")
@@ -156,12 +190,16 @@ interface MeterDao {
 
     @Query("UPDATE meter_readings SET isDeleted = 1 WHERE id = :id")
     suspend fun softDeleteReading(id: String)
+    @Query("SELECT * FROM meter_readings WHERE isDeleted = 1 ORDER BY readingDate DESC")
+    fun getDeletedReadings(): Flow<List<MeterReading>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUtilityBill(bill: UtilityBill)
 
-    @Query("SELECT * FROM utility_bills ORDER BY startDate DESC")
+    @Query("SELECT * FROM utility_bills WHERE isDeleted = 0 ORDER BY startDate DESC")
     fun getAllUtilityBills(): Flow<List<UtilityBill>>
+    @Query("SELECT * FROM utility_bills WHERE isDeleted = 1 ORDER BY startDate DESC")
+    fun getDeletedUtilityBills(): Flow<List<UtilityBill>>
 
     @Delete
     suspend fun deleteReading(reading: MeterReading)
