@@ -43,8 +43,14 @@ jobs:
           touch .env
           touch .env.example
 
-      - name: Build APK and AAB
-        run: gradle assembleDebug assembleRelease bundleRelease
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon --no-configuration-cache
+
+      - name: Build Release APK
+        run: gradle assembleRelease --no-daemon --no-configuration-cache
+
+      - name: Build Release Bundle (AAB)
+        run: gradle bundleRelease --no-daemon --no-configuration-cache
 
       - name: Upload Build Artifacts (APKs)
         uses: actions/upload-artifact@v4
