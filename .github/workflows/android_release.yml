@@ -48,6 +48,7 @@ jobs:
           gradle --stop || true
           # remove only bcprov cache files so other caches remain
           rm -f $HOME/.gradle/caches/jars-9/*bcprov* || true
+          rm -rf $HOME/.gradle/caches/modules-2/files-2.1/org.bouncycastle/bcprov-jdk18on/1.79/* || true
 
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --no-configuration-cache --stacktrace --refresh-dependencies

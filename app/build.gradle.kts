@@ -152,3 +152,13 @@ dependencies {
   // "ksp"(libs.moshi.kotlin.codegen)
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.bouncycastle" && requested.name == "bcprov-jdk18on") {
+            useVersion("1.78")
+            because("Avoid bcprov 1.79 multi-release Java 21 classes that break instrumentation in our toolchain")
+        }
+    }
+}
+
+
