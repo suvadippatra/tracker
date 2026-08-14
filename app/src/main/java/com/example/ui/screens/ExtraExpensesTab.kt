@@ -22,6 +22,7 @@ import kotlinx.coroutines.*
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -149,30 +150,54 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
     if (accounts.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                EmptyStateCard(message = "No Bank Accounts configured. Create one here or in Settings!")
-                Button(
-                    onClick = { showAddAccountDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                    shape = RoundedCornerShape(16.dp),
+            Card(
+                colors = CardDefaults.cardColors(containerColor = AppTextColor().copy(alpha = 0.05f)),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, getGlassBorder().copy(alpha = 0.2f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 480.dp)
+                    .padding(16.dp)
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 240.dp)
-                        .height(50.dp)
-                        .bounceClick()
+                        .padding(28.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(AccentCyan.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalance,
+                            contentDescription = null,
+                            tint = AccentCyan,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
                     Text(
-                        text = if (prefLanguage == "bn") "অ্যাকাউন্ট যোগ করুন" else "Add Account",
-                        color = Color.Black,
+                        text = if (prefLanguage == "bn") "কোনো অ্যাকাউন্ট যোগ করা হয়নি" else "No Bank Accounts Configured",
+                        color = AppTextColor(),
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (prefLanguage == "bn") "দয়া করে সেটিংস থেকে একটি ব্যাঙ্ক অ্যাকাউন্ট যোগ করুন যাতে খরচ ও অ্যাকাউন্টের লেনদেন ট্র্যাক করা যায়।" else "Please configure a bank account in Settings to start tracking expenses and transactions.",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             }
@@ -1029,19 +1054,83 @@ fun ExtraExpenseDetailedHistoryScreen(
     
     var searchQuery by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf<Int?>(null) }
+    
+    var monthOffset by remember { mutableStateOf(0) }
+    val monthFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
 
-    val filteredExpenses by remember(expenses, searchQuery, selectedAccountId) {
+    val earliestTs = remember(expenses) {
+        expenses.filter { !it.isDeleted }.minOfOrNull { it.timestamp } ?: System.currentTimeMillis()
+    }
+
+    val isEarliestMonth = remember(monthOffset, earliestTs) {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.MONTH, monthOffset)
+        val currentYear = cal.get(Calendar.YEAR)
+        val currentMonth = cal.get(Calendar.MONTH)
+        
+        val eCal = Calendar.getInstance().apply { timeInMillis = earliestTs }
+        val earliestYear = eCal.get(Calendar.YEAR)
+        val earliestMonth = eCal.get(Calendar.MONTH)
+        
+        (currentYear < earliestYear) || (currentYear == earliestYear && currentMonth <= earliestMonth)
+    }
+
+    val filteredExpenses by remember(expenses, searchQuery, selectedAccountId, monthOffset) {
         derivedStateOf {
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.MONTH, monthOffset)
+            val targetMonth = cal.get(Calendar.MONTH)
+            val targetYear = cal.get(Calendar.YEAR)
+
             expenses.filter { exp ->
+                val txCal = Calendar.getInstance()
+                txCal.timeInMillis = exp.timestamp
+                val matchesMonth = txCal.get(Calendar.MONTH) == targetMonth && txCal.get(Calendar.YEAR) == targetYear
+
                 val matchesSearch = searchQuery.isBlank() || exp.name.contains(searchQuery, ignoreCase = true) || exp.notes.contains(searchQuery, ignoreCase = true)
                 val matchesAccount = selectedAccountId == null || exp.bankAccountId == selectedAccountId
-                matchesSearch && matchesAccount
+                matchesMonth && matchesSearch && matchesAccount
             }
         }
     }
 
+    val currentMonthOffset by rememberUpdatedState(monthOffset)
+    val currentIsEarliestMonth by rememberUpdatedState(isEarliestMonth)
+
+    var totalDragAmount by remember { mutableStateOf(0f) }
     androidx.activity.compose.BackHandler(onBack = onDismiss)
-    Box(modifier = Modifier.fillMaxSize().background(getAppBackgroundGradient(com.example.ui.components.LocalAppTheme.current)).statusBarsPadding().navigationBarsPadding(), contentAlignment = Alignment.TopCenter) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(getAppBackgroundGradient(com.example.ui.components.LocalAppTheme.current))
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDragAmount = 0f },
+                    onDragEnd = {
+                        val swipeThreshold = 40.dp.toPx()
+                        if (totalDragAmount > swipeThreshold) {
+                            // Swipe Right -> Previous Month (Go back in time, if not already at earliest month)
+                            if (!currentIsEarliestMonth) {
+                                monthOffset -= 1
+                            }
+                        } else if (totalDragAmount < -swipeThreshold) {
+                            // Swipe Left -> Next Month (Go forward in time, restricted to not exceed current month)
+                            if (currentMonthOffset < 0) {
+                                monthOffset += 1
+                            }
+                        }
+                        totalDragAmount = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragAmount += dragAmount
+                    }
+                )
+            },
+        contentAlignment = Alignment.TopCenter
+    ) {
         Scaffold(
             modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
             topBar = {
@@ -1083,23 +1172,53 @@ fun ExtraExpenseDetailedHistoryScreen(
                         )
                     }
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val currentDisplayMonth = remember(monthOffset) {
+                        val cal = Calendar.getInstance()
+                        cal.add(Calendar.MONTH, monthOffset)
+                        monthFormat.format(cal.time)
+                    }
+                    IconButton(onClick = { monthOffset -= 1 }, enabled = !isEarliestMonth, modifier = Modifier.bounceClick()) {
+                        Icon(Icons.Default.ChevronLeft, "Previous Month", tint = if (!isEarliestMonth) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
+                    }
+                    Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    IconButton(onClick = { monthOffset += 1 }, enabled = monthOffset < 0, modifier = Modifier.bounceClick()) {
+                        Icon(Icons.Default.ChevronRight, "Next Month", tint = if (monthOffset < 0) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
+                    }
+                }
             }
         },
         containerColor = Color.Transparent
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
-        ) {
-            items(filteredExpenses, key = { it.id }) { expense ->
-                val account = accounts.find { it.id == expense.bankAccountId }
-                TransactionItem(
-                    expense = expense,
-                    accountName = account?.name ?: "Unknown",
-                    onDelete = { viewModel.deleteExtraExpense(expense) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        if (filteredExpenses.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                val currentDisplayMonth = remember(monthOffset) {
+                    val cal = Calendar.getInstance()
+                    cal.add(Calendar.MONTH, monthOffset)
+                    monthFormat.format(cal.time)
+                }
+                EmptyStateCard(message = "No past transactions for $currentDisplayMonth.")
             }
-            item { Spacer(modifier = Modifier.height(120.dp)) }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
+            ) {
+                items(filteredExpenses, key = { it.id }) { expense ->
+                    val account = accounts.find { it.id == expense.bankAccountId }
+                    TransactionItem(
+                        expense = expense,
+                        accountName = account?.name ?: "Unknown",
+                        onDelete = { viewModel.deleteExtraExpense(expense) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                item { Spacer(modifier = Modifier.height(120.dp)) }
+            }
         }
     }
 }

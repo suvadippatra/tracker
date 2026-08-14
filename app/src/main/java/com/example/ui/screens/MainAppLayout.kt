@@ -202,12 +202,8 @@ fun GlassSideNavigation(
 
                 listOf("Hotels", "Extras", "Bill").forEach { tab ->
                     val isSelected = activeTab == tab
-                    val tabColor by animateColorAsState(
-                        targetValue = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.5f),
-                        animationSpec = tween(300),
-                        label = "tab_color"
-                    )
-                    val activeBackground = if (isSelected) Color(0x2900E5FF) else Color.Transparent
+                    val tabColor = if (isSelected) AccentCyan else (if (isAppLightMode()) Color(0xFF000000) else Color(0xFFFFFFFF))
+                    val activeBackground = if (isSelected) AccentCyan.copy(alpha = 0.25f) else Color.Transparent
 
                     Box(
                         modifier = Modifier
@@ -215,6 +211,7 @@ fun GlassSideNavigation(
                             .bounceClick()
                             .clip(RoundedCornerShape(18.dp))
                             .background(activeBackground)
+                            .then(if (isSelected) Modifier.border(1.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(18.dp)) else Modifier)
                             .clickable { onTabSelected(tab) }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -412,7 +409,11 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
     if (showQRViewer) {
         OwnerQRViewerDialog(
             viewModel = viewModel,
-            onDismiss = { showQRViewer = false }
+            onDismiss = { showQRViewer = false },
+            onOpenOwnerProfile = {
+                showQRViewer = false
+                showOwnerProfile = true
+            }
         )
     }
 
@@ -474,17 +475,17 @@ fun GlassHeader(
                     .clip(RoundedCornerShape(12.dp))
                     .pointerInput(Unit) {
                         detectTapGestures(
-                            onTap = { onProfileClicked() },
                             onDoubleTap = { onGreetingDoubleClicked() }
                         )
                     }
                     .padding(4.dp)
             ) {
+
                 Column {
                     if (userProfile.name.isNotBlank()) {
                         Text(
                             text = greeting,
-                            color = AppTextColor().copy(alpha = 0.8f),
+                            color = AppTextColor(),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.5.sp
@@ -555,32 +556,50 @@ fun GlassBottomNavigation(
     onTabSelected: (String) -> Unit,
     language: String
 ) {
+    val isLight = isAppLightMode()
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
-        GlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 24.dp,
-            containerAlpha = 4.5f
+        val navBg = if (isLight) {
+            listOf(Color(0xF5FFFFFF), Color(0xEBFFFFFF))
+        } else {
+            listOf(Color(0xFA1E2638), Color(0xF5111827))
+        }
+        val navBorder = if (isLight) {
+            listOf(Color(0xFFFFFFFF), Color(0x33000000))
+        } else {
+            listOf(AccentCyan.copy(alpha = 0.5f), Color(0x33FFFFFF))
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.verticalGradient(navBg),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                .border(
+                    width = 1.2.dp,
+                    brush = Brush.verticalGradient(navBorder),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                .clip(RoundedCornerShape(24.dp))
+                .padding(6.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(6.dp),
+                    .padding(2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf("Hotels", "Extras", "Bill").forEach { tab ->
                     val isSelected = activeTab == tab
-                    val tabColor by animateColorAsState(
-                        targetValue = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.5f),
-                        animationSpec = tween(300),
-                        label = "tab_color"
-                    )
-                    val activeBackground = if (isSelected) Color(0x2900E5FF) else Color.Transparent
+                    val tabColor = if (isSelected) AccentCyan else (if (isLight) Color(0xFF000000) else Color(0xFFFFFFFF))
+                    val activeBackground = if (isSelected) AccentCyan.copy(alpha = 0.22f) else Color.Transparent
 
                     Box(
                         modifier = Modifier
@@ -588,6 +607,7 @@ fun GlassBottomNavigation(
                             .bounceClick()
                             .clip(RoundedCornerShape(18.dp))
                             .background(activeBackground)
+                            .then(if (isSelected) Modifier.border(1.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(18.dp)) else Modifier)
                             .clickable { onTabSelected(tab) }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center

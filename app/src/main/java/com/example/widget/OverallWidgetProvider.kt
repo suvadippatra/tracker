@@ -94,17 +94,42 @@ class OverallWidgetProvider : AppWidgetProvider() {
                 
                 val totalNet = totalHotel + totalExpenses
 
+                val isBengali = user?.language == "bn"
+                val titleLabel = if (isBengali) "📊 সামগ্রিক ($hotelName)" else "📊 Overall ($hotelName)"
+                val netLabel = if (isBengali) "মোট খরচ: ₹ $totalNet" else "Net: ₹ $totalNet"
+                val breakdownLabel = if (isBengali) "হোটেল: ₹ $totalHotel | অন্যান্য: ₹ $totalExpenses" else "Hotel: ₹ $totalHotel | Exp: ₹ $totalExpenses"
+                val subtitleLabel = if (isBengali) "চলতি মাসের হিসাব সারাংশ" else "Monthly Net Summary"
+
                 withContext(Dispatchers.Main) {
                     for (appWidgetId in appWidgetIds) {
                         val views = RemoteViews(context.packageName, R.layout.widget_overall)
                         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                        views.setOnClickPendingIntent(R.id.btn_add_meal, pendingHotelIntent)
-                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingExpenseIntent)
-                        views.setTextViewText(R.id.btn_add_meal, hotelBtnLabel)
-                        views.setTextViewText(R.id.btn_add_expense, expenseBtnLabel)
-                        views.setTextViewText(R.id.overall_title, "📊 Overall ($hotelName)")
-                        views.setTextViewText(R.id.overall_net, "Net: ₹ $totalNet")
-                        views.setTextViewText(R.id.overall_breakdown, "Hotel: ₹ $totalHotel | Exp: ₹ $totalExpenses")
+                        
+                        views.setTextViewText(R.id.overall_title, titleLabel)
+                        
+                        if (isHotelConfigured || isAccountConfigured) {
+                            views.setViewVisibility(R.id.overall_net, android.view.View.VISIBLE)
+                            views.setTextViewText(R.id.overall_net, netLabel)
+                        } else {
+                            views.setViewVisibility(R.id.overall_net, android.view.View.GONE)
+                        }
+                        
+                        if (isHotelConfigured) {
+                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.VISIBLE)
+                            views.setOnClickPendingIntent(R.id.btn_add_meal, pendingHotelIntent)
+                            views.setTextViewText(R.id.btn_add_meal, hotelBtnLabel)
+                        } else {
+                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.GONE)
+                        }
+                        
+                        if (isAccountConfigured) {
+                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
+                            views.setOnClickPendingIntent(R.id.btn_add_expense, pendingExpenseIntent)
+                            views.setTextViewText(R.id.btn_add_expense, expenseBtnLabel)
+                        } else {
+                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.GONE)
+                        }
+                        
                         appWidgetManager.updateAppWidget(appWidgetId, views)
                     }
                 }

@@ -40,8 +40,13 @@ class HotelWidgetProvider : AppWidgetProvider() {
                 val menus = if (hotel != null) db.menuDao().getMenusForHotelSync(hotel.id) else emptyList()
 
                 val isConfigured = allHotels.isNotEmpty() && hotel != null && menus.isNotEmpty()
+                val isBengali = user?.language == "bn"
                 val targetAction = if (isConfigured) "ADD_MEAL_LOG" else "ADD_HOTEL"
-                val buttonLabel = if (isConfigured) "+ Add Meal" else "+ Add Hotel"
+                val buttonLabel = if (isConfigured) {
+                    if (isBengali) "+ খাবার যোগ করুন" else "+ Add Meal"
+                } else {
+                    if (isBengali) "+ হোটেল যোগ করুন" else "+ Add Hotel"
+                }
 
                 val actionIntent = Intent(context, MainActivity::class.java).apply {
                     action = targetAction
@@ -55,7 +60,9 @@ class HotelWidgetProvider : AppWidgetProvider() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                val hotelName = if (isConfigured) (hotel?.name ?: "Hotel") else "No Hotel Set"
+                val hotelName = if (isConfigured) (hotel?.name ?: "Hotel") else {
+                    if (isBengali) "হোটেল সেট করা নেই" else "No Hotel Set"
+                }
                 
                 val now = Calendar.getInstance()
                 val currentMonth = now.get(Calendar.MONTH)
@@ -67,15 +74,31 @@ class HotelWidgetProvider : AppWidgetProvider() {
                     txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
                 }
                 val total = monthTxs.sumOf { it.totalAmount }
+
+                val subtitleLabel = if (isConfigured) {
+                    if (isBengali) "চলতি মাসের খাবার খরচ" else "Monthly Meal Cost"
+                } else {
+                    if (isBengali) "কনফিগার করতে এখানে চাপুন" else "Tap to configure"
+                }
                 
                 withContext(Dispatchers.Main) {
                     for (appWidgetId in appWidgetIds) {
                         val views = RemoteViews(context.packageName, R.layout.widget_hotel)
                         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                        views.setOnClickPendingIntent(R.id.btn_add_meal, pendingActionIntent)
-                        views.setTextViewText(R.id.btn_add_meal, buttonLabel)
+                        
                         views.setTextViewText(R.id.hotel_name, "🏨 $hotelName")
-                        views.setTextViewText(R.id.hotel_total, "₹ $total")
+                        
+                        if (isConfigured) {
+                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.VISIBLE)
+                            views.setViewVisibility(R.id.hotel_total, android.view.View.VISIBLE)
+                            views.setOnClickPendingIntent(R.id.btn_add_meal, pendingActionIntent)
+                            views.setTextViewText(R.id.btn_add_meal, buttonLabel)
+                            views.setTextViewText(R.id.hotel_total, "₹ $total")
+                        } else {
+                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.GONE)
+                            views.setViewVisibility(R.id.hotel_total, android.view.View.GONE)
+                        }
+                        
                         appWidgetManager.updateAppWidget(appWidgetId, views)
                     }
                 }

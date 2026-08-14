@@ -58,10 +58,10 @@ val AccentGreen = Color(0xFF00B0FF)
 // Backdrop Gradients
 val DarkBackgroundGradient = Brush.verticalGradient(
     colors = listOf(
-        Color(0xFF070414),
-        Color(0xFF0F0B26),
-        Color(0xFF1B0E3D),
-        Color(0xFF2C0F4A)
+        Color(0xFF000000),
+        Color(0xFF000000),
+        Color(0xFF050505),
+        Color(0xFF0D0D0D)
     )
 )
 
@@ -94,7 +94,12 @@ fun isAppLightMode(): Boolean {
 
 @Composable
 fun AppTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF0F172A) else Color(0xFFFFFFFF)
+    return if (isAppLightMode()) Color(0xFF000000) else Color(0xFFFFFFFF)
+}
+
+@Composable
+fun AppSecondaryTextColor(): Color {
+    return if (isAppLightMode()) Color(0xFF1E293B) else Color(0xFFF1F5F9)
 }
 
 @Composable
@@ -117,7 +122,22 @@ fun getAppBackgroundGradient(
 
 @Composable
 fun getDialogBackground(): Color {
-    return if (isAppLightMode()) Color(0xF8F8FAFC) else Color(0xFF140D2D)
+    return if (isAppLightMode()) Color(0xFFFFFFFF) else Color(0xFF121620)
+}
+
+@Composable
+fun getSettingsItemBg(): Color {
+    return if (isAppLightMode()) Color(0xFFF1F5F9) else Color(0xFF1A2234)
+}
+
+@Composable
+fun getSettingsItemBorder(): Color {
+    return if (isAppLightMode()) Color(0xFFCBD5E1) else Color(0xFF2A364F)
+}
+
+@Composable
+fun getCardBackground(): Color {
+    return if (isAppLightMode()) Color(0xFFF1F5F9) else Color(0xFF1E1E1E)
 }
 
 @Composable
@@ -146,8 +166,8 @@ fun GlassCard(
             Color.White.copy(alpha = (0.88f * containerAlpha).coerceIn(0f, 1f))
         )
     } else {
-        val baseDark1 = Color(0xFF120C28).copy(alpha = (0.82f * containerAlpha).coerceIn(0f, 1f))
-        val baseDark2 = Color(0xFF1C133A).copy(alpha = (0.75f * containerAlpha).coerceIn(0f, 1f))
+        val baseDark1 = Color(0xFF181818).copy(alpha = (0.90f * containerAlpha).coerceIn(0f, 1f))
+        val baseDark2 = Color(0xFF101010).copy(alpha = (0.85f * containerAlpha).coerceIn(0f, 1f))
         listOf(baseDark1, baseDark2)
     }
     val borderColors = if (isLight) {
@@ -270,27 +290,35 @@ fun AttachmentActionChip(
 
 @Composable
 fun EmptyStateCard(message: String) {
-    Column(
+    GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(vertical = 12.dp),
+        cornerRadius = 20.dp
     ) {
-        Icon(
-            imageVector = Icons.Default.Inbox,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = AppTextColor().copy(alpha = 0.1f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = message,
-            color = AppTextColor().copy(alpha = 0.5f),
-            fontSize = 16.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 36.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Inbox,
+                contentDescription = null,
+                modifier = Modifier.size(52.dp),
+                tint = AccentCyan
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = message,
+                color = AppTextColor(),
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
     }
 }
 
@@ -417,20 +445,20 @@ fun GlassTextField(
 @Composable
 fun ConfirmDeleteDialog(
     itemName: String,
-    requireTypedConfirmation: Boolean = false,
+    requireTypedConfirmation: Boolean = true,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var typedText by remember { mutableStateOf("") }
-    val isConfirmed = !requireTypedConfirmation || typedText.equals("delete", ignoreCase = true)
+    val isConfirmed = typedText.equals("delete", ignoreCase = true) || typedText.equals("delete", ignoreCase = true)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (requireTypedConfirmation) "Critical Delete" else "Confirm Delete") },
+        title = { Text(if (true) "Critical Delete" else "Confirm Delete") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Are you sure you want to delete '$itemName'? It will be moved to the Recycle Bin.")
-                if (requireTypedConfirmation) {
+                if (true) {
                     Text("Type 'delete' below to confirm.", color = AccentPink)
                     OutlinedTextField(
                         value = typedText,

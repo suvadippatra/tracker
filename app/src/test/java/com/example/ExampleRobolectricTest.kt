@@ -25,7 +25,8 @@ class ExampleRobolectricTest {
                 viewModel = viewModel,
                 onDismiss = {},
                 onOpenBin = {},
-                onOpenOwnerProfile = {}
+                onOpenOwnerProfile = {},
+                onOpenUtilityConfig = {}
             )
         }
     }

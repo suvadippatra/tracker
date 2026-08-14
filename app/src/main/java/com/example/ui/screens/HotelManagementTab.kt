@@ -22,6 +22,7 @@ import kotlinx.coroutines.*
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -159,6 +160,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
     var showMealHistory by remember { mutableStateOf(false) }
     var showAddMealFlow by remember { mutableStateOf(false) }
     var showCreateHotelModal by remember { mutableStateOf(false) }
+    var showQrScanner by remember { mutableStateOf(false) }
 
     val quickActionTrigger by viewModel.quickActionTrigger.collectAsStateWithLifecycle()
     LaunchedEffect(quickActionTrigger) {
@@ -250,37 +252,11 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = if (isBengali) "খাবার লগ, মেনু আইটেম এবং খরচ ট্র্যাক করা শুরু করতে আপনার প্রথম হোটেলটি যুক্ত করুন।" else "Add your first hotel to start tracking meal logs, menus, and expenses.",
+                        text = if (isBengali) "দয়া করে সেটিংস থেকে একটি নতুন হোটেল যোগ করুন যাতে খাবার লগ, মেনু এবং খরচ ট্র্যাক করা যায়।" else "Please add a new hotel from Settings to start tracking meal logs, menus, and expenses.",
                         color = AppTextColor().copy(alpha = 0.6f),
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = { showCreateHotelModal = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .bounceClick()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isBengali) "হোটেল যোগ করুন" else "Add Hotel",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
                 }
             }
         }
@@ -419,6 +395,13 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 }
                                                             )
                                                             DropdownMenuItem(
+                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে যোগ করুন" else "+ Import via QR", color = AccentCyan) },
+                                                                onClick = {
+                                                                    showQrScanner = true
+                                                                    openDropdownHotelId = null
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
                                                                 text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AccentCyan) },
                                                                 onClick = {
                                                                     hotelToEdit = hotel
@@ -430,6 +413,19 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 onClick = {
                                                                     pdfExportLauncher.launch("transactions_${hotel.name.replace(" ", "_")}.pdf")
                                                                     openDropdownHotelId = null
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AccentCyan) },
+                                                                onClick = {
+                                                                    openDropdownHotelId = null
+                                                                    viewModel.exportHotelViaQr(hotel.id) { result ->
+                                                                        if (result is com.example.data.ExportResult.Success) {
+                                                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
+                                                                        } else {
+                                                                            android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+                                                                        }
+                                                                    }
                                                                 }
                                                             )
                                                         }
@@ -754,6 +750,13 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                             }
                                                         )
                                                         DropdownMenuItem(
+                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে যোগ করুন" else "+ Import via QR", color = AccentCyan) },
+                                                            onClick = {
+                                                                showQrScanner = true
+                                                                openDropdownHotelId = null
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
                                                             text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AccentCyan) },
                                                             onClick = {
                                                                 hotelToEdit = hotel
@@ -766,6 +769,19 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 pdfExportLauncher.launch("transactions_${hotel.name.replace(" ", "_")}.pdf")
                                                                 openDropdownHotelId = null
                                                             }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AccentCyan) },
+                                                            onClick = {
+                                                                openDropdownHotelId = null
+                                                                viewModel.exportHotelViaQr(hotel.id) { result ->
+                                                                        if (result is com.example.data.ExportResult.Success) {
+                                                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
+                                                                        } else {
+                                                                            android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+                                                                        }
+                                                                    }
+                                                                }
                                                         )
                                                     }
                                                 }
@@ -1021,6 +1037,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         HotelDetailsBottomSheet(
             hotel = showInfoDialog!!,
             isBengali = isBengali,
+            viewModel = viewModel,
             onDismiss = { showInfoDialog = null },
             onEdit = {
                 hotelToEdit = showInfoDialog
@@ -1055,6 +1072,37 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 manageMenuForHotel = it
                 showCreateHotelModal = false
                 hotelToEdit = null
+            }
+        )
+    }
+
+    val exportPayload by viewModel.qrExportPayload.collectAsStateWithLifecycle()
+    val exportSessionId by viewModel.qrExportSessionId.collectAsStateWithLifecycle()
+
+    if (exportPayload != null) {
+        com.example.ui.components.QrExportStreamDialog(
+            exportData = exportPayload!!,
+            sessionId = exportSessionId ?: "",
+            onDismiss = { viewModel.setQrExportPayload(null, null) }
+        )
+    }
+
+    if (showQrScanner) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        com.example.ui.components.QrScannerDialog(
+            onDismiss = { showQrScanner = false },
+            onSuccess = { payload: ByteArray, key: ByteArray, iv: ByteArray ->
+                showQrScanner = false
+                viewModel.importHotelViaQr(payload, key, iv) { result ->
+                    when (result) {
+                        is com.example.data.ImportResult.Success -> {
+                            android.widget.Toast.makeText(context, "Hotel imported successfully!", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        is com.example.data.ImportResult.Error -> {
+                            android.widget.Toast.makeText(context, "Import failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
             }
         )
     }
@@ -1762,6 +1810,11 @@ fun MealHistoryModal(
         (currentYear < earliestYear) || (currentYear == earliestYear && currentMonth <= earliestMonth)
     }
 
+    val currentMonthOffset by rememberUpdatedState(monthOffset)
+    val currentIsEarliestMonth by rememberUpdatedState(isEarliestMonth)
+
+    var totalDragAmount by remember { mutableStateOf(0f) }
+
     androidx.activity.compose.BackHandler(onBack = onDismiss)
 
     Box(
@@ -1769,7 +1822,31 @@ fun MealHistoryModal(
             .fillMaxSize()
             .background(getAppBackgroundGradient(userProfile.themeMode))
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDragAmount = 0f },
+                    onDragEnd = {
+                        val swipeThreshold = 40.dp.toPx()
+                        if (totalDragAmount > swipeThreshold) {
+                            // Swipe Right -> Previous Month (Go back in time, if not already at earliest month)
+                            if (!currentIsEarliestMonth) {
+                                monthOffset -= 1
+                            }
+                        } else if (totalDragAmount < -swipeThreshold) {
+                            // Swipe Left -> Next Month (Go forward in time, restricted to not exceed current month)
+                            if (currentMonthOffset < 0) {
+                                monthOffset += 1
+                            }
+                        }
+                        totalDragAmount = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragAmount += dragAmount
+                    }
+                )
+            },
         contentAlignment = Alignment.TopCenter
     ) {
             Column(
@@ -2372,6 +2449,29 @@ fun UnifiedHotelDialog(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
+                    
+                    if (hotel != null && hotelsCount > 1 && onDelete != null) {
+                        var showHotelMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showHotelMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor())
+                            }
+                            DropdownMenu(
+                                expanded = showHotelMenu,
+                                onDismissRequest = { showHotelMenu = false },
+                                modifier = Modifier.background(getDialogBackground())
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Move to Bin", color = AccentPink) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        showHotelMenu = false
+                                        showDeleteConfirm = true
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -2439,17 +2539,7 @@ fun UnifiedHotelDialog(
             Spacer(modifier = Modifier.height(24.dp))
             
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                if (hotel != null && hotelsCount > 1 && onDelete != null) {
-                    Button(
-                        onClick = { showDeleteConfirm = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPink),
-                        modifier = Modifier.weight(1f).testTag("delete_hotel_btn")
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete", color = Color.White)
-                    }
-                }
+
                 Button(
                     onClick = {
                         if (hotelName.isNotBlank()) {
@@ -2530,12 +2620,15 @@ fun HotelInfoDetailRow(
 fun HotelDetailsBottomSheet(
     hotel: com.example.data.model.HotelEntity,
     isBengali: Boolean,
+    viewModel: com.example.ui.viewmodel.FinancialViewModel,
     onDismiss: () -> Unit,
     onEdit: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var previewQrUri by remember { mutableStateOf<String?>(null) }
+    var qrExportPayload by remember { mutableStateOf<com.example.data.ExportResult.Success?>(null) }
+    var qrExportSessionId by remember { mutableStateOf("") }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -2718,6 +2811,32 @@ fun HotelDetailsBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+
+            // Export via QR Button
+            Button(
+                onClick = { 
+                    viewModel.exportHotelViaQr(hotel.id) { result ->
+                        when(result) {
+                            is com.example.data.ExportResult.Success -> {
+                                // Start the QR stream
+                                viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
+                            }
+                            is com.example.data.ExportResult.Error -> {
+                                android.widget.Toast.makeText(context, "Export failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp).bounceClick(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA68C8)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.QrCode, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Close & Edit buttons
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
@@ -2750,4 +2869,8 @@ fun HotelDetailsBottomSheet(
             onDismiss = { previewQrUri = null }
         )
     }
+    
+
+    
+
 }

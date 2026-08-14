@@ -89,7 +89,30 @@ class MeterReadingViewModel(application: Application) : AndroidViewModel(applica
 
     private fun estimateReadingAt(time: Long, readings: List<MeterReading>): Double? {
         val timeDay = getDayStart(time)
-        return readings.find { getDayStart(it.readingDate) == timeDay }?.totalReading
+        val exact = readings.find { getDayStart(it.readingDate) == timeDay }
+        if (exact != null) {
+            return exact.totalReading
+        }
+        
+        val sorted = readings.sortedBy { it.readingDate }
+        if (sorted.isEmpty()) return null
+        
+        val preceding = sorted.lastOrNull { getDayStart(it.readingDate) < timeDay }
+        val succeeding = sorted.firstOrNull { getDayStart(it.readingDate) > timeDay }
+        
+        if (preceding != null && succeeding != null) {
+            val t1 = getDayStart(preceding.readingDate)
+            val t2 = getDayStart(succeeding.readingDate)
+            val r1 = preceding.totalReading
+            val r2 = succeeding.totalReading
+            
+            if (t2 == t1) return r1
+            
+            val fraction = (timeDay - t1).toDouble() / (t2 - t1).toDouble()
+            return r1 + fraction * (r2 - r1)
+        }
+        
+        return null
     }
 
     // Expose rates

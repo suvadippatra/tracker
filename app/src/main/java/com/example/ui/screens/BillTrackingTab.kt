@@ -177,7 +177,7 @@ fun BillTrackingTab(
                                 ) {
                                     Text(
                                         text = label,
-                                        color = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.6f),
+                                        color = if (isSelected) AccentCyan else AppTextColor(),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -292,7 +292,7 @@ fun DailyReadingInputScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (language == "bn") "রিডিংয়ের সময়:" else "Reading Timestamp:",
-                                color = AppTextColor().copy(alpha = 0.6f),
+                                color = AppTextColor(),
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -312,9 +312,9 @@ fun DailyReadingInputScreen(
 
                     Text(
                         text = if (language == "bn") "মিটারের রিডিং সেট করুন" else "Set Meter Total Reading",
-                        color = AppTextColor().copy(alpha = 0.6f),
+                        color = AppTextColor(),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
 
                     MeterDialPicker(
@@ -362,29 +362,7 @@ fun DailyReadingInputScreen(
 
         if (successState.readings.isEmpty()) {
             item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.FlashOn,
-                                contentDescription = "Empty",
-                                tint = AppTextColor().copy(alpha = 0.2f),
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (language == "bn") "কোনো রিডিং পাওয়া যায়নি" else "No readings recorded yet.",
-                                color = AppTextColor().copy(alpha = 0.4f),
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
+                EmptyStateCard(message = if (language == "bn") "কোনো রিডিং পাওয়া যায়নি।" else "No meter readings recorded yet.")
             }
         } else {
             val initialReadingId = successState.readings.minByOrNull { it.readingDate }?.id
@@ -460,7 +438,7 @@ fun DailyReadingInputScreen(
                                 }
                                 Text(
                                     text = displayFormatter.format(Date(reading.readingDate)),
-                                    color = AppTextColor().copy(alpha = 0.7f),
+                                    color = AppSecondaryTextColor(),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -483,7 +461,7 @@ fun DailyReadingInputScreen(
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
                                     contentDescription = "Options",
-                                    tint = AppTextColor().copy(alpha = 0.6f),
+                                    tint = AppTextColor(),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -747,7 +725,7 @@ fun BillSummaryScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (language == "bn") "শুরুর তারিখ" else "Start Date",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppTextColor(),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -776,7 +754,7 @@ fun BillSummaryScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (language == "bn") "শেষের তারিখ" else "End Date",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppTextColor(),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -850,7 +828,7 @@ fun BillSummaryScreen(
                         Column {
                             Text(
                                 text = if (language == "bn") "মোট ব্যবহৃত ইউনিট" else "Aggregated Units",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppSecondaryTextColor(),
                                 fontSize = 11.sp
                             )
                             Text(
@@ -864,7 +842,7 @@ fun BillSummaryScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = if (language == "bn") "ইউনিট প্রতি রেট" else "Rate/Unit",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppSecondaryTextColor(),
                                 fontSize = 11.sp
                             )
                             val activeRate = successState.rates.maxByOrNull { it.effectiveDate }?.ratePerUnit ?: 0.0
@@ -879,7 +857,7 @@ fun BillSummaryScreen(
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = if (language == "bn") "সার্ভিস চার্জ" else "Service Charge",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppSecondaryTextColor(),
                                 fontSize = 11.sp
                             )
                             Text(
@@ -928,29 +906,7 @@ fun BillSummaryScreen(
         val paidBills = successState.bills.filter { it.isPaid }
         if (paidBills.isEmpty()) {
             item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = "History",
-                                tint = AppTextColor().copy(alpha = 0.2f),
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (language == "bn") "কোনো পরিশোধিত বিল নেই" else "No paid bill records found.",
-                                color = AppTextColor().copy(alpha = 0.4f),
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                }
+                EmptyStateCard(message = if (language == "bn") "কোনো পরিশোধিত বিল নেই।" else "No paid bill records found.")
             }
         } else {
             items(paidBills, key = { it.id }) { bill ->
@@ -974,7 +930,7 @@ fun BillSummaryScreen(
                                 )
                                 Text(
                                     text = "${bill.totalUnits} Units (${formatter.format(Date(bill.startDate))} - ${formatter.format(Date(bill.endDate))})",
-                                    color = AppTextColor().copy(alpha = 0.6f),
+                                    color = AppSecondaryTextColor(),
                                     fontSize = 11.sp
                                 )
                             }
@@ -993,7 +949,6 @@ fun BillSummaryScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .border(1.dp, statusBorder, RoundedCornerShape(6.dp))
                                     .background(statusBg, RoundedCornerShape(6.dp))
-                                    .clickable { viewModel.toggleBillPayment(bill) }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
@@ -1014,9 +969,46 @@ fun BillSummaryScreen(
                         ) {
                             Text(
                                 text = if (language == "bn") "শেষ তারিখ: ${formatter.format(Date(bill.dueDate))}" else "Due Date: ${formatter.format(Date(bill.dueDate))}",
-                                color = AppTextColor().copy(alpha = 0.5f),
+                                color = AppSecondaryTextColor(),
                                 fontSize = 11.sp
                             )
+                            
+                            var showBillMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showBillMenu = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        tint = AppTextColor(),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showBillMenu,
+                                    onDismissRequest = { showBillMenu = false },
+                                    modifier = Modifier.background(getDialogBackground())
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (bill.isPaid) "Mark as Unpaid" else "Mark as Paid", color = AppTextColor()) },
+                                        leadingIcon = { Icon(if (bill.isPaid) Icons.Default.Close else Icons.Default.Check, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            showBillMenu = false
+                                            viewModel.toggleBillPayment(bill)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Remove to bin", color = AccentPink) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            showBillMenu = false
+                                            deletingBill = bill
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1078,7 +1070,7 @@ fun BillSummaryScreen(
                         } else {
                             "Would you like to finalize and record this billing calculation?"
                         },
-                        color = AppTextColor().copy(alpha = 0.7f),
+                        color = AppTextColor(),
                         fontSize = 13.sp
                     )
 
@@ -1102,7 +1094,7 @@ fun BillSummaryScreen(
                         )
                         Text(
                             text = "${if (language == "bn") "সময়সীমা:" else "Period:"} ${formatter.format(Date(startMillis))} - ${formatter.format(Date(endMillis))}",
-                            color = AppTextColor().copy(alpha = 0.6f),
+                            color = AppSecondaryTextColor(),
                             fontSize = 11.sp
                         )
                     }
@@ -1118,7 +1110,7 @@ fun BillSummaryScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(if (language == "bn") "বিল পরিশোধের শেষ সময়:" else "Due Date:", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
+                        Text(if (language == "bn") "বিল পরিশোধের শেষ সময়:" else "Due Date:", color = AppSecondaryTextColor(), fontSize = 12.sp)
                         Text(formatter.format(Date(dueDateMillis)), color = AccentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
@@ -1161,7 +1153,7 @@ fun BillSummaryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showGenerateBillDialog = false }) {
-                    Text(if (language == "bn") "বাতিল" else "Cancel", color = AppTextColor().copy(alpha = 0.5f))
+                    Text(if (language == "bn") "বাতিল" else "Cancel", color = AppTextColor())
                 }
             }
         )

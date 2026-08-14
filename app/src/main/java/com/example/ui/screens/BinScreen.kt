@@ -50,6 +50,7 @@ fun BinScreen(
     val deletedTransactions by viewModel.deletedTransactions.collectAsStateWithLifecycle()
     val deletedExtraExpenses by viewModel.deletedExtraExpenses.collectAsStateWithLifecycle()
     val deletedMeterReadings by viewModel.deletedMeterReadings.collectAsStateWithLifecycle()
+    val deletedUtilityBills by viewModel.deletedUtilityBills.collectAsStateWithLifecycle()
 
     var activeSection by remember { mutableStateOf("Hotels") }
     var searchQuery by remember { mutableStateOf("") }
@@ -114,6 +115,7 @@ fun BinScreen(
         "Meals" -> deletedTransactions.isEmpty()
         "Expenses" -> deletedExtraExpenses.isEmpty()
         "Readings" -> deletedMeterReadings.isEmpty()
+        "Bills" -> deletedUtilityBills.isEmpty()
         else -> true
     }
 
@@ -429,7 +431,7 @@ fun BinScreen(
                                             title = if (isBn) "${r.unitsConsumed} ইউনিট ব্যবহৃত হয়েছে" else "${r.unitsConsumed} Units Consumed",
                                             subtitle = if (isBn) "রিডিং: ${r.totalReading} • $formattedDate" else "Reading: ${r.totalReading} • $formattedDate",
                                             infoLabel = isPaidLabel,
-                                            onRestore = { viewModel.restoreMeterReading(r.id) },
+                                            onRestore = { viewModel.restoreMeterReading(r) },
                                             onDeletePermanently = { itemToDeletePermanently = r }
                                         )
                                     }
@@ -452,6 +454,7 @@ fun BinScreen(
             is com.example.data.model.HotelTransactionEntity -> if (isBn) "খাবারের অর্ডার (₹${item.totalAmount})" else "Meal Order (₹${item.totalAmount})"
             is com.example.data.model.ExtraExpenseEntity -> "${item.name} (₹${item.amount})"
             is com.example.data.model.MeterReading -> if (isBn) "${item.unitsConsumed} ইউনিট ব্যবহৃত মিটার রিডিং" else "${item.unitsConsumed} Units Reading"
+                    is com.example.data.model.UtilityBill -> if (isBn) "${item.totalUnits} ইউনিটের বিল" else "Bill for ${item.totalUnits} Units"
             else -> ""
         }
         AlertDialog(
@@ -468,6 +471,7 @@ fun BinScreen(
                             is com.example.data.model.HotelTransactionEntity -> viewModel.deleteTransactionPermanently(item)
                             is com.example.data.model.ExtraExpenseEntity -> viewModel.deleteExtraExpensePermanently(item)
                             is com.example.data.model.MeterReading -> viewModel.deleteReading(item)
+                            is com.example.data.model.UtilityBill -> viewModel.deleteUtilityBillPermanently(item)
                         }
                         itemToDeletePermanently = null
                     }
@@ -501,6 +505,7 @@ fun BinScreen(
                             "Meals" -> viewModel.emptyDeletedTransactionsPermanently()
                             "Expenses" -> viewModel.emptyDeletedExpensesPermanently()
                             "Readings" -> viewModel.emptyDeletedReadingsPermanently()
+                            "Bills" -> viewModel.emptyDeletedUtilityBillsPermanently()
                         }
                     }
                 ) {

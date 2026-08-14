@@ -71,6 +71,9 @@ interface MenuDao {
     @Query("SELECT * FROM menu_items ORDER BY id ASC")
     fun getAllMenuItems(): Flow<List<MenuEntity>>
 
+    @Query("SELECT * FROM menu_items WHERE isDeleted = 0 ORDER BY id ASC")
+    suspend fun getAllMenuItemsSync(): List<MenuEntity>
+
     @Query("SELECT * FROM menu_items WHERE hotelId = :hotelId AND isDeleted = 0 ORDER BY id ASC")
     fun getMenuForHotel(hotelId: Int): Flow<List<MenuEntity>>
 
@@ -111,6 +114,9 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: HotelTransactionEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransactions(transactions: List<HotelTransactionEntity>)
+
     @Update
     suspend fun updateTransaction(transaction: HotelTransactionEntity)
 
@@ -131,6 +137,9 @@ interface BankAccountDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBankAccount(account: BankAccountEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBankAccounts(accounts: List<BankAccountEntity>)
 
     @Update
     suspend fun updateBankAccount(account: BankAccountEntity)
@@ -156,6 +165,9 @@ interface ExtraExpenseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: ExtraExpenseEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpenses(expenses: List<ExtraExpenseEntity>)
+
     @Delete
     suspend fun deleteExpense(expense: ExtraExpenseEntity)
 }
@@ -165,8 +177,14 @@ interface HotelPaymentDao {
     @Query("SELECT * FROM hotel_payments WHERE hotelId = :hotelId ORDER BY paymentDate DESC")
     fun getPaymentsForHotel(hotelId: Int): Flow<List<HotelPaymentEntity>>
 
+    @Query("SELECT * FROM hotel_payments ORDER BY paymentDate DESC")
+    suspend fun getAllPaymentsSync(): List<HotelPaymentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: HotelPaymentEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPayments(payments: List<HotelPaymentEntity>)
 
     @Delete
     suspend fun deletePayment(payment: HotelPaymentEntity)
@@ -177,8 +195,14 @@ interface MeterDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReading(reading: MeterReading)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReadings(readings: List<MeterReading>)
+
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC")
     fun getAllReadings(): Flow<List<MeterReading>>
+
+    @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC")
+    suspend fun getAllReadingsSync(): List<MeterReading>
 
     @Query("SELECT COALESCE(SUM(unitsConsumed), 0.0) FROM meter_readings WHERE isDeleted = 0 AND readingDate > :start AND readingDate <= :end")
     fun getSumOfUnitsConsumed(start: Long, end: Long): Flow<Double>
@@ -186,7 +210,7 @@ interface MeterDao {
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate ASC")
     fun getAllReadingsSorted(): Flow<List<MeterReading>>
 
-    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE isDeleted = 0 AND readingDate > :start AND readingDate <= :end")
+    @Query("UPDATE meter_readings SET isPaid = :isPaid WHERE isDeleted = 0 AND readingDate >= :start AND readingDate <= :end")
     suspend fun updateReadingsPaidStatus(start: Long, end: Long, isPaid: Boolean)
 
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 0 ORDER BY readingDate DESC LIMIT 1")
@@ -198,14 +222,23 @@ interface MeterDao {
     suspend fun restoreReading(id: String)
     @Query("DELETE FROM meter_readings WHERE isDeleted = 1")
     suspend fun emptyDeletedReadingsPermanently()
+    @Query("DELETE FROM utility_bills WHERE isDeleted = 1")
+    suspend fun emptyDeletedUtilityBillsPermanently()
     @Query("SELECT * FROM meter_readings WHERE isDeleted = 1 ORDER BY readingDate DESC")
     fun getDeletedReadings(): Flow<List<MeterReading>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUtilityBill(bill: UtilityBill)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUtilityBills(bills: List<UtilityBill>)
+
     @Query("SELECT * FROM utility_bills WHERE isDeleted = 0 ORDER BY startDate DESC")
     fun getAllUtilityBills(): Flow<List<UtilityBill>>
+
+    @Query("SELECT * FROM utility_bills WHERE isDeleted = 0 ORDER BY startDate DESC")
+    suspend fun getAllUtilityBillsSync(): List<UtilityBill>
+
     @Query("SELECT * FROM utility_bills WHERE isDeleted = 1 ORDER BY startDate DESC")
     fun getDeletedUtilityBills(): Flow<List<UtilityBill>>
 
@@ -220,6 +253,12 @@ interface MeterDao {
 
     @Query("SELECT * FROM electricity_rates ORDER BY effectiveDate DESC")
     fun getAllElectricityRates(): Flow<List<com.example.data.model.ElectricityRate>>
+
+    @Query("SELECT * FROM electricity_rates ORDER BY effectiveDate DESC")
+    suspend fun getAllElectricityRatesSync(): List<com.example.data.model.ElectricityRate>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertElectricityRates(rates: List<com.example.data.model.ElectricityRate>)
 
     @Delete
     suspend fun deleteElectricityRate(rate: com.example.data.model.ElectricityRate)
@@ -265,4 +304,19 @@ interface OwnerAccountDao {
 
     @Delete
     suspend fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity)
+}
+
+@Dao
+interface ExpenseDao {
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    fun getAllExpensesFlow(): Flow<List<com.example.data.model.ExpenseEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpense(expense: com.example.data.model.ExpenseEntity): Long
+
+    @Update
+    suspend fun updateExpense(expense: com.example.data.model.ExpenseEntity)
+
+    @Delete
+    suspend fun deleteExpense(expense: com.example.data.model.ExpenseEntity)
 }

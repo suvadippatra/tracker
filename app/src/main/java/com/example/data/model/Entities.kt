@@ -243,3 +243,13 @@ data class ElectricityRate(
     val ratePerUnit: Double,
     val isDeleted: Boolean = false
 )
+
+@Entity(tableName = "expenses")
+data class ExpenseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val category: String,
+    val amount: Double,
+    val timestamp: Long,
+    val note: String,
+    val isDeleted: Boolean = false
+)

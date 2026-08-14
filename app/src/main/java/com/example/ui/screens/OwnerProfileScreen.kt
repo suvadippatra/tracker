@@ -429,7 +429,7 @@ fun DetailRowItem(label: String, value: String) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { showLargeView = true },
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, fontSize = 12.sp, color = AppTextColor().copy(alpha = 0.5f))
+        Text(label, fontSize = 12.sp, color = AppSecondaryTextColor())
         Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTextColor())
     }
 
@@ -444,7 +444,7 @@ fun DetailRowItem(label: String, value: String) {
                     modifier = Modifier.padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(label, color = AppTextColor().copy(alpha = 0.5f), fontSize = 16.sp)
+                    Text(label, color = AppSecondaryTextColor(), fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(value, color = AppTextColor(), fontSize = 28.sp, fontWeight = FontWeight.Black)
                     Spacer(modifier = Modifier.height(32.dp))
@@ -579,7 +579,8 @@ fun AddOwnerAccountDialog(
 @Composable
 fun OwnerQRViewerDialog(
     viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenOwnerProfile: (() -> Unit)? = null
 ) {
     val ownerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle()
     val accountsWithQR = ownerAccounts.filter { it.qrCodeUri.isNotBlank() }
@@ -605,11 +606,50 @@ fun OwnerQRViewerDialog(
             contentAlignment = Alignment.Center
         ) {
             if (accountsWithQR.isEmpty()) {
-                Text(
-                    text = "No QR codes found in Owner Profile.",
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
+                GlassCard(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {},
+                    cornerRadius = 24.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = AccentCyan,
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No UPI QR Code Found",
+                            color = AppTextColor(),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Add your bank account and upload your UPI QR code in the Owner Profile to display it here on double tap.",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = {
+                                onDismiss()
+                                onOpenOwnerProfile?.invoke()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentCyan, contentColor = Color.Black),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Open Owner Profile", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             } else {
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(
                     pageCount = { accountsWithQR.size }
@@ -617,7 +657,7 @@ fun OwnerQRViewerDialog(
                 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).clickable(enabled = false) {} // block dismiss on content click
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).clickable(enabled = false) {}
                 ) {
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,
@@ -639,7 +679,7 @@ fun OwnerQRViewerDialog(
                             if (account.upiId.isNotBlank()) {
                                 Text(
                                     text = account.upiId,
-                                    color = Color.White.copy(alpha = 0.7f),
+                                    color = Color(0xFFE2E8F0),
                                     fontSize = 16.sp,
                                     modifier = Modifier.padding(bottom = 16.dp)
                                 )
@@ -666,7 +706,7 @@ fun OwnerQRViewerDialog(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             repeat(accountsWithQR.size) { iteration ->
-                                val color = if (pagerState.currentPage == iteration) Color.White else Color.White.copy(alpha = 0.3f)
+                                val color = if (pagerState.currentPage == iteration) AccentCyan else Color.White.copy(alpha = 0.5f)
                                 Box(
                                     modifier = Modifier
                                         .padding(4.dp)

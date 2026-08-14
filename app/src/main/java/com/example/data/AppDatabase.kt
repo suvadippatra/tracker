@@ -42,12 +42,14 @@ import com.example.data.dao.OwnerAccountDao
         com.example.data.model.TransactionCategoryEntity::class,
         AttachmentEntity::class,
         OwnerAccountEntity::class,
-        com.example.data.model.HotelPaymentEntity::class
+        com.example.data.model.HotelPaymentEntity::class,
+        com.example.data.model.ExpenseEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun expenseDao(): com.example.data.dao.ExpenseDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun hotelDao(): HotelDao
     abstract fun menuDao(): MenuDao
@@ -96,6 +98,11 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS `expenses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `category` TEXT NOT NULL, `amount` REAL NOT NULL, `timestamp` INTEGER NOT NULL, `note` TEXT NOT NULL, `isDeleted` INTEGER NOT NULL DEFAULT 0)")
+            }
+        }
         val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE user_profile ADD COLUMN mealGroupPosition TEXT NOT NULL DEFAULT 'BottomBar'")
@@ -115,7 +122,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "traker_database"
                 )
                 .fallbackToDestructiveMigration(true)
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 .build()
                 INSTANCE = instance
                 instance

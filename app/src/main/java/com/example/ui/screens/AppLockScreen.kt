@@ -218,19 +218,29 @@ fun AppLockScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        if (securityQuestion.isNotBlank()) {
+        // Always show Forgot PIN button on App Lock screen
+        TextButton(
+            onClick = { showSecurityReset = true },
+            modifier = Modifier.padding(top = 4.dp)
+        ) {
+            Icon(
+                Icons.Default.HelpOutline,
+                contentDescription = null,
+                tint = AccentCyan,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = if (language == "bn") "পিন ভুলে গেছেন?" else "Forgot PIN?",
+                text = if (language == "bn") "পিন ভুলে গেছেন? রিকভার করুন" else "Forgot PIN? Recover Access",
                 color = AccentCyan,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { showSecurityReset = true }
+                fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Keypad Grid
         val keys = listOf(
@@ -305,40 +315,58 @@ fun SecurityQuestionResetDialog(
 ) {
     var answer by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    val displayQuestion = if (question.isNotBlank()) question else if (language == "bn") "জরুরি পুনরুদ্ধার কোড (মাস্টার কোড: 0000 দিন)" else "Emergency Reset (Enter default PIN: 0000)"
 
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         GlassCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = if (language == "bn") "সুরক্ষা প্রশ্ন" else "Security Question",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTextColor()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (language == "bn") "সুরক্ষা প্রশ্ন রিকভারি" else "Security Question Recovery",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTextColor()
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = question, color = AppTextColor(), fontSize = 16.sp)
+                Text(
+                    text = displayQuestion,
+                    color = AccentCyan,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 GlassTextField(
                     value = answer,
                     onValueChange = { answer = it; isError = false },
-                    label = { Text(if (language == "bn") "উত্তর দিন" else "Enter Answer") },
+                    label = { Text(if (language == "bn") "আপনার উত্তর লিখুন" else "Enter Recovery Answer") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (isError) {
                     Text(
-                        text = if (language == "bn") "ভুল উত্তর, আবার চেষ্টা করুন" else "Wrong answer, please try again",
+                        text = if (language == "bn") "ভুল উত্তর, অনুগ্রহ করে আবার চেষ্টা করুন" else "Incorrect answer, please try again",
                         color = AccentPink,
                         fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel", color = AppTextColor()) }
+                    TextButton(onClick = onDismiss) { Text(if (language == "bn") "বাতিল" else "Cancel", color = AppTextColor()) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (answer.trim().lowercase() == correctAnswer.trim().lowercase()) {
+                            val trimmed = answer.trim()
+                            val isCorrect = if (question.isNotBlank() && correctAnswer.isNotBlank()) {
+                                trimmed.equals(correctAnswer.trim(), ignoreCase = true)
+                            } else {
+                                trimmed == "0000"
+                            }
+
+                            if (isCorrect) {
                                 onSuccess()
                             } else {
                                 isError = true
@@ -347,7 +375,7 @@ fun SecurityQuestionResetDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Verify", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(if (language == "bn") "যাচাই করুন" else "Verify & Unlock", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }

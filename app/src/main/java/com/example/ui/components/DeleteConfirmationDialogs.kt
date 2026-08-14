@@ -27,6 +27,15 @@ fun Tier1DeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    Tier2DeleteDialog(itemTitle, "delete", onConfirm, onDismiss)
+}
+
+@Composable
+fun OldTier1DeleteDialog(
+    itemTitle: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)

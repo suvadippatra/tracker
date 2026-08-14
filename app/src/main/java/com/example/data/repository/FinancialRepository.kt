@@ -46,10 +46,12 @@ class FinancialRepository(private val db: AppDatabase) {
     val deletedTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getDeletedTransactions()
     val deletedExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getDeletedExpenses()
     val deletedMeterReadings: Flow<List<MeterReading>> = meterDao.getDeletedReadings()
+    val deletedUtilityBills: Flow<List<UtilityBill>> = meterDao.getDeletedUtilityBills()
 
     suspend fun emptyDeletedTransactionsPermanently() = transactionDao.emptyDeletedTransactionsPermanently()
     suspend fun emptyDeletedExpensesPermanently() = extraExpenseDao.emptyDeletedExpensesPermanently()
     suspend fun emptyDeletedReadingsPermanently() = meterDao.emptyDeletedReadingsPermanently()
+    suspend fun emptyDeletedUtilityBillsPermanently() = meterDao.emptyDeletedUtilityBillsPermanently()
     suspend fun restoreReading(id: String) = meterDao.restoreReading(id)
 
     fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> = attachmentDao.getAttachmentsForExpense(expenseId)
