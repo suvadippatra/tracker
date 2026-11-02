@@ -1,5 +1,7 @@
 package com.example.ui.screens
+import androidx.compose.ui.draw.rotate
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.CircleShape
 
 
@@ -68,6 +70,7 @@ import com.example.ui.viewmodel.MeterReadingViewModel
 import androidx.compose.ui.text.input.ImeAction
 
 import java.text.SimpleDateFormat
+import com.example.utils.Formatters
 
 import java.util.*
 
@@ -95,7 +98,7 @@ fun BillTrackingTab(
         when (val state = uiState) {
             is MeterReadingUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AccentCyan)
+                    CircularProgressIndicator(color = AppAccentColor())
                 }
             }
             is MeterReadingUiState.Error -> {
@@ -158,9 +161,10 @@ fun BillTrackingTab(
                                     if (tab == "Log") "Log Reading" else "Bill Summary"
                                 }
 
-                                val tabBg = if (isSelected) AccentCyan.copy(alpha = 0.2f) else Color.Transparent
+                                val primaryCol = MaterialTheme.colorScheme.primary
+                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.2f) else Color.Transparent
                                 val borderBrush = Brush.verticalGradient(
-                                    if (isSelected) listOf(AccentCyan, AccentCyan.copy(alpha = 0.3f))
+                                    if (isSelected) listOf(primaryCol, primaryCol.copy(alpha = 0.3f))
                                     else listOf(AppTextColor().copy(alpha = 0.1f), AppTextColor().copy(alpha = 0.1f))
                                 )
 
@@ -177,7 +181,7 @@ fun BillTrackingTab(
                                 ) {
                                     Text(
                                         text = label,
-                                        color = if (isSelected) AccentCyan else AppTextColor(),
+                                        color = if (isSelected) primaryCol else AppTextColor(),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -191,33 +195,25 @@ fun BillTrackingTab(
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp)
                         ) {
-                            AnimatedContent(
-                                targetState = subTab,
-                                transitionSpec = {
-                                    fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(150))
-                                },
-                                label = "sub_tab_transition"
-                            ) { activeSubTab ->
-                                when (activeSubTab) {
-                                    "Log" -> DailyReadingInputScreen(
-                                        viewModel = viewModel,
-                                        successState = state,
-                                        language = language,
-                                        currency = currency,
-                                        isLight = isLight,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    "Summary" -> BillSummaryScreen(
-                                        viewModel = viewModel,
-                                        successState = state,
-                                        language = language,
-                                        currency = currency,
-                                        isLight = isLight,
-                                        modifier = Modifier.fillMaxSize(),
-                                        financialViewModel = financialViewModel,
-                                        onOpenUtilityConfig = onOpenUtilityConfig
-                                    )
-                                }
+                            when (subTab) {
+                                "Log" -> DailyReadingInputScreen(
+                                    viewModel = viewModel,
+                                    successState = state,
+                                    language = language,
+                                    currency = currency,
+                                    isLight = isLight,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                "Summary" -> BillSummaryScreen(
+                                    viewModel = viewModel,
+                                    successState = state,
+                                    language = language,
+                                    currency = currency,
+                                    isLight = isLight,
+                                    modifier = Modifier.fillMaxSize(),
+                                    financialViewModel = financialViewModel,
+                                    onOpenUtilityConfig = onOpenUtilityConfig
+                                )
                             }
                         }
                     }
@@ -226,6 +222,27 @@ fun BillTrackingTab(
         }
     }
 }
+
+// --- Pre-computed UI Display Models for Zero-Allocation List Scrolling ---
+data class MeterReadingDisplayItem(
+    val id: String,
+    val reading: MeterReading,
+    val isInitial: Boolean,
+    val isPaid: Boolean,
+    val formattedTotal: String,
+    val formattedDate: String,
+    val perDayUsageText: String?
+)
+
+data class UtilityBillDisplayItem(
+    val id: String,
+    val bill: UtilityBill,
+    val formattedAmount: String,
+    val formattedSubtitle: String,
+    val formattedDueDate: String,
+    val statusText: String,
+    val isPaid: Boolean
+)
 
 @Composable
 fun DailyReadingInputScreen(
@@ -243,12 +260,56 @@ fun DailyReadingInputScreen(
     var readingDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showDateTimePicker by remember { mutableStateOf(false) }
 
-    val formatter = remember { SimpleDateFormat("dd MMM, yyyy  HH:mm", Locale.getDefault()) }
+    val formatter = remember { Formatters.getSimpleDateFormat("dd MMM, yyyy  HH:mm") }
+
+    val displayItems = remember(successState.readings, language) {
+        val sortedAsc = successState.readings.sortedBy { it.readingDate }
+        val initialId = sortedAsc.firstOrNull()?.id
+        
+        val usageMap = mutableMapOf<String, Double>()
+        for (i in 1 until sortedAsc.size) {
+            val curr = sortedAsc[i]
+            val prev = sortedAsc[i - 1]
+            val units = curr.totalReading - prev.totalReading
+            val timeDiff = curr.readingDate - prev.readingDate
+            val days = timeDiff.toDouble() / (24 * 60 * 60 * 1000)
+            if (days > 0) {
+                usageMap[curr.id] = units / days
+            }
+        }
+
+        val sortedDesc = successState.readings.sortedByDescending { it.readingDate }
+        sortedDesc.map { reading ->
+            val isInitial = reading.id == initialId
+            val usage = usageMap[reading.id]
+            val usageText = if (usage != null) {
+                String.format(Locale.getDefault(), "Usage: %.2f units/day", usage)
+            } else null
+            
+            MeterReadingDisplayItem(
+                id = reading.id,
+                reading = reading,
+                isInitial = isInitial,
+                isPaid = reading.isPaid,
+                formattedTotal = "${reading.totalReading} Total",
+                formattedDate = Formatters.formatShortDate(reading.readingDate),
+                perDayUsageText = usageText
+            )
+        }
+    }
+
+    var showAllLogReadings by remember { mutableStateOf(false) }
+
+    val visibleLogItems = remember(displayItems, showAllLogReadings) {
+        derivedStateOf {
+            if (showAllLogReadings || displayItems.size <= 4) displayItems else displayItems.take(4)
+        }
+    }
 
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 120.dp)
+        contentPadding = PaddingValues(bottom = 156.dp)
     ) {
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -275,36 +336,39 @@ fun DailyReadingInputScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(AppTextColor().copy(alpha = 0.05f))
                             .clickable { showDateTimePicker = true }
-                            .padding(12.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = "Select Date Time",
-                                tint = AccentCyan,
+                                tint = AppAccentColor(),
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (language == "bn") "রিডিংয়ের সময়:" else "Reading Timestamp:",
+                                text = if (language == "bn") "রিডিং সময়:" else "Reading Timestamp:",
                                 color = AppTextColor(),
                                 fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                softWrap = false
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = formatter.format(Date(readingDateMillis)),
-                            color = AccentCyan,
+                            color = AppAccentColor(),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            maxLines = 2,
+                            softWrap = true
                         )
                     }
 
@@ -321,7 +385,7 @@ fun DailyReadingInputScreen(
                         initialValue = totalReadingValue,
                         onValueChange = { totalReadingValue = it },
                         textColor = AppTextColor(),
-                        accentColor = AccentCyan
+                        accentColor = AppAccentColor()
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -330,18 +394,18 @@ fun DailyReadingInputScreen(
                         onClick = {
                             viewModel.insertReading(totalReadingValue, readingDateMillis)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
                             .bounceClick()
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.Black)
+                        Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (language == "bn") "রিডিং সংরক্ষণ করুন" else "Save Daily Reading",
-                            color = Color.Black,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -353,35 +417,22 @@ fun DailyReadingInputScreen(
         item {
             Text(
                 text = if (language == "bn") "সাম্প্রতিক এন্ট্রি" else "Recent Meter Log",
-                color = AppTextColor(),
+                color = AppHeadingColor(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
 
-        if (successState.readings.isEmpty()) {
-            item {
+        if (displayItems.isEmpty()) {
+            item(key = "empty_log_readings") {
                 EmptyStateCard(message = if (language == "bn") "কোনো রিডিং পাওয়া যায়নি।" else "No meter readings recorded yet.")
             }
         } else {
-            val initialReadingId = successState.readings.minByOrNull { it.readingDate }?.id
-            
-            items(successState.readings.take(20), key = { it.id }) { reading ->
-                val isInitialReading = reading.id == initialReadingId
-                val readingColor = if (isInitialReading || reading.isPaid) AppTextColor() else Color.Red
-                val displayFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
-                
-                // Calculate per day usage
-                val previousReading = successState.readings.filter { it.readingDate < reading.readingDate }
-                    .maxByOrNull { it.readingDate }
-                
-                val perDayUsage = if (previousReading != null) {
-                    val units = reading.totalReading - previousReading.totalReading
-                    val timeDiff = reading.readingDate - previousReading.readingDate
-                    val days = timeDiff.toDouble() / (24 * 60 * 60 * 1000)
-                    if (days > 0) units / days else 0.0
-                } else null
+            items(visibleLogItems.value, key = { it.id }, contentType = { "reading_log_item" }) { item ->
+                val reading = item.reading
+                val unpaidTextColor = AppUnpaidTextColor()
+                val readingColor = if (item.isInitial || item.isPaid) AppTextColor() else unpaidTextColor
 
                 var showMenu by remember { mutableStateOf(false) }
                 var showEditDialog by remember { mutableStateOf(false) }
@@ -407,13 +458,13 @@ fun DailyReadingInputScreen(
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .background(AccentCyan.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                                    .background(if (item.isInitial || item.isPaid) AppAccentColor().copy(alpha = 0.15f) else AppUnpaidBgColor(), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.OfflineBolt,
                                     contentDescription = "Bolt",
-                                    tint = if (isInitialReading || reading.isPaid) AccentCyan else Color.Red,
+                                    tint = if (item.isInitial || item.isPaid) AppAccentColor() else unpaidTextColor,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -421,31 +472,31 @@ fun DailyReadingInputScreen(
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "${reading.totalReading} Total",
+                                        text = item.formattedTotal,
                                         color = readingColor,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (!isInitialReading && !reading.isPaid) {
+                                    if (!item.isInitial && !item.isPaid) {
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = if (language == "bn") "(বাকি)" else "(Unpaid)",
-                                            color = Color.Red,
+                                            color = unpaidTextColor,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                                 Text(
-                                    text = displayFormatter.format(Date(reading.readingDate)),
+                                    text = item.formattedDate,
                                     color = AppSecondaryTextColor(),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
-                                if (perDayUsage != null) {
+                                if (item.perDayUsageText != null) {
                                     Text(
-                                        text = String.format(Locale.getDefault(), "Usage: %.2f units/day", perDayUsage),
-                                        color = AccentCyan,
+                                        text = item.perDayUsageText,
+                                        color = AppAccentColor(),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -472,7 +523,7 @@ fun DailyReadingInputScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Edit", color = AppTextColor()) },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp)) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
                                     onClick = {
                                         showMenu = false
                                         showEditDialog = true
@@ -513,8 +564,20 @@ fun DailyReadingInputScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Timestamp:", color = AppTextColor().copy(alpha = 0.6f), fontSize = 13.sp)
-                                    Text(displayFormatter.format(Date(editDateMillis)), color = AccentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Timestamp:",
+                                        color = AppTextColor().copy(alpha = 0.6f),
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = Formatters.formatShortDate(editDateMillis),
+                                        color = AppAccentColor(),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                    )
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -523,7 +586,7 @@ fun DailyReadingInputScreen(
                                     initialValue = editTotalValue,
                                     onValueChange = { editTotalValue = it },
                                     textColor = AppTextColor(),
-                                    accentColor = AccentCyan
+                                    accentColor = AppAccentColor()
                                 )
                                 
                                 if (showDatePickerInside) {
@@ -540,7 +603,7 @@ fun DailyReadingInputScreen(
                                         },
                                         confirmButton = {
                                             TextButton(onClick = { showDatePickerInside = false }) {
-                                                Text("OK", color = AccentCyan)
+                                                Text("OK", color = AppAccentColor())
                                             }
                                         }
                                     )
@@ -553,9 +616,9 @@ fun DailyReadingInputScreen(
                                     viewModel.updateReading(reading.copy(totalReading = editTotalValue, readingDate = editDateMillis))
                                     showEditDialog = false
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
                             ) {
-                                Text("Update", color = Color.Black)
+                                Text("Update", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         },
                         dismissButton = {
@@ -567,9 +630,43 @@ fun DailyReadingInputScreen(
                 }
             }
         }
+
+        if (displayItems.size > 4) {
+            item(key = "toggle_view_all_readings") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TextButton(
+                        onClick = { showAllLogReadings = !showAllLogReadings },
+                        colors = ButtonDefaults.textButtonColors(contentColor = AppAccentColor()),
+                        modifier = Modifier.bounceClick()
+                    ) {
+                        Icon(
+                            imageVector = if (showAllLogReadings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (showAllLogReadings) {
+                                if (language == "bn") "কম দেখান" else "Show Less"
+                            } else {
+                                if (language == "bn") "সব দেখুন (${displayItems.size} টি এন্ট্রি)" else "View All (${displayItems.size} items)"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
     }
 
     if (showDateTimePicker) {
+        BackHandler { showDateTimePicker = false }
         AlertDialog(
             onDismissRequest = { showDateTimePicker = false },
             containerColor = getDialogBackground(),
@@ -591,7 +688,7 @@ fun DailyReadingInputScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showDateTimePicker = false }) {
-                    Text("OK", color = AccentCyan, fontWeight = FontWeight.Bold)
+                    Text("OK", color = AppAccentColor(), fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -609,7 +706,7 @@ fun BillSummaryScreen(
     financialViewModel: FinancialViewModel? = null,
     onOpenUtilityConfig: () -> Unit = {}
 ) {
-    val formatter = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
+    val formatter = remember { Formatters.getSimpleDateFormat("dd MMM, yyyy") }
     
     // Logic: Default start date to the oldest unpaid reading
     val defaultStart = remember(successState.readings, successState.bills) {
@@ -626,8 +723,21 @@ fun BillSummaryScreen(
 
     val fixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
 
+    val currentCalculation = remember(startMillis, endMillis, successState.readings, successState.rates, fixedCharge) {
+        viewModel.calculateDetailedBill(
+            start = startMillis,
+            end = endMillis,
+            sortedReadings = successState.readings.sortedBy { it.readingDate },
+            rates = successState.rates,
+            fixedCharge = fixedCharge
+        )
+    }
+
     var showGenerateBillDialog by remember { mutableStateOf(false) }
     var deletingBill by remember { mutableStateOf<UtilityBill?>(null) }
+    var billToEditStatus by remember { mutableStateOf<UtilityBill?>(null) }
+    var editingStatusIsPaid by remember { mutableStateOf(false) }
+    var editingStatusNote by remember { mutableStateOf("") }
 
     if (deletingBill != null) {
         com.example.ui.components.Tier1DeleteDialog(
@@ -640,19 +750,165 @@ fun BillSummaryScreen(
         )
     }
 
+    if (billToEditStatus != null) {
+        val targetBill = billToEditStatus!!
+        AlertDialog(
+            onDismissRequest = { billToEditStatus = null },
+            containerColor = getDialogBackground(),
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    text = if (language == "bn") "পেমেন্ট স্ট্যাটাস ও নোট আপডেট" else "Update Payment Status & Notes",
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(AppTextColor().copy(alpha = 0.05f), RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "${if (language == "bn") "বিল পরিমাণ:" else "Bill Amount:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, targetBill.calculatedAmount)}",
+                            color = AppAccentColor(),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${if (language == "bn") "মোট ইউনিট:" else "Total Units:"} ${String.format(Locale.getDefault(), "%.2f", targetBill.totalUnits)} kWh",
+                            color = AppTextColor(),
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = "${if (language == "bn") "সময়সীমা:" else "Period:"} ${formatter.format(Date(targetBill.startDate))} - ${formatter.format(Date(targetBill.endDate))}",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (language == "bn") "পরিশোধের স্থিতি:" else "Payment Status:",
+                            color = AppTextColor(),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        GlassSwitch(
+                            checked = editingStatusIsPaid,
+                            onCheckedChange = { editingStatusIsPaid = it },
+                            activeText = "PAID",
+                            inactiveText = "UNPAID"
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = editingStatusNote,
+                        onValueChange = { editingStatusNote = it },
+                        label = { Text(if (language == "bn") "অতিরিক্ত নোট (ঐচ্ছিক)" else "Extra Notes (Optional)", color = AppSecondaryTextColor()) },
+                        placeholder = { Text(if (language == "bn") "যেমন: ট্রানজাকশন আইডি / ক্যাশ পেমেন্ট..." else "e.g. Paid via UPI, Ref #1234...", color = AppSecondaryTextColor().copy(alpha = 0.5f)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedBorderColor = AppAccentColor(),
+                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.2f),
+                            cursorColor = AppAccentColor()
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = false,
+                        maxLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.updateBillPaymentStatus(
+                            bill = targetBill,
+                            newIsPaid = editingStatusIsPaid,
+                            note = editingStatusNote
+                        )
+                        billToEditStatus = null
+                    }
+                ) {
+                    Text(if (language == "bn") "সংরক্ষণ" else "Save", color = AppAccentColor(), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { billToEditStatus = null }) {
+                    Text(if (language == "bn") "বাতিল" else "Cancel", color = AppTextColor())
+                }
+            }
+        )
+    }
+
     if (successState.readings.isEmpty() && successState.rates.isEmpty() && fixedCharge == 0.0) {
         EmptyStateCard(message = if (language == "bn") "কোনো রিডিং যোগ করা হয়নি এবং রেট সেট করা হয়নি।" else "No readings added and rates are not set. Start logging to generate bills.")
         return
     }
 
     // Check if range includes paid session
-    val paidSessionsInRange = successState.readings.filter { it.readingDate in startMillis..endMillis && it.isPaid }
+    val paidSessionsInRange = remember(successState.readings, startMillis, endMillis) {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = startMillis
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val calS = cal.timeInMillis
+
+        cal.timeInMillis = endMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val calE = cal.timeInMillis
+
+        successState.readings.filter { reading ->
+            reading.isPaid && reading.readingDate in (calS + 1)..calE
+        }
+    }
     val includesPaid = paidSessionsInRange.isNotEmpty()
+
+    val paidBillDisplayItems = remember(successState.bills, currency, language) {
+        successState.bills.filter { it.isPaid }.sortedByDescending { it.endDate }.map { bill ->
+            UtilityBillDisplayItem(
+                id = bill.id,
+                bill = bill,
+                formattedAmount = String.format(Locale.getDefault(), "%s %.2f", currency, bill.calculatedAmount),
+                formattedSubtitle = "${String.format(Locale.getDefault(), "%.2f", bill.totalUnits)} Units (${Formatters.formatDayMonthYear(bill.startDate)} - ${Formatters.formatDayMonthYear(bill.endDate)})",
+                formattedDueDate = if (bill.dueDate > 0) "Due: ${Formatters.formatDayMonthYear(bill.dueDate)}" else "",
+                statusText = if (language == "bn") "পরিশোধিত" else "PAID",
+                isPaid = true
+            )
+        }
+    }
+
+    var showAllPaidBills by remember { mutableStateOf(false) }
+
+    val visiblePaidBillItems = remember(paidBillDisplayItems, showAllPaidBills) {
+        derivedStateOf {
+            if (showAllPaidBills || paidBillDisplayItems.size <= 4) paidBillDisplayItems else paidBillDisplayItems.take(4)
+        }
+    }
 
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 120.dp)
+        contentPadding = PaddingValues(bottom = 156.dp)
     ) {
         // Billing Period Selector Card
         item {
@@ -669,7 +925,7 @@ fun BillSummaryScreen(
                     ) {
                         Text(
                             text = if (language == "bn") "বিল হিসাব করার সময়সীমা" else "Billing Period Selection",
-                            color = AppTextColor(),
+                            color = AppHeadingColor(),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -682,8 +938,8 @@ fun BillSummaryScreen(
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Utility Configuration",
-                                tint = AccentCyan,
-                                modifier = Modifier.size(16.dp)
+                                tint = AppAccentColor(),
+                                modifier = Modifier.size(16.dp).rotate(90f)
                             )
                         }
                     }
@@ -702,7 +958,7 @@ fun BillSummaryScreen(
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.Top) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = AccentPink, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = AccentPink, modifier = Modifier.size(16.dp).rotate(90f))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (language == "bn") 
@@ -743,13 +999,37 @@ fun BillSummaryScreen(
                             ) {
                                 Text(
                                     text = formatter.format(Date(startMillis)),
-                                    color = AccentCyan,
+                                    color = AppAccentColor(),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Icon(Icons.Default.CalendarToday, contentDescription = "Start", tint = AccentCyan, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.CalendarToday, contentDescription = "Start", tint = AppAccentColor(), modifier = Modifier.size(14.dp))
                             }
                         }
+
+                        IconButton(
+                            onClick = {
+                                val temp = startMillis
+                                startMillis = endMillis
+                                endMillis = temp
+                                viewModel.setCalculationDateRange(startMillis, endMillis)
+                            },
+                            modifier = Modifier
+                                .padding(top = 16.dp)
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AppAccentColor().copy(alpha = 0.12f))
+                                .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = "Swap Dates",
+                                tint = AppAccentColor(),
+                                modifier = Modifier.size(20.dp).rotate(90f)
+                            )
+                        }
+
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -772,11 +1052,11 @@ fun BillSummaryScreen(
                             ) {
                                 Text(
                                     text = formatter.format(Date(endMillis)),
-                                    color = AccentCyan,
+                                    color = AppAccentColor(),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Icon(Icons.Default.CalendarToday, contentDescription = "End", tint = AccentCyan, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.CalendarToday, contentDescription = "End", tint = AppAccentColor(), modifier = Modifier.size(14.dp))
                             }
                         }
                     }
@@ -809,8 +1089,8 @@ fun BillSummaryScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Text(
-                        text = String.format(Locale.getDefault(), "%s %.2f", currency, successState.currentProjectedBill),
-                        color = AccentCyan,
+                        text = String.format(Locale.getDefault(), "%s %.2f", currency, currentCalculation.totalCost),
+                        color = AppAccentColor(),
                         fontSize = 38.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -832,7 +1112,7 @@ fun BillSummaryScreen(
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = "${successState.totalUnitsConsumedInRange} kWh",
+                                text = String.format(Locale.getDefault(), "%.2f kWh", currentCalculation.totalUnits),
                                 color = AppTextColor(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
@@ -845,11 +1125,19 @@ fun BillSummaryScreen(
                                 color = AppSecondaryTextColor(),
                                 fontSize = 11.sp
                             )
-                            val activeRate = successState.rates.maxByOrNull { it.effectiveDate }?.ratePerUnit ?: 0.0
+                            val activeRates = currentCalculation.activeRates
+                            val rateDisplay = if (activeRates.isEmpty()) {
+                                val latest = successState.rates.maxByOrNull { it.effectiveDate }?.ratePerUnit ?: 0.0
+                                String.format(Locale.getDefault(), "%s %.2f", currency, latest)
+                            } else if (activeRates.size == 1) {
+                                String.format(Locale.getDefault(), "%s %.2f", currency, activeRates.first())
+                            } else {
+                                activeRates.joinToString(", ") { String.format(Locale.getDefault(), "%s %.2f", currency, it) }
+                            }
                             Text(
-                                text = String.format(Locale.getDefault(), "%s %.2f", currency, activeRate),
+                                text = rateDisplay,
                                 color = AppTextColor(),
-                                fontSize = 14.sp,
+                                fontSize = if (activeRates.size > 1) 12.sp else 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -861,7 +1149,7 @@ fun BillSummaryScreen(
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = String.format(Locale.getDefault(), "%s %.0f", currency, fixedCharge),
+                                text = String.format(Locale.getDefault(), "%s %.2f", currency, fixedCharge),
                                 color = AppTextColor(),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
@@ -869,22 +1157,60 @@ fun BillSummaryScreen(
                         }
                     }
 
+                    if (currentCalculation.breakdown.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AppTextColor().copy(alpha = 0.04f))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (language == "bn") "রেট অনুযায়ী বিভাজন:" else "Rate-wise Consumption Breakdown:",
+                                color = AppSecondaryTextColor(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            currentCalculation.breakdown.forEach { item ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${formatter.format(Date(item.periodStart))} - ${formatter.format(Date(item.periodEnd))}: ${String.format(Locale.getDefault(), "%.2f", item.units)} kWh @ ${String.format(Locale.getDefault(), "%s %.2f", currency, item.ratePerUnit)}",
+                                        color = AppTextColor(),
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        text = String.format(Locale.getDefault(), "%s %.2f", currency, item.cost),
+                                        color = AppAccentColor(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(18.dp))
 
                     Button(
                         onClick = { showGenerateBillDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, AccentCyan),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor().copy(alpha = 0.2f)),
+                        border = BorderStroke(1.dp, AppAccentColor()),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .bounceClick()
                     ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = "Generate", tint = AccentCyan)
+                        Icon(Icons.Default.ReceiptLong, contentDescription = "Generate", tint = AppAccentColor())
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (language == "bn") "বিল চূড়ান্ত করুন" else "Finalize & Record Bill",
-                            color = AccentCyan,
+                            color = AppAccentColor(),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -896,20 +1222,20 @@ fun BillSummaryScreen(
         item {
             Text(
                 text = if (language == "bn") "পরিশোধিত বিলের ইতিহাস" else "Paid Bill History",
-                color = AppTextColor(),
+                color = AppHeadingColor(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp)
             )
         }
 
-        val paidBills = successState.bills.filter { it.isPaid }
-        if (paidBills.isEmpty()) {
-            item {
+        if (paidBillDisplayItems.isEmpty()) {
+            item(key = "empty_paid_bills") {
                 EmptyStateCard(message = if (language == "bn") "কোনো পরিশোধিত বিল নেই।" else "No paid bill records found.")
             }
         } else {
-            items(paidBills, key = { it.id }) { bill ->
+            items(visiblePaidBillItems.value, key = { it.id }, contentType = { "paid_bill_item" }) { item ->
+                val bill = item.bill
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier
@@ -923,25 +1249,21 @@ fun BillSummaryScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = String.format(Locale.getDefault(), "%s %.2f", currency, bill.calculatedAmount),
-                                    color = AccentCyan,
+                                    text = item.formattedAmount,
+                                    color = AppPrimaryBlueColor(),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${bill.totalUnits} Units (${formatter.format(Date(bill.startDate))} - ${formatter.format(Date(bill.endDate))})",
+                                    text = item.formattedSubtitle,
                                     color = AppSecondaryTextColor(),
                                     fontSize = 11.sp
                                 )
                             }
 
-                            val statusBg = if (bill.isPaid) Color(0x3300FF87) else AccentPink.copy(alpha = 0.2f)
-                            val statusBorder = if (bill.isPaid) Color(0xFF00FF87) else AccentPink
-                            val statusText = if (bill.isPaid) {
-                                if (language == "bn") "পরিশোধিত" else "PAID"
-                            } else {
-                                if (language == "bn") "বকেয়া" else "UNPAID"
-                            }
+                            val statusBg = AppPaidBgColor()
+                            val statusBorder = AppPaidBorderColor()
+                            val statusTextColor = AppPaidTextColor()
 
                             Box(
                                 modifier = Modifier
@@ -949,13 +1271,43 @@ fun BillSummaryScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .border(1.dp, statusBorder, RoundedCornerShape(6.dp))
                                     .background(statusBg, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        billToEditStatus = bill
+                                        editingStatusIsPaid = !bill.isPaid
+                                        editingStatusNote = bill.note
+                                    }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = statusText,
-                                    color = if (bill.isPaid) Color(0xFF00FF87) else AccentPink,
+                                    text = item.statusText,
+                                    color = statusTextColor,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        if (bill.note.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppTextColor().copy(alpha = 0.04f))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = AppAccentColor().copy(alpha = 0.8f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = bill.note,
+                                    color = AppTextColor(),
+                                    fontSize = 11.sp
                                 )
                             }
                         }
@@ -992,11 +1344,23 @@ fun BillSummaryScreen(
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (bill.isPaid) "Mark as Unpaid" else "Mark as Paid", color = AppTextColor()) },
-                                        leadingIcon = { Icon(if (bill.isPaid) Icons.Default.Close else Icons.Default.Check, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp)) },
+                                        text = { Text(if (bill.isPaid) "Mark as Unpaid & Note" else "Mark as Paid & Note", color = AppTextColor()) },
+                                        leadingIcon = { Icon(if (bill.isPaid) Icons.Default.Close else Icons.Default.Check, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
                                         onClick = {
                                             showBillMenu = false
-                                            viewModel.toggleBillPayment(bill)
+                                            billToEditStatus = bill
+                                            editingStatusIsPaid = !bill.isPaid
+                                            editingStatusNote = bill.note
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (language == "bn") "নোট সম্পাদনা" else "Edit Note / Status", color = AppTextColor()) },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            showBillMenu = false
+                                            billToEditStatus = bill
+                                            editingStatusIsPaid = bill.isPaid
+                                            editingStatusNote = bill.note
                                         }
                                     )
                                     DropdownMenuItem(
@@ -1009,6 +1373,39 @@ fun BillSummaryScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            if (paidBillDisplayItems.size > 4) {
+                item(key = "toggle_view_all_paid_bills") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TextButton(
+                            onClick = { showAllPaidBills = !showAllPaidBills },
+                            colors = ButtonDefaults.textButtonColors(contentColor = AppAccentColor()),
+                            modifier = Modifier.bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = if (showAllPaidBills) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (showAllPaidBills) {
+                                    if (language == "bn") "কম দেখান" else "Show Less"
+                                } else {
+                                    if (language == "bn") "সব দেখুন (${paidBillDisplayItems.size} টি বিল)" else "View All (${paidBillDisplayItems.size} items)"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 }
@@ -1046,6 +1443,7 @@ fun BillSummaryScreen(
         var isPaidSelected by remember { mutableStateOf(false) }
         var dueDateMillis by remember { mutableStateOf(System.currentTimeMillis() + 10 * 24 * 60 * 60 * 1000L) }
         var showDueDatePicker by remember { mutableStateOf(false) }
+        var billNote by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showGenerateBillDialog = false },
@@ -1081,14 +1479,14 @@ fun BillSummaryScreen(
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "${if (language == "bn") "মোট ইউনিট:" else "Total Units:"} ${successState.totalUnitsConsumedInRange} kWh",
+                            text = "${if (language == "bn") "মোট ইউনিট:" else "Total Units:"} ${String.format(Locale.getDefault(), "%.2f", currentCalculation.totalUnits)} kWh",
                             color = AppTextColor(),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${if (language == "bn") "মোট বিল:" else "Bill Amount:"} $currency ${successState.currentProjectedBill}",
-                            color = AccentCyan,
+                            text = "${if (language == "bn") "মোট বিল:" else "Bill Amount:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, currentCalculation.totalCost)}",
+                            color = AppAccentColor(),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1111,7 +1509,7 @@ fun BillSummaryScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(if (language == "bn") "বিল পরিশোধের শেষ সময়:" else "Due Date:", color = AppSecondaryTextColor(), fontSize = 12.sp)
-                        Text(formatter.format(Date(dueDateMillis)), color = AccentCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(formatter.format(Date(dueDateMillis)), color = AppAccentColor(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Row(
@@ -1132,6 +1530,24 @@ fun BillSummaryScreen(
                             inactiveText = "UNPAID"
                         )
                     }
+
+                    OutlinedTextField(
+                        value = billNote,
+                        onValueChange = { billNote = it },
+                        label = { Text(if (language == "bn") "অতিরিক্ত নোট (ঐচ্ছিক)" else "Extra Notes (Optional)", color = AppSecondaryTextColor()) },
+                        placeholder = { Text(if (language == "bn") "যেমন: মে মাসের বিল পরিশোধ..." else "e.g. Paid via UPI, Ref #1234...", color = AppSecondaryTextColor().copy(alpha = 0.5f)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedBorderColor = AppAccentColor(),
+                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.2f),
+                            cursorColor = AppAccentColor()
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = false,
+                        maxLines = 3
+                    )
                 }
             },
             confirmButton = {
@@ -1140,15 +1556,16 @@ fun BillSummaryScreen(
                         viewModel.insertUtilityBill(
                             startDate = startMillis,
                             endDate = endMillis,
-                            totalUnits = successState.totalUnitsConsumedInRange,
-                            amount = successState.currentProjectedBill,
+                            totalUnits = currentCalculation.totalUnits,
+                            amount = currentCalculation.totalCost,
                             dueDate = dueDateMillis,
-                            isPaid = isPaidSelected
+                            isPaid = isPaidSelected,
+                            note = billNote
                         )
                         showGenerateBillDialog = false
                     }
                 ) {
-                    Text(if (language == "bn") "নিশ্চিত" else "Confirm", color = AccentCyan, fontWeight = FontWeight.Bold)
+                    Text(if (language == "bn") "নিশ্চিত" else "Confirm", color = AppAccentColor(), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

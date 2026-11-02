@@ -4,6 +4,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.ImeAction
 import java.util.Locale
@@ -43,6 +45,10 @@ import java.util.Locale
 val LocalAppTheme = compositionLocalOf { "Auto" }
 val LocalAppBgPreset = compositionLocalOf { "Default" }
 val LocalAppCustomBgUri = compositionLocalOf { "" }
+val LocalAppLiquidGlassTheme = compositionLocalOf { false }
+
+@Composable
+fun isLiquidGlassEnabled(): Boolean = LocalAppLiquidGlassTheme.current
 
 // Glassmorphism design tokens
 val GlassBackground = Color(0x26FFFFFF)
@@ -81,25 +87,97 @@ val SoftMinimalLightGradient = Brush.verticalGradient(listOf(Color(0xFFF8FAFC), 
 
 @Composable
 fun isAppLightMode(): Boolean {
+    val isGlass = isLiquidGlassEnabled()
+    val themeMode = LocalAppTheme.current
+    if (!isGlass) {
+        return if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
+    }
     val bgPreset = LocalAppBgPreset.current
     return when (bgPreset) {
         "Soft Minimal Light" -> true
         "Midnight Blue", "Emerald Dark", "Sunset Warm", "Purple Twilight" -> false
         else -> {
-            val themeMode = LocalAppTheme.current
             if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
         }
     }
 }
 
+fun getOnColorForBackground(bg: Color): Color {
+    return if (bg.luminance() > 0.45f) Color(0xFF0F172A) else Color.White
+}
+
+@Composable
+fun AppOnAccentColor(accent: Color = AppAccentColor()): Color {
+    return remember(accent) { getOnColorForBackground(accent) }
+}
+
+@Composable
+fun AppAccentColor(): Color {
+    val bgPreset = LocalAppBgPreset.current
+    val isGlass = isLiquidGlassEnabled()
+    val isLight = isAppLightMode()
+    return remember(bgPreset, isGlass, isLight) {
+        com.example.ui.theme.getAppAccentColor(bgPreset, isGlass, isLight)
+    }
+}
+
 @Composable
 fun AppTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF000000) else Color(0xFFFFFFFF)
+    return if (isAppLightMode()) Color(0xFF0F172A) else Color(0xFFFFFFFF)
 }
 
 @Composable
 fun AppSecondaryTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+    return if (isAppLightMode()) Color(0xFF475569) else Color(0xFFCBD5E1)
+}
+
+@Composable
+fun AppTertiaryTextColor(): Color {
+    return if (isAppLightMode()) Color(0xFF64748B) else Color(0xFF94A3B8)
+}
+
+@Composable
+fun AppHeadingColor(): Color {
+    return if (!isLiquidGlassEnabled()) {
+        if (isAppLightMode()) Color(0xFF0F172A) else Color(0xFFFFFFFF)
+    } else {
+        if (isAppLightMode()) com.example.ui.theme.HighContrastHeadingLight else AppAccentColor()
+    }
+}
+
+@Composable
+fun AppPrimaryBlueColor(): Color {
+    return AppAccentColor()
+}
+
+@Composable
+fun AppPaidTextColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastPaidTextLight else com.example.ui.theme.HighContrastPaidTextDark
+}
+
+@Composable
+fun AppPaidBgColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastPaidBgLight else com.example.ui.theme.HighContrastPaidBgDark
+}
+
+@Composable
+fun AppPaidBorderColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastPaidBorderLight else com.example.ui.theme.HighContrastPaidBorderDark
+}
+
+@Composable
+fun AppUnpaidTextColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastUnpaidTextLight else com.example.ui.theme.HighContrastUnpaidTextDark
+}
+
+@Composable
+fun AppUnpaidBgColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastUnpaidBgLight else com.example.ui.theme.HighContrastUnpaidBgDark
+}
+
+@Composable
+fun AppUnpaidBorderColor(): Color {
+    return if (isAppLightMode()) com.example.ui.theme.HighContrastUnpaidBorderLight else com.example.ui.theme.HighContrastUnpaidBorderDark
 }
 
 @Composable
@@ -107,6 +185,10 @@ fun getAppBackgroundGradient(
     themeMode: String = LocalAppTheme.current,
     bgPreset: String = LocalAppBgPreset.current
 ): Brush {
+    if (!isLiquidGlassEnabled()) {
+        val isLight = if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
+        return SolidColor(if (isLight) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark)
+    }
     return when (bgPreset) {
         "Midnight Blue" -> MidnightBlueGradient
         "Emerald Dark" -> EmeraldDarkGradient
@@ -122,32 +204,82 @@ fun getAppBackgroundGradient(
 
 @Composable
 fun getDialogBackground(): Color {
-    return if (isAppLightMode()) Color(0xFFFFFFFF) else Color(0xFF121620)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    }
+    val bgPreset = LocalAppBgPreset.current
+    return when (bgPreset) {
+        "Emerald Dark" -> Color(0xFF042F2E).copy(alpha = 0.98f)
+        "Midnight Blue" -> Color(0xFF0F172A).copy(alpha = 0.98f)
+        "Sunset Warm" -> Color(0xFF2B1104).copy(alpha = 0.98f)
+        "Purple Twilight" -> Color(0xFF1B0A33).copy(alpha = 0.98f)
+        "Soft Minimal Light" -> Color(0xFFFFFFFF).copy(alpha = 0.98f)
+        else -> if (isAppLightMode()) Color(0xFFF8FAFC).copy(alpha = 0.96f) else Color(0xFF121620).copy(alpha = 0.96f)
+    }
 }
 
 @Composable
 fun getSettingsItemBg(): Color {
-    return if (isAppLightMode()) Color(0xFFF1F5F9) else Color(0xFF1A2234)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    }
+    val bgPreset = LocalAppBgPreset.current
+    return when (bgPreset) {
+        "Emerald Dark" -> Color(0xFF064E3B).copy(alpha = 0.45f)
+        "Midnight Blue" -> Color(0xFF1E293B).copy(alpha = 0.50f)
+        "Sunset Warm" -> Color(0xFF451A03).copy(alpha = 0.45f)
+        "Purple Twilight" -> Color(0xFF2E1065).copy(alpha = 0.45f)
+        "Soft Minimal Light" -> Color.White.copy(alpha = 0.65f)
+        else -> if (isAppLightMode()) Color.White.copy(alpha = 0.45f) else Color(0xFF1A2234).copy(alpha = 0.50f)
+    }
 }
 
 @Composable
 fun getSettingsItemBorder(): Color {
-    return if (isAppLightMode()) Color(0xFFCBD5E1) else Color(0xFF2A364F)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    }
+    val bgPreset = LocalAppBgPreset.current
+    return when (bgPreset) {
+        "Emerald Dark" -> Color(0xFF0F766E).copy(alpha = 0.50f)
+        "Midnight Blue" -> Color(0xFF0284C7).copy(alpha = 0.40f)
+        "Sunset Warm" -> Color(0xFF9A3412).copy(alpha = 0.40f)
+        "Purple Twilight" -> Color(0xFF7E22CE).copy(alpha = 0.40f)
+        "Soft Minimal Light" -> Color.Black.copy(alpha = 0.08f)
+        else -> if (isAppLightMode()) Color.Black.copy(alpha = 0.10f) else Color(0xFF2A364F).copy(alpha = 0.60f)
+    }
 }
 
 @Composable
 fun getCardBackground(): Color {
-    return if (isAppLightMode()) Color(0xFFF1F5F9) else Color(0xFF1E1E1E)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    }
+    val bgPreset = LocalAppBgPreset.current
+    return when (bgPreset) {
+        "Emerald Dark" -> Color(0xFF042F2E).copy(alpha = 0.60f)
+        "Midnight Blue" -> Color(0xFF0F172A).copy(alpha = 0.60f)
+        "Sunset Warm" -> Color(0xFF2B1104).copy(alpha = 0.60f)
+        "Purple Twilight" -> Color(0xFF1B0A33).copy(alpha = 0.60f)
+        "Soft Minimal Light" -> Color.White.copy(alpha = 0.65f)
+        else -> if (isAppLightMode()) Color.White.copy(alpha = 0.50f) else Color(0xFF161B26).copy(alpha = 0.60f)
+    }
 }
 
 @Composable
 fun getGlassBorder(): Color {
-    return if (isAppLightMode()) Color(0x40000000) else Color(0x33FFFFFF)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) Color(0x1F000000) else com.example.ui.theme.M3OutlineDark
+    }
+    return if (isAppLightMode()) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
 }
 
 @Composable
 fun getGlassIconButtonBg(): Color {
-    return if (isAppLightMode()) Color(0x1A000000) else Color(0x33FFFFFF)
+    if (!isLiquidGlassEnabled()) {
+        return if (isAppLightMode()) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    }
+    return if (isAppLightMode()) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.12f)
 }
 
 @Composable
@@ -160,41 +292,60 @@ fun GlassCard(
     content: @Composable () -> Unit
 ) {
     val isLight = isAppLightMode()
-    val bgColors = if (isLight) {
-        listOf(
-            Color.White.copy(alpha = (0.94f * containerAlpha).coerceIn(0f, 1f)),
-            Color.White.copy(alpha = (0.88f * containerAlpha).coerceIn(0f, 1f))
-        )
-    } else {
-        val baseDark1 = Color(0xFF181818).copy(alpha = (0.90f * containerAlpha).coerceIn(0f, 1f))
-        val baseDark2 = Color(0xFF101010).copy(alpha = (0.85f * containerAlpha).coerceIn(0f, 1f))
-        listOf(baseDark1, baseDark2)
-    }
-    val borderColors = if (isLight) {
-        listOf(Color(0xFFFFFFFF), Color(0x4D000000))
-    } else {
-        listOf(GlassBorderTop, GlassBorderBottom)
-    }
+    val isGlass = isLiquidGlassEnabled()
 
-    Box(
-        modifier = modifier
-            .slideInOnScroll()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .background(
-                brush = Brush.verticalGradient(colors = bgColors),
-                shape = RoundedCornerShape(cornerRadius)
+    if (!isGlass) {
+        val shape = RoundedCornerShape(cornerRadius)
+        val cardBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+        val borderWidth = if (isLight) 1.5.dp else 1.dp
+        val cardBorder = border ?: BorderStroke(borderWidth, if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark)
+        Box(
+            modifier = modifier
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .background(cardBg, shape)
+                .border(cardBorder, shape)
+                .clip(shape)
+        ) {
+            content()
+        }
+    } else {
+        val shape = RoundedCornerShape(cornerRadius)
+        val bgColors = if (isLight) {
+            listOf(
+                Color.White.copy(alpha = (0.55f * containerAlpha).coerceIn(0.1f, 0.85f)),
+                Color.White.copy(alpha = (0.40f * containerAlpha).coerceIn(0.08f, 0.75f))
             )
-            .then(
-                if (border != null) Modifier.border(border, RoundedCornerShape(cornerRadius))
-                else Modifier.border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(colors = borderColors),
-                    shape = RoundedCornerShape(cornerRadius)
+        } else {
+            listOf(
+                Color(0xFF1E2433).copy(alpha = (0.65f * containerAlpha).coerceIn(0.1f, 0.85f)),
+                Color(0xFF141824).copy(alpha = (0.55f * containerAlpha).coerceIn(0.08f, 0.75f))
+            )
+        }
+        val borderColors = if (isLight) {
+            listOf(Color.White.copy(alpha = 0.85f), Color.White.copy(alpha = 0.40f))
+        } else {
+            listOf(GlassBorderTop, GlassBorderBottom)
+        }
+
+        Box(
+            modifier = modifier
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .background(
+                    brush = Brush.verticalGradient(colors = bgColors),
+                    shape = shape
                 )
-            )
-            .clip(RoundedCornerShape(cornerRadius))
-    ) {
-        content()
+                .then(
+                    if (border != null) Modifier.border(border, shape)
+                    else Modifier.border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(colors = borderColors),
+                        shape = shape
+                    )
+                )
+                .clip(shape)
+        ) {
+            content()
+        }
     }
 }
 
@@ -207,61 +358,56 @@ fun GlassButton(
     borderBrush: Brush? = null,
     content: @Composable RowScope.() -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .bounceClick()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = if (isAppLightMode()) listOf(Color(0xE6FFFFFF), Color(0xB3FFFFFF))
-                             else listOf(Color(0x3DFFFFFF), Color(0x18FFFFFF))
-                ),
-                shape = RoundedCornerShape(cornerRadius)
-            )
-            .border(
-                width = 1.dp,
-                brush = borderBrush ?: Brush.verticalGradient(
-                    colors = if (isAppLightMode()) listOf(Color(0xFFFFFFFF), Color(0x26000000))
-                             else listOf(GlassBorderTop, GlassBorderBottom)
-                ),
-                shape = RoundedCornerShape(cornerRadius)
-            )
-            .clip(RoundedCornerShape(cornerRadius))
-            .clickable(onClick = onClick)
-            .padding(contentPadding),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-        content = content
-    )
+    val isLight = isAppLightMode()
+    val isGlass = isLiquidGlassEnabled()
+    val shape = RoundedCornerShape(cornerRadius)
+
+    if (!isGlass) {
+        val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+        val buttonBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+        val borderWidth = if (isLight) 1.5.dp else 1.dp
+        Row(
+            modifier = modifier
+                .bounceClick()
+                .background(buttonBg, shape)
+                .border(borderWidth, buttonBorder, shape)
+                .clip(shape)
+                .clickable(onClick = onClick)
+                .padding(contentPadding),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+    } else {
+        Row(
+            modifier = modifier
+                .bounceClick()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = if (isLight) listOf(Color(0xE6FFFFFF), Color(0xB3FFFFFF))
+                                 else listOf(Color(0x3DFFFFFF), Color(0x18FFFFFF))
+                    ),
+                    shape = shape
+                )
+                .border(
+                    width = 1.dp,
+                    brush = borderBrush ?: Brush.verticalGradient(
+                        colors = if (isLight) listOf(Color(0xFFFFFFFF), Color(0x26000000))
+                                 else listOf(GlassBorderTop, GlassBorderBottom)
+                    ),
+                    shape = shape
+                )
+                .clip(shape)
+                .clickable(onClick = onClick)
+                .padding(contentPadding),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+    }
 }
 
-fun Modifier.bounceClick(): Modifier = composed {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
-        label = "bounce"
-    )
-    val view = androidx.compose.ui.platform.LocalView.current
-    this
-        .graphicsLayer(scaleX = scale, scaleY = scale)
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
-                    val anyPressed = event.changes.any { it.pressed }
-                    if (anyPressed != isPressed) {
-                        isPressed = anyPressed
-                        if (isPressed) {
-                            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-                        }
-                    }
-                }
-            }
-        }
-}
+fun Modifier.bounceClick(scaleDown: Float = 0.96f): Modifier = this
 
 @Composable
 fun AttachmentActionChip(
@@ -307,7 +453,7 @@ fun EmptyStateCard(message: String) {
                 imageVector = Icons.Default.Inbox,
                 contentDescription = null,
                 modifier = Modifier.size(52.dp),
-                tint = AccentCyan
+                tint = AppAccentColor()
             )
             Spacer(modifier = Modifier.height(14.dp))
             Text(
@@ -346,17 +492,20 @@ fun GlassTextField(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLight = isAppLightMode()
+    val isGlass = isLiquidGlassEnabled()
     
-    val bgColor = if (isLight) {
-        Color.Black.copy(alpha = 0.03f)
+    val bgColor = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
     } else {
-        Color.White.copy(alpha = 0.05f)
+        if (isLight) Color.Black.copy(alpha = 0.03f) else Color.White.copy(alpha = 0.05f)
     }
     
-    val borderBrush = if (isError) {
+    val borderBrush: Brush = if (isError) {
         SolidColor(AccentPink)
     } else if (isFocused) {
-        Brush.sweepGradient(listOf(AccentCyan, AccentCyan.copy(alpha = 0.6f)))
+        SolidColor(AppAccentColor())
+    } else if (!isGlass) {
+        SolidColor(if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineVariantDark)
     } else {
         Brush.verticalGradient(
             colors = if (isLight) listOf(Color(0x33000000), Color(0x13000000))
@@ -364,7 +513,7 @@ fun GlassTextField(
         )
     }
     
-    val borderWidth = if (isError || isFocused) 1.5.dp else 1.dp
+    val borderWidth = if (isError || isFocused || (isLight && !isGlass)) 1.5.dp else 1.dp
     
     Column(modifier = modifier) {
         if (label != null) {
@@ -450,19 +599,34 @@ fun ConfirmDeleteDialog(
     onDismiss: () -> Unit
 ) {
     var typedText by remember { mutableStateOf("") }
-    val isConfirmed = typedText.equals("delete", ignoreCase = true) || typedText.equals("delete", ignoreCase = true)
+    val isConfirmed = typedText.equals("delete", ignoreCase = true)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (true) "Critical Delete" else "Confirm Delete") },
+        containerColor = getDialogBackground(),
+        titleContentColor = AppTextColor(),
+        textContentColor = AppTextColor(),
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Confirm Delete",
+                fontWeight = FontWeight.Bold,
+                color = AppTextColor()
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Are you sure you want to delete '$itemName'? It will be moved to the Recycle Bin.")
-                if (true) {
-                    Text("Type 'delete' below to confirm.", color = AccentPink)
-                    OutlinedTextField(
+                Text(
+                    text = "Are you sure you want to delete '$itemName'? It will be moved to the Recycle Bin.",
+                    color = AppTextColor()
+                )
+                if (requireTypedConfirmation) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Type 'delete' below to confirm.", color = AccentPink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    GlassTextField(
                         value = typedText,
                         onValueChange = { typedText = it },
+                        placeholder = { Text("type 'delete'") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -472,20 +636,27 @@ fun ConfirmDeleteDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (isConfirmed) {
+                    if (isConfirmed || !requireTypedConfirmation) {
                         onConfirm()
                         onDismiss()
                     }
                 },
-                enabled = isConfirmed,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPink)
+                enabled = isConfirmed || !requireTypedConfirmation,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentPink,
+                    disabledContainerColor = AccentPink.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Delete", color = Color.White)
+                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel", color = AppSecondaryTextColor())
             }
         }
     )
@@ -509,6 +680,7 @@ fun FullScreenQRPreviewDialog(
             decorFitsSystemWindows = false
         )
     ) {
+        com.example.ui.components.DialogEdgeToEdge()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -596,3 +768,180 @@ fun FullScreenQRPreviewDialog(
         }
     }
 }
+
+fun copyUriToPersistentFile(context: android.content.Context, uri: android.net.Uri, prefix: String = "QR"): String {
+    try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return uri.toString()
+        val file = java.io.File(context.filesDir, "${prefix}_${System.currentTimeMillis()}.png")
+        java.io.FileOutputStream(file).use { outputStream ->
+            inputStream.copyTo(outputStream)
+        }
+        inputStream.close()
+        return android.net.Uri.fromFile(file).toString()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return uri.toString()
+    }
+}
+
+fun formatIndianNumbering(number: Long): String {
+    val str = number.toString()
+    if (str.length <= 3) return str
+    val lastThree = str.takeLast(3)
+    val remaining = str.dropLast(3)
+    val sb = StringBuilder()
+    var count = 0
+    for (i in remaining.length - 1 downTo 0) {
+        if (count == 2) {
+            sb.append(',')
+            count = 0
+        }
+        sb.append(remaining[i])
+        count++
+    }
+    return sb.reverse().append(',').append(lastThree).toString()
+}
+
+fun formatCurrency(amount: Double): String {
+    val isNegative = amount < 0
+    val absAmount = kotlin.math.abs(amount)
+    val integerPart = absAmount.toLong()
+    val decimalPart = kotlin.math.round((absAmount - integerPart) * 100).toLong()
+    
+    val formattedInteger = formatIndianNumbering(integerPart)
+    val formattedDecimal = String.format(java.util.Locale.US, "%02d", decimalPart)
+    val sign = if (isNegative) "-" else ""
+    return "$sign₹$formattedInteger.$formattedDecimal"
+}
+
+fun formatAmount(amount: Double): String {
+    val isNegative = amount < 0
+    val absAmount = kotlin.math.abs(amount)
+    val integerPart = absAmount.toLong()
+    val decimalPart = kotlin.math.round((absAmount - integerPart) * 100).toLong()
+    
+    val formattedInteger = formatIndianNumbering(integerPart)
+    val sign = if (isNegative) "-" else ""
+    return if (decimalPart > 0) {
+        val formattedDecimal = String.format(java.util.Locale.US, "%02d", decimalPart)
+        "$sign$formattedInteger.$formattedDecimal"
+    } else {
+        "$sign$formattedInteger"
+    }
+}
+
+@Composable
+fun M3Button(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(12.dp),
+    containerColor: Color = AppAccentColor(),
+    contentColor: Color = AppOnAccentColor(containerColor),
+    colors: ButtonColors = ButtonDefaults.buttonColors(
+        containerColor = containerColor,
+        contentColor = contentColor,
+        disabledContainerColor = containerColor.copy(alpha = 0.38f),
+        disabledContentColor = contentColor.copy(alpha = 0.38f)
+    ),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    content: @Composable RowScope.() -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.bounceClick(),
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        contentPadding = contentPadding,
+        content = content
+    )
+}
+
+@Composable
+fun M3OutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(12.dp),
+    border: BorderStroke = BorderStroke(
+        width = 1.5.dp,
+        color = if (isAppLightMode()) com.example.ui.theme.M3OutlineLight else AppAccentColor()
+    ),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    content: @Composable RowScope.() -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.bounceClick(),
+        enabled = enabled,
+        shape = shape,
+        border = border,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = if (isAppLightMode()) Color(0xFF191C1E) else AppAccentColor()
+        ),
+        contentPadding = contentPadding,
+        content = content
+    )
+}
+
+@Composable
+fun M3Card(
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp),
+    border: BorderStroke? = null,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    val isLight = isAppLightMode()
+    val isGlass = isLiquidGlassEnabled()
+    val effectiveBorder = border ?: if (!isGlass && isLight) {
+        BorderStroke(1.5.dp, com.example.ui.theme.M3OutlineLight)
+    } else if (!isGlass) {
+        BorderStroke(1.dp, com.example.ui.theme.M3OutlineDark)
+    } else null
+
+    GlassCard(
+        modifier = modifier,
+        cornerRadius = 16.dp,
+        border = effectiveBorder,
+        onClick = onClick,
+        content = content
+    )
+}
+
+@Composable
+fun M3Chip(
+    label: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    selected: Boolean = false,
+    onClick: () -> Unit
+) {
+    val isLight = isAppLightMode()
+    val accent = AppAccentColor()
+    val bgColor = if (selected) accent.copy(alpha = 0.18f) else if (isLight) Color(0xFFF1F5F9) else Color(0xFF252525)
+    val borderColor = if (selected) accent else if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    val borderWidth = if (isLight || selected) 1.5.dp else 1.dp
+    val textColor = if (selected) accent else AppTextColor()
+
+    Box(
+        modifier = modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(bgColor)
+            .border(borderWidth, borderColor, RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, null, tint = textColor, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(label, color = textColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+

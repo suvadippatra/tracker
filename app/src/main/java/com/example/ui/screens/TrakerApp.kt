@@ -1,7 +1,11 @@
 package com.example.ui.screens
 import com.example.ui.components.*
+import com.example.ui.screens.accounts.AccountManagerScreen
+import com.example.ui.screens.accounts.AccountEditorScreen
+import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.components.SlidingDatePickerModal
 import com.example.ui.components.InlineDatePicker
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.Canvas
 import kotlin.random.Random
 import androidx.compose.ui.graphics.Color
@@ -108,7 +112,7 @@ fun GlassSwitch(
                 .fillMaxHeight()
                 .background(
                     brush = if (checked) {
-                        Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF00E676)))
+                        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
                     } else {
                         if (isLight) Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xE6FFFFFF)))
                         else Brush.linearGradient(listOf(Color(0x33FFFFFF), getGlassIconButtonBg()))
@@ -141,29 +145,17 @@ fun GlassSwitch(
 
 @Composable
 fun MovingStarsBackground(isLight: Boolean) {
-    val starCount = if (isLight) 25 else 45
-    val starColor = if (isLight) Color.White.copy(alpha = 1.0f) else Color.White.copy(alpha = 0.4f)
-    val shadowColor = Color.Black.copy(alpha = 0.15f)
-    
-    // Instead of instantiating 50 animations which might be heavy, we'll animate a global time value
-    val infiniteTransition = rememberInfiniteTransition(label = "stars")
-    val globalTime by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(100000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "time"
-    )
+    val starCount = if (isLight) 20 else 32
+    val starColor = if (isLight) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.35f)
+    val shadowColor = Color.Black.copy(alpha = 0.10f)
 
     val stars = remember(isLight) {
         List(starCount) {
             Star(
                 x = Random.nextFloat(),
                 y = Random.nextFloat(),
-                size = Random.nextFloat() * 3f + 1f,
-                speed = Random.nextFloat() * 0.5f + 0.1f
+                size = Random.nextFloat() * 2.2f + 1f,
+                speed = Random.nextFloat() * 0.4f + 0.1f
             )
         }
     }
@@ -171,16 +163,14 @@ fun MovingStarsBackground(isLight: Boolean) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
 
-        for (star in stars) {
-            // Calculate new Y position
-            val currentY = (star.y * h - globalTime * star.speed * 50f) % h
-            val y = if (currentY < 0) currentY + h else currentY
+        for (i in stars.indices) {
+            val star = stars[i]
             val x = star.x * w
+            val y = star.y * h
+            val twinkle = (0.75f + 0.25f * star.speed)
 
-            // Add a subtle twinkle effect
-            val twinkle = kotlin.math.sin(globalTime * 0.1f * star.speed + star.x * 10f).toFloat() * 0.5f + 0.5f
-            
             if (isLight) {
                 drawCircle(
                     color = shadowColor.copy(alpha = shadowColor.alpha * twinkle),
@@ -209,7 +199,16 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     var isUnlocked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var initialLockChecked by remember { mutableStateOf(false) }
 
-    val isLight = if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
+    val isGlass = userProfile.enableLiquidGlassTheme
+    val isLight = if (!isGlass) {
+        if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
+    } else {
+        when (userProfile.bgPreset) {
+            "Soft Minimal Light" -> true
+            "Midnight Blue", "Emerald Dark", "Sunset Warm", "Purple Twilight" -> false
+            else -> if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
+        }
+    }
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
         androidx.compose.runtime.SideEffect {
@@ -220,8 +219,12 @@ fun TrakerApp(viewModel: FinancialViewModel) {
             }
             if (context is android.app.Activity) {
                 val window = context.window
-                androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLight
-                androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = isLight
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+                val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.isAppearanceLightStatusBars = isLight
+                insetsController.isAppearanceLightNavigationBars = isLight
             }
         }
     }
@@ -252,62 +255,159 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         LocalAppTheme provides userProfile.themeMode,
         LocalAppBgPreset provides userProfile.bgPreset,
         LocalAppCustomBgUri provides userProfile.customBgUri,
+        LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme,
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
             fontScale = customFontScale
         )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient())
+        MyApplicationTheme(
+            darkTheme = !isAppLightMode(),
+            preset = userProfile.bgPreset,
+            isLiquidGlass = userProfile.enableLiquidGlassTheme
         ) {
-            if (userProfile.customBgUri.isNotBlank()) {
-                coil.compose.AsyncImage(
-                    model = userProfile.customBgUri,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            if (isAppLightMode()) Color.White.copy(alpha = 0.40f)
-                            else Color.Black.copy(alpha = 0.50f)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient())
+            ) {
+                if (userProfile.customBgUri.isNotBlank()) {
+                    coil.compose.AsyncImage(
+                        model = userProfile.customBgUri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                if (isAppLightMode()) Color.White.copy(alpha = 0.40f)
+                                else Color.Black.copy(alpha = 0.50f)
+                            )
+                    )
+                }
+                if (userProfile.enableLiquidGlassTheme && userProfile.enableStarAnimation && userProfile.customBgUri.isBlank()) {
+                    MovingStarsBackground(isLight = isAppLightMode())
+                }
+                if (showLockScreen) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        AppLockScreen(
+                            correctPin = userProfile.appLockPin,
+                            language = userProfile.language,
+                            userName = userProfile.name,
+                            biometricEnabled = userProfile.biometricEnabled,
+                            securityQuestion = userProfile.securityQuestion,
+                            securityAnswer = userProfile.securityAnswer,
+                            onUnlock = {
+                                isUnlocked = true
+                                initialLockChecked = true
+                                viewModel.unlockApp()
+                            }
                         )
-                )
-            }
-            if (userProfile.enableStarAnimation && userProfile.customBgUri.isBlank()) { MovingStarsBackground(isLight = isAppLightMode()) }
-            if (!isInitialized) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        color = AccentCyan,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(42.dp)
-                    )
-                }
-            } else if (showLockScreen) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    AppLockScreen(
-                        correctPin = userProfile.appLockPin,
-                        language = userProfile.language,
-                        userName = userProfile.name,
-                        biometricEnabled = userProfile.biometricEnabled,
-                        securityQuestion = userProfile.securityQuestion,
-                        securityAnswer = userProfile.securityAnswer,
-                        onUnlock = {
-                            isUnlocked = true
-                            initialLockChecked = true
-                            viewModel.unlockApp()
+                    }
+                } else {
+                                        MainAppLayout(viewModel)
+                    
+                    // Root Overlay Architecture (Layer 2)
+                    val rootOverlay by viewModel.rootOverlayState.collectAsStateWithLifecycle()
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = rootOverlay != com.example.ui.viewmodel.RootOverlayState.None,
+                        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)),
+                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150))
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            when (val state = rootOverlay) {
+                                is com.example.ui.viewmodel.RootOverlayState.AddMeal -> {
+                                    AddMealFlowModal(
+                                        viewModel = viewModel,
+                                        onDismiss = { viewModel.closeRootOverlay() }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.ManageMenu -> {
+                                    MenuManagementScreen(
+                                        hotel = state.hotel,
+                                        viewModel = viewModel,
+                                        onBack = { viewModel.closeRootOverlay() }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.EditHotel -> {
+                                    EditHotelModal(
+                                        hotel = state.hotel,
+                                        viewModel = viewModel,
+                                        onDismiss = { viewModel.closeRootOverlay() },
+                                        onManageMenu = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.ManageMenu(it)) }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.OwnerProfile -> {
+                                    OwnerProfileScreen(
+                                        viewModel = viewModel,
+                                        onDismiss = { viewModel.closeRootOverlay() }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.AccountManager -> {
+                                    AccountManagerScreen(
+                                        viewModel = viewModel,
+                                        onDismiss = { viewModel.closeRootOverlay() }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.AddOwnerAccount -> {
+                                    AddOwnerAccountDialog(
+                                        viewModel = viewModel,
+                                        account = state.account,
+                                        onDismiss = { viewModel.closeRootOverlay() },
+                                        onSave = { acc, bal, details -> 
+                                            // Handled internally in component
+                                        }
+                                    )
+                                }
+                                is com.example.ui.viewmodel.RootOverlayState.EditBankAccount -> {
+                                    AccountEditorScreen(
+                                        account = state.account,
+                                        prefLanguage = userProfile.language,
+                                        onDismiss = { viewModel.closeRootOverlay() },
+                                        onSave = { name, bal, details, upi, qr, accNum, ifsc, branch ->
+                                            if (state.account != null) {
+                                                viewModel.editVirtualAccount(
+                                                    state.account.copy(
+                                                        name = name,
+                                                        initialBalance = bal,
+                                                        balance = bal,
+                                                        details = details,
+                                                        upiId = upi,
+                                                        qrCodeUri = qr,
+                                                        accountNumber = accNum,
+                                                        ifsc = ifsc,
+                                                        branchName = branch
+                                                    )
+                                                )
+                                            } else {
+                                                viewModel.addVirtualAccount(
+                                                    name = name,
+                                                    balance = bal,
+                                                    details = details,
+                                                    qrCodeUri = qr,
+                                                    upiId = upi,
+                                                    accountNumber = accNum,
+                                                    ifsc = ifsc,
+                                                    branchName = branch
+                                                )
+                                            }
+                                            viewModel.closeRootOverlay()
+                                        },
+                                        onDelete = state.account?.let { acc ->
+                                            {
+                                                viewModel.deleteVirtualAccount(acc)
+                                                viewModel.closeRootOverlay()
+                                            }
+                                        }
+                                    )
+                                }
+                                else -> {}
+                            }
                         }
-                    )
+                    }
                 }
-            } else {
-                MainAppLayout(viewModel)
             }
         }
     }
@@ -327,10 +427,7 @@ fun RollingNumberText(
 ) {
     val animatedValue by animateFloatAsState(
         targetValue = value.toFloat(),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = tween(durationMillis = 150),
         label = "number_roll"
     )
     Text(

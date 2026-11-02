@@ -5,7 +5,10 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.Bundle
 import android.util.Log
+import android.util.SizeF
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
@@ -18,7 +21,23 @@ import java.util.Calendar
 
 class OverallWidgetProvider : AppWidgetProvider() {
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle?
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        renderSingleWidget(context, appWidgetManager, appWidgetId)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        for (appWidgetId in appWidgetIds) {
+            renderSingleWidget(context, appWidgetManager, appWidgetId)
+        }
+    }
+
+    private fun renderSingleWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
@@ -73,7 +92,7 @@ class OverallWidgetProvider : AppWidgetProvider() {
                 )
 
                 val hotelName = if (isHotelConfigured) (hotel?.name ?: "Hotels") else "No Hotel"
-                
+
                 val now = Calendar.getInstance()
                 val currentMonth = now.get(Calendar.MONTH)
                 val currentYear = now.get(Calendar.YEAR)
@@ -91,47 +110,64 @@ class OverallWidgetProvider : AppWidgetProvider() {
                     exCal.get(Calendar.MONTH) == currentMonth && exCal.get(Calendar.YEAR) == currentYear
                 }
                 val totalExpenses = monthExpenses.sumOf { it.amount }
-                
+
                 val totalNet = totalHotel + totalExpenses
 
                 val isBengali = user?.language == "bn"
                 val titleLabel = if (isBengali) "📊 সামগ্রিক ($hotelName)" else "📊 Overall ($hotelName)"
-                val netLabel = if (isBengali) "মোট খরচ: ₹ $totalNet" else "Net: ₹ $totalNet"
+                val netLabel = if (isBengali) "মোট: ₹ $totalNet" else "Net: ₹ $totalNet"
                 val breakdownLabel = if (isBengali) "হোটেল: ₹ $totalHotel | অন্যান্য: ₹ $totalExpenses" else "Hotel: ₹ $totalHotel | Exp: ₹ $totalExpenses"
-                val subtitleLabel = if (isBengali) "চলতি মাসের হিসাব সারাংশ" else "Monthly Net Summary"
+
+                fun populateViews(layoutRes: Int): RemoteViews {
+                    val views = RemoteViews(context.packageName, layoutRes)
+                    views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+
+                    views.setTextViewText(R.id.overall_title, titleLabel)
+
+                    if (isHotelConfigured || isAccountConfigured) {
+                        views.setViewVisibility(R.id.overall_net, android.view.View.VISIBLE)
+                        views.setTextViewText(R.id.overall_net, netLabel)
+                    } else {
+                        views.setViewVisibility(R.id.overall_net, android.view.View.GONE)
+                    }
+
+                    views.setTextViewText(R.id.overall_breakdown, breakdownLabel)
+
+                    if (isHotelConfigured) {
+                        views.setViewVisibility(R.id.btn_add_meal, android.view.View.VISIBLE)
+                        views.setOnClickPendingIntent(R.id.btn_add_meal, pendingHotelIntent)
+                        views.setTextViewText(R.id.btn_add_meal, hotelBtnLabel)
+                    } else {
+                        views.setViewVisibility(R.id.btn_add_meal, android.view.View.GONE)
+                    }
+
+                    if (isAccountConfigured) {
+                        views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
+                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingExpenseIntent)
+                        views.setTextViewText(R.id.btn_add_expense, expenseBtnLabel)
+                    } else {
+                        views.setViewVisibility(R.id.btn_add_expense, android.view.View.GONE)
+                    }
+                    return views
+                }
 
                 withContext(Dispatchers.Main) {
-                    for (appWidgetId in appWidgetIds) {
-                        val views = RemoteViews(context.packageName, R.layout.widget_overall)
-                        views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                        
-                        views.setTextViewText(R.id.overall_title, titleLabel)
-                        
-                        if (isHotelConfigured || isAccountConfigured) {
-                            views.setViewVisibility(R.id.overall_net, android.view.View.VISIBLE)
-                            views.setTextViewText(R.id.overall_net, netLabel)
-                        } else {
-                            views.setViewVisibility(R.id.overall_net, android.view.View.GONE)
-                        }
-                        
-                        if (isHotelConfigured) {
-                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.VISIBLE)
-                            views.setOnClickPendingIntent(R.id.btn_add_meal, pendingHotelIntent)
-                            views.setTextViewText(R.id.btn_add_meal, hotelBtnLabel)
-                        } else {
-                            views.setViewVisibility(R.id.btn_add_meal, android.view.View.GONE)
-                        }
-                        
-                        if (isAccountConfigured) {
-                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
-                            views.setOnClickPendingIntent(R.id.btn_add_expense, pendingExpenseIntent)
-                            views.setTextViewText(R.id.btn_add_expense, expenseBtnLabel)
-                        } else {
-                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.GONE)
-                        }
-                        
-                        appWidgetManager.updateAppWidget(appWidgetId, views)
+                    val compactViews = populateViews(R.layout.widget_overall_compact)
+                    val expandedViews = populateViews(R.layout.widget_overall)
+
+                    val finalViews = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val viewMapping = mapOf(
+                            SizeF(100f, 40f) to compactViews,
+                            SizeF(100f, 120f) to expandedViews
+                        )
+                        RemoteViews(viewMapping)
+                    } else {
+                        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+                        val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+                        if (minHeight in 1..119) compactViews else expandedViews
                     }
+
+                    appWidgetManager.updateAppWidget(appWidgetId, finalViews)
                 }
             } catch (e: Exception) {
                 Log.e("OverallWidget", "Error updating widget", e)
@@ -141,3 +177,4 @@ class OverallWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+

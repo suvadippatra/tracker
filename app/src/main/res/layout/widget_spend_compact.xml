@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_glass_bg"
+    android:orientation="vertical"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="5dp"
+    android:paddingBottom="5dp"
+    android:gravity="center">
+
+    <!-- Account Header -->
+    <TextView
+        android:id="@+id/spend_account_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💳 Account Spend"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <!-- Daily & Monthly Spent Stats Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="2dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Today Spent Block -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/spend_today_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Today: "
+                android:textColor="#B0BEC5"
+                android:textSize="10.5sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/spend_today_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="₹0"
+                android:textColor="#FF8A80"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- Divider -->
+        <ImageView
+            android:layout_width="1dp"
+            android:layout_height="12dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:background="#44FFFFFF"
+            android:contentDescription="@null" />
+
+        <!-- Month Spent Block -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/spend_month_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Month: "
+                android:textColor="#B0BEC5"
+                android:textSize="10.5sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/spend_month_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="₹0"
+                android:textColor="#FFD54F"
+                android:textSize="12.5sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Balance Subtitle -->
+    <TextView
+        android:id="@+id/spend_balance"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:text="Bal: ₹ 0"
+        android:textColor="#80D8FF"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <!-- Action Button -->
+    <TextView
+        android:id="@+id/btn_add_spend_expense"
+        android:layout_width="match_parent"
+        android:layout_height="22dp"
+        android:background="@drawable/widget_btn_bg"
+        android:gravity="center"
+        android:text="+ Add Expense"
+        android:textColor="#000000"
+        android:textSize="11.5sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

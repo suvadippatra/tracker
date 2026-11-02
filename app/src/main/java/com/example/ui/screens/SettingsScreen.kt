@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,7 +27,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.ui.viewmodel.FinancialViewModel
-import com.example.ui.screens.settings.components.PixelSettingsItem
+import com.example.ui.screens.settings.components.*
 import com.example.ui.screens.settings.subscreens.ProfileSettingsScreen
 import com.example.ui.screens.settings.subscreens.AppearanceSettingsScreen
 import com.example.ui.screens.settings.subscreens.SecuritySettingsScreen
@@ -45,6 +46,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -57,7 +60,9 @@ fun SettingsScreen(
     onOpenUtilityConfig: () -> Unit
 ) {
     var currentScreen by remember { mutableStateOf("main") }
-    var contentVisible by remember { mutableStateOf(false) }
+    var contentVisible by remember { mutableStateOf(true) }
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isBn = userProfile?.language == "bn"
 
     // Intercept back button when inside a subscreen so it navigates to "main" rather than closing the whole app
     androidx.activity.compose.BackHandler(enabled = true) {
@@ -68,29 +73,25 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        delay(60)
-        contentVisible = true
-    }
-
     AppThemeProvider(viewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(getAppBackgroundGradient())
                 .pointerInput(Unit) { detectTapGestures { } }
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                
+                ,
+            contentAlignment = Alignment.TopCenter
         ) {
             Scaffold(
-                modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(getAppBackgroundGradient())
+                            .background(Color.Transparent)
                     ) {
                         Row(
                             modifier = Modifier
@@ -124,22 +125,20 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = when(currentScreen) {
-                                    "main" -> "Settings"
-                                    "profile" -> "Account & Profile"
-                                    "appearance" -> "Appearance"
-                                    "security" -> "Security & Lock"
-                                    "data" -> "Data & Backup"
-                                    "bin" -> "Recycle Bin"
-                                    "about" -> "About Traker"
+                                    "main" -> if (isBn) "সেটিংস" else "Settings"
+                                    "profile" -> if (isBn) "অ্যাকাউন্ট ও প্রোফাইল" else "Account & Profile"
+                                    "appearance" -> if (isBn) "থিম ও কাস্টমাইজেশন" else "Appearance & Visuals"
+                                    "security" -> if (isBn) "নিরাপত্তা ও লক" else "Security & Privacy"
+                                    "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
+                                    "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
+                                    "about" -> if (isBn) "অ্যাপ সম্পর্কিত" else "About Traker"
                                     else -> "Settings"
                                 },
-                                fontSize = 20.sp,
+                                fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AppTextColor()
                             )
                         }
-
-                        HorizontalDivider(color = getGlassBorder(), thickness = 1.dp)
                     }
                 }
             ) { innerPadding ->
@@ -148,34 +147,18 @@ fun SettingsScreen(
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
-                    // Content (Fades in)
-                    AnimatedVisibility(
-                        visible = contentVisible,
-                        enter = fadeIn(animationSpec = tween(250)),
-                        exit = fadeOut(animationSpec = tween(150))
-                    ) {
-                        AnimatedContent(
-                            targetState = currentScreen,
-                            transitionSpec = {
-                                slideInHorizontally { width -> if (targetState == "main") -width else width } + fadeIn() togetherWith
-                                slideOutHorizontally { width -> if (targetState == "main") width else -width } + fadeOut()
-                            },
-                            label = "SettingsNav"
-                        ) { screen ->
-                            when (screen) {
-                                "main" -> SettingsMainList(
-                                    onNavigate = { currentScreen = it },
-                                    onOpenBin = { currentScreen = "bin" },
-                                    onOpenOwnerProfile = onOpenOwnerProfile
-                                )
-                                "profile" -> ProfileSettingsScreen(viewModel, onOpenUtilityConfig)
-                                "appearance" -> AppearanceSettingsScreen(viewModel)
-                                "security" -> SecuritySettingsScreen(viewModel)
-                                "data" -> DataBackupSettingsScreen(viewModel)
-                                "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" })
-                                "about" -> AboutSettingsScreen(viewModel)
-                            }
-                        }
+                    when (currentScreen) {
+                        "main" -> SettingsMainList(
+                            onNavigate = { currentScreen = it },
+                            onOpenBin = { currentScreen = "bin" },
+                            onOpenOwnerProfile = onOpenOwnerProfile
+                        )
+                        "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
+                        "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
+                        "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                        "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                        "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
+                        "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
                     }
                 }
             }
@@ -206,49 +189,71 @@ fun SettingsMainList(
     onOpenBin: () -> Unit,
     onOpenOwnerProfile: () -> Unit
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         item {
-            PixelSettingsItem(
-                icon = Icons.Default.Person,
-                title = "Account & Profile",
-                subtitle = "Manage owner details and utility config",
-                onClick = { onNavigate("profile") }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            PixelSettingsItem(
-                icon = Icons.Default.Palette,
-                title = "Appearance & Customization",
-                subtitle = "Theme, background, and text size",
-                onClick = { onNavigate("appearance") }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            PixelSettingsItem(
-                icon = Icons.Default.Security,
-                title = "Security & Privacy",
-                subtitle = "App Lock and Biometrics",
-                onClick = { onNavigate("security") }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            PixelSettingsItem(
-                icon = Icons.Default.Storage,
-                title = "Data & Backups",
-                subtitle = "Export, Import, CSV management",
-                onClick = { onNavigate("data") }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            PixelSettingsItem(
-                icon = Icons.Default.DeleteSweep,
-                title = "Recycle Bin",
-                subtitle = "Restore deleted items",
-                onClick = { onNavigate("bin") }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            PixelSettingsItem(
-                icon = Icons.Default.Info,
-                title = "About & Legal",
-                subtitle = "Version, Privacy Policy",
-                onClick = { onNavigate("about") }
-            )
+            PixelSettingsGroup(title = "Account & Profile") {
+                PixelSettingsItem(
+                    icon = Icons.Default.Person,
+                    title = "Account & Owner Details",
+                    subtitle = "Manage personal profile and utility config",
+                    onClick = { onNavigate("profile") }
+                )
+            }
+        }
+
+        item {
+            PixelSettingsGroup(title = "Display & Personalization") {
+                PixelSettingsItem(
+                    icon = Icons.Default.Palette,
+                    title = "Appearance & Visual Style",
+                    subtitle = "Themes, liquid glass engine, accent colors",
+                    onClick = { onNavigate("appearance") }
+                )
+            }
+        }
+
+        item {
+            PixelSettingsGroup(title = "Privacy & Security") {
+                PixelSettingsItem(
+                    icon = Icons.Default.Security,
+                    title = "Security & App Lock",
+                    subtitle = "PIN lock, biometrics, auto-lock timeout",
+                    onClick = { onNavigate("security") }
+                )
+            }
+        }
+
+        item {
+            PixelSettingsGroup(title = "Data Management") {
+                PixelSettingsItem(
+                    icon = Icons.Default.Storage,
+                    title = "Data & Backups",
+                    subtitle = "Export, Import, CSV & database management",
+                    onClick = { onNavigate("data") }
+                )
+                PixelSettingsItem(
+                    icon = Icons.Default.DeleteSweep,
+                    title = "Recycle Bin",
+                    subtitle = "Restore deleted records & items",
+                    onClick = { onNavigate("bin") }
+                )
+            }
+        }
+
+        item {
+            PixelSettingsGroup(title = "About App") {
+                PixelSettingsItem(
+                    icon = Icons.Default.Info,
+                    title = "About & Legal",
+                    subtitle = "App version, licenses & developer info",
+                    onClick = { onNavigate("about") }
+                )
+            }
         }
     }
 }
@@ -258,19 +263,32 @@ fun UnifiedAccountDialog(
     account: BankAccountEntity?,
     prefLanguage: String,
     accountsCount: Int,
+    viewModel: FinancialViewModel,
     onDismiss: () -> Unit,
-    onSave: (name: String, balance: Double, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) -> Unit,
+    onSave: (name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
+    androidx.activity.compose.BackHandler { onDismiss() }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
     var accName by remember(account) { mutableStateOf(account?.name ?: "") }
-    var accBal by remember(account) { mutableStateOf(account?.balance?.toString() ?: "") }
+    var accBal by remember(account) { mutableStateOf(account?.let { if (it.initialBalance != 0.0) it.initialBalance.toString() else it.balance.toString() } ?: "") }
+    var details by remember(account) { mutableStateOf(account?.details ?: "") }
+    var qrCodeUri by remember(account) { mutableStateOf(account?.qrCodeUri ?: "") }
     var upiId by remember(account) { mutableStateOf(account?.upiId ?: "") }
     var accountNumber by remember(account) { mutableStateOf(account?.accountNumber ?: "") }
     var ifsc by remember(account) { mutableStateOf(account?.ifsc ?: "") }
     var branchName by remember(account) { mutableStateOf(account?.branchName ?: "") }
-    var qrCodeUri by remember(account) { mutableStateOf(account?.qrCodeUri ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            qrCodeUri = com.example.ui.components.copyUriToPersistentFile(context, uri, "QR")
+        }
+    }
+
     if (showDeleteConfirm) {
         com.example.ui.components.ConfirmDeleteDialog(
             itemName = accName,
@@ -281,6 +299,12 @@ fun UnifiedAccountDialog(
     }
 
     androidx.activity.compose.BackHandler { onDismiss() }
+
+    val themeMode = com.example.ui.components.LocalAppTheme.current
+    val bgPreset = com.example.ui.components.LocalAppBgPreset.current
+    val customBgUri = com.example.ui.components.LocalAppCustomBgUri.current
+    val isLiquidGlass = com.example.ui.components.LocalAppLiquidGlassTheme.current
+
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(
@@ -288,20 +312,37 @@ fun UnifiedAccountDialog(
             decorFitsSystemWindows = false
         )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient())
+        com.example.ui.components.DialogEdgeToEdge()
+        CompositionLocalProvider(
+            com.example.ui.components.LocalAppTheme provides themeMode,
+            com.example.ui.components.LocalAppBgPreset provides bgPreset,
+            com.example.ui.components.LocalAppCustomBgUri provides customBgUri,
+            com.example.ui.components.LocalAppLiquidGlassTheme provides isLiquidGlass
         ) {
-            Scaffold(
+            Surface(
                 modifier = Modifier.fillMaxSize(),
-                containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets.safeDrawing,
+                color = Color.Transparent
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset)),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Scaffold(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .imePadding(),
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                            
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -317,7 +358,7 @@ fun UnifiedAccountDialog(
                                 tint = AppTextColor()
                             )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = if (account == null) {
                                 if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
@@ -325,90 +366,72 @@ fun UnifiedAccountDialog(
                                 if (prefLanguage == "bn") "অ্যাকাউন্ট সংশোধন" else "Edit Account Details"
                             },
                             color = AppTextColor(),
-                            fontSize = 20.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
-                        Button(
+                        IconButton(
                             onClick = {
                                 if (accName.isNotBlank()) {
                                     val bal = accBal.toDoubleOrNull() ?: 0.0
-                                    onSave(accName, bal, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                                    onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
                                 } else {
                                     android.widget.Toast.makeText(
-                                        onDismiss.javaClass.enclosingClass?.run { null } ?: run { null },
+                                        context,
                                         if (prefLanguage == "bn") "অ্যাকাউন্টের নাম দিন" else "Enter Account Name",
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.height(40.dp).testTag("save_account_btn").bounceClick()
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(AccentCyan, CircleShape)
+                                .testTag("save_account_btn")
+                                .bounceClick()
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (account == null) {
-                                    if (prefLanguage == "bn") "যুক্ত করুন" else "Register"
-                                } else {
-                                    if (prefLanguage == "bn") "সংরক্ষণ" else "Save"
-                                },
-                                color = Color.Black,
-                                fontWeight = FontWeight.Bold
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = "Save",
+                                tint = Color.Black
                             )
                         }
-                    }
-                },
-                bottomBar = {
-                    if (account != null && accountsCount > 1 && onDelete != null) {
-                        Surface(
-                            color = Color.Transparent,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                var showMenu by remember { mutableStateOf(false) }
-                                Box(modifier = Modifier.wrapContentSize(Alignment.BottomStart)) {
-                                    IconButton(
-                                        onClick = { showMenu = true },
-                                        modifier = Modifier.background(AppTextColor().copy(alpha = 0.1f), CircleShape).bounceClick()
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "More Options",
-                                            tint = AppTextColor()
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false },
-                                        modifier = Modifier.background(getDialogBackground())
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete", color = AccentPink) },
-                                            onClick = {
-                                                showMenu = false
-                                                showDeleteConfirm = true
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = null,
-                                                    tint = AccentPink,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        )
-                                    }
+
+                        if (account != null && accountsCount > 1 && onDelete != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            var showTopMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showTopMenu = true },
+                                    modifier = Modifier.size(38.dp).background(getGlassIconButtonBg(), CircleShape).bounceClick()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More Options",
+                                        tint = AppTextColor()
+                                    )
                                 }
-                                TextButton(onClick = onDismiss, modifier = Modifier.testTag("cancel_account_btn").bounceClick()) {
-                                    Text(if (prefLanguage == "bn") "বাতিল" else "Cancel", color = AccentPink, fontWeight = FontWeight.Bold)
+                                DropdownMenu(
+                                    expanded = showTopMenu,
+                                    onDismissRequest = { showTopMenu = false },
+                                    modifier = Modifier.background(getDialogBackground())
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete Account", color = AccentPink) },
+                                        onClick = {
+                                            showTopMenu = false
+                                            showDeleteConfirm = true
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = null,
+                                                tint = AccentPink,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -423,12 +446,14 @@ fun UnifiedAccountDialog(
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .widthIn(max = 600.dp)
+                        .fillMaxWidth()
+                        .widthIn(max = 640.dp)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp, vertical = 24.dp),
+                        .imePadding()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Account Name
                     GlassTextField(
                         value = accName,
                         onValueChange = { accName = it },
@@ -438,6 +463,127 @@ fun UnifiedAccountDialog(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         modifier = Modifier.fillMaxWidth().testTag("account_name_input")
                     )
+
+                    // Account Initial Balance
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        GlassTextField(
+                            value = accBal,
+                            onValueChange = { accBal = it },
+                            label = {
+                                Text(if (prefLanguage == "bn") "প্রারম্ভিক ব্যালেন্স (₹)" else "Initial Balance (₹)")
+                            },
+                            placeholder = { Text("0.00") },
+                            leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Next
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("account_balance_input")
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (prefLanguage == "bn") "আয়-ব্যয়ের হিসাবের জন্য মূল প্রারম্ভিক ব্যালেন্স" else "Initial opening balance for tracking income & expense status",
+                            color = AppTextColor().copy(alpha = 0.55f),
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+
+                    // Account Details (Notes / Description)
+                    GlassTextField(
+                        value = details,
+                        onValueChange = { details = it },
+                        label = { Text(if (prefLanguage == "bn") "অ্যাকাউন্ট বিবরণ / নোট" else "Account Details (Notes / Purpose)") },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)
+                    )
+
+                    // Add Image / QR Code Section
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, getGlassBorder()),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = if (prefLanguage == "bn") "অ্যাকাউন্ট ছবি / QR কোড" else "Account Image / QR Code",
+                                color = AppTextColor(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            if (qrCodeUri.isNotBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(70.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = qrCodeUri,
+                                            contentDescription = "Account Image",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        OutlinedButton(
+                                            onClick = { imagePickerLauncher.launch("image/*") },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                        ) {
+                                            Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(if (prefLanguage == "bn") "ছবি পরিবর্তন" else "Change Image", fontSize = 12.sp)
+                                        }
+
+                                        TextButton(
+                                            onClick = { qrCodeUri = "" },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = AccentPink)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(if (prefLanguage == "bn") "ছবি মুছুন" else "Remove Image", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { imagePickerLauncher.launch("image/*") },
+                                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (prefLanguage == "bn") "ছবি বা QR কোড যোগ করুন" else "Add Image / QR Code", fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+
+                    // Optional Bank / Payment Info
+                    Text(
+                        text = if (prefLanguage == "bn") "ঐচ্ছিক ব্যাংক / UPI বিবরণ (যদি থাকে):" else "Optional Bank & UPI Details (If applicable):",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+
                     GlassTextField(
                         value = accountNumber,
                         onValueChange = { accountNumber = it },
@@ -447,25 +593,29 @@ fun UnifiedAccountDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        GlassTextField(
-                            value = ifsc,
-                            onValueChange = { ifsc = it },
-                            label = { Text("IFSC Code") },
-                            leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            modifier = Modifier.weight(1f)
-                        )
-                        GlassTextField(
-                            value = branchName,
-                            onValueChange = { branchName = it },
-                            label = { Text("Branch") },
-                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            modifier = Modifier.weight(1f)
-                        )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            GlassTextField(
+                                value = ifsc,
+                                onValueChange = { ifsc = it },
+                                label = { Text("IFSC Code") },
+                                leadingIcon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            GlassTextField(
+                                value = branchName,
+                                onValueChange = { branchName = it },
+                                label = { Text("Branch") },
+                                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                     GlassTextField(
                         value = upiId,
@@ -473,36 +623,19 @@ fun UnifiedAccountDialog(
                         label = { Text("UPI ID") },
                         leadingIcon = { Icon(Icons.Default.Payment, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    GlassTextField(
-                        value = accBal,
-                        onValueChange = { accBal = it },
-                        label = {
-                            Text(
-                                if (account == null) {
-                                    if (prefLanguage == "bn") "প্রারম্ভিক ব্যালেন্স (₹)" else "Starting Balance (₹)"
-                                } else {
-                                    if (prefLanguage == "bn") "তরল ব্যালেন্স (₹)" else "Liquid Balance (₹)"
-                                }
-                            )
-                        },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("account_balance_input")
-                    )
+                    
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
         }
     }
 }
 }
-
+}
+}
 
 @Composable
 fun LegalInfoDialog(
@@ -510,6 +643,8 @@ fun LegalInfoDialog(
     prefLanguage: String,
     onDismiss: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onDismiss() }
+
     val title = when (type) {
         "info" -> if (prefLanguage == "bn") "অ্যাপ তথ্য" else "App Information"
         "license" -> if (prefLanguage == "bn") "লাইসেন্স ও শর্তাবলী" else "Licenses & Terms"
@@ -539,19 +674,101 @@ fun LegalInfoDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 val content = when (type) {
                     "info" -> if (prefLanguage == "bn") """
-                        Traker v1.0.0 (Traker)
-                        
-                        Traker একটি আধুনিক, অফলাইন-ফার্স্ট ব্যক্তিগত আর্থিক ব্যবস্থাপনা অ্যাপ। এটি আপনার খরচ ট্র্যাক করা, একাধিক অ্যাকাউন্ট পরিচালনা এবং মিটারের রিডিং নিখুঁতভাবে পর্যবেক্ষণ করতে সাহায্য করে।
-                        
-                        Jetpack Compose ও Kotlin দিয়ে তৈরি।
-                        © ২০২৬ Traker দেব টিম।
+                        Traker v1.0.0 (রিলিজ)
+                        ডেভেলপার: @suvadippatra (GitHub)
+                        © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
+
+                        ───────────────────────────
+                        📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
+                        ───────────────────────────
+
+                        ১. 💰 ড্যাশবোর্ড ও আর্থিক হিসাব (Dashboard)
+                        • অ্যাকাউন্ট ব্যালেন্স: আপনার মোট ক্যাশ, ব্যাঙ্ক ও ডিজিটাল ওয়ালেটের ব্যালেন্স এক নজরে পর্যবেক্ষণ করুন।
+                        • আয়/ব্যয় এন্ট্রি: নিচে থাকা '+' বাটনে ট্যাপ করে দ্রুত যেকোনো খরচ বা আয়ের হিসাব যুক্ত করুন। অ্যাকাউন্ট, ক্যাটাগরি ও বিবরণ নির্বাচন করুন।
+                        • মাসিক বিশ্লেষণ: ফিল্টারের মাধ্যমে প্রতি মাসের মোট আয়, মোট ব্যয় ও নিট সঞ্চয় পর্যালোচনা করুন।
+
+                        ২. 🍽️ খাবার ও হোটেল ব্যয় ট্র্যাকিং (Meal Tracker)
+                        • শিফট নির্বাচন: ডে (দুপুর) এবং নাইট (রাত) শিফটে আলাদাভাবে খাবারের হিসাব রাখুন।
+                        • মেনু ও কাস্টম আইটেম: ভাত, ডাল-সবজি, মাছ, চিকেন, ডিম, রুটি ইত্যাদি আইটেম নির্বাচন করুন অথবা নিজস্ব খাবার ও মূল্য যোগ করুন।
+                        • পরিমাণ পরিবর্তন: '+' ও '-' বোতাম ব্যবহার করে প্লেট সংখ্যা ও অতিরিক্ত খাবার নির্ধারণ করুন।
+                        • মাসিক হিস্ট্রি ও সোয়াইপ: বিগত মাসগুলোর হিস্ট্রি দেখতে বাঁয়ে/ডানে সোয়াইপ করুন অথবা '<' '>' বোতাম ব্যবহার করুন।
+
+                        ৩. 🏦 ব্যাঙ্ক অ্যাকাউন্ট ও স্থানান্তর (Accounts & Transfer)
+                        • মাল্টি-অ্যাকাউন্ট: ক্যাশ, সেভিংস ব্যাঙ্ক বা ওয়ালেট আলাদাভাবে ব্যালেন্স পরিচালনা করুন।
+                        • অ্যাকাউন্ট ট্রান্সফার: এক অ্যাকাউন্ট থেকে অন্য অ্যাকাউন্টে টাকা স্থানান্তর করুন যা ব্যালেন্সে স্বয়ংক্রিয়ভাবে সমন্বয় হবে।
+                        • রিয়েল-টাইম ব্যালেন্স: প্রতিটি লেনদেন বা পরিবর্তনের সাথে সাথে অ্যাকাউন্ট ব্যালেন্স স্বয়ংক্রিয়ভাবে আপডেট হয়।
+
+                        ৪. ⚡ সাব-মিটার ও ইউটিলিটি ট্র্যাকিং (Meter Tracker)
+                        • রিডিং এন্ট্রি: বিদ্যুৎ বা জলের সাব-মিটারের পূর্ববর্তী ও বর্তমান রিডিং লিখে রাখুন।
+                        • ইউনিট ও বিল হিসাব: ব্যবহৃত ইউনিট এবং প্রতি ইউনিটের রেট গুণ করে নির্ভুল বিল বের করুন।
+
+                        ৫. 🔒 গোপনীয়তা, ব্যাকআপ ও কিউআর ট্রান্সফার
+                        • ১০০% অফলাইন ও নিরাপদ: কোনো ক্লাউড সার্ভার নেই, কোনো ট্র্যাকার নেই। আপনার সমস্ত তথ্য ডিভাইসেই সংরক্ষিত।
+                        • অফলাইন QR ট্রান্সফার: ইন্টারনেট ছাড়াই দ্রুত QR কোড স্ক্যান করে অন্য ফোনে ডাটাবেস ট্রান্সফার করুন।
+                        • ব্যাকআপ ও রিস্টোর: ডিভাইসে সরাসরি JSON বা CSV ফাইল হিসেবে ডাটা এক্সপোর্ট ও ইমপোর্ট করুন।
+                        • অ্যাপ লক ও বায়োমেট্রিক: পিন কোড অথবা ফিঙ্গারপ্রিন্ট দিয়ে অ্যাপের নিরাপত্তা নিশ্চিত করুন।
+                        • রিসাইকেল বিন: ভুলবশত কোনো লেনদেন মুছে গেলে রিসাইকেল বিন থেকে সহজেই রিস্টোর করুন।
+
+                        ৬. 🎨 থিম ও ভাষা নির্বাচন
+                        • থিম কাস্টমাইজেশন: ডার্ক, লাইট, OLED পিওর ব্ল্যাক অথবা পিক্সেল ইউআই থিম বেছে নিন।
+                        • দ্বিভাষিক সমর্থন: যেকোনো সময় বাংলা ও ইংরেজির মধ্যে ভাষা পরিবর্তন করুন।
+
+                        ৭. 🚀 হাই-পারফরম্যান্স ও জিরো-ল্যাগ ইঞ্জিন (v1.1.0)
+                        • তাত্ক্ষণিক স্পর্শ প্রতিক্রিয়া (0ms Touch Response): কোনো ব্লকিং অ্যানিমেশন বা টাচ বিলম্ব নেই। বোতাম বা ট্যাবে ট্যাপ করলেই সাথে সাথে কাজ করে।
+                        • সুপারফাস্ট অ্যাপ লঞ্চ: কোনো লোডিং স্ক্রিন ছাড়াই তাৎক্ষণিকভাবে মূল ড্যাশবোর্ড স্ক্রিন চালু হয়।
+                        • লিকুইড গ্লাস ও মেটেরিয়াল ৩ অপ্টিমাইজেশন: উভয় থিমেই মসৃণ ও দীর্ঘস্থায়ী ব্যাটারি সাশ্রয়ী পারফরম্যান্স।
+
+                        👨‍💻 ডেভেলপার ও ওপেন সোর্স:
+                        GitHub: @suvadippatra (https://github.com/suvadippatra)
+                        লাইসেন্স: Apache License 2.0
                     """.trimIndent() else """
-                        Traker v1.0.0 (Traker)
-                        
-                        Traker is a modern, offline-first personal financial management tool designed for individuals and business owners to track expenses, manage multiple accounts, and monitor meter readings with precision.
-                        
-                        Developed with Jetpack Compose & Kotlin.
-                        © 2026 Traker Dev Team.
+                        Traker v1.1.0 (High-Performance Release)
+                        Developed by @suvadippatra (GitHub)
+                        © 2026 @suvadippatra. All rights reserved.
+
+                        ───────────────────────────
+                        📖 COMPLETE USER GUIDE & HOW TO USE
+                        ───────────────────────────
+
+                        1. 💰 DASHBOARD & FINANCIAL FLOWS
+                        • Liquid Balances: Monitor cash-in-hand, active bank accounts, and digital wallets at a glance.
+                        • Fast Entries: Tap the floating '+' button to record income or expenses with customizable categories, accounts, and tags.
+                        • Cashflow Breakdown: Review month-by-month financial summaries, savings rates, and expense trends.
+
+                        2. 🍽️ MEAL & HOTEL EXPENSE TRACKER
+                        • Shift Tracking: Log meals separated into Day (Lunch) and Night (Dinner) shifts.
+                        • Dynamic Menu: Select standard food items (Rice, Curry, Fish, Chicken, Roti, Vegs) or add your own custom items with custom prices.
+                        • Multi-Item Adjuster: Use '+' / '-' counters to accurately adjust quantities and add-ons.
+                        • Monthly Meal History: Swipe left/right or use '<' '>' arrow buttons to navigate through historical meal logs within active limits.
+
+                        3. 🏦 BANK ACCOUNTS & TRANSFERS
+                        • Multi-Account Management: Create cash, bank, or wallet accounts with distinctive colors and icons.
+                        • Inter-Account Transfers: Move balances across accounts cleanly without skewing income/expense statistics.
+                        • Real-Time Integrity: Account balances reflect every transaction, edit, soft-delete, or restore instantaneously.
+
+                        4. ⚡ METER & UTILITY BILLING
+                        • Meter Readings: Record initial and latest readings for electricity and water sub-meters.
+                        • Exact Billing: Calculates unit consumption multiplied by rate-per-unit for precise utility calculations.
+
+                        5. 🔒 PRIVACY, OFFLINE BACKUP & QR TRANSFER
+                        • 100% Offline & Private: No third-party servers, zero telemetry. All financial data lives securely on your device.
+                        • Offline QR Stream: Transfer whole databases across devices without internet using visual high-speed QR streaming.
+                        • File Backups: Export and import JSON / CSV backups directly to your local device storage.
+                        • Security Lock: Protect access using device Biometrics (Fingerprint) or custom PIN lock.
+                        • Recycle Bin: Safely restore deleted transactions with automatic balance recalculation.
+
+                        6. 🎨 THEMES & LOCALIZATION
+                        • Adaptive Themes: Dark, Light, OLED Pure Black, and Pixel UI styling.
+                        • Dual Language: Full native Bengali (বাংলা) and English localization.
+
+                        7. 🚀 HIGH-PERFORMANCE ZERO-LAG ENGINE (v1.1.0)
+                        • 0ms Touch Response: Instant tap and gesture dispatch with zero input lag across all buttons and tabs.
+                        • Instant Cold Launch: Renders cached UI immediately on launch with background database hydration.
+                        • Material 3 & Liquid Glass Optimization: Silky smooth 60fps scrolling and interactions with battery-saving graphics.
+
+                        👨‍💻 Developer & Open Source:
+                        GitHub: @suvadippatra (https://github.com/suvadippatra)
+                        License: Apache License 2.0
                     """.trimIndent()
                     "license" -> if (prefLanguage == "bn") """
                         এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
@@ -607,7 +824,7 @@ fun LegalInfoDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     if (prefLanguage == "bn") "বন্ধ করুন" else "Close",
-                    color = AccentCyan,
+                    color = AppAccentColor(),
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -626,6 +843,8 @@ fun SecurityPinDialog(
     onDismiss: () -> Unit,
     onSuccess: (newPin: String?, enabled: Boolean, question: String, answer: String) -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onDismiss() }
+
     var step by remember { mutableIntStateOf(1) }
     var enteredPin1 by remember { mutableStateOf("") }
     var confirmedPin by remember { mutableStateOf("") }
@@ -714,7 +933,12 @@ fun SecurityPinDialog(
         text = {
             if (isRecoveryStep) {
                 // Recovery Step (Step 3)
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                ) {
                     Text(
                         text = if (prefLanguage == "bn") "প্রশ্ন বেছে নিন:" else "Select Question:",
                         color = AppTextColor(),
@@ -734,7 +958,7 @@ fun SecurityPinDialog(
                             RadioButton(
                                 selected = (selectedPresetIndex == index),
                                 onClick = { selectedPresetIndex = index },
-                                colors = RadioButtonDefaults.colors(selectedColor = AccentCyan)
+                                colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(text = q, color = AppTextColor(), fontSize = 12.sp)
@@ -782,7 +1006,7 @@ fun SecurityPinDialog(
                     ) {
                         for (i in 0 until 4) {
                             val active = i < pinInput.length
-                            val color = if (errorMessage != null) AccentPink else if (active) AccentCyan else AppTextColor().copy(alpha = 0.2f)
+                            val color = if (errorMessage != null) AccentPink else if (active) AppAccentColor() else AppTextColor().copy(alpha = 0.2f)
                             val size by animateDpAsState(if (active) 16.dp else 12.dp)
 
                             Box(
@@ -939,12 +1163,12 @@ fun SecurityPinDialog(
                         }
                         onSuccess(confirmedPin, true, activeQuestion.trim(), answerText.trim())
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = if (prefLanguage == "bn") "সম্পূর্ণ করুন ও লক সক্রিয় করুন" else "Complete & Enable Lock",
-                        color = Color.Black,
+                        color = AppOnAccentColor(),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -969,6 +1193,8 @@ fun RecoverySetupDialog(
     onDismiss: () -> Unit,
     onSave: (question: String, answer: String) -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onDismiss() }
+
     val presetQuestionsEn = listOf(
         "What is your pet's name?",
         "What was your first school name?",
@@ -1013,7 +1239,12 @@ fun RecoverySetupDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+            ) {
                 Text(
                     text = if (prefLanguage == "bn") "সুরক্ষা প্রশ্ন বেছে নিন:" else "Select Security Question:",
                     color = AppTextColor(),
@@ -1033,7 +1264,7 @@ fun RecoverySetupDialog(
                         RadioButton(
                             selected = (selectedPresetIndex == index),
                             onClick = { selectedPresetIndex = index },
-                            colors = RadioButtonDefaults.colors(selectedColor = AccentCyan)
+                            colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -1082,12 +1313,12 @@ fun RecoverySetupDialog(
                         isError = true
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     text = if (prefLanguage == "bn") "সংরক্ষণ করুন" else "Save & Continue",
-                    color = Color.Black,
+                    color = AppOnAccentColor(),
                     fontWeight = FontWeight.Bold
                 )
             }

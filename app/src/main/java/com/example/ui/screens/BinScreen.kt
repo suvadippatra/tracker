@@ -41,7 +41,8 @@ import com.example.ui.viewmodel.FinancialViewModel
 @Composable
 fun BinScreen(
     viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    showHeader: Boolean = true
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val deletedHotels by viewModel.deletedHotels.collectAsStateWithLifecycle()
@@ -56,6 +57,8 @@ fun BinScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showEmptyBinConfirmation by remember { mutableStateOf(false) }
     var itemToDeletePermanently by remember { mutableStateOf<Any?>(null) }
+    var selectedAccountIds by remember { mutableStateOf(setOf<Int>()) }
+    var showDeleteSelectedAccountsConfirmation by remember { mutableStateOf(false) }
 
     val isBn = userProfile?.language == "bn"
     val translatedSectionName = when (activeSection) {
@@ -123,124 +126,84 @@ fun BinScreen(
         onDismiss()
     }
     
-    com.example.ui.components.AppThemeProvider(viewModel) {
-        Box(
+    val binContent = @Composable {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(getDialogBackground())
-                .pointerInput(Unit) { detectTapGestures { } }
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 16.dp)
         ) {
-            Scaffold(
-                modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
-                containerColor = Color.Transparent,
-                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
-                topBar = {
-                    Row(
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Section Selector Tabs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .background(getGlassIconButtonBg(), RoundedCornerShape(12.dp))
+                    .border(1.dp, getGlassBorder(), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val tabs = listOf(
+                    "Hotels" to (if (isBn) "হোটেল" else "Hotels"),
+                    "Accounts" to (if (isBn) "অ্যাকাউন্ট" else "Accounts"),
+                    "Menu" to (if (isBn) "মেনু" else "Menu"),
+                    "Meals" to (if (isBn) "খাবার" else "Meals"),
+                    "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
+                    "Readings" to (if (isBn) "মিটার রিডিং" else "Readings")
+                )
+                tabs.forEach { (section, label) ->
+                    val isSelected = activeSection == section
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.background(getGlassBorder().copy(alpha = 0.1f), CircleShape).bounceClick()
-                        ) {
-                            Icon(Icons.Default.ArrowBack, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor())
-                        }
-                        Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                        
-                        if (!isCurrentSectionEmpty) {
-                            IconButton(
-                                onClick = { showEmptyBinConfirmation = true },
-                                modifier = Modifier.background(AccentPink.copy(alpha = 0.1f), CircleShape).bounceClick()
-                            ) {
-                                Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) AccentCyan.copy(alpha = 0.2f) else Color.Transparent)
+                            .clickable { 
+                                activeSection = section
+                                searchQuery = "" // Clear search when switching tabs
+                                selectedAccountIds = emptySet()
                             }
-                        } else {
-                            Box(modifier = Modifier.size(48.dp))
-                        }
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.6f),
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 13.sp
+                        )
                     }
                 }
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 16.dp)
-                ) {
-                    // Section Selector Tabs
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                            .border(1.dp, getGlassBorder().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val tabs = listOf(
-                            "Hotels" to (if (isBn) "হোটেল" else "Hotels"),
-                            "Accounts" to (if (isBn) "অ্যাকাউন্ট" else "Accounts"),
-                            "Menu" to (if (isBn) "মেনু" else "Menu"),
-                            "Meals" to (if (isBn) "খাবার" else "Meals"),
-                            "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
-                            "Readings" to (if (isBn) "মিটার রিডিং" else "Readings")
-                        )
-                        tabs.forEach { (section, label) ->
-                            val isSelected = activeSection == section
-                            Box(
-                                modifier = Modifier
-                                    .height(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) AccentCyan.copy(alpha = 0.15f) else Color.Transparent)
-                                    .clickable { 
-                                        activeSection = section
-                                        searchQuery = "" // Clear search when switching tabs
-                                    }
-                                    .padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.5f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Redesigned Search Input Field
+            GlassTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text(if (isBn) "মুছে ফেলা $translatedSectionName খুঁজুন..." else "Search deleted $activeSection...") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = AppTextColor().copy(alpha = 0.4f)) },
+                trailingIcon = if (searchQuery.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, if (isBn) "মুছুন" else "Clear", tint = AppTextColor().copy(alpha = 0.5f))
                         }
                     }
+                } else null
+            )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-                    // Redesigned Search Input Field
-                    GlassTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text(if (isBn) "মুছে ফেলা $translatedSectionName খুঁজুন..." else "Search deleted $activeSection...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = AppTextColor().copy(alpha = 0.4f)) },
-                        trailingIcon = if (searchQuery.isNotEmpty()) {
-                            {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, if (isBn) "মুছুন" else "Clear", tint = AppTextColor().copy(alpha = 0.5f))
-                                }
-                            }
-                        } else null
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // List items container
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 24.dp)
-                    ) {
+            // List items container
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
                         when (activeSection) {
                             "Hotels" -> {
                                 if (filteredHotels.isEmpty()) {
@@ -283,6 +246,67 @@ fun BinScreen(
                                         ) 
                                     }
                                 } else {
+                                    item {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp, horizontal = 2.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.clickable {
+                                                    selectedAccountIds = if (selectedAccountIds.size == filteredBankAccounts.size) {
+                                                        emptySet()
+                                                    } else {
+                                                        filteredBankAccounts.map { it.id }.toSet()
+                                                    }
+                                                }
+                                            ) {
+                                                Checkbox(
+                                                    checked = filteredBankAccounts.isNotEmpty() && selectedAccountIds.size == filteredBankAccounts.size,
+                                                    onCheckedChange = { checked ->
+                                                        selectedAccountIds = if (checked) filteredBankAccounts.map { it.id }.toSet() else emptySet()
+                                                    },
+                                                    colors = CheckboxDefaults.colors(
+                                                        checkedColor = AccentCyan,
+                                                        uncheckedColor = AppTextColor().copy(alpha = 0.4f),
+                                                        checkmarkColor = Color.Black
+                                                    )
+                                                )
+                                                Text(
+                                                    text = if (selectedAccountIds.isEmpty()) {
+                                                        if (isBn) "সব সিলেক্ট করুন" else "Select All"
+                                                    } else {
+                                                        if (isBn) "সিলেক্ট করা হয়েছে (${selectedAccountIds.size})" else "Selected (${selectedAccountIds.size})"
+                                                    },
+                                                    color = AppTextColor(),
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+
+                                            if (selectedAccountIds.isNotEmpty()) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    TextButton(
+                                                        onClick = {
+                                                            val accountsToRestore = filteredBankAccounts.filter { it.id in selectedAccountIds }
+                                                            accountsToRestore.forEach { viewModel.restoreVirtualAccount(it) }
+                                                            selectedAccountIds = emptySet()
+                                                        }
+                                                    ) {
+                                                        Text(if (isBn) "পুনরুদ্ধার" else "Restore Selected", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                    TextButton(
+                                                        onClick = { showDeleteSelectedAccountsConfirmation = true }
+                                                    ) {
+                                                        Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Selected", color = AccentPink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     items(filteredBankAccounts, key = { it.id }) { acc ->
                                         val accNumText = if (acc.accountNumber.isBlank()) (if (isBn) "কোন অ্যাকাউন্ট নম্বর নেই" else "No A/C No") else "A/C: ${acc.accountNumber}"
                                         val ifscText = if (acc.ifsc.isBlank()) "" else " • IFSC: ${acc.ifsc}"
@@ -290,6 +314,10 @@ fun BinScreen(
                                             title = acc.name,
                                             subtitle = "$accNumText$ifscText",
                                             infoLabel = if (isBn) "ব্যালেন্স: ₹${acc.balance}" else "Balance: ₹${acc.balance}",
+                                            isSelected = acc.id in selectedAccountIds,
+                                            onSelectToggle = { checked ->
+                                                selectedAccountIds = if (checked) selectedAccountIds + acc.id else selectedAccountIds - acc.id
+                                            },
                                             onRestore = { viewModel.restoreVirtualAccount(acc) },
                                             onDeletePermanently = { itemToDeletePermanently = acc }
                                         )
@@ -438,10 +466,99 @@ fun BinScreen(
                                 }
                             }
                         }
+            }
+        }
+    }
+
+    if (showHeader) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Midnight Glow"))
+                .pointerInput(Unit) { detectTapGestures { } }
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            Scaffold(
+                modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
+                containerColor = Color.Transparent,
+                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+                topBar = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), CircleShape)
+                                .border(1.dp, getGlassBorder(), CircleShape)
+                                .bounceClick()
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor())
+                        }
+                        Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        
+                        if (!isCurrentSectionEmpty) {
+                            IconButton(
+                                onClick = { showEmptyBinConfirmation = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(AccentPink.copy(alpha = 0.15f), CircleShape)
+                                    .border(1.dp, AccentPink.copy(alpha = 0.3f), CircleShape)
+                                    .bounceClick()
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                            }
+                        } else {
+                            Box(modifier = Modifier.size(40.dp))
+                        }
                     }
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    binContent()
                 }
             }
         }
+    } else {
+        binContent()
+    }
+
+    // Confirmation dialog for batch permanent deletion of selected accounts
+    if (showDeleteSelectedAccountsConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteSelectedAccountsConfirmation = false },
+            title = { Text(if (isBn) "সিলেক্ট করা অ্যাকাউন্ট স্থায়ীভাবে মুছে ফেলবেন?" else "Delete Selected Accounts Permanently?", color = AppTextColor(), fontWeight = FontWeight.Bold) },
+            text = { Text(if (isBn) "আপনি কি নিশ্চিত যে আপনি নির্বাচন করা ${selectedAccountIds.size} টি অ্যাকাউন্ট স্থায়ীভাবে মুছে ফেলতে চান? এটি আর পুনরুদ্ধার করা যাবে না।" else "Are you sure you want to permanently delete the ${selectedAccountIds.size} selected accounts? This action cannot be undone.", color = AppTextColor()) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val accountsToDelete = filteredBankAccounts.filter { it.id in selectedAccountIds }
+                        accountsToDelete.forEach { viewModel.deleteVirtualAccountPermanently(it) }
+                        selectedAccountIds = emptySet()
+                        showDeleteSelectedAccountsConfirmation = false
+                    }
+                ) {
+                    Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Permanently", color = AccentPink, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteSelectedAccountsConfirmation = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel", color = AppTextColor().copy(alpha = 0.6f))
+                }
+            },
+            containerColor = getDialogBackground()
+        )
     }
 
     // Double confirmation dialog for Permanent Deletion of a single item
@@ -457,26 +574,44 @@ fun BinScreen(
                     is com.example.data.model.UtilityBill -> if (isBn) "${item.totalUnits} ইউনিটের বিল" else "Bill for ${item.totalUnits} Units"
             else -> ""
         }
+        var typedText by remember { mutableStateOf("") }
+        val isConfirmed = typedText.trim().equals("delete", ignoreCase = true)
+        
         AlertDialog(
             onDismissRequest = { itemToDeletePermanently = null },
             title = { Text(if (isBn) "স্থায়ীভাবে মুছে ফেলবেন?" else "Delete Permanently?", color = AppTextColor(), fontWeight = FontWeight.Bold) },
-            text = { Text(if (isBn) "আপনি কি নিশ্চিত যে আপনি '$name' স্থায়ীভাবে মুছে ফেলতে চান? এই তথ্য আর পুনরুদ্ধার করা যাবে না।" else "Are you sure you want to permanently delete '$name'? This data cannot be recovered.", color = AppTextColor()) },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if (isBn) "আপনি কি নিশ্চিত যে আপনি '$name' স্থায়ীভাবে মুছে ফেলতে চান? এই তথ্য আর পুনরুদ্ধার করা যাবে না।" else "Are you sure you want to permanently delete '$name'? This data cannot be recovered.", color = AppTextColor()) 
+                    Text("Type 'delete' to confirm:", color = AccentPink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    com.example.ui.components.GlassTextField(
+                        value = typedText,
+                        onValueChange = { typedText = it },
+                        placeholder = { Text("delete") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        when (item) {
-                            is HotelEntity -> viewModel.deleteHotelPermanently(item)
-                            is BankAccountEntity -> viewModel.deleteVirtualAccountPermanently(item)
-                            is MenuEntity -> viewModel.deleteMenuPermanently(item)
-                            is com.example.data.model.HotelTransactionEntity -> viewModel.deleteTransactionPermanently(item)
-                            is com.example.data.model.ExtraExpenseEntity -> viewModel.deleteExtraExpensePermanently(item)
-                            is com.example.data.model.MeterReading -> viewModel.deleteReading(item)
-                            is com.example.data.model.UtilityBill -> viewModel.deleteUtilityBillPermanently(item)
+                        if (isConfirmed) {
+                            when (item) {
+                                is HotelEntity -> viewModel.deleteHotelPermanently(item)
+                                is BankAccountEntity -> viewModel.deleteVirtualAccountPermanently(item)
+                                is MenuEntity -> viewModel.deleteMenuPermanently(item)
+                                is com.example.data.model.HotelTransactionEntity -> viewModel.deleteTransactionPermanently(item)
+                                is com.example.data.model.ExtraExpenseEntity -> viewModel.deleteExtraExpensePermanently(item)
+                                is com.example.data.model.MeterReading -> viewModel.deleteReading(item)
+                                is com.example.data.model.UtilityBill -> viewModel.deleteUtilityBillPermanently(item)
+                            }
+                            itemToDeletePermanently = null
                         }
-                        itemToDeletePermanently = null
-                    }
+                    },
+                    enabled = isConfirmed
                 ) {
-                    Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Permanently", color = AccentPink, fontWeight = FontWeight.Bold)
+                    Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Permanently", color = if (isConfirmed) AccentPink else Color.Gray, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -527,6 +662,8 @@ fun BinItemCard(
     title: String,
     subtitle: String,
     infoLabel: String,
+    isSelected: Boolean = false,
+    onSelectToggle: ((Boolean) -> Unit)? = null,
     onRestore: () -> Unit,
     onDeletePermanently: () -> Unit
 ) {
@@ -534,10 +671,22 @@ fun BinItemCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onSelectToggle != null) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = onSelectToggle,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = AccentCyan,
+                        uncheckedColor = AppTextColor().copy(alpha = 0.4f),
+                        checkmarkColor = Color.Black
+                    )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(2.dp))
@@ -552,7 +701,7 @@ fun BinItemCard(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(

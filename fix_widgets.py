@@ -1,17 +1,17 @@
-import os
+import re
+import glob
 
-for file in os.listdir("app/src/main/java/com/example/widget/"):
-    if not file.endswith(".kt"): continue
-    filepath = "app/src/main/java/com/example/widget/" + file
-    with open(filepath, "r") as f:
-        code = f.read()
-    code = code.replace("getUserProfile()", "getUserProfileSync()")
-    code = code.replace("getHotelById(hotelId)", "getHotelByIdSync(hotelId)")
-    code = code.replace("getAllBankAccountsList()", "getAllBankAccountsSync()")
-    # Fix properties of Entity:
-    # HotelEntity name is `name` (already correct)
-    # BankAccountEntity name is `name` (already correct)
-    with open(filepath, "w") as f:
-        f.write(code)
+files = glob.glob("app/src/main/res/layout/*compact*.xml")
 
-print("Updated widgets")
+# Because I messed them up with sed, let's just reset them based on some rules or rewrite them explicitly.
+# Wait, I don't have the original, so let's just parse the XML and adjust the textSize values.
+for file in files:
+    with open(file, "r") as f:
+        content = f.read()
+    
+    # Increase everything by 1 to revert the double-down effect from sed?
+    # Not exactly, let's just set them manually or use regex carefully.
+    
+    # For now, let's see what sizes are in widget_spend_compact.xml
+    print(f"{file} textSizes:", re.findall(r'android:textSize="([^"]+)"', content))
+

@@ -313,6 +313,8 @@ fun SecurityQuestionResetDialog(
     onSuccess: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    BackHandler { onDismiss() }
+
     var answer by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
     val displayQuestion = if (question.isNotBlank()) question else if (language == "bn") "জরুরি পুনরুদ্ধার কোড (মাস্টার কোড: 0000 দিন)" else "Emergency Reset (Enter default PIN: 0000)"
@@ -372,10 +374,10 @@ fun SecurityQuestionResetDialog(
                                 isError = true
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (language == "bn") "যাচাই করুন" else "Verify & Unlock", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(if (language == "bn") "যাচাই করুন" else "Verify & Unlock", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

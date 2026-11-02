@@ -1,32 +1,19 @@
-import re
+def find_block_end(filename, start_line):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+    
+    stack = 0
+    started = False
+    for i in range(start_line - 1, len(lines)):
+        line = lines[i]
+        for char in line:
+            if char == '{':
+                stack += 1
+                started = True
+            elif char == '}':
+                stack -= 1
+                if started and stack == 0:
+                    return i + 1
+    return -1
 
-with open('app/src/main/java/com/example/ui/screens/HotelManagementTab.kt', 'r') as f:
-    content = f.read()
-
-bad_str = """
-    if (viewModel.qrExportPayload != null) {
-        com.example.ui.components.QrExportStreamDialog(
-            exportData = viewModel.qrExportPayload!!,
-            sessionId = viewModel.qrExportSessionId,
-            onDismiss = { viewModel.setQrExportPayload(null, null) }
-        )
-    }
-"""
-
-good_str = """
-    val exportPayload by viewModel.qrExportPayload.collectAsStateWithLifecycle()
-    val exportSessionId by viewModel.qrExportSessionId.collectAsStateWithLifecycle()
-
-    if (exportPayload != null) {
-        com.example.ui.components.QrExportStreamDialog(
-            exportData = exportPayload!!,
-            sessionId = exportSessionId,
-            onDismiss = { viewModel.setQrExportPayload(null, null) }
-        )
-    }
-"""
-
-content = content.replace(bad_str.strip(), good_str.strip())
-
-with open('app/src/main/java/com/example/ui/screens/HotelManagementTab.kt', 'w') as f:
-    f.write(content)
+print("HorizontalPager ends at:", find_block_end('app/src/main/java/com/example/ui/screens/ExtraExpensesTab.kt', 613))

@@ -10,9 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -28,19 +27,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.FinancialViewModel
@@ -78,9 +78,17 @@ fun AddTransactionScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onDismiss() }
+
     val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
     val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isBengali = userProfile?.language == "bn"
+
+    val themeMode = userProfile?.themeMode ?: "Auto"
+    val bgPreset = userProfile?.bgPreset ?: "Midnight Glow"
+    val customBgUri = userProfile?.customBgUri ?: ""
+    val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
     var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
@@ -109,7 +117,7 @@ fun AddTransactionScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "IMG")
+            val localUri = copyUriToLocalFile(context, it, "IMG")
             attachments = attachments + (localUri to "IMAGE")
         }
     }
@@ -118,7 +126,7 @@ fun AddTransactionScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "PDF")
+            val localUri = copyUriToLocalFile(context, it, "PDF")
             attachments = attachments + (localUri to "PDF")
         }
     }
@@ -127,7 +135,7 @@ fun AddTransactionScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val localUri = com.example.ui.screens.copyUriToLocalFile(context, it, "FILE")
+            val localUri = copyUriToLocalFile(context, it, "FILE")
             attachments = attachments + (localUri to "FILE")
         }
     }
@@ -137,7 +145,6 @@ fun AddTransactionScreen(
     ) { bitmap ->
         try {
             bitmap?.let {
-                // Save bitmap to file and add to attachments
                 val file = File(context.cacheDir, "CAM_${System.currentTimeMillis()}.jpg")
                 file.outputStream().use { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
@@ -179,397 +186,532 @@ fun AddTransactionScreen(
         }
     }
 
-    val isFormValid = remember(name, amountStr, category) {
-        name.isNotBlank() && amountStr.toDoubleOrNull() != null && (amountStr.toDoubleOrNull() ?: 0.0) > 0 && category.isNotBlank()
-    }
-
-    androidx.activity.compose.BackHandler { onDismiss() }
-
-    if (true) {
-        com.example.ui.components.AppThemeProvider(viewModel) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(com.example.ui.components.getAppBackgroundGradient(userProfile.themeMode))
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding(),
-            contentAlignment = Alignment.TopCenter
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        com.example.ui.components.DialogEdgeToEdge()
+        Box(modifier = Modifier.fillMaxSize()) {
+        CompositionLocalProvider(
+            LocalAppTheme provides themeMode,
+            LocalAppBgPreset provides bgPreset,
+            LocalAppCustomBgUri provides customBgUri,
+            LocalAppLiquidGlassTheme provides isLiquidGlass
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .widthIn(max = 840.dp)
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
             ) {
-                // Header
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .background(getGlassBorder().copy(alpha = 0.1f), CircleShape)
-                            .bounceClick()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-                    Text(
-                        text = if (type == "EXPENSE") "Add Expense" else "Add Income",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                    // High-contrast Save Button
-                    Button(
-                        onClick = {
-                            if (name.isBlank()) {
-                                android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে শিরোনাম লিখুন" else "Please enter a title", android.widget.Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            val amt = amountStr.toDoubleOrNull()
-                            if (amt == null || amt <= 0) {
-                                android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে সঠিক পরিমাণ লিখুন" else "Please enter a valid amount", android.widget.Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            var accId = selectedAccountId
-                            if (accId == 0) {
-                                if (accounts.isNotEmpty()) {
-                                    accId = accounts.first().id
-                                } else {
-                                    android.widget.Toast.makeText(context, if (userProfile.language == "bn") "দয়া করে অ্যাকাউন্ট সিলেক্ট করুন" else "Please select an account", android.widget.Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                            }
-                            viewModel.saveExtraExpense(
-                                name = name,
-                                amount = amt,
-                                bankAccountId = accId,
-                                timestamp = timestamp,
-                                receiptUri = null,
-                                type = type,
-                                category = category,
-                                notes = notes,
-                                attachments = attachments.map { it.first.toString() to it.second }
-                            )
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .testTag("save_transaction_button")
-                            .bounceClick()
-                    ) {
-                        Text(
-                            text = if (userProfile.language == "bn") "সংরক্ষণ" else "Save",
-                            color = Color.Black,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
+                        .background(getAppBackgroundGradient(themeMode, bgPreset))
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    // Type Switcher
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
+                    if (customBgUri.isNotBlank()) {
+                        AsyncImage(
+                            model = customBgUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Box(
                             modifier = Modifier
-                                .padding(4.dp)
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                                .padding(4.dp)
-                        ) {
-                            val isExpense = type == "EXPENSE"
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isExpense) AccentPink.copy(alpha = 0.2f) else Color.Transparent)
-                                    .clickable { type = "EXPENSE"; if (category == "Salary") category = "General" }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Expense", color = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.5f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (!isExpense) AccentGreen.copy(alpha = 0.2f) else Color.Transparent)
-                                    .clickable { type = "INCOME"; if (category == "General") category = "Salary" }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Income", color = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.5f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Amount Input
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Amount (₹)", color = AppTextColor().copy(alpha = 0.5f), fontSize = 12.sp)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                BasicTextField(
-                                    value = amountStr,
-                                    onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) amountStr = it },
-                                    textStyle = TextStyle(
-                                        color = AppTextColor(),
-                                        fontSize = 48.sp,
-                                        fontWeight = FontWeight.Black,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Decimal,
-                                        imeAction = ImeAction.Next
-                                    ),
-                                    cursorBrush = SolidColor(AccentCyan),
-                                    modifier = Modifier.fillMaxWidth().testTag("transaction_amount_input"),
-                                    decorationBox = { inner ->
-                                        if (amountStr.isEmpty()) Text("0.00", color = AppTextColor().copy(alpha = 0.1f), fontSize = 48.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                                        inner()
-                                    }
+                                .fillMaxSize()
+                                .background(
+                                    if (isAppLightMode()) Color.White.copy(alpha = 0.40f)
+                                    else Color.Black.copy(alpha = 0.50f)
                                 )
-                            }
-                        }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Details
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            // Title
-                            GlassTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("Title") },
-                                placeholder = { Text("e.g. Fuel, Lunch") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                            )
-
-                            // Account
-                            Column {
-                                Text("Wallet / Account", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box {
-                                    val activeAcc = accounts.find { it.id == selectedAccountId }
-                                    Row(
+                    Scaffold(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .imePadding(),
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets(0.dp),
+                        topBar = {
+                            Surface(
+                                color = if (!isLiquidGlass) {
+                                    if (isAppLightMode()) com.example.ui.theme.M3SurfaceLight.copy(alpha = 0.95f) else com.example.ui.theme.M3SurfaceDark.copy(alpha = 0.95f)
+                                } else {
+                                    if (isAppLightMode()) Color.White.copy(alpha = 0.85f) else Color(0xFF121620).copy(alpha = 0.85f)
+                                },
+                                shadowElevation = 2.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .statusBarsPadding()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = onDismiss,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(56.dp)
-                                            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                                            .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                            .clickable { showAccountDropdown = true }
-                                            .padding(horizontal = 16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
                                     ) {
-                                        Text(activeAcc?.name ?: "Select Account", color = AppTextColor())
-                                        Icon(Icons.Default.ArrowDropDown, null, tint = AppTextColor().copy(alpha = 0.5f))
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = if (isBengali) "ফিরে যান" else "Back",
+                                            tint = AppTextColor()
+                                        )
                                     }
-                                    DropdownMenu(
-                                        expanded = showAccountDropdown,
-                                        onDismissRequest = { showAccountDropdown = false },
-                                        modifier = Modifier.background(getDialogBackground())
-                                    ) {
-                                        accounts.forEach { acc ->
-                                            DropdownMenuItem(
-                                                text = { Text(acc.name, color = AppTextColor()) },
-                                                onClick = { selectedAccountId = acc.id; showAccountDropdown = false }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = if (isBengali) {
+                                            if (type == "EXPENSE") "খরচ যোগ করুন" else "আয় যোগ করুন"
+                                        } else {
+                                            if (type == "EXPENSE") "Add Expense" else "Add Income"
+                                        },
+                                        color = AppTextColor(),
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    // Save Button
+                                    GlassButton(
+                                        onClick = {
+                                            if (name.isBlank()) {
+                                                android.widget.Toast.makeText(context, if (isBengali) "দয়া করে শিরোনাম লিখুন" else "Please enter a title", android.widget.Toast.LENGTH_SHORT).show()
+                                                return@GlassButton
+                                            }
+                                            val amt = amountStr.toDoubleOrNull()
+                                            if (amt == null || amt <= 0) {
+                                                android.widget.Toast.makeText(context, if (isBengali) "দয়া করে সঠিক পরিমাণ লিখুন" else "Please enter a valid amount", android.widget.Toast.LENGTH_SHORT).show()
+                                                return@GlassButton
+                                            }
+                                            var accId = selectedAccountId
+                                            if (accId == 0) {
+                                                if (accounts.isNotEmpty()) {
+                                                    accId = accounts.first().id
+                                                } else {
+                                                    android.widget.Toast.makeText(context, if (isBengali) "দয়া করে অ্যাকাউন্ট সিলেক্ট করুন" else "Please select an account", android.widget.Toast.LENGTH_SHORT).show()
+                                                    return@GlassButton
+                                                }
+                                            }
+                                            viewModel.saveExtraExpense(
+                                                name = name,
+                                                amount = amt,
+                                                bankAccountId = accId,
+                                                timestamp = timestamp,
+                                                receiptUri = null,
+                                                type = type,
+                                                category = category,
+                                                notes = notes,
+                                                attachments = attachments.map { it.first.toString() to it.second }
                                             )
-                                        }
+                                            onDismiss()
+                                        },
+                                        cornerRadius = 10.dp,
+                                        borderBrush = Brush.linearGradient(listOf(AppAccentColor(), AccentPink)),
+                                        modifier = Modifier.testTag("save_transaction_button")
+                                    ) {
+                                        Text(
+                                            text = if (isBengali) "সংরক্ষণ" else "Save",
+                                            color = AppTextColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
+                        }
+                    ) { innerPadding ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .padding(horizontal = 14.dp, vertical = 4.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            // Cylindrical Dial Inline Date Picker (exactly like Add Meal Record page)
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp)
+                                ) {
+                                    InlineDatePicker(
+                                        initialDateMillis = timestamp,
+                                        onDateSelected = { newDate ->
+                                            val currentCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+                                            val newCal = Calendar.getInstance().apply {
+                                                timeInMillis = newDate
+                                                set(Calendar.HOUR_OF_DAY, currentCal.get(Calendar.HOUR_OF_DAY))
+                                                set(Calendar.MINUTE, currentCal.get(Calendar.MINUTE))
+                                                set(Calendar.SECOND, currentCal.get(Calendar.SECOND))
+                                            }
+                                            timestamp = newCal.timeInMillis
+                                        },
+                                        textColor = AppTextColor()
+                                    )
+                                }
+                            }
 
-                            // Category
-                            Column {
-                                Text("Category", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box {
-                                    Row(
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Type Switcher
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(4.dp)
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                        .padding(4.dp)
+                                ) {
+                                    val isExpense = type == "EXPENSE"
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(56.dp)
-                                            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                                            .border(1.dp, AppTextColor().copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                            .clickable { showCategoryDropdown = true }
-                                            .padding(horizontal = 16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isExpense) AccentPink.copy(alpha = 0.25f) else Color.Transparent)
+                                            .clickable { type = "EXPENSE"; if (category == "Salary") category = "General" }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text(category, color = AppTextColor())
-                                        Icon(Icons.Default.ArrowDropDown, null, tint = AppTextColor().copy(alpha = 0.5f))
+                                        Text(
+                                            if (isBengali) "খরচ" else "Expense",
+                                            color = if (isExpense) AccentPink else AppTextColor().copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
                                     }
-                                    DropdownMenu(
-                                        expanded = showCategoryDropdown,
-                                        onDismissRequest = { showCategoryDropdown = false },
-                                        modifier = Modifier.background(getDialogBackground())
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (!isExpense) AccentGreen.copy(alpha = 0.25f) else Color.Transparent)
+                                            .clickable { type = "INCOME"; if (category == "General") category = "Salary" }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
-                                        val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
-                                        allCats.forEach { cat ->
-                                            DropdownMenuItem(
-                                                text = { Text(cat, color = AppTextColor()) },
-                                                onClick = { category = cat; showCategoryDropdown = false }
-                                            )
-                                        }
-                                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                                        DropdownMenuItem(
-                                            text = { Text("+ Custom", color = AccentCyan) },
-                                            onClick = { showCategoryDropdown = false; showAddCategoryDialog = true }
+                                        Text(
+                                            if (isBengali) "আয়" else "Income",
+                                            color = if (!isExpense) AccentGreen else AppTextColor().copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
                                         )
                                     }
                                 }
                             }
 
-                            // Notes
-                            GlassTextField(
-                                value = notes,
-                                onValueChange = { notes = it },
-                                label = { Text("Notes (Optional)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = false,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
-                            )
-                        }
-                    }
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Date/Time
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text("Date & Time", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp)
-                                Text(sdf.format(Date(timestamp)), color = AppTextColor(), fontWeight = FontWeight.Bold)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                IconButton(onClick = {
-                                    val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                    android.app.DatePickerDialog(context, { _, y, m, d ->
-                                        cal.set(y, m, d)
-                                        timestamp = cal.timeInMillis
-                                    }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
-                                }, modifier = Modifier.background(Color.White.copy(alpha = 0.05f), CircleShape)) {
-                                    Icon(Icons.Default.CalendarToday, null, tint = AccentCyan, modifier = Modifier.size(18.dp))
-                                }
-                                IconButton(onClick = {
-                                    val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-                                    android.app.TimePickerDialog(context, { _, h, m ->
-                                        cal.set(Calendar.HOUR_OF_DAY, h)
-                                        cal.set(Calendar.MINUTE, m)
-                                        timestamp = cal.timeInMillis
-                                    }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), false).show()
-                                }, modifier = Modifier.background(Color.White.copy(alpha = 0.05f), CircleShape)) {
-                                    Icon(Icons.Default.Schedule, null, tint = AccentCyan, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Attachments
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Attachments", color = AppTextColor().copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            // Horizontal flow of action chips
-                            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                AttachmentActionChip(icon = Icons.Default.CameraAlt, label = "Camera", color = AccentCyan) {
-                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                }
-                                AttachmentActionChip(icon = Icons.Default.Image, label = "Gallery", color = AccentCyan) {
-                                    imagePicker.launch("image/*")
-                                }
-                                AttachmentActionChip(icon = Icons.Default.PictureAsPdf, label = "PDF", color = AccentGold) {
-                                    pdfPicker.launch("application/pdf")
-                                }
-                                AttachmentActionChip(icon = Icons.Default.AttachFile, label = "File", color = AccentGold) {
-                                    filePicker.launch("*/*")
-                                }
-                            }
-
-                            if (attachments.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    attachments.forEach { (uri, type) ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp)).padding(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = when(type) {
-                                                        "IMAGE" -> Icons.Default.Image
-                                                        "PDF" -> Icons.Default.PictureAsPdf
-                                                        "VOICE" -> Icons.Default.Mic
-                                                        else -> Icons.Default.AttachFile
-                                                    },
-                                                    contentDescription = null,
-                                                    tint = AppTextColor().copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(16.dp)
+                            // Amount Input
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        if (isBengali) "পরিমাণ (₹)" else "Amount (₹)",
+                                        color = AppTextColor().copy(alpha = 0.6f),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    BasicTextField(
+                                        value = amountStr,
+                                        onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) amountStr = it },
+                                        textStyle = TextStyle(
+                                            color = AppTextColor(),
+                                            fontSize = 44.sp,
+                                            fontWeight = FontWeight.Black,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Decimal,
+                                            imeAction = ImeAction.Next
+                                        ),
+                                        cursorBrush = SolidColor(AppAccentColor()),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("transaction_amount_input"),
+                                        decorationBox = { inner ->
+                                            if (amountStr.isEmpty()) {
+                                                Text(
+                                                    "0.00",
+                                                    color = AppTextColor().copy(alpha = 0.15f),
+                                                    fontSize = 44.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.fillMaxWidth()
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(uri.lastPathSegment ?: "Attachment", color = AppTextColor(), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
                                             }
-                                            IconButton(onClick = { attachments = attachments.filter { it.first != uri } }, modifier = Modifier.size(24.dp)) {
-                                                Icon(Icons.Default.Close, null, tint = Color.Red, modifier = Modifier.size(14.dp))
+                                            inner()
+                                        }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Details Card
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    // Title
+                                    GlassTextField(
+                                        value = name,
+                                        onValueChange = { name = it },
+                                        label = { Text(if (isBengali) "শিরোনাম" else "Title") },
+                                        placeholder = { Text(if (isBengali) "যেমন: জ্বালানি, দুপুরের খাবার" else "e.g. Fuel, Lunch") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                                    )
+
+                                    // Account
+                                    Column {
+                                        Text(
+                                            if (isBengali) "অ্যাকাউন্ট / ওয়ালেট" else "Wallet / Account",
+                                            color = AppTextColor().copy(alpha = 0.6f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box {
+                                            val activeAcc = accounts.find { it.id == selectedAccountId }
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(54.dp)
+                                                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, AppTextColor().copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                                    .clickable { showAccountDropdown = true }
+                                                    .padding(horizontal = 16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(activeAcc?.name ?: if (isBengali) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Account", color = AppTextColor())
+                                                Icon(Icons.Default.ArrowDropDown, null, tint = AppTextColor().copy(alpha = 0.6f))
+                                            }
+                                            DropdownMenu(
+                                                expanded = showAccountDropdown,
+                                                onDismissRequest = { showAccountDropdown = false },
+                                                modifier = Modifier.background(getDialogBackground())
+                                            ) {
+                                                accounts.forEach { acc ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(acc.name, color = AppTextColor()) },
+                                                        onClick = { selectedAccountId = acc.id; showAccountDropdown = false }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Category
+                                    Column {
+                                        Text(
+                                            if (isBengali) "বিভাগ" else "Category",
+                                            color = AppTextColor().copy(alpha = 0.6f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(54.dp)
+                                                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, AppTextColor().copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                                    .clickable { showCategoryDropdown = true }
+                                                    .padding(horizontal = 16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(category, color = AppTextColor())
+                                                Icon(Icons.Default.ArrowDropDown, null, tint = AppTextColor().copy(alpha = 0.6f))
+                                            }
+                                            DropdownMenu(
+                                                expanded = showCategoryDropdown,
+                                                onDismissRequest = { showCategoryDropdown = false },
+                                                modifier = Modifier.background(getDialogBackground())
+                                            ) {
+                                                val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
+                                                val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
+                                                allCats.forEach { cat ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(cat, color = AppTextColor()) },
+                                                        onClick = { category = cat; showCategoryDropdown = false }
+                                                    )
+                                                }
+                                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                                                DropdownMenuItem(
+                                                    text = { Text(if (isBengali) "+ নতুন বিভাগ" else "+ Custom Category", color = AppAccentColor()) },
+                                                    onClick = { showCategoryDropdown = false; showAddCategoryDialog = true }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Time of Day
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                if (isBengali) "সময়" else "Time",
+                                                color = AppTextColor().copy(alpha = 0.6f),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                sdf.format(Date(timestamp)),
+                                                color = AppTextColor(),
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+                                                android.app.TimePickerDialog(context, { _, h, m ->
+                                                    cal.set(Calendar.HOUR_OF_DAY, h)
+                                                    cal.set(Calendar.MINUTE, m)
+                                                    timestamp = cal.timeInMillis
+                                                }, cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), false).show()
+                                            },
+                                            modifier = Modifier.background(getGlassIconButtonBg(), CircleShape)
+                                        ) {
+                                            Icon(Icons.Default.Schedule, contentDescription = "Time", tint = AppAccentColor(), modifier = Modifier.size(20.dp))
+                                        }
+                                    }
+
+                                    // Notes
+                                    GlassTextField(
+                                        value = notes,
+                                        onValueChange = { notes = it },
+                                        label = { Text(if (isBengali) "নোট (ঐচ্ছিক)" else "Notes (Optional)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = false,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Attachments Card
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        if (isBengali) "সংযুক্তি" else "Attachments",
+                                        color = AppTextColor().copy(alpha = 0.6f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    
+                                    Row(
+                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        AttachmentActionChip(icon = Icons.Default.CameraAlt, label = if (isBengali) "ক্যামেরা" else "Camera", color = AppAccentColor()) {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        }
+                                        AttachmentActionChip(icon = Icons.Default.Image, label = if (isBengali) "গ্যালারি" else "Gallery", color = AppAccentColor()) {
+                                            imagePicker.launch("image/*")
+                                        }
+                                        AttachmentActionChip(icon = Icons.Default.PictureAsPdf, label = "PDF", color = AccentGold) {
+                                            pdfPicker.launch("application/pdf")
+                                        }
+                                        AttachmentActionChip(icon = Icons.Default.AttachFile, label = if (isBengali) "ফাইল" else "File", color = AccentGold) {
+                                            filePicker.launch("*/*")
+                                        }
+                                    }
+
+                                    if (attachments.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            attachments.forEach { (uri, fileType) ->
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                                        .padding(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = when(fileType) {
+                                                                "IMAGE" -> Icons.Default.Image
+                                                                "PDF" -> Icons.Default.PictureAsPdf
+                                                                "VOICE" -> Icons.Default.Mic
+                                                                else -> Icons.Default.AttachFile
+                                                            },
+                                                            contentDescription = null,
+                                                            tint = AppTextColor().copy(alpha = 0.6f),
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            uri.lastPathSegment ?: "Attachment",
+                                                            color = AppTextColor(),
+                                                            fontSize = 12.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = { attachments = attachments.filter { it.first != uri } },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
             }
         }
-        }
+    }
     }
 
     if (showAddCategoryDialog) {
         var newCatName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAddCategoryDialog = false },
-            title = { Text("New Category") },
+            title = { Text(if (isBengali) "নতুন বিভাগ" else "New Category") },
             text = {
                 Box(modifier = Modifier.imePadding()) {
                     GlassTextField(
                         value = newCatName,
                         onValueChange = { newCatName = it },
-                        label = { Text("Name") },
+                        label = { Text(if (isBengali) "নাম" else "Name") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
@@ -583,10 +725,10 @@ fun AddTransactionScreen(
                         category = newCatName
                         showAddCategoryDialog = false
                     }
-                }) { Text("Add") }
+                }) { Text(if (isBengali) "যোগ করুন" else "Add") }
             },
             dismissButton = {
-                TextButton(onClick = { showAddCategoryDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showAddCategoryDialog = false }) { Text(if (isBengali) "বাতিল" else "Cancel") }
             }
         )
     }

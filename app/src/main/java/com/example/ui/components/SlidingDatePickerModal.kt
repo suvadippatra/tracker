@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,9 +23,11 @@ fun SlidingDatePickerModal(
     initialDateMillis: Long,
     onDateSelected: (Long) -> Unit,
     onDismiss: () -> Unit,
-    textColor: Color,
-    backgroundColor: Color
+    textColor: Color = AppTextColor(),
+    backgroundColor: Color = Color.Unspecified
 ) {
+    BackHandler { onDismiss() }
+
     val calendar = Calendar.getInstance().apply { timeInMillis = initialDateMillis }
     
     var selectedDay by remember { mutableIntStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
@@ -50,7 +54,31 @@ fun SlidingDatePickerModal(
         }
     }
 
+        LaunchedEffect(selectedDay, selectedMonth, selectedYear) {
+        val newCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, selectedYear)
+            set(Calendar.MONTH, selectedMonth)
+            set(Calendar.DAY_OF_MONTH, selectedDay)
+        }
+        onDateSelected(newCal.timeInMillis)
+    }
+
     val dynamicDays = (1..maxDaysInMonth).toList()
+
+    val isGlass = isLiquidGlassEnabled()
+    val isLight = isAppLightMode()
+
+    val modalBg = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    } else {
+        if (isLight) Color(0xF5FFFFFF) else Color(0xFA1E2638)
+    }
+
+    val modalBorder = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    } else {
+        getGlassBorder()
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -58,9 +86,10 @@ fun SlidingDatePickerModal(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-                .background(backgroundColor, RoundedCornerShape(24.dp))
+                .fillMaxWidth(0.92f)
+                .padding(16.dp)
+                .background(modalBg, RoundedCornerShape(24.dp))
+                .border(1.dp, modalBorder, RoundedCornerShape(24.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -68,12 +97,17 @@ fun SlidingDatePickerModal(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Select Date", color = textColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Select Date",
+                    color = textColor,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Day Picker
@@ -85,11 +119,19 @@ fun SlidingDatePickerModal(
                         itemHeight = 40.dp,
                         visibleItemsCount = 5
                     ) { item, isSelected ->
+                        val itemColor = if (isSelected) {
+                            if (!isGlass) AccentCyan else textColor
+                        } else {
+                            textColor.copy(alpha = 0.40f)
+                        }
                         Text(
                             text = String.format(Locale.getDefault(), "%02d", item),
-                            color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
-                            fontSize = if (isSelected) 22.sp else 18.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            color = itemColor,
+                            fontSize = if (isSelected) 20.sp else 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                     
@@ -98,15 +140,23 @@ fun SlidingDatePickerModal(
                         items = monthsStr,
                         selectedItem = monthsStr[selectedMonth],
                         onItemSelected = { selectedMonth = monthsStr.indexOf(it) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.6f),
                         itemHeight = 40.dp,
                         visibleItemsCount = 5
                     ) { item, isSelected ->
+                        val itemColor = if (isSelected) {
+                            if (!isGlass) AccentCyan else textColor
+                        } else {
+                            textColor.copy(alpha = 0.40f)
+                        }
                         Text(
                             text = item,
-                            color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
-                            fontSize = if (isSelected) 22.sp else 18.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            color = itemColor,
+                            fontSize = if (isSelected) 18.sp else 15.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                     
@@ -115,15 +165,23 @@ fun SlidingDatePickerModal(
                         items = years,
                         selectedItem = selectedYear,
                         onItemSelected = { selectedYear = it },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f),
                         itemHeight = 40.dp,
                         visibleItemsCount = 5
                     ) { item, isSelected ->
+                        val itemColor = if (isSelected) {
+                            if (!isGlass) AccentCyan else textColor
+                        } else {
+                            textColor.copy(alpha = 0.40f)
+                        }
                         Text(
                             text = item.toString(),
-                            color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
-                            fontSize = if (isSelected) 22.sp else 18.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            color = itemColor,
+                            fontSize = if (isSelected) 20.sp else 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
@@ -134,35 +192,22 @@ fun SlidingDatePickerModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = textColor.copy(alpha = 0.7f))
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel", color = AppSecondaryTextColor())
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = {
-                            val newCal = Calendar.getInstance().apply {
-                                set(Calendar.YEAR, selectedYear)
-                                set(Calendar.MONTH, selectedMonth)
-                                set(Calendar.DAY_OF_MONTH, selectedDay)
-                            }
-                            onDateSelected(newCal.timeInMillis)
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = textColor.copy(alpha = 0.2f))
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Confirm", color = textColor)
+                        Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-            
-            // Selector overlay line
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .align(Alignment.Center)
-                    .background(textColor.copy(alpha = 0.05f))
-            )
         }
     }
 }
@@ -172,7 +217,7 @@ fun SlidingDatePickerModal(
 fun InlineDatePicker(
     initialDateMillis: Long,
     onDateSelected: (Long) -> Unit,
-    textColor: Color
+    textColor: Color = AppTextColor()
 ) {
     val calendar = Calendar.getInstance().apply { timeInMillis = initialDateMillis }
     var selectedDay by remember { mutableIntStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
@@ -204,7 +249,17 @@ fun InlineDatePicker(
         onDateSelected(newCal.timeInMillis)
     }
 
+        LaunchedEffect(selectedDay, selectedMonth, selectedYear) {
+        val newCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, selectedYear)
+            set(Calendar.MONTH, selectedMonth)
+            set(Calendar.DAY_OF_MONTH, selectedDay)
+        }
+        onDateSelected(newCal.timeInMillis)
+    }
+
     val dynamicDays = (1..maxDaysInMonth).toList()
+    val isGlass = isLiquidGlassEnabled()
 
     Box(
         modifier = Modifier
@@ -213,7 +268,7 @@ fun InlineDatePicker(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Day
@@ -225,28 +280,44 @@ fun InlineDatePicker(
                 itemHeight = 40.dp,
                 visibleItemsCount = 3
             ) { item, isSelected ->
+                val itemColor = if (isSelected) {
+                    if (!isGlass) AccentCyan else textColor
+                } else {
+                    textColor.copy(alpha = 0.40f)
+                }
                 Text(
                     text = String.format(Locale.getDefault(), "%02d", item),
-                    color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
+                    color = itemColor,
                     fontSize = if (isSelected) 20.sp else 16.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
 
-            // Month
+            // Month (weight 1.6f)
             WheelPicker(
                 items = monthsStr,
                 selectedItem = monthsStr[selectedMonth],
                 onItemSelected = { selectedMonth = monthsStr.indexOf(it) },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1.6f),
                 itemHeight = 40.dp,
                 visibleItemsCount = 3
             ) { item, isSelected ->
+                val itemColor = if (isSelected) {
+                    if (!isGlass) AccentCyan else textColor
+                } else {
+                    textColor.copy(alpha = 0.40f)
+                }
                 Text(
                     text = item,
-                    color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
-                    fontSize = if (isSelected) 20.sp else 16.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    color = itemColor,
+                    fontSize = if (isSelected) 18.sp else 15.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
 
@@ -255,25 +326,25 @@ fun InlineDatePicker(
                 items = years,
                 selectedItem = selectedYear,
                 onItemSelected = { selectedYear = it },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1.2f),
                 itemHeight = 40.dp,
                 visibleItemsCount = 3
             ) { item, isSelected ->
+                val itemColor = if (isSelected) {
+                    if (!isGlass) AccentCyan else textColor
+                } else {
+                    textColor.copy(alpha = 0.40f)
+                }
                 Text(
                     text = item.toString(),
-                    color = if (isSelected) textColor else textColor.copy(alpha = 0.5f),
+                    color = itemColor,
                     fontSize = if (isSelected) 20.sp else 16.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-                .align(Alignment.Center)
-                .background(textColor.copy(alpha = 0.05f))
-        )
     }
 }

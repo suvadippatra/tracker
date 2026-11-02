@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +37,8 @@ fun OldTier1DeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    BackHandler { onDismiss() }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -107,6 +110,8 @@ fun Tier2DeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    BackHandler { onDismiss() }
+
     var input by remember { mutableStateOf("") }
     val isConfirmed = remember(input, requiredText) {
         input.trim().equals("delete", ignoreCase = true) || input.trim().equals(requiredText.trim(), ignoreCase = true)

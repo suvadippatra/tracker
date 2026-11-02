@@ -1,0 +1,2 @@
+#!/bin/bash
+perl -0777 -pi -e 's/fun AppearanceSettingsScreen\(\n\s*viewModel: FinancialViewModel,\n\s*onOpenUtilityConfig: \(\) -> Unit,\n\s*onBack: \(\) -> Unit = \{\}\n\) \{\n\s*val old = 1\n\s*viewModel: FinancialViewModel,\n\s*onBack: \(\) -> Unit = \{\}\n\)/fun AppearanceSettingsScreen(\n    viewModel: FinancialViewModel,\n    onOpenUtilityConfig: () -> Unit,\n    onBack: () -> Unit = {}\n)/gs' app/src/main/java/com/example/ui/screens/settings/subscreens/AppearanceSettingsScreen.kt

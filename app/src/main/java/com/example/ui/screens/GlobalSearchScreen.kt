@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import com.example.ui.components.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -44,6 +45,8 @@ fun GlobalSearchScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
+    BackHandler { onDismiss() }
+
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedFilter by viewModel.selectedSearchFilter.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
@@ -116,6 +119,7 @@ fun GlobalSearchScreen(
                 .widthIn(max = 840.dp)
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .imePadding()
         ) {
             // Search Input Header
             Row(
@@ -209,7 +213,7 @@ fun GlobalSearchScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(categories) { category ->
+                items(categories, key = { it }) { category ->
                     val isSelected = selectedFilter == category
                     Box(
                         modifier = Modifier
@@ -293,7 +297,7 @@ fun GlobalSearchScreen(
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    items(quickSuggestions) { (title, emoji) ->
+                                    items(quickSuggestions, key = { it.first }) { (title, emoji) ->
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(16.dp))
@@ -451,12 +455,12 @@ fun GlobalSearchScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(42.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF0F0B26), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Expense", color = Color(0xFF0F0B26), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("+ Expense", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
 
                     Button(
@@ -467,12 +471,12 @@ fun GlobalSearchScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(42.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isAppLightMode()) com.example.ui.theme.M3AccentEmerald else Color(0xFF00E676)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Restaurant, contentDescription = null, tint = Color(0xFF0F0B26), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Restaurant, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Meal Log", color = Color(0xFF0F0B26), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("+ Meal Log", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }

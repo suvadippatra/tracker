@@ -18,8 +18,11 @@ enum class BackupDataType(val displayName: String, val category: String) {
     HOTEL_WHOLE("Whole Hotel Data", "Hotel"),
     HOTEL_MENUS("Hotel Menus", "Hotel"),
     HOTEL_HISTORY("Hotel Order History", "Hotel"),
-    BANK_ACCOUNTS("Bank Accounts (Virtual Accounts)", "Transactions"),
+    WALLET_WHOLE("Whole Accounts & Transactions", "Transactions"),
+    SINGLE_BANK_ACCOUNT("Single Bank Account Complete Data", "Transactions"),
+    BANK_ACCOUNTS("Bank Account Profiles", "Transactions"),
     TRANSACTION_HISTORY("Transaction History (Expenses / Income)", "Transactions"),
+    ELECTRICITY_WHOLE("Whole Electricity Data", "Electricity"),
     METER_READINGS("Electricity Datewise Readings", "Electricity"),
     UTILITY_BILLS("Electricity Paid Bill List", "Electricity"),
     FULL_BACKUP("Full Application Backup", "Full")
@@ -48,10 +51,14 @@ class DataTransferManager(private val db: AppDatabase) {
         val menus = menuDao.getMenusForHotelSync(hotelId)
         val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
 
+        val profile = userProfileDao.getUserProfileSync()
         val root = JSONObject().apply {
             put("version", 2)
             put("dataType", BackupDataType.HOTEL_WHOLE.name)
             put("exportDate", System.currentTimeMillis())
+            if (!profile?.name.isNullOrBlank()) {
+                put("senderName", profile?.name)
+            }
             put("hotel", JSONObject().apply {
                 put("id", hotel.id)
                 put("name", hotel.name)
@@ -166,17 +173,71 @@ class DataTransferManager(private val db: AppDatabase) {
         }
     }
 
-    suspend fun exportBankAccountsJson(): String = withContext(Dispatchers.IO) {
+    suspend fun exportWalletWholeJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        if (bankAccountId != null) {
+            return@withContext exportSingleBankAccountJson(bankAccountId)
+        }
         val accounts = bankAccountDao.getAllBankAccountsSync()
+        val expenses = extraExpenseDao.getAllExpensesSync()
+        val root = JSONObject().apply {
+            put("version", 2)
+            put("dataType", BackupDataType.WALLET_WHOLE.name)
+            put("exportDate", System.currentTimeMillis())
+            val bankArr = JSONArray()
+            accounts.forEach { b ->
+                bankArr.put(JSONObject().apply {
+                    put("id", b.id)
+                    put("name", b.name)
+                    put("balance", b.balance)
+                    put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
+                    put("details", b.details)
+                    put("qrCodeUri", b.qrCodeUri)
+                    put("upiId", b.upiId)
+                    put("accountNumber", b.accountNumber)
+                    put("ifsc", b.ifsc)
+                    put("branchName", b.branchName)
+                })
+            }
+            put("bankAccounts", bankArr)
+
+            val expArr = JSONArray()
+            expenses.forEach { e ->
+                expArr.put(JSONObject().apply {
+                    put("timestamp", e.timestamp)
+                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
+                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
+                    put("name", e.name)
+                    put("amount", e.amount)
+                    put("bankAccountId", e.bankAccountId)
+                    put("type", e.type)
+                    put("category", e.category)
+                    put("notes", e.notes)
+                })
+            }
+            put("expenses", expArr)
+        }
+        root.toString(2)
+    }
+
+    suspend fun exportBankAccountsJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        val accounts = if (bankAccountId != null) {
+            bankAccountDao.getBankAccountByIdSync(bankAccountId)?.let { listOf(it) } ?: emptyList()
+        } else {
+            bankAccountDao.getAllBankAccountsSync()
+        }
         val root = JSONObject().apply {
             put("version", 2)
             put("dataType", BackupDataType.BANK_ACCOUNTS.name)
+            if (bankAccountId != null) put("bankAccountId", bankAccountId)
             put("exportDate", System.currentTimeMillis())
             val arr = JSONArray()
             accounts.forEach { a ->
                 arr.put(JSONObject().apply {
                     put("name", a.name)
                     put("balance", a.balance)
+                    put("initialBalance", if (a.initialBalance != 0.0 || a.balance == 0.0) a.initialBalance else a.balance)
+                    put("details", a.details)
+                    put("qrCodeUri", a.qrCodeUri)
                     put("upiId", a.upiId)
                     put("accountNumber", a.accountNumber)
                     put("ifsc", a.ifsc)
@@ -188,11 +249,51 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString(2)
     }
 
-    suspend fun exportTransactionHistoryJson(): String = withContext(Dispatchers.IO) {
-        val expenses = extraExpenseDao.getAllExpensesSync()
+    suspend fun exportSingleBankAccountJson(bankAccountId: Int): String = withContext(Dispatchers.IO) {
+        val account = bankAccountDao.getBankAccountByIdSync(bankAccountId) ?: throw IllegalArgumentException("Bank account not found")
+        val expenses = extraExpenseDao.getAllExpensesSync().filter { it.bankAccountId == bankAccountId }
+        val root = JSONObject().apply {
+            put("version", 2)
+            put("dataType", BackupDataType.SINGLE_BANK_ACCOUNT.name)
+            put("exportDate", System.currentTimeMillis())
+            put("bankAccount", JSONObject().apply {
+                put("id", account.id)
+                put("name", account.name)
+                put("balance", account.balance)
+                put("initialBalance", if (account.initialBalance != 0.0 || account.balance == 0.0) account.initialBalance else account.balance)
+                put("details", account.details)
+                put("qrCodeUri", account.qrCodeUri)
+                put("upiId", account.upiId)
+                put("accountNumber", account.accountNumber)
+                put("ifsc", account.ifsc)
+                put("branchName", account.branchName)
+            })
+            val arr = JSONArray()
+            expenses.forEach { e ->
+                arr.put(JSONObject().apply {
+                    put("timestamp", e.timestamp)
+                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
+                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
+                    put("name", e.name)
+                    put("amount", e.amount)
+                    put("bankAccountId", e.bankAccountId)
+                    put("type", e.type)
+                    put("category", e.category)
+                    put("notes", e.notes)
+                })
+            }
+            put("expenses", arr)
+        }
+        root.toString(2)
+    }
+
+    suspend fun exportTransactionHistoryJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        val allExpenses = extraExpenseDao.getAllExpensesSync()
+        val expenses = if (bankAccountId != null) allExpenses.filter { it.bankAccountId == bankAccountId } else allExpenses
         val root = JSONObject().apply {
             put("version", 2)
             put("dataType", BackupDataType.TRANSACTION_HISTORY.name)
+            if (bankAccountId != null) put("bankAccountId", bankAccountId)
             put("exportDate", System.currentTimeMillis())
             val arr = JSONArray()
             expenses.forEach { e ->
@@ -209,6 +310,59 @@ class DataTransferManager(private val db: AppDatabase) {
                 })
             }
             put("expenses", arr)
+        }
+        root.toString(2)
+    }
+
+    suspend fun exportElectricityWholeJson(): String = withContext(Dispatchers.IO) {
+        val readings = meterDao.getAllReadingsSync()
+        val bills = meterDao.getAllUtilityBillsSync()
+        val rates = meterDao.getAllElectricityRatesSync()
+
+        val root = JSONObject().apply {
+            put("version", 2)
+            put("dataType", BackupDataType.ELECTRICITY_WHOLE.name)
+            put("exportDate", System.currentTimeMillis())
+
+            val readArr = JSONArray()
+            readings.forEach { r ->
+                readArr.put(JSONObject().apply {
+                    put("id", r.id)
+                    put("readingDate", r.readingDate)
+                    put("dateText", dateOnlyFormat.format(Date(r.readingDate)))
+                    put("totalReading", r.totalReading)
+                    put("unitsConsumed", r.unitsConsumed)
+                    put("isPaid", r.isPaid)
+                })
+            }
+            put("meterReadings", readArr)
+
+            val billArr = JSONArray()
+            bills.forEach { b ->
+                billArr.put(JSONObject().apply {
+                    put("id", b.id)
+                    put("startDate", b.startDate)
+                    put("endDate", b.endDate)
+                    put("startDateText", dateOnlyFormat.format(Date(b.startDate)))
+                    put("endDateText", dateOnlyFormat.format(Date(b.endDate)))
+                    put("totalUnits", b.totalUnits)
+                    put("calculatedAmount", b.calculatedAmount)
+                    put("dueDate", b.dueDate)
+                    put("dueDateText", dateOnlyFormat.format(Date(b.dueDate)))
+                    put("isPaid", b.isPaid)
+                    put("transactionId", b.transactionId ?: "")
+                })
+            }
+            put("utilityBills", billArr)
+
+            val rateArr = JSONArray()
+            rates.forEach { r ->
+                rateArr.put(JSONObject().apply {
+                    put("ratePerUnit", r.ratePerUnit)
+                    put("effectiveDate", r.effectiveDate)
+                })
+            }
+            put("electricityRates", rateArr)
         }
         root.toString(2)
     }
@@ -284,6 +438,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("currencySymbol", profile.currencySymbol)
                     put("language", profile.language)
                     put("themeMode", profile.themeMode)
+                    put("enableSupplementaryAddons", profile.enableSupplementaryAddons)
                 })
             }
 
@@ -327,6 +482,9 @@ class DataTransferManager(private val db: AppDatabase) {
                 bankArr.put(JSONObject().apply {
                     put("name", b.name)
                     put("balance", b.balance)
+                    put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
+                    put("details", b.details)
+                    put("qrCodeUri", b.qrCodeUri)
                     put("upiId", b.upiId)
                     put("accountNumber", b.accountNumber)
                     put("ifsc", b.ifsc)
@@ -468,6 +626,51 @@ class DataTransferManager(private val db: AppDatabase) {
     // CSV EXPORTS (Group-wise and cleanly structured)
     // ==========================================
 
+    suspend fun exportFullBackupCsv(): String = withContext(Dispatchers.IO) {
+        val hotels = hotelDao.getAllHotelsSync()
+        val profile = userProfileDao.getUserProfileSync()
+        val sb = StringBuilder()
+        sb.append("# FULL APPLICATION BACKUP\n\n")
+
+        if (profile != null) {
+            sb.append("# USER PROFILE\n")
+            sb.append("Name,Contact,Currency,Language,Theme Mode\n")
+            sb.append("\"${escapeCsv(profile.name)}\",\"${escapeCsv(profile.contact)}\",\"${escapeCsv(profile.currencySymbol)}\",\"${escapeCsv(profile.language)}\",\"${escapeCsv(profile.themeMode)}\"\n\n")
+        }
+
+        sb.append("# HOTELS\n")
+        sb.append("Hotel ID,Hotel Name,Advance Payment,Phone Number,Location,UPI ID\n")
+        hotels.forEach { h ->
+            sb.append("${h.id},\"${escapeCsv(h.name)}\",${h.advancedPayment},\"${escapeCsv(h.phoneNumber)}\",\"${escapeCsv(h.location)}\",\"${escapeCsv(h.upiId)}\"\n")
+        }
+        sb.append("\n")
+
+        sb.append("# MENU ITEMS\n")
+        sb.append(exportMenusCsv(null))
+        sb.append("\n")
+
+        sb.append("# ORDER HISTORY (GROUP-WISE COMPACT)\n")
+        sb.append(exportHotelHistoryCsv(null))
+        sb.append("\n")
+
+        sb.append("# BANK ACCOUNTS\n")
+        sb.append(exportBankAccountsCsv(null))
+        sb.append("\n")
+
+        sb.append("# TRANSACTION HISTORY\n")
+        sb.append(exportTransactionHistoryCsv(null))
+        sb.append("\n")
+
+        sb.append("# METER READINGS\n")
+        sb.append(exportMeterReadingsCsv())
+        sb.append("\n")
+
+        sb.append("# UTILITY BILLS\n")
+        sb.append(exportUtilityBillsCsv())
+
+        sb.toString()
+    }
+
     suspend fun exportMenusCsv(hotelId: Int? = null): String = withContext(Dispatchers.IO) {
         val menus = if (hotelId != null) menuDao.getMenusForHotelSync(hotelId) else menuDao.getAllMenuItemsSync()
         val sb = StringBuilder()
@@ -519,18 +722,48 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.toString()
     }
 
-    suspend fun exportBankAccountsCsv(): String = withContext(Dispatchers.IO) {
-        val accounts = bankAccountDao.getAllBankAccountsSync()
+    suspend fun exportSingleBankAccountCsv(bankAccountId: Int): String = withContext(Dispatchers.IO) {
+        val account = bankAccountDao.getBankAccountByIdSync(bankAccountId)
         val sb = StringBuilder()
+        sb.append("# BANK ACCOUNT DETAILS\n")
         sb.append("Account Name,Current Balance,UPI ID,Account Number,IFSC Code,Branch Name\n")
+        if (account != null) {
+            sb.append("\"${escapeCsv(account.name)}\",${account.balance},\"${escapeCsv(account.upiId)}\",\"${escapeCsv(account.accountNumber)}\",\"${escapeCsv(account.ifsc)}\",\"${escapeCsv(account.branchName)}\"\n\n")
+        }
+        sb.append("# TRANSACTION HISTORY\n")
+        sb.append(exportTransactionHistoryCsv(bankAccountId))
+        sb.toString()
+    }
+
+    suspend fun exportWalletWholeCsv(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        if (bankAccountId != null) {
+            return@withContext exportSingleBankAccountCsv(bankAccountId)
+        }
+        val sb = StringBuilder()
+        sb.append("# BANK ACCOUNTS\n")
+        sb.append(exportBankAccountsCsv(null))
+        sb.append("\n# TRANSACTION HISTORY\n")
+        sb.append(exportTransactionHistoryCsv(null))
+        sb.toString()
+    }
+
+    suspend fun exportBankAccountsCsv(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        val accounts = if (bankAccountId != null) {
+            bankAccountDao.getBankAccountByIdSync(bankAccountId)?.let { listOf(it) } ?: emptyList()
+        } else {
+            bankAccountDao.getAllBankAccountsSync()
+        }
+        val sb = StringBuilder()
+        sb.append("Account ID,Account Name,Current Balance,Initial Balance,UPI ID,Account Number,IFSC Code,Branch Name,Details\n")
         accounts.forEach { a ->
-            sb.append("\"${escapeCsv(a.name)}\",${a.balance},\"${escapeCsv(a.upiId)}\",\"${escapeCsv(a.accountNumber)}\",\"${escapeCsv(a.ifsc)}\",\"${escapeCsv(a.branchName)}\"\n")
+            sb.append("${a.id},\"${escapeCsv(a.name)}\",${a.balance},${a.initialBalance},\"${escapeCsv(a.upiId)}\",\"${escapeCsv(a.accountNumber)}\",\"${escapeCsv(a.ifsc)}\",\"${escapeCsv(a.branchName)}\",\"${escapeCsv(a.details)}\"\n")
         }
         sb.toString()
     }
 
-    suspend fun exportTransactionHistoryCsv(): String = withContext(Dispatchers.IO) {
-        val expenses = extraExpenseDao.getAllExpensesSync()
+    suspend fun exportTransactionHistoryCsv(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+        val allExpenses = extraExpenseDao.getAllExpensesSync()
+        val expenses = if (bankAccountId != null) allExpenses.filter { it.bankAccountId == bankAccountId } else allExpenses
         val sb = StringBuilder()
         sb.append("Timestamp,Date,Time,Transaction Type,Category,Description,Amount,Bank Account ID,Notes\n")
         expenses.forEach { e ->
@@ -539,6 +772,15 @@ class DataTransferManager(private val db: AppDatabase) {
             val typeStr = if (e.type.equals("INCOME", ignoreCase = true)) "Income" else "Expense"
             sb.append("${e.timestamp},\"$dateStr\",\"$timeStr\",\"$typeStr\",\"${escapeCsv(e.category)}\",\"${escapeCsv(e.name)}\",${e.amount},${e.bankAccountId},\"${escapeCsv(e.notes)}\"\n")
         }
+        sb.toString()
+    }
+
+    suspend fun exportElectricityWholeCsv(): String = withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+        sb.append("# METER READINGS\n")
+        sb.append(exportMeterReadingsCsv())
+        sb.append("\n# UTILITY BILLS\n")
+        sb.append(exportUtilityBillsCsv())
         sb.toString()
     }
 
@@ -575,7 +817,7 @@ class DataTransferManager(private val db: AppDatabase) {
     // JSON IMPORTER (Auto-detects format)
     // ==========================================
 
-    suspend fun importJson(jsonString: String, targetHotelId: Int = 1): ImportOutcome = withContext(Dispatchers.IO) {
+    suspend fun importJson(jsonString: String, targetHotelId: Int = 1, targetBankAccountId: Int = 1): ImportOutcome = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(jsonString.trim())
 
@@ -642,6 +884,186 @@ class DataTransferManager(private val db: AppDatabase) {
             val dataType = root.optString("dataType", "")
 
             when {
+                dataType == BackupDataType.FULL_BACKUP.name || root.has("hotels") || root.has("userProfile") ||
+                        (root.has("menus") && root.has("bankAccounts")) || (root.has("hotel") && root.has("bankAccounts")) -> {
+                    var totalCount = 0
+
+                    if (root.has("userProfile")) {
+                        val pObj = root.getJSONObject("userProfile")
+                        val profile = UserProfileEntity(
+                            name = pObj.optString("name", ""),
+                            contact = pObj.optString("contact", ""),
+                            currencySymbol = pObj.optString("currencySymbol", "₹"),
+                            language = pObj.optString("language", "en"),
+                            themeMode = pObj.optString("themeMode", "Auto"),
+                            enableSupplementaryAddons = pObj.optBoolean("enableSupplementaryAddons", true)
+                        )
+                        userProfileDao.insertOrUpdateProfile(profile)
+                    }
+
+                    val hotelIdMap = mutableMapOf<Int, Int>()
+                    if (root.has("hotels")) {
+                        val hArr = root.getJSONArray("hotels")
+                        for (i in 0 until hArr.length()) {
+                            val hObj = hArr.getJSONObject(i)
+                            val origId = hObj.optInt("id", -1)
+                            val newId = hotelDao.insertHotel(
+                                HotelEntity(
+                                    name = hObj.getString("name"),
+                                    advancedPayment = hObj.optDouble("advancedPayment", 0.0),
+                                    phoneNumber = hObj.optString("phoneNumber", ""),
+                                    location = hObj.optString("location", ""),
+                                    upiId = hObj.optString("upiId", "")
+                                )
+                            ).toInt()
+                            if (origId != -1) hotelIdMap[origId] = newId
+                            totalCount++
+                        }
+                    }
+
+                    if (root.has("menus")) {
+                        val mArr = root.getJSONArray("menus")
+                        val list = mutableListOf<MenuEntity>()
+                        for (i in 0 until mArr.length()) {
+                            val item = mArr.getJSONObject(i)
+                            val origHotelId = item.optInt("hotelId", 1)
+                            val mappedHotelId = hotelIdMap[origHotelId] ?: origHotelId
+                            list.add(
+                                MenuEntity(
+                                    hotelId = mappedHotelId,
+                                    banglaName = item.optString("banglaName", ""),
+                                    englishName = item.optString("englishName", ""),
+                                    price = item.optDouble("price", 0.0),
+                                    isDayMenu = item.optBoolean("isDayMenu", true),
+                                    isNightMenu = item.optBoolean("isNightMenu", true),
+                                    isAddOn = item.optBoolean("isAddOn", false),
+                                    emoji = item.optString("emoji", "🍽️"),
+                                    type = item.optString("type", "Common")
+                                )
+                            )
+                        }
+                        menuDao.insertMenuItems(list)
+                        totalCount += list.size
+                    }
+
+                    if (root.has("transactions")) {
+                        val tArr = root.getJSONArray("transactions")
+                        val list = mutableListOf<HotelTransactionEntity>()
+                        for (i in 0 until tArr.length()) {
+                            val item = tArr.getJSONObject(i)
+                            val origHotelId = item.optInt("hotelId", 1)
+                            val mappedHotelId = hotelIdMap[origHotelId] ?: origHotelId
+                            val serialized = extractSerializedItemsFromJson(item)
+                            list.add(
+                                HotelTransactionEntity(
+                                    hotelId = mappedHotelId,
+                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
+                                    isNight = item.optBoolean("isNight", false),
+                                    itemsSerialized = serialized,
+                                    totalAmount = item.optDouble("totalAmount", 0.0)
+                                )
+                            )
+                        }
+                        transactionDao.insertTransactions(list)
+                        totalCount += list.size
+                    }
+
+                    val bankIdMap = mutableMapOf<Int, Int>()
+                    if (root.has("bankAccounts")) {
+                        val bArr = root.getJSONArray("bankAccounts")
+                        for (i in 0 until bArr.length()) {
+                            val item = bArr.getJSONObject(i)
+                            val origId = item.optInt("id", -1)
+                            val bal = item.optDouble("balance", 0.0)
+                            val initBal = item.optDouble("initialBalance", bal)
+                            val newId = bankAccountDao.insertBankAccount(
+                                BankAccountEntity(
+                                    name = item.getString("name"),
+                                    balance = bal,
+                                    initialBalance = initBal,
+                                    details = item.optString("details", ""),
+                                    qrCodeUri = item.optString("qrCodeUri", ""),
+                                    upiId = item.optString("upiId", ""),
+                                    accountNumber = item.optString("accountNumber", ""),
+                                    ifsc = item.optString("ifsc", ""),
+                                    branchName = item.optString("branchName", "")
+                                )
+                            ).toInt()
+                            if (origId != -1) bankIdMap[origId] = newId
+                            totalCount++
+                        }
+                    }
+
+                    if (root.has("expenses")) {
+                        val eArr = root.getJSONArray("expenses")
+                        val list = mutableListOf<ExtraExpenseEntity>()
+                        for (i in 0 until eArr.length()) {
+                            val item = eArr.getJSONObject(i)
+                            val origBankId = item.optInt("bankAccountId", 1)
+                            val mappedBankId = bankIdMap[origBankId] ?: origBankId
+                            list.add(
+                                ExtraExpenseEntity(
+                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
+                                    name = item.getString("name"),
+                                    amount = item.getDouble("amount"),
+                                    bankAccountId = mappedBankId,
+                                    type = item.optString("type", "EXPENSE"),
+                                    category = item.optString("category", "General"),
+                                    notes = item.optString("notes", "")
+                                )
+                            )
+                        }
+                        extraExpenseDao.insertExpenses(list)
+                        totalCount += list.size
+                    }
+
+                    if (root.has("meterReadings")) {
+                        val rArr = root.getJSONArray("meterReadings")
+                        val list = mutableListOf<MeterReading>()
+                        for (i in 0 until rArr.length()) {
+                            val item = rArr.getJSONObject(i)
+                            list.add(
+                                MeterReading(
+                                    id = item.optString("id", UUID.randomUUID().toString()),
+                                    readingDate = item.getLong("readingDate"),
+                                    totalReading = item.getDouble("totalReading"),
+                                    unitsConsumed = item.getDouble("unitsConsumed"),
+                                    isPaid = item.optBoolean("isPaid", false)
+                                )
+                            )
+                        }
+                        meterDao.insertReadings(list)
+                        totalCount += list.size
+                    }
+
+                    if (root.has("utilityBills")) {
+                        val bArr = root.getJSONArray("utilityBills")
+                        val list = mutableListOf<UtilityBill>()
+                        for (i in 0 until bArr.length()) {
+                            val item = bArr.getJSONObject(i)
+                            list.add(
+                                UtilityBill(
+                                    id = item.optString("id", UUID.randomUUID().toString()),
+                                    startDate = item.getLong("startDate"),
+                                    endDate = item.getLong("endDate"),
+                                    totalUnits = item.getDouble("totalUnits"),
+                                    calculatedAmount = item.getDouble("calculatedAmount"),
+                                    dueDate = item.optLong("dueDate", item.getLong("endDate")),
+                                    isPaid = item.optBoolean("isPaid", true),
+                                    transactionId = item.optString("transactionId", null)
+                                )
+                            )
+                        }
+                        meterDao.insertUtilityBills(list)
+                        totalCount += list.size
+                    }
+
+                    return@withContext ImportOutcome.Success(
+                        message = "Full application backup restored successfully ($totalCount records)",
+                        count = totalCount
+                    )
+                }
+
                 dataType == BackupDataType.HOTEL_WHOLE.name || root.has("hotel") -> {
                     val hObj = root.getJSONObject("hotel")
                     val newHotel = HotelEntity(
@@ -754,15 +1176,117 @@ class DataTransferManager(private val db: AppDatabase) {
                     )
                 }
 
+                dataType == BackupDataType.WALLET_WHOLE.name || (root.has("bankAccounts") && root.has("expenses")) -> {
+                    var totalCount = 0
+                    val idMap = mutableMapOf<Int, Int>()
+                    if (root.has("bankAccounts")) {
+                        val bArr = root.getJSONArray("bankAccounts")
+                        for (i in 0 until bArr.length()) {
+                            val item = bArr.getJSONObject(i)
+                            val origId = item.optInt("id", -1)
+                            val bal = item.optDouble("balance", 0.0)
+                            val initBal = item.optDouble("initialBalance", bal)
+                            val newAccount = BankAccountEntity(
+                                name = item.getString("name"),
+                                balance = bal,
+                                initialBalance = initBal,
+                                details = item.optString("details", ""),
+                                qrCodeUri = item.optString("qrCodeUri", ""),
+                                upiId = item.optString("upiId", ""),
+                                accountNumber = item.optString("accountNumber", ""),
+                                ifsc = item.optString("ifsc", ""),
+                                branchName = item.optString("branchName", "")
+                            )
+                            val newId = bankAccountDao.insertBankAccount(newAccount).toInt()
+                            if (origId != -1) idMap[origId] = newId
+                            totalCount++
+                        }
+                    }
+                    if (root.has("expenses")) {
+                        val eArr = root.getJSONArray("expenses")
+                        val list = mutableListOf<ExtraExpenseEntity>()
+                        for (i in 0 until eArr.length()) {
+                            val item = eArr.getJSONObject(i)
+                            val origBankId = item.optInt("bankAccountId", targetBankAccountId)
+                            val targetId = idMap[origBankId] ?: origBankId
+                            list.add(
+                                ExtraExpenseEntity(
+                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
+                                    name = item.optString("name", "Expense"),
+                                    amount = item.optDouble("amount", 0.0),
+                                    bankAccountId = targetId,
+                                    type = item.optString("type", "EXPENSE"),
+                                    category = item.optString("category", "General"),
+                                    notes = item.optString("notes", "")
+                                )
+                            )
+                        }
+                        extraExpenseDao.insertExpenses(list)
+                        totalCount += list.size
+                    }
+                    return@withContext ImportOutcome.Success(
+                        message = "Imported wallet data ($totalCount accounts & transactions)",
+                        count = totalCount
+                    )
+                }
+
+                dataType == BackupDataType.SINGLE_BANK_ACCOUNT.name || root.has("bankAccount") -> {
+                    val bObj = root.getJSONObject("bankAccount")
+                    val bal = bObj.optDouble("balance", 0.0)
+                    val initBal = bObj.optDouble("initialBalance", bal)
+                    val newAccount = BankAccountEntity(
+                        name = bObj.getString("name"),
+                        balance = bal,
+                        initialBalance = initBal,
+                        details = bObj.optString("details", ""),
+                        qrCodeUri = bObj.optString("qrCodeUri", ""),
+                        upiId = bObj.optString("upiId", ""),
+                        accountNumber = bObj.optString("accountNumber", ""),
+                        ifsc = bObj.optString("ifsc", ""),
+                        branchName = bObj.optString("branchName", "")
+                    )
+                    val newAccountId = bankAccountDao.insertBankAccount(newAccount).toInt()
+                    var txCount = 0
+                    if (root.has("expenses")) {
+                        val eArr = root.getJSONArray("expenses")
+                        val list = mutableListOf<ExtraExpenseEntity>()
+                        for (i in 0 until eArr.length()) {
+                            val item = eArr.getJSONObject(i)
+                            list.add(
+                                ExtraExpenseEntity(
+                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
+                                    name = item.optString("name", "Expense"),
+                                    amount = item.optDouble("amount", 0.0),
+                                    bankAccountId = newAccountId,
+                                    type = item.optString("type", "EXPENSE"),
+                                    category = item.optString("category", "General"),
+                                    notes = item.optString("notes", "")
+                                )
+                            )
+                        }
+                        extraExpenseDao.insertExpenses(list)
+                        txCount = list.size
+                    }
+                    return@withContext ImportOutcome.Success(
+                        message = "Imported account '${newAccount.name}' with $txCount transactions",
+                        count = 1 + txCount
+                    )
+                }
+
                 dataType == BackupDataType.BANK_ACCOUNTS.name || root.has("bankAccounts") -> {
                     val bArr = root.getJSONArray("bankAccounts")
                     val list = mutableListOf<BankAccountEntity>()
                     for (i in 0 until bArr.length()) {
                         val item = bArr.getJSONObject(i)
+                        val bal = item.optDouble("balance", 0.0)
+                        val initBal = item.optDouble("initialBalance", bal)
                         list.add(
                             BankAccountEntity(
                                 name = item.getString("name"),
-                                balance = item.optDouble("balance", 0.0),
+                                balance = bal,
+                                initialBalance = initBal,
+                                details = item.optString("details", ""),
+                                qrCodeUri = item.optString("qrCodeUri", ""),
                                 upiId = item.optString("upiId", ""),
                                 accountNumber = item.optString("accountNumber", ""),
                                 ifsc = item.optString("ifsc", ""),
@@ -778,6 +1302,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 }
 
                 dataType == BackupDataType.TRANSACTION_HISTORY.name || root.has("expenses") -> {
+                    val fallbackAccId = root.optInt("bankAccountId", targetBankAccountId)
                     val eArr = root.getJSONArray("expenses")
                     val list = mutableListOf<ExtraExpenseEntity>()
                     for (i in 0 until eArr.length()) {
@@ -787,7 +1312,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                 timestamp = item.optLong("timestamp", System.currentTimeMillis()),
                                 name = item.getString("name"),
                                 amount = item.getDouble("amount"),
-                                bankAccountId = item.optInt("bankAccountId", 1),
+                                bankAccountId = item.optInt("bankAccountId", fallbackAccId),
                                 type = item.optString("type", "EXPENSE"),
                                 category = item.optString("category", "General"),
                                 notes = item.optString("notes", "")
@@ -798,6 +1323,53 @@ class DataTransferManager(private val db: AppDatabase) {
                     return@withContext ImportOutcome.Success(
                         message = "Imported ${list.size} transactions into history",
                         count = list.size
+                    )
+                }
+
+                dataType == BackupDataType.ELECTRICITY_WHOLE.name || (root.has("meterReadings") && root.has("utilityBills")) -> {
+                    var totalCount = 0
+                    if (root.has("meterReadings")) {
+                        val rArr = root.getJSONArray("meterReadings")
+                        val list = mutableListOf<MeterReading>()
+                        for (i in 0 until rArr.length()) {
+                            val item = rArr.getJSONObject(i)
+                            list.add(
+                                MeterReading(
+                                    id = item.optString("id", UUID.randomUUID().toString()),
+                                    readingDate = item.getLong("readingDate"),
+                                    totalReading = item.getDouble("totalReading"),
+                                    unitsConsumed = item.getDouble("unitsConsumed"),
+                                    isPaid = item.optBoolean("isPaid", false)
+                                )
+                            )
+                        }
+                        meterDao.insertReadings(list)
+                        totalCount += list.size
+                    }
+                    if (root.has("utilityBills")) {
+                        val bArr = root.getJSONArray("utilityBills")
+                        val list = mutableListOf<UtilityBill>()
+                        for (i in 0 until bArr.length()) {
+                            val item = bArr.getJSONObject(i)
+                            list.add(
+                                UtilityBill(
+                                    id = item.optString("id", UUID.randomUUID().toString()),
+                                    startDate = item.getLong("startDate"),
+                                    endDate = item.getLong("endDate"),
+                                    totalUnits = item.getDouble("totalUnits"),
+                                    calculatedAmount = item.getDouble("calculatedAmount"),
+                                    dueDate = item.optLong("dueDate", item.getLong("endDate")),
+                                    isPaid = item.optBoolean("isPaid", true),
+                                    transactionId = item.optString("transactionId", null)
+                                )
+                            )
+                        }
+                        meterDao.insertUtilityBills(list)
+                        totalCount += list.size
+                    }
+                    return@withContext ImportOutcome.Success(
+                        message = "Imported electricity data ($totalCount readings & bills)",
+                        count = totalCount
                     )
                 }
 
@@ -845,169 +1417,6 @@ class DataTransferManager(private val db: AppDatabase) {
                     return@withContext ImportOutcome.Success(
                         message = "Imported ${list.size} paid electricity bills",
                         count = list.size
-                    )
-                }
-
-                dataType == BackupDataType.FULL_BACKUP.name || root.has("hotels") -> {
-                    // Full backup restore
-                    var totalCount = 0
-                    if (root.has("userProfile")) {
-                        val pObj = root.getJSONObject("userProfile")
-                        val profile = UserProfileEntity(
-                            name = pObj.optString("name", ""),
-                            contact = pObj.optString("contact", ""),
-                            currencySymbol = pObj.optString("currencySymbol", "₹"),
-                            language = pObj.optString("language", "en"),
-                            themeMode = pObj.optString("themeMode", "Auto")
-                        )
-                        userProfileDao.insertOrUpdateProfile(profile)
-                    }
-
-                    if (root.has("hotels")) {
-                        val hArr = root.getJSONArray("hotels")
-                        for (i in 0 until hArr.length()) {
-                            val hObj = hArr.getJSONObject(i)
-                            hotelDao.insertHotel(
-                                HotelEntity(
-                                    name = hObj.getString("name"),
-                                    advancedPayment = hObj.optDouble("advancedPayment", 0.0),
-                                    phoneNumber = hObj.optString("phoneNumber", ""),
-                                    location = hObj.optString("location", ""),
-                                    upiId = hObj.optString("upiId", "")
-                                )
-                            )
-                            totalCount++
-                        }
-                    }
-
-                    if (root.has("menus")) {
-                        val mArr = root.getJSONArray("menus")
-                        val list = mutableListOf<MenuEntity>()
-                        for (i in 0 until mArr.length()) {
-                            val item = mArr.getJSONObject(i)
-                            list.add(
-                                MenuEntity(
-                                    hotelId = item.optInt("hotelId", 1),
-                                    banglaName = item.optString("banglaName", ""),
-                                    englishName = item.optString("englishName", ""),
-                                    price = item.optDouble("price", 0.0),
-                                    isDayMenu = item.optBoolean("isDayMenu", true),
-                                    isNightMenu = item.optBoolean("isNightMenu", true),
-                                    isAddOn = item.optBoolean("isAddOn", false),
-                                    emoji = item.optString("emoji", "🍽️"),
-                                    type = item.optString("type", "Common")
-                                )
-                            )
-                        }
-                        menuDao.insertMenuItems(list)
-                        totalCount += list.size
-                    }
-
-                    if (root.has("transactions")) {
-                        val tArr = root.getJSONArray("transactions")
-                        val list = mutableListOf<HotelTransactionEntity>()
-                        for (i in 0 until tArr.length()) {
-                            val item = tArr.getJSONObject(i)
-                            val serialized = extractSerializedItemsFromJson(item)
-                            list.add(
-                                HotelTransactionEntity(
-                                    hotelId = item.optInt("hotelId", 1),
-                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
-                                    isNight = item.optBoolean("isNight", false),
-                                    itemsSerialized = serialized,
-                                    totalAmount = item.optDouble("totalAmount", 0.0)
-                                )
-                            )
-                        }
-                        transactionDao.insertTransactions(list)
-                        totalCount += list.size
-                    }
-
-                    if (root.has("bankAccounts")) {
-                        val bArr = root.getJSONArray("bankAccounts")
-                        val list = mutableListOf<BankAccountEntity>()
-                        for (i in 0 until bArr.length()) {
-                            val item = bArr.getJSONObject(i)
-                            list.add(
-                                BankAccountEntity(
-                                    name = item.getString("name"),
-                                    balance = item.optDouble("balance", 0.0),
-                                    upiId = item.optString("upiId", ""),
-                                    accountNumber = item.optString("accountNumber", ""),
-                                    ifsc = item.optString("ifsc", ""),
-                                    branchName = item.optString("branchName", "")
-                                )
-                            )
-                        }
-                        bankAccountDao.insertBankAccounts(list)
-                        totalCount += list.size
-                    }
-
-                    if (root.has("expenses")) {
-                        val eArr = root.getJSONArray("expenses")
-                        val list = mutableListOf<ExtraExpenseEntity>()
-                        for (i in 0 until eArr.length()) {
-                            val item = eArr.getJSONObject(i)
-                            list.add(
-                                ExtraExpenseEntity(
-                                    timestamp = item.optLong("timestamp", System.currentTimeMillis()),
-                                    name = item.getString("name"),
-                                    amount = item.getDouble("amount"),
-                                    bankAccountId = item.optInt("bankAccountId", 1),
-                                    type = item.optString("type", "EXPENSE"),
-                                    category = item.optString("category", "General"),
-                                    notes = item.optString("notes", "")
-                                )
-                            )
-                        }
-                        extraExpenseDao.insertExpenses(list)
-                        totalCount += list.size
-                    }
-
-                    if (root.has("meterReadings")) {
-                        val rArr = root.getJSONArray("meterReadings")
-                        val list = mutableListOf<MeterReading>()
-                        for (i in 0 until rArr.length()) {
-                            val item = rArr.getJSONObject(i)
-                            list.add(
-                                MeterReading(
-                                    id = item.optString("id", UUID.randomUUID().toString()),
-                                    readingDate = item.getLong("readingDate"),
-                                    totalReading = item.getDouble("totalReading"),
-                                    unitsConsumed = item.getDouble("unitsConsumed"),
-                                    isPaid = item.optBoolean("isPaid", false)
-                                )
-                            )
-                        }
-                        meterDao.insertReadings(list)
-                        totalCount += list.size
-                    }
-
-                    if (root.has("utilityBills")) {
-                        val bArr = root.getJSONArray("utilityBills")
-                        val list = mutableListOf<UtilityBill>()
-                        for (i in 0 until bArr.length()) {
-                            val item = bArr.getJSONObject(i)
-                            list.add(
-                                UtilityBill(
-                                    id = item.optString("id", UUID.randomUUID().toString()),
-                                    startDate = item.getLong("startDate"),
-                                    endDate = item.getLong("endDate"),
-                                    totalUnits = item.getDouble("totalUnits"),
-                                    calculatedAmount = item.getDouble("calculatedAmount"),
-                                    dueDate = item.optLong("dueDate", item.getLong("endDate")),
-                                    isPaid = item.optBoolean("isPaid", true),
-                                    transactionId = item.optString("transactionId", null)
-                                )
-                            )
-                        }
-                        meterDao.insertUtilityBills(list)
-                        totalCount += list.size
-                    }
-
-                    return@withContext ImportOutcome.Success(
-                        message = "Full application backup restored successfully ($totalCount records)",
-                        count = totalCount
                     )
                 }
 
@@ -1433,7 +1842,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun importBankAccountsCsv(csv: String): Int = withContext(Dispatchers.IO) {
-        val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
+        val lines = csv.lines().map { it.trim().removePrefix("\uFEFF").trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
         if (lines.isEmpty()) return@withContext 0
 
         val list = mutableListOf<BankAccountEntity>()
@@ -1442,27 +1851,42 @@ class DataTransferManager(private val db: AppDatabase) {
             if (cols.isEmpty()) continue
 
             val first = cols[0].lowercase()
-            if (index == 0 && (first.contains("name") || first.contains("account") || first.contains("bank"))) {
+            if (index == 0 && (first.contains("name") || first.contains("account") || first.contains("bank") || first.contains("id"))) {
                 continue
             }
 
-            val name = cols.getOrElse(0) { "" }
-            if (name.isBlank()) continue
+            // Check if column 0 is ID (numeric) or Name
+            val isIdFirst = cols[0].toIntOrNull() != null && cols.size > 2
+            val name = if (isIdFirst) cols.getOrElse(1) { "" } else cols.getOrElse(0) { "" }
+            if (name.isBlank() || name.equals("Account Name", ignoreCase = true)) continue
 
-            val balance = cols.getOrElse(1) { "0" }.toDoubleOrNull() ?: 0.0
-            val upiId = cols.getOrElse(2) { "" }
-            val accNum = cols.getOrElse(3) { "" }
-            val ifsc = cols.getOrElse(4) { "" }
-            val branch = cols.getOrElse(5) { "" }
+            val balIndex = if (isIdFirst) 2 else 1
+            val hasInitBal = if (isIdFirst) (cols.size > 3 && cols[3].toDoubleOrNull() != null) else (cols.size > 2 && cols[2].toDoubleOrNull() != null)
+            val initBalIndex = if (hasInitBal) (if (isIdFirst) 3 else 2) else balIndex
+            val upiIndex = if (isIdFirst) (if (hasInitBal) 4 else 3) else (if (hasInitBal) 3 else 2)
+            val accNumIndex = upiIndex + 1
+            val ifscIndex = upiIndex + 2
+            val branchIndex = upiIndex + 3
+            val detailsIndex = upiIndex + 4
+
+            val balance = cols.getOrElse(balIndex) { "0" }.toDoubleOrNull() ?: 0.0
+            val initBal = cols.getOrElse(initBalIndex) { balance.toString() }.toDoubleOrNull() ?: balance
+            val upiId = cols.getOrElse(upiIndex) { "" }
+            val accNum = cols.getOrElse(accNumIndex) { "" }
+            val ifsc = cols.getOrElse(ifscIndex) { "" }
+            val branch = cols.getOrElse(branchIndex) { "" }
+            val details = cols.getOrElse(detailsIndex) { "" }
 
             list.add(
                 BankAccountEntity(
                     name = name,
                     balance = balance,
+                    initialBalance = initBal,
                     upiId = upiId,
                     accountNumber = accNum,
                     ifsc = ifsc,
-                    branchName = branch
+                    branchName = branch,
+                    details = details
                 )
             )
         }
@@ -1645,44 +2069,306 @@ class DataTransferManager(private val db: AppDatabase) {
         list.size
     }
 
+    suspend fun importWalletWholeCsv(csv: String, fallbackBankAccountId: Int = 1): ImportOutcome = withContext(Dispatchers.IO) {
+        val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return@withContext ImportOutcome.Error("CSV is empty")
+
+        var accCount = 0
+        if (lines.any { it.startsWith("# BANK ACCOUNTS", ignoreCase = true) || it.startsWith("# BANK ACCOUNT DETAILS", ignoreCase = true) }) {
+            val accSection = lines.dropWhile { !it.startsWith("# BANK", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            accCount = importBankAccountsCsv(accSection)
+        }
+
+        var txCount = 0
+        if (lines.any { it.startsWith("# TRANSACTION HISTORY", ignoreCase = true) }) {
+            val txSection = lines.dropWhile { !it.startsWith("# TRANSACTION HISTORY", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            txCount = importTransactionHistoryCsv(txSection)
+        } else if (accCount == 0) {
+            txCount = importTransactionHistoryCsv(csv)
+        }
+
+        ImportOutcome.Success("Imported $accCount bank accounts & $txCount transactions", count = accCount + txCount)
+    }
+
+    suspend fun importElectricityWholeCsv(csv: String): ImportOutcome = withContext(Dispatchers.IO) {
+        val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return@withContext ImportOutcome.Error("CSV is empty")
+
+        var readingsCount = 0
+        if (lines.any { it.startsWith("# METER READINGS", ignoreCase = true) }) {
+            val readSection = lines.dropWhile { !it.startsWith("# METER READINGS", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            readingsCount = importMeterReadingsCsv(readSection)
+        }
+
+        var billsCount = 0
+        if (lines.any { it.startsWith("# UTILITY BILLS", ignoreCase = true) }) {
+            val billSection = lines.dropWhile { !it.startsWith("# UTILITY BILLS", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            billsCount = importUtilityBillsCsv(billSection)
+        }
+
+        if (readingsCount == 0 && billsCount == 0) {
+            readingsCount = importMeterReadingsCsv(csv)
+        }
+
+        ImportOutcome.Success("Imported $readingsCount meter readings & $billsCount utility bills", count = readingsCount + billsCount)
+    }
+
+    suspend fun importFullBackupCsv(csv: String): ImportOutcome = withContext(Dispatchers.IO) {
+        val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return@withContext ImportOutcome.Error("CSV is empty")
+
+        var totalCount = 0
+
+        // 1. User Profile Section
+        if (lines.any { it.startsWith("# USER PROFILE", ignoreCase = true) }) {
+            val profSection = lines.dropWhile { !it.startsWith("# USER PROFILE", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }
+            val profDataLines = profSection.filter { !it.startsWith("Name,", ignoreCase = true) }
+            if (profDataLines.isNotEmpty()) {
+                val cols = splitCsvRow(profDataLines.first())
+                if (cols.isNotEmpty()) {
+                    val p = UserProfileEntity(
+                        name = cols.getOrElse(0) { "" },
+                        contact = cols.getOrElse(1) { "" },
+                        currencySymbol = cols.getOrElse(2) { "₹" },
+                        language = cols.getOrElse(3) { "en" },
+                        themeMode = cols.getOrElse(4) { "Auto" }
+                    )
+                    userProfileDao.insertOrUpdateProfile(p)
+                    totalCount++
+                }
+            }
+        }
+
+        // 2. Hotels Section
+        val hotelIdMap = mutableMapOf<Int, Int>()
+        if (lines.any { it.startsWith("# HOTELS", ignoreCase = true) }) {
+            val hotelSection = lines.dropWhile { !it.startsWith("# HOTELS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }
+            val hotelDataLines = hotelSection.filter { !it.startsWith("Hotel ID,", ignoreCase = true) }
+            hotelDataLines.forEach { line ->
+                val cols = splitCsvRow(line)
+                if (cols.size >= 2) {
+                    val origId = cols[0].toIntOrNull() ?: -1
+                    val h = HotelEntity(
+                        name = cols[1],
+                        advancedPayment = cols.getOrNull(2)?.toDoubleOrNull() ?: 0.0,
+                        phoneNumber = cols.getOrElse(3) { "" },
+                        location = cols.getOrElse(4) { "" },
+                        upiId = cols.getOrElse(5) { "" }
+                    )
+                    val newId = hotelDao.insertHotel(h).toInt()
+                    if (origId != -1) hotelIdMap[origId] = newId
+                    totalCount++
+                }
+            }
+        }
+
+        // 3. Menus Section
+        if (lines.any { it.startsWith("# MENU ITEMS", ignoreCase = true) }) {
+            val menuSection = lines.dropWhile { !it.startsWith("# MENU ITEMS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            val targetHId = hotelIdMap.values.firstOrNull() ?: 1
+            totalCount += importMenusCsv(menuSection, targetHId)
+        }
+
+        // 4. Order History Section
+        if (lines.any { it.startsWith("# ORDER HISTORY", ignoreCase = true) }) {
+            val histSection = lines.dropWhile { !it.startsWith("# ORDER HISTORY", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            val targetHId = hotelIdMap.values.firstOrNull() ?: 1
+            totalCount += importHotelHistoryCsv(histSection, targetHId)
+        }
+
+        // 5. Bank Accounts Section
+        val bankIdMap = mutableMapOf<Int, Int>()
+        if (lines.any { it.startsWith("# BANK ACCOUNTS", ignoreCase = true) }) {
+            val bankSection = lines.dropWhile { !it.startsWith("# BANK ACCOUNTS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }
+            val bankDataLines = bankSection.filter { 
+                !it.startsWith("Account ID,", ignoreCase = true) && 
+                !it.startsWith("Account Name,", ignoreCase = true) &&
+                !it.startsWith("ID,", ignoreCase = true)
+            }
+            bankDataLines.forEach { line ->
+                val cols = splitCsvRow(line)
+                if (cols.isNotEmpty()) {
+                    val isIdFirst = cols[0].toIntOrNull() != null && cols.size > 2
+                    val origId = if (isIdFirst) cols[0].toIntOrNull() ?: -1 else -1
+                    val name = if (isIdFirst) cols.getOrElse(1) { "" } else cols.getOrElse(0) { "" }
+                    if (name.isNotBlank()) {
+                        val balIndex = if (isIdFirst) 2 else 1
+                        val hasInitBal = if (isIdFirst) (cols.size > 3 && cols[3].toDoubleOrNull() != null) else (cols.size > 2 && cols[2].toDoubleOrNull() != null)
+                        val initBalIndex = if (hasInitBal) (if (isIdFirst) 3 else 2) else balIndex
+                        val upiIndex = if (isIdFirst) (if (hasInitBal) 4 else 3) else (if (hasInitBal) 3 else 2)
+                        val accNumIndex = upiIndex + 1
+                        val ifscIndex = upiIndex + 2
+                        val branchIndex = upiIndex + 3
+                        val detailsIndex = upiIndex + 4
+
+                        val balance = cols.getOrElse(balIndex) { "0" }.toDoubleOrNull() ?: 0.0
+                        val initBal = cols.getOrElse(initBalIndex) { balance.toString() }.toDoubleOrNull() ?: balance
+                        val upiId = cols.getOrElse(upiIndex) { "" }
+                        val accNum = cols.getOrElse(accNumIndex) { "" }
+                        val ifsc = cols.getOrElse(ifscIndex) { "" }
+                        val branch = cols.getOrElse(branchIndex) { "" }
+                        val details = cols.getOrElse(detailsIndex) { "" }
+
+                        val b = BankAccountEntity(
+                            name = name,
+                            balance = balance,
+                            initialBalance = initBal,
+                            upiId = upiId,
+                            accountNumber = accNum,
+                            ifsc = ifsc,
+                            branchName = branch,
+                            details = details
+                        )
+                        val newId = bankAccountDao.insertBankAccount(b).toInt()
+                        if (origId != -1) bankIdMap[origId] = newId
+                        totalCount++
+                    }
+                }
+            }
+        }
+
+        // 6. Transaction History Section
+        if (lines.any { it.startsWith("# TRANSACTION HISTORY", ignoreCase = true) }) {
+            val txSection = lines.dropWhile { !it.startsWith("# TRANSACTION HISTORY", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            totalCount += importTransactionHistoryCsv(txSection)
+        }
+
+        // 7. Meter Readings Section
+        if (lines.any { it.startsWith("# METER READINGS", ignoreCase = true) }) {
+            val rSection = lines.dropWhile { !it.startsWith("# METER READINGS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            totalCount += importMeterReadingsCsv(rSection)
+        }
+
+        // 8. Utility Bills Section
+        if (lines.any { it.startsWith("# UTILITY BILLS", ignoreCase = true) }) {
+            val bSection = lines.dropWhile { !it.startsWith("# UTILITY BILLS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
+            totalCount += importUtilityBillsCsv(bSection)
+        }
+
+        ImportOutcome.Success("Full application backup restored successfully ($totalCount records)", count = totalCount)
+    }
+
     // ==========================================
     // UNIVERSAL IMPORT (Handles JSON or CSV)
     // ==========================================
 
     suspend fun importUniversalText(text: String, contextType: BackupDataType, hotelId: Int = 1): ImportOutcome = withContext(Dispatchers.IO) {
-        val trimmed = text.trim()
+        val trimmed = text.trim().removePrefix("\uFEFF").trim()
         if (trimmed.isEmpty()) {
             return@withContext ImportOutcome.Error("Input text is empty")
         }
 
-        // If JSON structure detected, try JSON importer
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        // 1. If JSON structure detected, try JSON importer
+        if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
             return@withContext importJson(trimmed, targetHotelId = hotelId)
         }
 
-        // Check if this is a whole hotel multi-section CSV
-        if (trimmed.contains("# HOTEL DETAILS") || trimmed.contains("# MENU ITEMS") || trimmed.contains("# ORDER HISTORY")) {
+        // 2. Check if this is a Full App Backup CSV
+        if (trimmed.contains("# FULL APPLICATION BACKUP", ignoreCase = true) || trimmed.contains("# USER PROFILE", ignoreCase = true) ||
+            (trimmed.contains("# HOTELS", ignoreCase = true) && (trimmed.contains("# BANK ACCOUNTS", ignoreCase = true) || trimmed.contains("# METER READINGS", ignoreCase = true)))) {
+            return@withContext importFullBackupCsv(trimmed)
+        }
+
+        // 3. Check if this is a whole hotel multi-section CSV
+        if (trimmed.contains("# HOTEL DETAILS", ignoreCase = true) || (trimmed.contains("# MENU ITEMS", ignoreCase = true) && trimmed.contains("# ORDER HISTORY", ignoreCase = true))) {
             return@withContext importWholeHotelCsv(trimmed, targetHotelId = hotelId)
         }
 
-        // Otherwise handle as CSV based on context type
+        // 4. Check if this is a wallet whole multi-section CSV
+        if (trimmed.contains("# BANK ACCOUNTS", ignoreCase = true) || trimmed.contains("# BANK ACCOUNT DETAILS", ignoreCase = true) ||
+            (trimmed.contains("# TRANSACTION HISTORY", ignoreCase = true) && trimmed.contains("# BANK", ignoreCase = true))) {
+            return@withContext importWalletWholeCsv(trimmed)
+        }
+
+        // 5. Check if this is an electricity whole multi-section CSV
+        if (trimmed.contains("# METER READINGS", ignoreCase = true) && trimmed.contains("# UTILITY BILLS", ignoreCase = true)) {
+            return@withContext importElectricityWholeCsv(trimmed)
+        }
+
+        // 6. Header auto-detection for standalone CSV exports (matches exact exported headers)
+        val firstFewLines = trimmed.lines().take(5).joinToString("\n").lowercase()
+        when {
+            firstFewLines.contains("bangla name") || firstFewLines.contains("day available") ||
+            firstFewLines.contains("is add-on") || firstFewLines.contains("english name") -> {
+                val count = importMenusCsv(trimmed, hotelId)
+                return@withContext ImportOutcome.Success("Imported $count menu item(s)", count = count)
+            }
+            firstFewLines.contains("meal groups") || firstFewLines.contains("order items") ||
+            firstFewLines.contains("meal session") || firstFewLines.contains("order total") ||
+            (firstFewLines.contains("order id") && firstFewLines.contains("session")) -> {
+                val count = importHotelHistoryCsv(trimmed, hotelId)
+                return@withContext ImportOutcome.Success("Imported $count order history record(s)", count = count)
+            }
+            firstFewLines.contains("current balance") || firstFewLines.contains("initial balance") ||
+            (firstFewLines.contains("account name") && (firstFewLines.contains("ifsc") || firstFewLines.contains("upi id") || firstFewLines.contains("branch"))) -> {
+                val count = importBankAccountsCsv(trimmed)
+                return@withContext ImportOutcome.Success("Imported $count bank account(s)", count = count)
+            }
+            firstFewLines.contains("transaction type") || firstFewLines.contains("expense/income") ||
+            firstFewLines.contains("bank account id") || (firstFewLines.contains("category") && firstFewLines.contains("amount")) -> {
+                val count = importTransactionHistoryCsv(trimmed)
+                return@withContext ImportOutcome.Success("Imported $count transaction(s)", count = count)
+            }
+            firstFewLines.contains("total reading") || firstFewLines.contains("units consumed") ||
+            firstFewLines.contains("reading timestamp") || firstFewLines.contains("reading (kwh)") -> {
+                val count = importMeterReadingsCsv(trimmed)
+                return@withContext ImportOutcome.Success("Imported $count meter reading(s)", count = count)
+            }
+            firstFewLines.contains("billing start") || firstFewLines.contains("billing end") ||
+            firstFewLines.contains("effective rate") || firstFewLines.contains("calculated amount") ||
+            (firstFewLines.contains("bill id") && firstFewLines.contains("units")) -> {
+                val count = importUtilityBillsCsv(trimmed)
+                return@withContext ImportOutcome.Success("Imported $count utility bill(s)", count = count)
+            }
+        }
+
+        // 7. Otherwise handle as CSV based on context type
         try {
             val count = when (contextType) {
                 BackupDataType.HOTEL_MENUS -> importMenusCsv(trimmed, hotelId)
                 BackupDataType.HOTEL_HISTORY -> importHotelHistoryCsv(trimmed, hotelId)
                 BackupDataType.HOTEL_WHOLE -> {
-                    if (trimmed.contains("# HOTEL DETAILS") || trimmed.contains("# ORDER HISTORY")) {
+                    if (trimmed.contains("# HOTEL DETAILS", ignoreCase = true) || trimmed.contains("# ORDER HISTORY", ignoreCase = true)) {
                         return@withContext importWholeHotelCsv(trimmed, hotelId)
                     } else {
                         importMenusCsv(trimmed, hotelId)
                     }
                 }
+                BackupDataType.WALLET_WHOLE -> {
+                    if (trimmed.contains("# BANK", ignoreCase = true) || trimmed.contains("# TRANSACTION", ignoreCase = true)) {
+                        return@withContext importWalletWholeCsv(trimmed)
+                    } else {
+                        importTransactionHistoryCsv(trimmed)
+                    }
+                }
                 BackupDataType.BANK_ACCOUNTS -> importBankAccountsCsv(trimmed)
+                BackupDataType.SINGLE_BANK_ACCOUNT -> {
+                    if (trimmed.contains("# BANK", ignoreCase = true) || trimmed.contains("# TRANSACTION", ignoreCase = true)) {
+                        return@withContext importWalletWholeCsv(trimmed)
+                    } else {
+                        importBankAccountsCsv(trimmed)
+                    }
+                }
                 BackupDataType.TRANSACTION_HISTORY -> importTransactionHistoryCsv(trimmed)
+                BackupDataType.ELECTRICITY_WHOLE -> {
+                    if (trimmed.contains("# METER", ignoreCase = true) || trimmed.contains("# UTILITY", ignoreCase = true)) {
+                        return@withContext importElectricityWholeCsv(trimmed)
+                    } else {
+                        importMeterReadingsCsv(trimmed)
+                    }
+                }
                 BackupDataType.METER_READINGS -> importMeterReadingsCsv(trimmed)
                 BackupDataType.UTILITY_BILLS -> importUtilityBillsCsv(trimmed)
                 BackupDataType.FULL_BACKUP -> {
-                    return@withContext ImportOutcome.Error("Full backup must be in JSON format")
+                    return@withContext importFullBackupCsv(trimmed)
                 }
             }
             ImportOutcome.Success("Successfully imported $count record(s)", count = count)
@@ -1703,15 +2389,23 @@ class DataTransferManager(private val db: AppDatabase) {
         val result = mutableListOf<String>()
         val current = StringBuilder()
         var inQuotes = false
-        for (ch in row) {
+        var i = 0
+        while (i < row.length) {
+            val ch = row[i]
             if (ch == '"') {
-                inQuotes = !inQuotes
+                if (inQuotes && i + 1 < row.length && row[i + 1] == '"') {
+                    current.append('"')
+                    i++ // skip the escaped quote
+                } else {
+                    inQuotes = !inQuotes
+                }
             } else if (ch == ',' && !inQuotes) {
                 result.add(current.toString().trim())
                 current.setLength(0)
             } else {
                 current.append(ch)
             }
+            i++
         }
         result.add(current.toString().trim())
         return result

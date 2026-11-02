@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,8 +26,8 @@ fun MeterDialPicker(
     modifier: Modifier = Modifier,
     initialValue: Double,
     onValueChange: (Double) -> Unit,
-    textColor: Color = Color.White,
-    accentColor: Color = Color(0xFF00E5FF)
+    textColor: Color = AppTextColor(),
+    accentColor: Color = AccentCyan
 ) {
     val formattedValue = String.format(Locale.US, "%07.2f", initialValue)
     val initialDigits = formattedValue.replace(".", "").map { it.toString().toInt() }
@@ -55,36 +56,45 @@ fun MeterDialPicker(
         // Thousands, Hundreds, Tens, Units
         for (i in 0 until 4) {
             DialDigit(
-                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 1.5.dp),
                 value = digits[i],
                 onValueChange = { newValue ->
                     digits[i] = newValue
                     onValueChange(assembleDouble(digits))
                 },
                 onDoubleTap = { showEditDialog = i },
-                textColor = textColor
+                textColor = textColor,
+                accentColor = accentColor
             )
         }
         
-        Text(
-            text = ".",
-            color = accentColor,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 2.dp)
-        )
+        Box(
+            modifier = Modifier
+                .height(120.dp)
+                .padding(horizontal = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = ".",
+                color = accentColor,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
         
         // Tenths, Hundredths
         for (i in 4 until 6) {
             DialDigit(
-                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 1.5.dp),
                 value = digits[i],
                 onValueChange = { newValue ->
                     digits[i] = newValue
                     onValueChange(assembleDouble(digits))
                 },
                 onDoubleTap = { showEditDialog = i },
-                textColor = textColor
+                textColor = textColor,
+                accentColor = accentColor
             )
         }
     }
@@ -93,7 +103,11 @@ fun MeterDialPicker(
         var textInput by remember { mutableStateOf(digits[showEditDialog!!].toString()) }
         AlertDialog(
             onDismissRequest = { showEditDialog = null },
-            title = { Text("Enter Digit") },
+            containerColor = getDialogBackground(),
+            titleContentColor = AppTextColor(),
+            textContentColor = AppTextColor(),
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Enter Digit", fontWeight = FontWeight.Bold) },
             text = {
                 Box(modifier = Modifier.fillMaxWidth().imePadding()) {
                     GlassTextField(
@@ -106,13 +120,25 @@ fun MeterDialPicker(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val newVal = textInput.toIntOrNull() ?: digits[showEditDialog!!]
-                    digits[showEditDialog!!] = newVal
-                    onValueChange(assembleDouble(digits))
-                    showEditDialog = null
-                }) {
-                    Text("OK")
+                Button(
+                    onClick = {
+                        val newVal = textInput.toIntOrNull() ?: digits[showEditDialog!!]
+                        digits[showEditDialog!!] = newVal
+                        onValueChange(assembleDouble(digits))
+                        showEditDialog = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showEditDialog = null },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", color = AppSecondaryTextColor())
                 }
             }
         )
@@ -126,32 +152,59 @@ private fun DialDigit(
     value: Int,
     onValueChange: (Int) -> Unit,
     onDoubleTap: () -> Unit,
-    textColor: Color
+    textColor: Color,
+    accentColor: Color = AccentCyan
 ) {
-    Box(
+    val isGlass = isLiquidGlassEnabled()
+    val isLight = isAppLightMode()
+    
+    val containerBg = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    } else {
+        if (isLight) Color.White.copy(alpha = 0.45f) else Color(0xFF1E2638).copy(alpha = 0.50f)
+    }
+    val containerBorder = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    } else {
+        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .height(120.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .clip(RoundedCornerShape(10.dp))
+            .background(containerBg)
+            .border(1.dp, containerBorder, RoundedCornerShape(10.dp))
             .combinedClickable(
                 onClick = {},
                 onDoubleClick = onDoubleTap
             ),
         contentAlignment = Alignment.Center
     ) {
+        val calculatedItemHeight = (maxHeight / 3).coerceIn(34.dp, 42.dp)
+        val calculatedFontSize = (maxWidth.value * 0.48f).coerceIn(16f, 22f).sp
+
         WheelPicker(
             items = (0..9).toList(),
             selectedItem = value,
             onItemSelected = { onValueChange(it) },
             modifier = Modifier.fillMaxSize(),
-            itemHeight = 40.dp,
+            itemHeight = calculatedItemHeight,
             visibleItemsCount = 3
         ) { digit, isSelected ->
+            val digitColor = if (isSelected) {
+                if (!isGlass) accentColor else textColor
+            } else {
+                textColor.copy(alpha = 0.35f)
+            }
             Text(
                 text = digit.toString(),
-                color = if (isSelected) textColor else textColor.copy(alpha = 0.3f),
-                fontSize = 24.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                color = digitColor,
+                fontSize = if (isSelected) calculatedFontSize else (calculatedFontSize.value * 0.88f).sp,
+                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
@@ -168,7 +221,7 @@ fun CylindricalDateTimePicker(
     modifier: Modifier = Modifier,
     initialDateTime: Long,
     onDateTimeChange: (Long) -> Unit,
-    textColor: Color = Color.White
+    textColor: Color = AppTextColor()
 ) {
     val calendar = remember(initialDateTime) {
         Calendar.getInstance().apply { timeInMillis = initialDateTime }
@@ -207,7 +260,8 @@ fun CylindricalDateTimePicker(
                     onDateTimeChange(calendar.timeInMillis)
                 },
                 textColor = textColor,
-                label = "DD"
+                label = "DD",
+                width = 50.dp
             )
             DateTimePickerWheel(
                 startIndex = month,
@@ -218,7 +272,7 @@ fun CylindricalDateTimePicker(
                 },
                 textColor = textColor,
                 label = "MM",
-                width = 80.dp
+                width = 95.dp
             )
             DateTimePickerWheel(
                 startIndex = years.indexOf(year.toString()).coerceAtLeast(0),
@@ -229,7 +283,7 @@ fun CylindricalDateTimePicker(
                 },
                 textColor = textColor,
                 label = "YYYY",
-                width = 60.dp
+                width = 65.dp
             )
         }
         
@@ -255,7 +309,8 @@ fun CylindricalDateTimePicker(
                     onDateTimeChange(calendar.timeInMillis)
                 },
                 textColor = textColor,
-                label = "HH"
+                label = "HH",
+                width = 50.dp
             )
             Text(":", color = textColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             DateTimePickerWheel(
@@ -266,7 +321,8 @@ fun CylindricalDateTimePicker(
                     onDateTimeChange(calendar.timeInMillis)
                 },
                 textColor = textColor,
-                label = "MIN"
+                label = "MIN",
+                width = 50.dp
             )
             Spacer(modifier = Modifier.width(8.dp))
             DateTimePickerWheel(
@@ -286,7 +342,7 @@ fun CylindricalDateTimePicker(
                 },
                 textColor = textColor,
                 label = "AM/PM",
-                width = 55.dp
+                width = 65.dp
             )
         }
     }
@@ -299,17 +355,36 @@ private fun DateTimePickerWheel(
     onValueChange: (Int) -> Unit,
     textColor: Color,
     label: String,
-    width: Dp = 45.dp
+    width: Dp = 50.dp
 ) {
+    val isGlass = isLiquidGlassEnabled()
+    val isLight = isAppLightMode()
+
+    val containerBg = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    } else {
+        if (isLight) Color.White.copy(alpha = 0.45f) else Color(0xFF1E2638).copy(alpha = 0.50f)
+    }
+    val containerBorder = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    } else {
+        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, color = textColor.copy(alpha = 0.5f), fontSize = 10.sp)
-        Box(
+        Text(text = label, color = AppSecondaryTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(4.dp))
+        BoxWithConstraints(
             modifier = Modifier
                 .size(width = width, height = 100.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.05f)),
+                .clip(RoundedCornerShape(10.dp))
+                .background(containerBg)
+                .border(1.dp, containerBorder, RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
+            val calculatedItemHeight = (maxHeight / 3).coerceIn(28.dp, 34.dp)
+            val calculatedFontSize = (maxWidth.value * 0.28f).coerceIn(12f, 15f).sp
+
             WheelPicker(
                 items = texts,
                 selectedItem = if (startIndex in texts.indices) texts[startIndex] else texts.first(),
@@ -318,14 +393,22 @@ private fun DateTimePickerWheel(
                     if (index != -1) onValueChange(index)
                 },
                 modifier = Modifier.fillMaxSize(),
-                itemHeight = 32.dp,
+                itemHeight = calculatedItemHeight,
                 visibleItemsCount = 3
             ) { text, isSelected ->
+                val activeTextColor = if (isSelected) {
+                    if (!isGlass) AccentCyan else textColor
+                } else {
+                    textColor.copy(alpha = 0.35f)
+                }
                 Text(
                     text = text,
-                    color = if (isSelected) textColor else textColor.copy(alpha = 0.3f),
-                    fontSize = 16.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    color = activeTextColor,
+                    fontSize = if (isSelected) calculatedFontSize else (calculatedFontSize.value * 0.88f).sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }

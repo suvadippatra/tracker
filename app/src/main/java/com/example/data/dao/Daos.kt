@@ -132,6 +132,9 @@ interface BankAccountDao {
     @Query("SELECT * FROM bank_accounts WHERE isDeleted = 0 ORDER BY id ASC")
     suspend fun getAllBankAccountsSync(): List<BankAccountEntity>
 
+    @Query("SELECT * FROM bank_accounts WHERE id = :id LIMIT 1")
+    suspend fun getBankAccountByIdSync(id: Int): BankAccountEntity?
+
     @Query("SELECT * FROM bank_accounts WHERE isDeleted = 1 ORDER BY id ASC")
     fun getDeletedBankAccounts(): Flow<List<BankAccountEntity>>
 
@@ -176,6 +179,9 @@ interface ExtraExpenseDao {
 interface HotelPaymentDao {
     @Query("SELECT * FROM hotel_payments WHERE hotelId = :hotelId ORDER BY paymentDate DESC")
     fun getPaymentsForHotel(hotelId: Int): Flow<List<HotelPaymentEntity>>
+
+    @Query("SELECT * FROM hotel_payments ORDER BY paymentDate DESC")
+    fun getAllPayments(): Flow<List<HotelPaymentEntity>>
 
     @Query("SELECT * FROM hotel_payments ORDER BY paymentDate DESC")
     suspend fun getAllPaymentsSync(): List<HotelPaymentEntity>
@@ -296,6 +302,9 @@ interface OwnerAccountDao {
     @Query("SELECT * FROM owner_accounts ORDER BY id ASC")
     fun getAllOwnerAccounts(): Flow<List<com.example.data.model.OwnerAccountEntity>>
 
+    @Query("SELECT * FROM owner_accounts ORDER BY id ASC")
+    suspend fun getAllOwnerAccountsSync(): List<com.example.data.model.OwnerAccountEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity): Long
 
@@ -319,4 +328,101 @@ interface ExpenseDao {
 
     @Delete
     suspend fun deleteExpense(expense: com.example.data.model.ExpenseEntity)
+}
+
+@Dao
+abstract class SyncDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertHotel(hotel: HotelEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertHotels(hotels: List<HotelEntity>): List<Long>
+
+    @Update
+    abstract suspend fun updateHotel(hotel: HotelEntity)
+
+    @Update
+    abstract suspend fun updateHotels(hotels: List<HotelEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertBankAccount(account: BankAccountEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertBankAccounts(accounts: List<BankAccountEntity>): List<Long>
+
+    @Update
+    abstract suspend fun updateBankAccount(account: BankAccountEntity)
+
+    @Update
+    abstract suspend fun updateBankAccounts(accounts: List<BankAccountEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertOwnerAccounts(accounts: List<com.example.data.model.OwnerAccountEntity>): List<Long>
+
+    @Update
+    abstract suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertMenuItems(items: List<MenuEntity>)
+
+    @Update
+    abstract suspend fun updateMenuItems(items: List<MenuEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertTransactions(txs: List<HotelTransactionEntity>)
+
+    @Update
+    abstract suspend fun updateTransactions(txs: List<HotelTransactionEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertExpenses(expenses: List<ExtraExpenseEntity>)
+
+    @Update
+    abstract suspend fun updateExpenses(expenses: List<ExtraExpenseEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertReadings(readings: List<MeterReading>)
+
+    @Update
+    abstract suspend fun updateReadings(readings: List<MeterReading>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertUtilityBills(bills: List<UtilityBill>)
+
+    @Update
+    abstract suspend fun updateUtilityBills(bills: List<UtilityBill>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertUserProfile(profile: UserProfileEntity)
+
+    @androidx.room.Transaction
+    open suspend fun executeMergeTransaction(plan: com.example.utils.MergePlan) {
+        if (plan.hotelsToInsert.isNotEmpty()) insertHotels(plan.hotelsToInsert)
+        if (plan.hotelsToUpdate.isNotEmpty()) updateHotels(plan.hotelsToUpdate)
+
+        if (plan.bankAccountsToInsert.isNotEmpty()) insertBankAccounts(plan.bankAccountsToInsert)
+        if (plan.bankAccountsToUpdate.isNotEmpty()) updateBankAccounts(plan.bankAccountsToUpdate)
+
+        if (plan.ownerAccountsToInsert.isNotEmpty()) insertOwnerAccounts(plan.ownerAccountsToInsert)
+
+        if (plan.menusToInsert.isNotEmpty()) insertMenuItems(plan.menusToInsert)
+        if (plan.menusToUpdate.isNotEmpty()) updateMenuItems(plan.menusToUpdate)
+
+        if (plan.mealsToInsert.isNotEmpty()) insertTransactions(plan.mealsToInsert)
+        if (plan.mealsToUpdate.isNotEmpty()) updateTransactions(plan.mealsToUpdate)
+
+        if (plan.expensesToInsert.isNotEmpty()) insertExpenses(plan.expensesToInsert)
+        if (plan.expensesToUpdate.isNotEmpty()) updateExpenses(plan.expensesToUpdate)
+
+        if (plan.readingsToInsert.isNotEmpty()) insertReadings(plan.readingsToInsert)
+        if (plan.readingsToUpdate.isNotEmpty()) updateReadings(plan.readingsToUpdate)
+
+        if (plan.billsToInsert.isNotEmpty()) insertUtilityBills(plan.billsToInsert)
+        if (plan.billsToUpdate.isNotEmpty()) updateUtilityBills(plan.billsToUpdate)
+
+        if (plan.userProfileToUpdate != null) insertUserProfile(plan.userProfileToUpdate)
+    }
 }

@@ -6,6 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.viewmodel.FinancialViewModel
 import com.example.ui.components.LocalAppTheme
+import com.example.ui.components.LocalAppBgPreset
+import com.example.ui.components.LocalAppCustomBgUri
+import com.example.ui.components.LocalAppLiquidGlassTheme
 
 @Composable
 fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> Unit) {
@@ -18,6 +21,9 @@ fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> U
     }
     CompositionLocalProvider(
         LocalAppTheme provides userProfile.themeMode,
+        LocalAppBgPreset provides userProfile.bgPreset,
+        LocalAppCustomBgUri provides userProfile.customBgUri,
+        LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme,
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
             fontScale = customFontScale
@@ -26,3 +32,4 @@ fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> U
         content()
     }
 }
+

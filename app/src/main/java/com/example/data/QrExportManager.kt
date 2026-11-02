@@ -57,23 +57,53 @@ class QrExportManager(
         }
     }
 
-    suspend fun exportBankAccounts(): ExportResult = withContext(Dispatchers.IO) {
+    suspend fun exportWalletWhole(bankAccountId: Int? = null): ExportResult = withContext(Dispatchers.IO) {
         try {
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
-            val json = dtm.exportBankAccountsJson()
+            val json = dtm.exportWalletWholeJson(bankAccountId)
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export wallet data via QR")
+        }
+    }
+
+    suspend fun exportBankAccounts(bankAccountId: Int? = null): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportBankAccountsJson(bankAccountId)
             packageJsonToExportResult(json)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export bank accounts via QR")
         }
     }
 
-    suspend fun exportTransactionHistory(): ExportResult = withContext(Dispatchers.IO) {
+    suspend fun exportSingleBankAccount(bankAccountId: Int): ExportResult = withContext(Dispatchers.IO) {
         try {
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
-            val json = dtm.exportTransactionHistoryJson()
+            val json = dtm.exportSingleBankAccountJson(bankAccountId)
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export single bank account via QR")
+        }
+    }
+
+    suspend fun exportTransactionHistory(bankAccountId: Int? = null): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportTransactionHistoryJson(bankAccountId)
             packageJsonToExportResult(json)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export transaction history via QR")
+        }
+    }
+
+    suspend fun exportElectricityWhole(): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportElectricityWholeJson()
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export electricity data via QR")
         }
     }
 

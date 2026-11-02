@@ -1,0 +1,4 @@
+#!/bin/bash
+perl -0777 -pi -e 's/\@Composable\nfun UtilityConfigAdded\(\) \{\}//gs' app/src/main/java/com/example/ui/screens/settings/subscreens/AppearanceSettingsScreen.kt
+
+perl -0777 -pi -e 's/(        \}\n    \})\n\}/$1\n        item {\n            PixelSettingsGroup(title = if (prefLanguage == "bn") "ইউটিলিটি ও মিটার সেটিংস" else "Utility & Billing Configuration") {\n                PixelSettingsItem(\n                    icon = Icons.Default.ElectricMeter,\n                    title = if (prefLanguage == "bn") "মিটার রিডিং ও বিল কনফিগারেশন" else "Meter Reading & Rates Config",\n                    subtitle = if (prefLanguage == "bn") "বিদ্যুৎ ও ইউটিলিটি টেমপ্লেট পরিচালনা করুন" else "Manage electricity rates and billing templates",\n                    onClick = onOpenUtilityConfig\n                )\n            }\n        }\n    }\n}/s' app/src/main/java/com/example/ui/screens/settings/subscreens/AppearanceSettingsScreen.kt

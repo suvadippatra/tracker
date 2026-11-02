@@ -25,8 +25,12 @@ private fun buildCustomIcon(name: String, pathDataList: List<String>): ImageVect
 }
 
 public val Icons.Filled.AccountBalance: ImageVector
-    get() = _accountBalance ?: buildCustomIcon("Filled.AccountBalance", listOf("""M4 10h3v7H4zm6.5 0h3v7h-3zM2 19h20v3H2zm15-9h3v7h-3zm-5-9L2 6v2h20V6z""")).also { _accountBalance = it }
+    get() = _accountBalance ?: buildCustomIcon("Filled.AccountBalance", listOf("""M4 10v7h3v-7H4zm6.5 0v7h3v-7h-3zM2 22h20v-3H2v3zm15-12v7h3v-7h-3zM11.5 1 2 6v2h20V6l-10.5-5z""")).also { _accountBalance = it }
 private var _accountBalance: ImageVector? = null
+
+public val Icons.Filled.AccountCircle: ImageVector
+    get() = _accountCircle ?: buildCustomIcon("Filled.AccountCircle", listOf("""M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88C7.55 15.8 9.68 15 12 15s4.45.8 6.14 2.12C16.43 19.18 14.03 20 12 20z""")).also { _accountCircle = it }
+private var _accountCircle: ImageVector? = null
 
 public val Icons.Filled.AccountBalanceWallet: ImageVector
     get() = _accountBalanceWallet ?: buildCustomIcon("Filled.AccountBalanceWallet", listOf("""M21 18v1c0 1.1-.9 2-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14c1.1 0 2 .9 2 2v1h-9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z""")).also { _accountBalanceWallet = it }
@@ -363,3 +367,7 @@ private var _visibilityOff: ImageVector? = null
 public val Icons.Filled.WbSunny: ImageVector
     get() = _wbSunny ?: buildCustomIcon("Filled.WbSunny", listOf("""m6.76 4.84-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7 1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91 1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z""")).also { _wbSunny = it }
 private var _wbSunny: ImageVector? = null
+
+public val Icons.Filled.BlurOn: ImageVector
+    get() = _blurOn ?: buildCustomIcon("Filled.BlurOn", listOf("""M14 10c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-4 0c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm4 4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-4 0c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-4-4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm0 4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm12 0c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm0-4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-6-4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm0 12c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-4-8c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm8 0c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-4 4c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm0-8c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm0 16c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm-8-8c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1zm16 0c0-.55-.45-1-1-1s-1 .45-1 1 .45 1 1 1 1-.45 1-1z""")).also { _blurOn = it }
+private var _blurOn: ImageVector? = null

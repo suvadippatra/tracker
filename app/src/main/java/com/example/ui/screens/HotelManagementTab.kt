@@ -1,4 +1,5 @@
 package com.example.ui.screens
+import com.example.utils.Formatters
 import com.example.ui.components.*
 import com.example.ui.components.SlidingDatePickerModal
 import com.example.ui.components.InlineDatePicker
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.*
@@ -158,43 +160,28 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
     var openDropdownHotelId by remember { mutableStateOf<Int?>(null) }
     var hotelMenuOffsets by remember { mutableStateOf(mapOf<Int, androidx.compose.ui.geometry.Offset>()) }
     var showMealHistory by remember { mutableStateOf(false) }
-    var showAddMealFlow by remember { mutableStateOf(false) }
-    var showCreateHotelModal by remember { mutableStateOf(false) }
+    
+    
     var showQrScanner by remember { mutableStateOf(false) }
 
     val quickActionTrigger by viewModel.quickActionTrigger.collectAsStateWithLifecycle()
     LaunchedEffect(quickActionTrigger) {
         if (quickActionTrigger == "ADD_MEAL_LOG") {
-            showAddMealFlow = true
+            viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.AddMeal)
             viewModel.clearQuickActionTrigger()
         } else if (quickActionTrigger == "ADD_HOTEL") {
-            showCreateHotelModal = true
+            viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(null))
             viewModel.clearQuickActionTrigger()
         }
     }
 
     // Dialog edit fields
-    var hotelToEdit by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
+    
     var showInfoDialog by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
-    var manageMenuForHotel by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
+    
 
     LaunchedEffect(showMealHistory) {
         viewModel.registerSubScreen("MealHistory", showMealHistory)
-    }
-    LaunchedEffect(showAddMealFlow) {
-        viewModel.registerSubScreen("AddMeal", showAddMealFlow)
-    }
-    LaunchedEffect(hotelToEdit) {
-        viewModel.registerSubScreen("EditHotel", hotelToEdit != null)
-    }
-    LaunchedEffect(showCreateHotelModal) {
-        viewModel.registerSubScreen("CreateHotel", showCreateHotelModal)
-    }
-    LaunchedEffect(showInfoDialog) {
-        viewModel.registerSubScreen("InfoDialog", showInfoDialog != null)
-    }
-    LaunchedEffect(manageMenuForHotel) {
-        viewModel.registerSubScreen("ManageMenu", manageMenuForHotel != null)
     }
     var editHotelName by remember { mutableStateOf("") }
     var editHotelAdvanced by remember { mutableStateOf("") }
@@ -228,13 +215,13 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(AccentCyan.copy(alpha = 0.15f)),
+                            .background(AppAccentColor().copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddBusiness,
                             contentDescription = null,
-                            tint = AccentCyan,
+                            tint = AppAccentColor(),
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -252,17 +239,59 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = if (isBengali) "দয়া করে সেটিংস থেকে একটি নতুন হোটেল যোগ করুন যাতে খাবার লগ, মেনু এবং খরচ ট্র্যাক করা যায়।" else "Please add a new hotel from Settings to start tracking meal logs, menus, and expenses.",
+                        text = if (isBengali) "খাবার লগ, মেনু এবং খরচ ট্র্যাক করা শুরু করতে একটি নতুন হোটেল যোগ করুন।" else "Add a new hotel to start tracking meal logs, menus, and expenses.",
                         color = AppTextColor().copy(alpha = 0.6f),
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(null)) },
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .bounceClick()
+                            .testTag("add_first_hotel_btn")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isBengali) "+ নতুন হোটেল যোগ করুন" else "+ Add New Hotel",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { showQrScanner = true },
+                        border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .bounceClick()
+                            .testTag("import_qr_hotel_btn")
+                    ) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = AppAccentColor())
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isBengali) "কিউআর মাধ্যমে ইমপোর্ট করুন" else "Import via QR",
+                            color = AppAccentColor(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
         }
-        return
-    }
-
+    } else {
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         val isWide = maxWidth >= 600.dp
 
@@ -280,7 +309,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                         .weight(1.2f)
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 156.dp)
                 ) {
                     item {
                         // PRIMARY GLASS LEDGER CARD
@@ -341,12 +370,17 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = hotel.name,
-                                                    color = AppTextColor(),
-                                                    fontSize = 24.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                                    Text(
+                                                        text = hotel.name,
+                                                        color = AppTextColor(),
+                                                        fontSize = 24.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+
+                                                }
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
                                                         imageVector = Icons.Default.Phone,
@@ -388,24 +422,33 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
                                                         ) {
                                                             DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "নতুন হোটেল যোগ করুন" else "+ Add New Hotel", color = AccentCyan) },
+                                                                text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AppTextColor()) },
                                                                 onClick = {
-                                                                    showCreateHotelModal = true
+                                                                    viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
                                                                     openDropdownHotelId = null
-                                                                }
+                                                                },
+                                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppTextColor()) }
                                                             )
+                                                            val isDefaultHotel = userProfile.defaultHotelId == hotel.id
                                                             DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে যোগ করুন" else "+ Import via QR", color = AccentCyan) },
+                                                                text = {
+                                                                    Text(
+                                                                        if (isDefaultHotel) (if (isBengali) "★ ডিফল্ট হোটেল" else "★ Default Hotel")
+                                                                        else (if (isBengali) "☆ ডিফল্ট হোটেল হিসেবে সেট করুন" else "☆ Set as Default Hotel"),
+                                                                        color = if (isDefaultHotel) Color(0xFFFFC107) else AppTextColor()
+                                                                    )
+                                                                },
                                                                 onClick = {
-                                                                    showQrScanner = true
+                                                                    viewModel.setDefaultHotel(hotel.id)
                                                                     openDropdownHotelId = null
-                                                                }
-                                                            )
-                                                            DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AccentCyan) },
-                                                                onClick = {
-                                                                    hotelToEdit = hotel
-                                                                    openDropdownHotelId = null
+                                                                    android.widget.Toast.makeText(context, if (isBengali) "ডিফল্ট হোটেল সেট করা হয়েছে" else "Default Hotel Updated", android.widget.Toast.LENGTH_SHORT).show()
+                                                                },
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        Icons.Default.Star,
+                                                                        contentDescription = null,
+                                                                        tint = Color(0xFFFFC107)
+                                                                    )
                                                                 }
                                                             )
                                                             DropdownMenuItem(
@@ -416,12 +459,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 }
                                                             )
                                                             DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AccentCyan) },
+                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor()) },
                                                                 onClick = {
                                                                     openDropdownHotelId = null
                                                                     viewModel.exportHotelViaQr(hotel.id) { result ->
                                                                         if (result is com.example.data.ExportResult.Success) {
-                                                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
+                                                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString(), "${hotel.name} hotel's menu")
                                                                         } else {
                                                                             android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
                                                                         }
@@ -489,12 +532,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                     .padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                items(popularMeals, key = { it.first }) { (name, count) ->
+                                items(popularMeals, key = { it.first }, contentType = { "popular_meal" }) { (name, count) ->
                                     PresetMealCard(
                                         title = name,
                                         description = "Frequently ordered dish at this establishment",
                                         tag = "$count times",
-                                        color = AccentCyan
+                                        color = AppAccentColor()
                                     )
                                 }
                             }
@@ -508,7 +551,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                         .weight(1.0f)
                         .fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 156.dp)
                 ) {
                     item {
                         Text(
@@ -544,13 +587,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                     Icon(
                                                         imageVector = if (tx.isNight) Icons.Default.NightsStay else Icons.Default.WbSunny,
                                                         contentDescription = null,
-                                                        tint = if (tx.isNight) AccentCyan else AccentGold,
+                                                        tint = if (tx.isNight) AppAccentColor() else AccentGold,
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                    val txSdf = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
                                                     Text(
-                                                        text = txSdf.format(Date(tx.timestamp)),
+                                                        text = com.example.utils.Formatters.formatShortDate(tx.timestamp),
                                                         color = AppTextColor(),
                                                         fontSize = 13.sp,
                                                         fontWeight = FontWeight.Bold
@@ -614,7 +656,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                     Icon(
                                         imageVector = Icons.Default.History,
                                         contentDescription = "History",
-                                        tint = AccentCyan
+                                        tint = AppAccentColor()
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
@@ -635,7 +677,8 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 modifier = Modifier
                     .fillMaxHeight()
                     .widthIn(max = 840.dp)
-                    .padding(horizontal = 12.dp)
+                    .padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(bottom = 96.dp)
             ) {
                 item {
                     // PRIMARY GLASS LEDGER CARD
@@ -696,12 +739,17 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = hotel.name,
-                                                color = AppTextColor(),
-                                                fontSize = 24.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                                Text(
+                                                    text = hotel.name,
+                                                    color = AppTextColor(),
+                                                    fontSize = 24.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+
+                                            }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(
                                                     imageVector = Icons.Default.Phone,
@@ -743,24 +791,33 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                             .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
                                                     ) {
                                                         DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "নতুন হোটেল যোগ করুন" else "+ Add New Hotel", color = AccentCyan) },
+                                                            text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AppTextColor()) },
                                                             onClick = {
-                                                                showCreateHotelModal = true
+                                                                viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
                                                                 openDropdownHotelId = null
-                                                            }
+                                                            },
+                                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppTextColor()) }
                                                         )
+                                                        val isDefaultHotel = userProfile.defaultHotelId == hotel.id
                                                         DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে যোগ করুন" else "+ Import via QR", color = AccentCyan) },
+                                                            text = {
+                                                                Text(
+                                                                    if (isDefaultHotel) (if (isBengali) "★ ডিফল্ট হোটেল" else "★ Default Hotel")
+                                                                    else (if (isBengali) "☆ ডিফল্ট হোটেল হিসেবে সেট করুন" else "☆ Set as Default Hotel"),
+                                                                    color = if (isDefaultHotel) Color(0xFFFFC107) else AppTextColor()
+                                                                )
+                                                            },
                                                             onClick = {
-                                                                showQrScanner = true
+                                                                viewModel.setDefaultHotel(hotel.id)
                                                                 openDropdownHotelId = null
-                                                            }
-                                                        )
-                                                        DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AccentCyan) },
-                                                            onClick = {
-                                                                hotelToEdit = hotel
-                                                                openDropdownHotelId = null
+                                                                android.widget.Toast.makeText(context, if (isBengali) "ডিফল্ট হোটেল সেট করা হয়েছে" else "Default Hotel Updated", android.widget.Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            leadingIcon = {
+                                                                Icon(
+                                                                    Icons.Default.Star,
+                                                                    contentDescription = null,
+                                                                    tint = Color(0xFFFFC107)
+                                                                )
                                                             }
                                                         )
                                                         DropdownMenuItem(
@@ -771,17 +828,17 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                             }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AccentCyan) },
+                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor()) },
                                                             onClick = {
                                                                 openDropdownHotelId = null
                                                                 viewModel.exportHotelViaQr(hotel.id) { result ->
-                                                                        if (result is com.example.data.ExportResult.Success) {
-                                                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
-                                                                        } else {
-                                                                            android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
-                                                                        }
+                                                                    if (result is com.example.data.ExportResult.Success) {
+                                                                        viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString(), "${hotel.name} hotel's menu")
+                                                                    } else {
+                                                                        android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
+                                                            }
                                                         )
                                                     }
                                                 }
@@ -827,7 +884,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                     // BEHAVIORAL ANALYTICS CAROUSEL HEADER
                     Text(
                         text = "Frequently Ordered Meals",
-                        color = AppTextColor(),
+                        color = AppHeadingColor(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -847,12 +904,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(popularMeals, key = { it.first }) { (name, count) ->
+                            items(popularMeals, key = { it.first }, contentType = { "popular_meal" }) { (name, count) ->
                                 PresetMealCard(
                                     title = name,
                                     description = "Frequently ordered dish at this establishment",
                                     tag = "$count times",
-                                    color = AccentCyan
+                                    color = AppAccentColor()
                                 )
                             }
                         }
@@ -864,7 +921,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
 
                     Text(
                         text = "Recent Meal Logs",
-                        color = AppTextColor(),
+                        color = AppHeadingColor(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -895,13 +952,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                 Icon(
                                                     imageVector = if (tx.isNight) Icons.Default.NightsStay else Icons.Default.WbSunny,
                                                     contentDescription = null,
-                                                    tint = if (tx.isNight) AccentCyan else AccentGold,
+                                                    tint = if (tx.isNight) AppAccentColor() else AccentGold,
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                val txSdf = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
                                                 Text(
-                                                    text = txSdf.format(Date(tx.timestamp)),
+                                                    text = com.example.utils.Formatters.formatShortDate(tx.timestamp),
                                                     color = AppTextColor(),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.Bold
@@ -967,7 +1023,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                 Icon(
                                     imageVector = Icons.Default.History,
                                     contentDescription = "History",
-                                    tint = AccentCyan
+                                    tint = AppAccentColor()
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -982,54 +1038,39 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(120.dp)) // Padding for bottom bar and FAB
+                    Spacer(modifier = Modifier.height(156.dp)) // Padding for bottom bar and FAB
                 }
             }
         }
 
         // FAB FOR ADDING NEW MEAL
-        if (activeHotel != null && !showAddMealFlow) {
+        if (activeHotel != null) {
             FloatingActionButton(
                 onClick = {
                     viewModel.resetOrderFlow()
-                    showAddMealFlow = true
+                    viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.AddMeal)
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 120.dp, end = 16.dp)
+                    .padding(bottom = 148.dp, end = 16.dp)
                     .bounceClick()
                     .testTag("add_meal_fab"),
                 shape = CircleShape,
-                containerColor = Color.Transparent,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp)
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(4.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(if (isAppLightMode()) Color.White else Color(0xFF0F0B26), shape = CircleShape)
-                        .border(2.dp, AccentCyan, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Meal",
-                        tint = AccentCyan,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Meal",
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
-        
-
     }
+}
 
-    // Modal Sheet / Full Dialog for Add Meal
-    if (showAddMealFlow) {
-        AddMealFlowModal(
-            viewModel = viewModel,
-            onDismiss = { showAddMealFlow = false }
-        )
-    }
+    
 
     // Modal Dialog for Meal History
     
@@ -1038,11 +1079,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
             hotel = showInfoDialog!!,
             isBengali = isBengali,
             viewModel = viewModel,
-            onDismiss = { showInfoDialog = null },
-            onEdit = {
-                hotelToEdit = showInfoDialog
-                showInfoDialog = null
-            }
+            onDismiss = { showInfoDialog = null }
         )
     }
 
@@ -1053,37 +1090,22 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
             onEditTransaction = { tx ->
                 viewModel.loadTransactionForEditing(tx)
                 showMealHistory = false
-                showAddMealFlow = true
+                viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.AddMeal)
             }
         )
     }
 
-    // Modal Sheet for Editing Hotel Parameters
-    if (manageMenuForHotel != null) { MenuManagementScreen(hotel = manageMenuForHotel!!, viewModel = viewModel, onBack = { hotelToEdit = manageMenuForHotel; manageMenuForHotel = null }) }
-    if (showCreateHotelModal || hotelToEdit != null) {
-        EditHotelModal(
-            hotel = hotelToEdit,
-            viewModel = viewModel,
-            onDismiss = { 
-                showCreateHotelModal = false
-                hotelToEdit = null 
-            },
-            onManageMenu = { 
-                manageMenuForHotel = it
-                showCreateHotelModal = false
-                hotelToEdit = null
-            }
-        )
-    }
 
     val exportPayload by viewModel.qrExportPayload.collectAsStateWithLifecycle()
     val exportSessionId by viewModel.qrExportSessionId.collectAsStateWithLifecycle()
+    val exportItemName by viewModel.qrExportItemName.collectAsStateWithLifecycle()
 
     if (exportPayload != null) {
         com.example.ui.components.QrExportStreamDialog(
             exportData = exportPayload!!,
             sessionId = exportSessionId ?: "",
-            onDismiss = { viewModel.setQrExportPayload(null, null) }
+            itemName = exportItemName ?: "Hotel Data",
+            onDismiss = { viewModel.setQrExportPayload(null, null, null) }
         )
     }
 
@@ -1121,9 +1143,11 @@ fun PresetMealCard(
             .width(160.dp)
             .height(110.dp)
     ) {
-        GlassCard(
+        androidx.compose.material3.Card(
             modifier = Modifier.fillMaxSize(),
-            cornerRadius = 16.dp
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = color.copy(alpha = 0.15f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
         ) {
             Column(
                 modifier = Modifier
@@ -1168,596 +1192,6 @@ fun PresetMealCard(
 }
 
 
-@Composable
-fun AddMealFlowModal(
-    viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
-) {
-    val date by viewModel.addMealDate.collectAsStateWithLifecycle()
-    val isNight by viewModel.addMealIsNight.collectAsStateWithLifecycle()
-    val quantities by viewModel.orderQuantities.collectAsStateWithLifecycle()
-    val selectedMainId by viewModel.selectedMainDishId.collectAsStateWithLifecycle()
-    val menuItems by viewModel.allMenuItems.collectAsStateWithLifecycle()
-    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
-    val committedGroups by viewModel.committedMealGroups.collectAsStateWithLifecycle()
-    val editingTxId by viewModel.editingTransactionId.collectAsStateWithLifecycle()
-
-    val context = LocalContext.current
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-
-    var showAllDishes by remember { mutableStateOf(false) }
-
-    // Filter menu dynamically using remember to avoid redundant work
-    val filteredDishes = remember(menuItems, isNight, showAllDishes) {
-        menuItems.filter {
-            if (showAllDishes) {
-                true
-            } else {
-                if (isNight) it.isNightMenu else it.isDayMenu
-            }
-        }
-    }
-    val mainDishes = remember(filteredDishes) { filteredDishes.filter { !it.isAddOn } }
-    val addOnDishes = remember(filteredDishes) { filteredDishes.filter { it.isAddOn } }
-
-    BackHandler {
-        onDismiss()
-    }
-
-    com.example.ui.components.AppThemeProvider(viewModel) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient(userProfile.themeMode))
-                .pointerInput(Unit) { detectTapGestures { } }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(16.dp)
-            ) {
-                // Modal Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.background(getGlassBorder(), CircleShape).bounceClick()
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                    }
-
-                    Text(
-                        text = if (editingTxId != null) "Edit Meal Record" else "Add Meal Record",
-                        color = AppTextColor(),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    // Glowy Save Button
-                    GlassButton(
-                        onClick = {
-                            viewModel.saveHotelTransaction()
-                            onDismiss()
-                        },
-                        cornerRadius = 10.dp,
-                        borderBrush = Brush.linearGradient(listOf(AccentCyan, AccentPink)),
-                        modifier = Modifier.testTag("save_meal_button")
-                    ) {
-                        Text(
-                            text = "Save",
-                            color = AppTextColor(),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    // TOP SECTION: DATE CONTROLS
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            InlineDatePicker(
-                                initialDateMillis = date,
-                                onDateSelected = { newDate ->
-                                    viewModel.setAddMealDate(newDate)
-                                },
-                                textColor = AppTextColor()
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // DAY/NIGHT ICON-BASED TOGGLE SWITCH
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Menu Period Selection",
-                            color = AppTextColor(),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        val isAppLight = isAppLightMode()
-                        Row(
-                            modifier = Modifier
-                                .background(
-                                    if (isAppLight) Color(0x1A000000) else Color(0x1F000000),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (isAppLight) Color(0x33000000) else getGlassBorder(),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            // Day Icon Button
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .background(
-                                        if (!isNight) Brush.horizontalGradient(listOf(Color(0xFFFF9800), Color(0xFFFF5722)))
-                                        else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-                                    )
-                                    .clickable { if (isNight) viewModel.toggleDayNight() }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.WbSunny,
-                                    contentDescription = "Day",
-                                    tint = if (!isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Day",
-                                    color = if (!isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            // Night Icon Button
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .background(
-                                        if (isNight) Brush.horizontalGradient(listOf(Color(0xFF3F51B5), Color(0xFF673AB7)))
-                                        else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-                                    )
-                                    .clickable { if (!isNight) viewModel.toggleDayNight() }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.NightsStay,
-                                    contentDescription = "Night",
-                                    tint = if (isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Night",
-                                    color = if (isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // MAIN DISHES LIST SECTION
-                    Text(
-                        text = "Main Dishes (Select One to View Add-ons)",
-                        color = AppTextColor(),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        mainDishes.forEach { dish ->
-                            DishCard(
-                                dish = dish,
-                                qty = quantities[dish.id] ?: 0,
-                                isSelected = selectedMainId == dish.id,
-                                onSelect = { viewModel.selectMainDish(dish.id) },
-                                onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // View More Dishes menu item / toggle button
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bounceClick()
-                            .background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    listOf(AccentCyan.copy(alpha = 0.15f), AccentPink.copy(alpha = 0.15f))
-                                ),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                            .clickable { showAllDishes = !showAllDishes }
-                            .padding(vertical = 12.dp, horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (showAllDishes) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = null,
-                                tint = AccentCyan,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (showAllDishes) "View Less Dishes" else "View More Dishes (Show ${if (isNight) "Day" else "Night"} Dishes)",
-                                color = AppTextColor(),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // DYNAMICALLY RENDERED ADD-ON DISHES TRAY BELOW
-                    AnimatedVisibility(
-                        visible = selectedMainId != null,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        Column {
-                            val activeMainName = menuItems.find { it.id == selectedMainId }?.englishName ?: ""
-                            Text(
-                                text = "Supplementary Add-ons for $activeMainName",
-                                color = AccentCyan,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    addOnDishes.forEach { addOn ->
-                                        val addOnQty = quantities[addOn.id] ?: 0
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text(
-                                                    text = addOn.banglaName,
-                                                    color = AppTextColor(),
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                Text(
-                                                    text = "${addOn.englishName} • ₹${addOn.price.toInt()}",
-                                                    color = AppTextColor().copy(alpha = 0.5f),
-                                                    fontSize = 11.sp
-                                                )
-                                            }
-
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (addOnQty > 0) {
-                                                    IconButton(
-                                                        onClick = { viewModel.updateItemQuantity(addOn.id, -1) },
-                                                        modifier = Modifier
-                                                            .size(24.dp)
-                                                            .background(getGlassIconButtonBg(), CircleShape)
-                                                    ) {
-                                                        Icon(Icons.Default.Remove, contentDescription = "-", tint = AppTextColor(), modifier = Modifier.size(12.dp))
-                                                    }
-                                                    Text(
-                                                        text = "$addOnQty",
-                                                        color = AppTextColor(),
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 8.dp)
-                                                    )
-                                                }
-                                                IconButton(
-                                                    onClick = { viewModel.updateItemQuantity(addOn.id, 1) },
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .background(if (addOnQty > 0) AccentCyan else getGlassIconButtonBg(), CircleShape)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Add,
-                                                        contentDescription = "+",
-                                                        tint = if (addOnQty > 0) Color(0xFF0F0B26) else AppTextColor(),
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        if (addOn != addOnDishes.last()) {
-                                            HorizontalDivider(color = Color(0x0FFFFFFF), thickness = 0.5.dp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // COMMITTED MEAL GROUPS CARDS DISPLAY (IF SET TO PAGE BOTTOM)
-                    if (userProfile.mealGroupPosition == "PageBottom" && committedGroups.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = "Committed Meal Groups (${committedGroups.size})",
-                            color = AppTextColor(),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(horizontal = 2.dp)
-                        ) {
-                            itemsIndexed(committedGroups, key = { _, group -> group.id }) { index, group ->
-                                GlassCard(
-                                    modifier = Modifier.width(150.dp),
-                                    cornerRadius = 16.dp
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Group ${index + 1}",
-                                                color = AccentCyan,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            IconButton(
-                                                onClick = { viewModel.removeMealGroup(group.id) },
-                                                modifier = Modifier.size(22.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Remove Group",
-                                                    tint = AccentPink,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-
-                                        val itemsSummary = group.items.joinToString(", ") { "${it.name} x${it.quantity}" }
-                                        Text(
-                                            text = itemsSummary,
-                                            color = AppTextColor().copy(alpha = 0.7f),
-                                            fontSize = 11.sp,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        val mathBreakdown = if (group.items.size > 1) {
-                                            val parts = group.items.joinToString(" + ") { "${(it.price * it.quantity).toInt()}" }
-                                            "$parts = ₹${group.subtotal.toInt()}"
-                                        } else {
-                                            "₹${group.subtotal.toInt()}"
-                                        }
-                                        Text(
-                                            text = mathBreakdown,
-                                            color = AccentGreen,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // BOTTOM ACTION & TOTAL SUMMARY ROW (LOCKED AT BOTTOM)
-                val hasDraftSelection = quantities.any { it.value > 0 }
-                val draftSubtotal = quantities.mapNotNull { (id, qty) ->
-                    val item = menuItems.find { it.id == id }
-                    if (item != null && qty > 0) item.price * qty else null
-                }.sum()
-                val committedSubtotal = committedGroups.sumOf { it.subtotal }
-                val overallTotal = committedSubtotal + draftSubtotal
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(getDialogBackground(), RoundedCornerShape(20.dp))
-                        .border(
-                            width = 1.dp,
-                            color = getGlassBorder(),
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        .padding(14.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // COMMITTED MEAL GROUPS CARDS DISPLAY (IN BOTTOM BAR)
-                        if (userProfile.mealGroupPosition != "PageBottom" && committedGroups.isNotEmpty()) {
-                            Text(
-                                text = "Committed Meal Groups (${committedGroups.size})",
-                                color = AppTextColor(),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(bottom = 10.dp)
-                            ) {
-                                itemsIndexed(committedGroups, key = { _, group -> group.id }) { index, group ->
-                                    GlassCard(
-                                        modifier = Modifier.width(140.dp),
-                                        cornerRadius = 14.dp
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(10.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = "Group ${index + 1}",
-                                                    color = AccentCyan,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                IconButton(
-                                                    onClick = { viewModel.removeMealGroup(group.id) },
-                                                    modifier = Modifier.size(20.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Remove Group",
-                                                        tint = AccentPink,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(2.dp))
-
-                                            val itemsSummary = group.items.joinToString(", ") { "${it.name} x${it.quantity}" }
-                                            Text(
-                                                text = itemsSummary,
-                                                color = AppTextColor().copy(alpha = 0.7f),
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-
-                                            Spacer(modifier = Modifier.height(4.dp))
-
-                                            val mathBreakdown = if (group.items.size > 1) {
-                                                val parts = group.items.joinToString(" + ") { "${(it.price * it.quantity).toInt()}" }
-                                                "$parts = ₹${group.subtotal.toInt()}"
-                                            } else {
-                                                "₹${group.subtotal.toInt()}"
-                                            }
-                                            Text(
-                                                text = mathBreakdown,
-                                                color = AccentGreen,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                        Button(
-                            onClick = { viewModel.commitCurrentSelectionGroup() },
-                            enabled = hasDraftSelection,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentCyan,
-                                disabledContainerColor = AccentCyan.copy(alpha = 0.2f)
-                            ),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.bounceClick()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = if (hasDraftSelection) Color.Black else AppTextColor().copy(alpha = 0.4f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "+ Add Group",
-                                color = if (hasDraftSelection) Color.Black else AppTextColor().copy(alpha = 0.4f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "TOTAL LEDGER",
-                                color = AppTextColor().copy(alpha = 0.6f),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "₹${String.format(Locale.US, "%,.2f", overallTotal)}",
-                                color = AccentGreen,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-    }
-}
 
 
 // ==========================================
@@ -1769,32 +1203,60 @@ fun MealHistoryModal(
     onDismiss: () -> Unit,
     onEditTransaction: ((com.example.data.model.HotelTransactionEntity) -> Unit)? = null
 ) {
+    BackHandler { onDismiss() }
+
     val transactions by viewModel.activeHotelTransactions.collectAsStateWithLifecycle()
     val earliestTs by viewModel.earliestTransactionTimestamp.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
-    val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
-    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    val allHotelPayments by viewModel.allHotelPayments.collectAsStateWithLifecycle()
+    val activeHotelId by viewModel.activeHotelId.collectAsStateWithLifecycle()
+    val activeHotel by viewModel.activeHotel.collectAsStateWithLifecycle()
+    val sdf = remember { Formatters.getSimpleDateFormat("dd MMM, hh:mm a") }
+    val monthFormat = remember { Formatters.getSimpleDateFormat("MMMM yyyy") }
+    val paymentDateFormat = remember { Formatters.getSimpleDateFormat("dd MMM yyyy") }
     
     var monthOffset by remember { mutableStateOf(0) }
     var isDayWiseView by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
     
-    val filteredTransactions = remember(transactions, monthOffset) {
+    val (startOfMonthMillis, endOfMonthMillis) = remember(monthOffset) {
         val cal = Calendar.getInstance()
         cal.add(Calendar.MONTH, monthOffset)
-        val targetMonth = cal.get(Calendar.MONTH)
-        val targetYear = cal.get(Calendar.YEAR)
-        
-        transactions.filter {
-            val txCal = Calendar.getInstance()
-            txCal.timeInMillis = it.timestamp
-            txCal.get(Calendar.MONTH) == targetMonth && txCal.get(Calendar.YEAR) == targetYear
-        }
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+        Pair(start, end)
+    }
+
+    val filteredTransactions = remember(transactions, startOfMonthMillis, endOfMonthMillis) {
+        transactions.filter { it.timestamp in startOfMonthMillis..endOfMonthMillis }
     }
     
     val currentDisplayMonth = remember(monthOffset) {
         val cal = Calendar.getInstance()
         cal.add(Calendar.MONTH, monthOffset)
         monthFormat.format(cal.time)
+    }
+
+    val targetMonthCal = remember(monthOffset) {
+        Calendar.getInstance().apply { add(Calendar.MONTH, monthOffset) }
+    }
+    val targetMonth = targetMonthCal.get(Calendar.MONTH)
+    val targetYear = targetMonthCal.get(Calendar.YEAR)
+
+    val currentMonthPayment = remember(allHotelPayments, activeHotelId, targetYear, targetMonth) {
+        allHotelPayments.find {
+            it.hotelId == activeHotelId && it.year == targetYear && it.month == targetMonth && !it.isDeleted
+        }
     }
 
     val isEarliestMonth = remember(monthOffset, earliestTs) {
@@ -1817,44 +1279,53 @@ fun MealHistoryModal(
 
     androidx.activity.compose.BackHandler(onBack = onDismiss)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(getAppBackgroundGradient(userProfile.themeMode))
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDragAmount = 0f },
-                    onDragEnd = {
-                        val swipeThreshold = 40.dp.toPx()
-                        if (totalDragAmount > swipeThreshold) {
-                            // Swipe Right -> Previous Month (Go back in time, if not already at earliest month)
-                            if (!currentIsEarliestMonth) {
-                                monthOffset -= 1
-                            }
-                        } else if (totalDragAmount < -swipeThreshold) {
-                            // Swipe Left -> Next Month (Go forward in time, restricted to not exceed current month)
-                            if (currentMonthOffset < 0) {
-                                monthOffset += 1
-                            }
-                        }
-                        totalDragAmount = 0f
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDragAmount += dragAmount
-                    }
-                )
-            },
-        contentAlignment = Alignment.TopCenter
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-            Column(
+        com.example.ui.components.DialogEdgeToEdge()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+        ) {
+            Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .widthIn(max = 840.dp)
-                    .padding(16.dp)
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto"))
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { totalDragAmount = 0f },
+                            onDragEnd = {
+                                val swipeThreshold = 40.dp.toPx()
+                                if (totalDragAmount > swipeThreshold) {
+                                    if (!currentIsEarliestMonth) {
+                                        monthOffset -= 1
+                                    }
+                                } else if (totalDragAmount < -swipeThreshold) {
+                                    if (currentMonthOffset < 0) {
+                                        monthOffset += 1
+                                    }
+                                }
+                                totalDragAmount = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                totalDragAmount += dragAmount
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.TopCenter
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 840.dp)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1901,24 +1372,27 @@ fun MealHistoryModal(
                     }
                 } else {
                     if (isDayWiseView) {
-                        val dayFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
-                        val dayGroups = remember(filteredTransactions) {
+                        val dayGroupList = remember(filteredTransactions) {
                             filteredTransactions.groupBy { tx ->
-                                dayFormat.format(Date(tx.timestamp))
-                            }.toSortedMap(compareByDescending {
-                                dayFormat.parse(it)?.time ?: 0L
-                            })
+                                Formatters.formatDayDotMonthYear(tx.timestamp)
+                            }.map { (dateStr, dayTxs) ->
+                                var dayTotal = 0.0
+                                val amountsSb = StringBuilder()
+                                for (i in dayTxs.indices) {
+                                    val tx = dayTxs[i]
+                                    dayTotal += tx.totalAmount
+                                    if (i > 0) amountsSb.append(" + ")
+                                    amountsSb.append(tx.totalAmount.toInt())
+                                }
+                                Triple(dateStr, dayTotal.toInt(), amountsSb.toString())
+                            }
                         }
                         
                         LazyColumn(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(dayGroups.keys.toList()) { dateStr ->
-                                val dayTxs = dayGroups[dateStr] ?: emptyList()
-                                val amountsStr = dayTxs.joinToString(" + ") { it.totalAmount.toInt().toString() }
-                                val dayTotal = dayTxs.sumOf { it.totalAmount }
-                                
+                            items(dayGroupList, key = { it.first }, contentType = { "day_group" }) { (dateStr, dayTotalInt, amountsStr) ->
                                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                                     Column(
                                         modifier = Modifier
@@ -1934,7 +1408,7 @@ fun MealHistoryModal(
                                                 Icon(
                                                     imageVector = Icons.Default.CalendarToday,
                                                     contentDescription = null,
-                                                    tint = AccentCyan,
+                                                    tint = AppAccentColor(),
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1946,7 +1420,7 @@ fun MealHistoryModal(
                                                 )
                                             }
                                             Text(
-                                                text = "₹${dayTotal.toInt()}",
+                                                text = "₹$dayTotalInt",
                                                 color = AccentGreen,
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold
@@ -1954,7 +1428,7 @@ fun MealHistoryModal(
                                         }
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = "$dateStr → $amountsStr = ${dayTotal.toInt()}",
+                                            text = "$dateStr → $amountsStr = $dayTotalInt",
                                             color = AppTextColor().copy(alpha = 0.7f),
                                             fontSize = 13.sp
                                         )
@@ -1967,7 +1441,7 @@ fun MealHistoryModal(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(filteredTransactions, key = { it.id }) { tx ->
+                            items(filteredTransactions, key = { it.id }, contentType = { "transaction_item" }) { tx ->
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier
@@ -1981,12 +1455,12 @@ fun MealHistoryModal(
                                             Icon(
                                                 imageVector = if (tx.isNight) Icons.Default.NightsStay else Icons.Default.WbSunny,
                                                 contentDescription = null,
-                                                tint = if (tx.isNight) AccentCyan else AccentGold,
+                                                tint = if (tx.isNight) AppAccentColor() else AccentGold,
                                                 modifier = Modifier.size(14.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = sdf.format(Date(tx.timestamp)),
+                                                text = Formatters.formatShortDate(tx.timestamp),
                                                 color = AppTextColor(),
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold
@@ -2069,7 +1543,7 @@ fun MealHistoryModal(
                                             ) {
                                                 if (onEditTransaction != null) {
                                                     DropdownMenuItem(
-                                                        text = { Text("Edit Transaction", color = AccentCyan) },
+                                                        text = { Text("Edit Transaction", color = AppAccentColor()) },
                                                         onClick = {
                                                             showMenu = false
                                                             onEditTransaction(tx)
@@ -2078,7 +1552,7 @@ fun MealHistoryModal(
                                                             Icon(
                                                                 imageVector = Icons.Default.Edit,
                                                                 contentDescription = null,
-                                                                tint = AccentCyan,
+                                                                tint = AppAccentColor(),
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -2110,36 +1584,627 @@ fun MealHistoryModal(
                 
                 if (filteredTransactions.isNotEmpty()) {
                     val grandTotal = filteredTransactions.sumOf { it.totalAmount }
+                    val isPaid = currentMonthPayment != null && currentMonthPayment.amountPaid > 0
+                    
                     Spacer(modifier = Modifier.height(12.dp))
                     GlassCard(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Calculate,
-                                    contentDescription = null,
-                                    tint = AccentGreen,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                            // Total Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Calculate,
+                                        contentDescription = null,
+                                        tint = AccentGreen,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (userProfile.language == "bn") "মাসিক লেজার সর্বমোট" else "Monthly Ledger Total",
+                                        color = AppTextColor(),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                                 Text(
-                                    text = "Monthly Ledger Total",
-                                    color = AppTextColor(),
-                                    fontSize = 16.sp,
+                                    text = "₹${grandTotal.toInt()}",
+                                    color = AccentGreen,
+                                    fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+
+                            HorizontalDivider(color = getGlassBorder().copy(alpha = 0.3f), thickness = 0.5.dp)
+
+                            // Payment Status & Date Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isPaid) AccentGreen.copy(alpha = 0.15f) else Color(0xFFFFB74D).copy(alpha = 0.15f),
+                                            border = BorderStroke(
+                                                0.5.dp,
+                                                if (isPaid) AccentGreen.copy(alpha = 0.5f) else Color(0xFFFFB74D).copy(alpha = 0.5f)
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isPaid) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                                    contentDescription = null,
+                                                    tint = if (isPaid) AccentGreen else Color(0xFFFFB74D),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = if (isPaid) {
+                                                        if (userProfile.language == "bn") "পরিশোধিত" else "Paid"
+                                                    } else {
+                                                        if (userProfile.language == "bn") "বকেয়া" else "Unpaid"
+                                                    },
+                                                    color = if (isPaid) AccentGreen else Color(0xFFFFB74D),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        if (isPaid && currentMonthPayment != null) {
+                                            val dateStr = paymentDateFormat.format(Date(currentMonthPayment.paymentDate))
+                                            Text(
+                                                text = dateStr,
+                                                color = AppSecondaryTextColor(),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+
+                                    if (isPaid && currentMonthPayment != null && currentMonthPayment.note.isNotBlank()) {
+                                        Text(
+                                            text = currentMonthPayment.note,
+                                            color = AppSecondaryTextColor(),
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 3.dp)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isPaid) getGlassIconButtonBg() else AppAccentColor().copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, if (isPaid) getGlassBorder() else AppAccentColor().copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { showPaymentDialog = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isPaid) Icons.Default.Edit else Icons.Default.Payment,
+                                            contentDescription = null,
+                                            tint = if (isPaid) AppTextColor() else AppAccentColor(),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = if (isPaid) {
+                                                if (userProfile.language == "bn") "স্ট্যাটাস পরিবর্তন" else "Edit Status"
+                                            } else {
+                                                if (userProfile.language == "bn") "+ পেমেন্ট লিখুন" else "+ Set Paid Status"
+                                            },
+                                            color = if (isPaid) AppTextColor() else AppAccentColor(),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }
+
+    if (showPaymentDialog) {
+        val grandTotal = filteredTransactions.sumOf { it.totalAmount }
+        HotelMonthlyPaymentDialog(
+            hotelName = activeHotel?.name ?: "Hotel",
+            monthName = currentDisplayMonth,
+            grandTotal = grandTotal,
+            existingPayment = currentMonthPayment,
+            language = userProfile.language,
+            onSave = { amount, date, note, isPaid ->
+                viewModel.setHotelMonthlyPayment(
+                    hotelId = activeHotelId,
+                    year = targetYear,
+                    month = targetMonth,
+                    amountPaid = amount,
+                    paymentDate = date,
+                    note = note,
+                    isPaid = isPaid
+                )
+                showPaymentDialog = false
+            },
+            viewModel = viewModel, onDismiss = { showPaymentDialog = false }
+        )
+    }
+    }
+}
+
+@Composable
+fun HotelMonthlyPaymentDialog(
+    hotelName: String,
+    monthName: String,
+    grandTotal: Double,
+    existingPayment: HotelPaymentEntity?,
+    language: String,
+    viewModel: com.example.ui.viewmodel.FinancialViewModel,
+    onSave: (amount: Double, paymentDate: Long, note: String, isPaid: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    BackHandler { onDismiss() }
+
+    val context = LocalContext.current
+    var isPaidSelected by remember { mutableStateOf(existingPayment != null && existingPayment.amountPaid > 0) }
+    var amountText by remember {
+        mutableStateOf(
+            if (existingPayment != null && existingPayment.amountPaid > 0) {
+                existingPayment.amountPaid.toInt().toString()
+            } else {
+                grandTotal.toInt().toString()
+            }
+        )
+    }
+    var paymentDateMillis by remember {
+        mutableLongStateOf(existingPayment?.paymentDate ?: System.currentTimeMillis())
+    }
+    var noteText by remember { mutableStateOf(existingPayment?.note ?: "") }
+    
+    val dateDisplayFormat = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()) }
+
+    val datePickerDialog = remember(paymentDateMillis) {
+        val cal = Calendar.getInstance().apply { timeInMillis = paymentDateMillis }
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val newCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, year)
+                    set(Calendar.MONTH, month)
+                    set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                }
+                paymentDateMillis = newCal.timeInMillis
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        
+    ) {
+        
+        val isLight = isAppLightMode()
+        val solidDialogBg = if (isLight) Color(0xFFFFFFFF) else Color(0xFF1E222D)
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.70f))
+                .imePadding()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 500.dp)
+                    .heightIn(max = 620.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = solidDialogBg,
+                shadowElevation = 12.dp,
+                border = BorderStroke(1.dp, getGlassBorder())
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 12.dp)
+                        ) {
                             Text(
-                                text = "₹${grandTotal.toInt()}",
-                                color = AccentGreen,
-                                fontSize = 20.sp,
+                                text = if (language == "bn") "পেমেন্ট স্ট্যাটাস ও তারিখ" else "Payment Status & Date",
+                                color = AppTextColor(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$monthName • $hotelName",
+                                color = AppAccentColor(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(AppTextColor().copy(alpha = 0.15f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = getGlassBorder().copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                    // Scrollable Body
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Bill Summary Badge
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AppTextColor().copy(alpha = 0.05f),
+                            border = BorderStroke(0.5.dp, getGlassBorder()),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (language == "bn") "মোট বিল:" else "Total Bill Amount:",
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "₹${grandTotal.toInt()}",
+                                    color = if (isLight) Color(0xFF00796B) else AccentGreen,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Status Segmented Toggle: Paid vs Unpaid
+                        Text(
+                            text = if (language == "bn") "স্ট্যাটাস নির্বাচন করুন:" else "Select Status:",
+                            color = AppTextColor(),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Paid Button
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isPaidSelected) (if (isLight) Color(0xFFE0F2F1) else AccentGreen.copy(alpha = 0.2f)) else AppTextColor().copy(alpha = 0.04f),
+                                border = BorderStroke(
+                                    1.5.dp,
+                                    if (isPaidSelected) (if (isLight) Color(0xFF00796B) else AccentGreen) else getGlassBorder()
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { isPaidSelected = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = if (isPaidSelected) (if (isLight) Color(0xFF00796B) else AccentGreen) else AppSecondaryTextColor(),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (language == "bn") "পরিশোধিত (Paid)" else "Paid",
+                                        color = if (isPaidSelected) (if (isLight) Color(0xFF00796B) else AccentGreen) else AppTextColor(),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            // Unpaid Button
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (!isPaidSelected) (if (isLight) Color(0xFFFFF3E0) else Color(0xFFFFB74D).copy(alpha = 0.2f)) else AppTextColor().copy(alpha = 0.04f),
+                                border = BorderStroke(
+                                    1.5.dp,
+                                    if (!isPaidSelected) (if (isLight) Color(0xFFE65100) else Color(0xFFFFB74D)) else getGlassBorder()
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { isPaidSelected = false }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        tint = if (!isPaidSelected) (if (isLight) Color(0xFFE65100) else Color(0xFFFFB74D)) else AppSecondaryTextColor(),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (language == "bn") "বকেয়া (Unpaid)" else "Unpaid",
+                                        color = if (!isPaidSelected) (if (isLight) Color(0xFFE65100) else Color(0xFFFFB74D)) else AppTextColor(),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (isPaidSelected) {
+                            // Payment Date Section
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (language == "bn") "পেমেন্টের তারিখ:" else "Payment Date:",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = AppTextColor().copy(alpha = 0.04f),
+                                    border = BorderStroke(1.dp, getGlassBorder()),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { datePickerDialog.show() }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = AppAccentColor(),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = dateDisplayFormat.format(Date(paymentDateMillis)),
+                                                color = AppTextColor(),
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        Text(
+                                            text = if (language == "bn") "পরিবর্তন" else "Change",
+                                            color = AppAccentColor(),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                // Quick Presets
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = AppTextColor().copy(alpha = 0.06f),
+                                        border = BorderStroke(0.5.dp, getGlassBorder()),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                paymentDateMillis = System.currentTimeMillis()
+                                            }
+                                    ) {
+                                        Text(
+                                            text = if (language == "bn") "আজ (Today)" else "Today",
+                                            color = AppTextColor(),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = AppTextColor().copy(alpha = 0.06f),
+                                        border = BorderStroke(0.5.dp, getGlassBorder()),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -1) }
+                                                paymentDateMillis = cal.timeInMillis
+                                            }
+                                    ) {
+                                        Text(
+                                            text = if (language == "bn") "গতকাল (Yesterday)" else "Yesterday",
+                                            color = AppTextColor(),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Amount Paid Field
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (language == "bn") "পরিশোধিত টাকার পরিমাণ (₹):" else "Amount Paid (₹):",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+
+                                OutlinedTextField(
+                                    value = amountText,
+                                    onValueChange = { amountText = it },
+                                    placeholder = { Text("₹ 0", color = AppSecondaryTextColor()) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (isLight) Color(0xFF00796B) else AccentGreen,
+                                        unfocusedBorderColor = getGlassBorder(),
+                                        focusedTextColor = AppTextColor(),
+                                        unfocusedTextColor = AppTextColor()
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Payment Note / Mode
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (language == "bn") "পেমেন্ট মাধ্যম / নোট (ঐচ্ছিক):" else "Payment Note / Mode (Optional):",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+
+                                OutlinedTextField(
+                                    value = noteText,
+                                    onValueChange = { noteText = it },
+                                    placeholder = { Text("e.g. Paid via UPI / GPay / Cash", color = AppSecondaryTextColor()) },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (isLight) Color(0xFF0284C7) else AppAccentColor(),
+                                        unfocusedBorderColor = getGlassBorder(),
+                                        focusedTextColor = AppTextColor(),
+                                        unfocusedTextColor = AppTextColor()
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = getGlassBorder().copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                    // Bottom Action Buttons
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, getGlassBorder()),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                        ) {
+                            Text(
+                                text = if (language == "bn") "বাতিল" else "Cancel",
+                                color = AppTextColor(),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val amt = if (isPaidSelected) (amountText.toDoubleOrNull() ?: grandTotal) else 0.0
+                                onSave(amt, paymentDateMillis, noteText.trim(), isPaidSelected)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPaidSelected) (if (isLight) Color(0xFF00897B) else AccentGreen) else (if (isLight) Color(0xFFE65100) else Color(0xFFFFB74D))
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(48.dp)
+                        ) {
+                            Text(
+                                text = if (language == "bn") "সংরক্ষণ করুন" else "Save Status",
+                                color = if (isPaidSelected) Color.White else (if (isLight) Color.White else Color(0xFF0F0B26)),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -2204,14 +2269,10 @@ fun DishCard(
     } else {
         if (isSelected) Color(0x3300E5FF) else Color(0x1FFFFFFF)
     }
-    val borderColor = if (isLight) {
-        if (isSelected) Color(0xFF0097A7) else Color(0x22000000)
-    } else {
-        if (isSelected) AccentCyan else Color(0x2BFFFFFF)
-    }
-    val addBtnBg = if (isLight) Color(0xFF0097A7).copy(alpha = 0.12f) else AccentCyan.copy(alpha = 0.15f)
-    val addBtnBorder = if (isLight) Color(0xFF0097A7).copy(alpha = 0.35f) else AccentCyan.copy(alpha = 0.4f)
-    val addBtnText = if (isLight) Color(0xFF00838F) else AccentCyan
+    val borderColor = if (isSelected) AppAccentColor() else (if (isLight) Color(0x22000000) else Color(0x2BFFFFFF))
+    val addBtnBg = AppAccentColor().copy(alpha = 0.15f)
+    val addBtnBorder = AppAccentColor().copy(alpha = 0.4f)
+    val addBtnText = AppAccentColor()
 
     Box(
         modifier = Modifier
@@ -2304,12 +2365,12 @@ fun DishCard(
                         .width(88.dp)
                         .height(34.dp)
                         .background(
-                            if (isLight) Color(0xFF0097A7).copy(alpha = 0.18f) else AccentCyan.copy(alpha = 0.25f),
+                            if (isLight) Color(0xFF0097A7).copy(alpha = 0.18f) else AppAccentColor().copy(alpha = 0.25f),
                             RoundedCornerShape(17.dp)
                         )
                         .border(
                             1.dp,
-                            if (isLight) Color(0xFF0097A7).copy(alpha = 0.5f) else AccentCyan.copy(alpha = 0.6f),
+                            if (isLight) Color(0xFF0097A7).copy(alpha = 0.5f) else AppAccentColor().copy(alpha = 0.6f),
                             RoundedCornerShape(17.dp)
                         ),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2361,10 +2422,13 @@ fun UnifiedHotelDialog(
     hotel: HotelEntity?, // null for register, non-null for edit
     prefLanguage: String,
     hotelsCount: Int,
+    viewModel: com.example.ui.viewmodel.FinancialViewModel,
     onDismiss: () -> Unit,
     onSave: (name: String, advanced: Double, phone: String, loc: String, upi: String, qr: String) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
+    BackHandler { onDismiss() }
+
     var hotelName by remember(hotel) { mutableStateOf(hotel?.name ?: "") }
     var hotelAdv by remember(hotel) { mutableStateOf(hotel?.advancedPayment?.toString() ?: "") }
     var hotelPhone by remember(hotel) { mutableStateOf(hotel?.phoneNumber ?: "") }
@@ -2384,195 +2448,195 @@ fun UnifiedHotelDialog(
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
+        
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xB3000000))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
-        ) {
+        
         Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f)
-                .clickable(enabled = false, onClick = {}),
-            shape = RoundedCornerShape(24.dp),
-            color = getDialogBackground()
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Transparent
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
+                    .background(getAppBackgroundGradient()),
                 contentAlignment = Alignment.TopCenter
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .widthIn(max = 840.dp)
-                        .verticalScroll(rememberScrollState())
-                        .imePadding()
-                        .padding(horizontal = 24.dp, vertical = 24.dp)
-                ) {
-                // Top header bar with a Back button
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(getGlassIconButtonBg(), CircleShape)
-                            .bounceClick()
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = if (hotel == null) {
-                            if (prefLanguage == "bn") "নতুন হোটেল যুক্ত করুন" else "Register Establishment"
-                        } else {
-                            if (prefLanguage == "bn") "হোটেল সংশোধন" else "Edit Establishment Details"
-                        },
-                        color = AppTextColor(),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    if (hotel != null && hotelsCount > 1 && onDelete != null) {
-                        var showHotelMenu by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { showHotelMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor())
-                            }
-                            DropdownMenu(
-                                expanded = showHotelMenu,
-                                onDismissRequest = { showHotelMenu = false },
-                                modifier = Modifier.background(getDialogBackground())
+                Scaffold(
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = WindowInsets(0.dp),
+                    topBar = {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                                    .bounceClick()
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Move to Bin", color = AccentPink) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
-                                    onClick = {
-                                        showHotelMenu = false
-                                        showDeleteConfirm = true
-                                    }
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = AppTextColor()
                                 )
                             }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = if (hotel == null) {
+                                    if (prefLanguage == "bn") "নতুন হোটেল যুক্ত করুন" else "Register Establishment"
+                                } else {
+                                    if (prefLanguage == "bn") "হোটেল সংশোধন" else "Edit Establishment Details"
+                                },
+                                color = AppTextColor(),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            if (hotel != null && hotelsCount > 1 && onDelete != null) {
+                                var showHotelMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showHotelMenu = true },
+                                        modifier = Modifier.size(38.dp).background(getGlassIconButtonBg(), CircleShape).bounceClick()
+                                    ) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor())
+                                    }
+                                    DropdownMenu(
+                                        expanded = showHotelMenu,
+                                        onDismissRequest = { showHotelMenu = false },
+                                        modifier = Modifier.background(getDialogBackground())
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Move to Bin", color = AccentPink) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                            onClick = {
+                                                showHotelMenu = false
+                                                showDeleteConfirm = true
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .widthIn(max = 600.dp)
+                                .verticalScroll(rememberScrollState())
+                                .imePadding()
+                                .padding(horizontal = 24.dp, vertical = 16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                GlassTextField(
+                                    value = hotelName,
+                                    onValueChange = { hotelName = it },
+                                    label = { Text(if (prefLanguage == "bn") "হোটেলের নাম" else "Hotel Name") },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_name_input")
+                                )
+                                GlassTextField(
+                                    value = hotelAdv,
+                                    onValueChange = { hotelAdv = it },
+                                    label = { Text(if (prefLanguage == "bn") "অগ্রিম জমা (₹)" else "Advanced Deposit (₹)") },
+                                    leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_adv_input")
+                                )
+                                GlassTextField(
+                                    value = hotelPhone,
+                                    onValueChange = { hotelPhone = it },
+                                    label = { Text(if (prefLanguage == "bn") "ফোন নম্বর" else "Phone Number") },
+                                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_phone_input")
+                                )
+                                GlassTextField(
+                                    value = hotelLoc,
+                                    onValueChange = { hotelLoc = it },
+                                    label = { Text(if (prefLanguage == "bn") "অবস্থান / ঠিকানা" else "Location / Address") },
+                                    leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_loc_input")
+                                )
+                                GlassTextField(
+                                    value = hotelUpi,
+                                    onValueChange = { hotelUpi = it },
+                                    label = { Text(if (prefLanguage == "bn") "UPI আইডি (যেমন- upi@upi)" else "UPI ID (e.g. name@bank)") },
+                                    leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_upi_input")
+                                )
+                                GlassTextField(
+                                    value = hotelQr,
+                                    onValueChange = { hotelQr = it },
+                                    label = { Text(if (prefLanguage == "bn") "QR কোড ফাইল বা লিঙ্ক" else "QR Code File Path / Link") },
+                                    leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    modifier = Modifier.fillMaxWidth().testTag("hotel_qr_input")
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                Button(
+                                    onClick = {
+                                        if (hotelName.isNotBlank()) {
+                                            val adv = hotelAdv.toDoubleOrNull() ?: 0.0
+                                            onSave(hotelName, adv, hotelPhone, hotelLoc, hotelUpi, hotelQr)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                    modifier = Modifier.weight(1f).testTag("save_hotel_btn")
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (hotel == null) {
+                                            if (prefLanguage == "bn") "যোগ করুন" else "Register"
+                                        } else {
+                                            if (prefLanguage == "bn") "সংরক্ষণ" else "Save"
+                                        },
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            
+                            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().testTag("cancel_hotel_btn")) {
+                                Text(if (prefLanguage == "bn") "বাতিল" else "Cancel", color = AppTextColor())
+                            }
                         }
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                GlassTextField(
-                    value = hotelName,
-                    onValueChange = { hotelName = it },
-                    label = { Text(if (prefLanguage == "bn") "হোটেলের নাম" else "Hotel Name") },
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_name_input")
-                )
-                GlassTextField(
-                    value = hotelAdv,
-                    onValueChange = { hotelAdv = it },
-                    label = { Text(if (prefLanguage == "bn") "অগ্রিম জমা (₹)" else "Advanced Deposit (₹)") },
-                    leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_adv_input")
-                )
-                GlassTextField(
-                    value = hotelPhone,
-                    onValueChange = { hotelPhone = it },
-                    label = { Text(if (prefLanguage == "bn") "ফোন নম্বর" else "Phone Number") },
-                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_phone_input")
-                )
-                GlassTextField(
-                    value = hotelLoc,
-                    onValueChange = { hotelLoc = it },
-                    label = { Text(if (prefLanguage == "bn") "অবস্থান / ঠিকানা" else "Location / Address") },
-                    leadingIcon = { Icon(Icons.Default.Map, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_loc_input")
-                )
-                GlassTextField(
-                    value = hotelUpi,
-                    onValueChange = { hotelUpi = it },
-                    label = { Text(if (prefLanguage == "bn") "UPI আইডি (যেমন- upi@upi)" else "UPI ID (e.g. name@bank)") },
-                    leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_upi_input")
-                )
-                GlassTextField(
-                    value = hotelQr,
-                    onValueChange = { hotelQr = it },
-                    label = { Text(if (prefLanguage == "bn") "QR কোড ফাইল বা লিঙ্ক" else "QR Code File Path / Link") },
-                    leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth().testTag("hotel_qr_input")
-                )
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-
-                Button(
-                    onClick = {
-                        if (hotelName.isNotBlank()) {
-                            val adv = hotelAdv.toDoubleOrNull() ?: 0.0
-                            onSave(hotelName, adv, hotelPhone, hotelLoc, hotelUpi, hotelQr)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                    modifier = Modifier.weight(1f).testTag("save_hotel_btn")
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (hotel == null) {
-                            if (prefLanguage == "bn") "যোগ করুন" else "Register"
-                        } else {
-                            if (prefLanguage == "bn") "সংরক্ষণ" else "Save"
-                        },
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().testTag("cancel_hotel_btn")) {
-                Text(if (prefLanguage == "bn") "বাতিল" else "Cancel", color = AppTextColor())
-            }
-            } // Close Column
-        } // Close Box
-        } // Close Surface
-    } // Close Box
-    } // Close Dialog
-} // Close UnifiedHotelDialog
+        }
+    }
+}
 
 @Composable
 fun HotelInfoDetailRow(
@@ -2581,7 +2645,9 @@ fun HotelInfoDetailRow(
     label: String,
     value: String,
     actionIcon: ImageVector? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    actionIcon2: ImageVector? = null,
+    onAction2: (() -> Unit)? = null
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -2600,6 +2666,18 @@ fun HotelInfoDetailRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(label, color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
             Text(value, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (actionIcon2 != null && onAction2 != null) {
+            IconButton(
+                onClick = onAction2,
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(iconTint.copy(alpha = 0.1f), CircleShape)
+                    .bounceClick()
+            ) {
+                Icon(actionIcon2, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
+            }
+            Spacer(modifier = Modifier.width(6.dp))
         }
         if (actionIcon != null && onAction != null) {
             IconButton(
@@ -2621,256 +2699,373 @@ fun HotelDetailsBottomSheet(
     hotel: com.example.data.model.HotelEntity,
     isBengali: Boolean,
     viewModel: com.example.ui.viewmodel.FinancialViewModel,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit
+    onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var previewQrUri by remember { mutableStateOf<String?>(null) }
-    var qrExportPayload by remember { mutableStateOf<com.example.data.ExportResult.Success?>(null) }
-    var qrExportSessionId by remember { mutableStateOf("") }
+    val qrUris = hotel.qrCodeUri.split(",").filter { it.isNotBlank() }
 
-    Dialog(
+    androidx.activity.compose.BackHandler(onBack = onDismiss)
+
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .wrapContentHeight()
-                .padding(vertical = 16.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = getDialogBackground(),
-            border = BorderStroke(1.dp, getGlassBorder())
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-            // Header Row
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
+        
+        AppThemeProvider(viewModel) {
+            
+                Surface(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(AccentCyan.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth(0.92f)
+                        .widthIn(max = 520.dp)
+                        .padding(vertical = 24.dp)
+                        .clickable(
+                            onClick = {},
+                            indication = null,
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                        ),
+                    shape = RoundedCornerShape(24.dp),
+                    color = getDialogBackground(),
+                    border = BorderStroke(1.dp, getGlassBorder())
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Apartment,
-                        contentDescription = null,
-                        tint = AccentCyan,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = hotel.name,
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isBengali) "হোটেলের বিস্তারিত বিবরণ" else "Hotel Information & Details",
-                        color = AppTextColor().copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
-                }
-                IconButton(
-                    onClick = onEdit,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .background(AccentCyan.copy(alpha = 0.15f), CircleShape)
-                        .bounceClick()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = AccentCyan,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Info Card Group
-            Card(
-                colors = CardDefaults.cardColors(containerColor = AppTextColor().copy(alpha = 0.04f)),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, getGlassBorder().copy(alpha = 0.15f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Location
-                    HotelInfoDetailRow(
-                        icon = Icons.Default.LocationOn,
-                        iconTint = Color(0xFFFFB74D),
-                        label = if (isBengali) "অবস্থান / ঠিকানা" else "Location / Address",
-                        value = hotel.location.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                        actionIcon = if (hotel.location.isNotBlank()) Icons.Default.Map else null,
-                        onAction = {
-                            if (hotel.location.isNotBlank()) {
-                                val intent = if (hotel.location.startsWith("http")) {
-                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(hotel.location))
-                                } else {
-                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=${android.net.Uri.encode(hotel.location)}"))
-                                }
-                                try { context.startActivity(intent) } catch (e: Exception) {}
-                            }
-                        }
-                    )
-
-                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.06f))
-
-                    // Advanced Payment
-                    HotelInfoDetailRow(
-                        icon = Icons.Default.AccountBalanceWallet,
-                        iconTint = AccentCyan,
-                        label = if (isBengali) "অগ্রিম জমা" else "Advanced Payment",
-                        value = "₹${hotel.advancedPayment.toInt()}"
-                    )
-
-                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.06f))
-
-                    // Phone Number
-                    HotelInfoDetailRow(
-                        icon = Icons.Default.Phone,
-                        iconTint = Color(0xFF81C784),
-                        label = if (isBengali) "ফোন নম্বর" else "Phone Number",
-                        value = hotel.phoneNumber.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                        actionIcon = if (hotel.phoneNumber.isNotBlank()) Icons.Default.Call else null,
-                        onAction = {
-                            if (hotel.phoneNumber.isNotBlank()) {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:${hotel.phoneNumber}"))
-                                try { context.startActivity(intent) } catch (e: Exception) {}
-                            }
-                        }
-                    )
-
-                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.06f))
-
-                    // UPI ID
-                    HotelInfoDetailRow(
-                        icon = Icons.Default.QrCode,
-                        iconTint = Color(0xFFBA68C8),
-                        label = if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID",
-                        value = hotel.upiId.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                        actionIcon = if (hotel.upiId.isNotBlank()) Icons.Default.ContentCopy else null,
-                        onAction = {
-                            if (hotel.upiId.isNotBlank()) {
-                                clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(hotel.upiId))
-                                android.widget.Toast.makeText(context, if (isBengali) "UPI ID কপি করা হয়েছে!" else "UPI ID copied!", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-                }
-            }
-
-            // QR Codes Section
-            val qrUris = hotel.qrCodeUri.split(",").filter { it.isNotBlank() }
-            if (qrUris.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    text = if (isBengali) "পেমেন্ট কিউআর কোড (${qrUris.size})" else "Payment QR Codes (${qrUris.size})",
-                    color = AppTextColor(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    qrUris.forEachIndexed { idx, uri ->
-                        Box(
-                            modifier = Modifier
-                                .size(110.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White)
-                                .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                .clickable { previewQrUri = uri }
-                                .padding(6.dp),
-                            contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AsyncImage(
-                                model = uri,
-                                contentDescription = "QR Code ${idx + 1}",
-                                modifier = Modifier.fillMaxSize()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(AppAccentColor().copy(alpha = 0.18f))
+                                        .border(1.dp, AppAccentColor().copy(alpha = 0.4f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Apartment,
+                                        contentDescription = null,
+                                        tint = AppAccentColor(),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = if (isBengali) "হোটেলের বিবরণ" else "Hotel Details",
+                                    color = AppTextColor(),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                                    .bounceClick()
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Header Banner Card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, getGlassBorder()),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = hotel.name,
+                                        color = AppTextColor(),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isBengali) "হোটেলের বিস্তারিত বিবরণ" else "Hotel Information & Details",
+                                        color = AppSecondaryTextColor(),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Info Card Group
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, getGlassBorder()),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                // Location
+                                HotelInfoDetailRow(
+                                    icon = Icons.Default.LocationOn,
+                                    iconTint = Color(0xFFFFB74D),
+                                    label = if (isBengali) "অবস্থান / ঠিকানা" else "Location / Address",
+                                    value = hotel.location.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
+                                    actionIcon = if (hotel.location.isNotBlank()) Icons.Default.Map else null,
+                                    onAction = {
+                                        if (hotel.location.isNotBlank()) {
+                                            val intent = if (hotel.location.startsWith("http")) {
+                                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(hotel.location))
+                                            } else {
+                                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=${android.net.Uri.encode(hotel.location)}"))
+                                            }
+                                            try { context.startActivity(intent) } catch (e: Exception) {}
+                                        }
+                                    }
+                                )
+
+                                HorizontalDivider(color = getGlassBorder())
+
+                                // Advanced Payment
+                                HotelInfoDetailRow(
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    iconTint = AppAccentColor(),
+                                    label = if (isBengali) "অগ্রিম জমা" else "Advanced Payment",
+                                    value = "₹${hotel.advancedPayment.toInt()}"
+                                )
+
+                                HorizontalDivider(color = getGlassBorder())
+
+                                // Phone Number
+                                HotelInfoDetailRow(
+                                    icon = Icons.Default.Phone,
+                                    iconTint = Color(0xFF81C784),
+                                    label = if (isBengali) "ফোন নম্বর" else "Phone Number",
+                                    value = hotel.phoneNumber.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
+                                    actionIcon = if (hotel.phoneNumber.isNotBlank()) Icons.Default.Call else null,
+                                    onAction = {
+                                        if (hotel.phoneNumber.isNotBlank()) {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:${hotel.phoneNumber}"))
+                                            try { context.startActivity(intent) } catch (e: Exception) {}
+                                        }
+                                    }
+                                )
+
+                                HorizontalDivider(color = getGlassBorder())
+
+                                // UPI ID & QR Code button
+                                HotelInfoDetailRow(
+                                    icon = Icons.Default.QrCode,
+                                    iconTint = Color(0xFFBA68C8),
+                                    label = if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID",
+                                    value = hotel.upiId.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
+                                    actionIcon = if (hotel.upiId.isNotBlank()) Icons.Default.ContentCopy else null,
+                                    onAction = {
+                                        if (hotel.upiId.isNotBlank()) {
+                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(hotel.upiId))
+                                            android.widget.Toast.makeText(context, if (isBengali) "UPI ID কপি করা হয়েছে!" else "UPI ID copied!", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    actionIcon2 = if (qrUris.isNotEmpty()) Icons.Default.QrCodeScanner else null,
+                                    onAction2 = if (qrUris.isNotEmpty()) {
+                                        { previewQrUri = qrUris.first() }
+                                    } else null
+                                )
+
+                                if (!hotel.importedFrom.isNullOrBlank()) {
+                                    HorizontalDivider(color = getGlassBorder())
+                                    HotelInfoDetailRow(
+                                        icon = Icons.Default.Download,
+                                        iconTint = Color(0xFF64B5F6),
+                                        label = if (isBengali) "আমদানি করা হয়েছে" else "Import Source",
+                                        value = if (isBengali) "আমদানি করা হয়েছে: ${hotel.importedFrom}" else "Imported from: ${hotel.importedFrom}"
+                                    )
+                                }
+                            }
+                        }
+
+                        // QR Codes Section
+                        if (qrUris.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = if (isBengali) "পেমেন্ট কিউআর কোড (${qrUris.size})" else "Payment QR Codes (${qrUris.size})",
+                                color = AppTextColor(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                qrUris.forEachIndexed { idx, uri ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(100.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                            .clickable { previewQrUri = uri }
+                                            .padding(6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = uri,
+                                            contentDescription = "QR Code ${idx + 1}",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Export via QR Button
+                        Button(
+                            onClick = { 
+                                viewModel.exportHotelViaQr(hotel.id) { result ->
+                                    when(result) {
+                                        is com.example.data.ExportResult.Success -> {
+                                            viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString(), "${hotel.name} hotel's menu")
+                                        }
+                                        is com.example.data.ExportResult.Error -> {
+                                            android.widget.Toast.makeText(context, "Export failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(44.dp).bounceClick(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA68C8)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.QrCode, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Close Button
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .bounceClick(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
+                        ) {
+                            Text(if (isBengali) "বন্ধ করুন" else "Close", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-
-            // Export via QR Button
-            Button(
-                onClick = { 
-                    viewModel.exportHotelViaQr(hotel.id) { result ->
-                        when(result) {
-                            is com.example.data.ExportResult.Success -> {
-                                // Start the QR stream
-                                viewModel.setQrExportPayload(result, java.util.UUID.randomUUID().toString())
-                            }
-                            is com.example.data.ExportResult.Error -> {
-                                android.widget.Toast.makeText(context, "Export failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp).bounceClick(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBA68C8)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.QrCode, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = Color.White, fontWeight = FontWeight.Bold)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Close & Edit buttons
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f).height(48.dp).bounceClick(),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, AppTextColor().copy(alpha = 0.2f))
-                ) {
-                    Text(if (isBengali) "বন্ধ করুন" else "Close", color = AppTextColor(), fontWeight = FontWeight.SemiBold)
-                }
-                Button(
-                    onClick = onEdit,
-                    modifier = Modifier.weight(1.2f).height(48.dp).bounceClick(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isBengali) "সম্পাদনা করুন" else "Edit Hotel", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
         }
-    }
     }
 
     if (previewQrUri != null) {
         com.example.ui.components.FullScreenQRPreviewDialog(
             qrUri = previewQrUri!!,
-            title = "Hotel Payment QR",
+            title = if (isBengali) "হোটেল পেমেন্ট কিউআর" else "${hotel.name} Payment QR",
+            upiId = hotel.upiId,
             onDismiss = { previewQrUri = null }
         )
     }
-    
+}
 
-    
+@Composable
+fun MealGroupCard(
+    group: com.example.data.model.MealGroup,
+    index: Int,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+    isCompact: Boolean = false
+) {
+    val isLight = com.example.ui.components.isAppLightMode()
+    val cardBg = if (isLight) Color(0xFFEDF4FA) else Color(0xFF1E283C)
+    val cardBorder = if (isLight) Color(0xFFBAE6FD) else Color(0xFF2E4060)
+    val badgeBg = if (isLight) AppAccentColor().copy(alpha = 0.2f) else AppAccentColor().copy(alpha = 0.25f)
 
+    Card(
+        modifier = modifier.width(if (isCompact) 144.dp else 160.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.5.dp, cardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(if (isCompact) 10.dp else 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = badgeBg
+                ) {
+                    Text(
+                        text = "Group ${index + 1}",
+                        color = AppAccentColor(),
+                        fontSize = if (isCompact) 11.sp else 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(if (isCompact) 20.dp else 22.dp).bounceClick()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove Group",
+                        tint = AccentPink,
+                        modifier = Modifier.size(if (isCompact) 13.dp else 14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            val itemsSummary = group.items.joinToString(", ") { "${it.name} x${it.quantity}" }
+            Text(
+                text = itemsSummary,
+                color = AppTextColor().copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = if (isCompact) 1 else 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            val mathBreakdown = if (group.items.size > 1) {
+                val parts = group.items.joinToString(" + ") { "${(it.price * it.quantity).toInt()}" }
+                "$parts = ₹${group.subtotal.toInt()}"
+            } else {
+                "₹${group.subtotal.toInt()}"
+            }
+            Text(
+                text = mathBreakdown,
+                color = if (isLight) Color(0xFF15803D) else AccentGreen,
+                fontSize = if (isCompact) 11.sp else 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
 }

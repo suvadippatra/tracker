@@ -5,7 +5,10 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.Bundle
 import android.util.Log
+import android.util.SizeF
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
@@ -14,11 +17,26 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 
 class ExpensesWidgetProvider : AppWidgetProvider() {
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle?
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        renderSingleWidget(context, appWidgetManager, appWidgetId)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        for (appWidgetId in appWidgetIds) {
+            renderSingleWidget(context, appWidgetManager, appWidgetId)
+        }
+    }
+
+    private fun renderSingleWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         val pendingIntent = PendingIntent.getActivity(
             context,
             0,
@@ -70,27 +88,46 @@ class ExpensesWidgetProvider : AppWidgetProvider() {
                 } else {
                     if (isBengali) "কনফিগার করতে এখানে চাপুন" else "Tap to configure"
                 }
-                
-                withContext(Dispatchers.Main) {
-                    for (appWidgetId in appWidgetIds) {
-                        val views = RemoteViews(context.packageName, R.layout.widget_expenses)
-                        views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                        
-                        views.setTextViewText(R.id.expenses_title, "💳 $accountLabel")
-                        
-                        if (isConfigured) {
-                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
-                            views.setViewVisibility(R.id.expenses_balance, android.view.View.VISIBLE)
-                            views.setOnClickPendingIntent(R.id.btn_add_expense, pendingActionIntent)
-                            views.setTextViewText(R.id.btn_add_expense, buttonLabel)
-                            views.setTextViewText(R.id.expenses_balance, "₹ $totalBalance")
-                        } else {
-                            views.setViewVisibility(R.id.btn_add_expense, android.view.View.GONE)
-                            views.setViewVisibility(R.id.expenses_balance, android.view.View.GONE)
-                        }
-                        
-                        appWidgetManager.updateAppWidget(appWidgetId, views)
+
+                fun populateViews(layoutRes: Int): RemoteViews {
+                    val views = RemoteViews(context.packageName, layoutRes)
+                    views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+                    views.setTextViewText(R.id.expenses_title, "💳 $accountLabel")
+
+                    if (isConfigured) {
+                        views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
+                        views.setViewVisibility(R.id.expenses_balance, android.view.View.VISIBLE)
+                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingActionIntent)
+                        views.setTextViewText(R.id.btn_add_expense, buttonLabel)
+                        views.setTextViewText(R.id.expenses_balance, "₹ $totalBalance")
+                    } else {
+                        views.setViewVisibility(R.id.btn_add_expense, android.view.View.VISIBLE)
+                        views.setOnClickPendingIntent(R.id.btn_add_expense, pendingActionIntent)
+                        views.setTextViewText(R.id.btn_add_expense, buttonLabel)
+                        views.setViewVisibility(R.id.expenses_balance, android.view.View.VISIBLE)
+                        views.setTextViewText(R.id.expenses_balance, subtitleLabel)
+                        views.setTextColor(R.id.expenses_balance, android.graphics.Color.parseColor("#80D8FF"))
                     }
+                    return views
+                }
+
+                withContext(Dispatchers.Main) {
+                    val compactViews = populateViews(R.layout.widget_expenses_compact)
+                    val expandedViews = populateViews(R.layout.widget_expenses)
+
+                    val finalViews = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val viewMapping = mapOf(
+                            SizeF(100f, 40f) to compactViews,
+                            SizeF(100f, 120f) to expandedViews
+                        )
+                        RemoteViews(viewMapping)
+                    } else {
+                        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+                        val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+                        if (minHeight in 1..119) compactViews else expandedViews
+                    }
+
+                    appWidgetManager.updateAppWidget(appWidgetId, finalViews)
                 }
             } catch (e: Exception) {
                 Log.e("ExpensesWidget", "Error updating widget", e)
@@ -100,3 +137,4 @@ class ExpensesWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+

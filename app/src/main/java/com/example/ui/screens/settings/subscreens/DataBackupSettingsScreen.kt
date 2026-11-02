@@ -3,6 +3,7 @@ package com.example.ui.screens.settings.subscreens
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -52,13 +53,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-private val AccentOrange = Color(0xFFFF9800)
+private val AccentOrange = Color(0xFF64B5F6) // High contrast blue
 private val AccentPurple = Color(0xFFBA68C8)
-private val AccentAmber = Color(0xFFFFC107)
+private val AccentAmber = com.example.ui.components.AccentCyan
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
+fun DataBackupSettingsScreen(
+    viewModel: FinancialViewModel,
+    onBack: () -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
@@ -67,6 +71,7 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
     val allHotels by viewModel.allHotels.collectAsStateWithLifecycle(initialValue = emptyList())
     val activeHotelId by viewModel.activeHotelId.collectAsStateWithLifecycle()
     val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val activeBankAccountId by viewModel.activeBankAccountId.collectAsStateWithLifecycle()
     val allExpenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle(initialValue = emptyList())
     val allReadings by viewModel.allMeterReadings.collectAsStateWithLifecycle(initialValue = emptyList())
     val allUtilityBills by viewModel.allUtilityBills.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -76,6 +81,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
     // Selected Hotel for Hotel-specific exports/imports
     var selectedHotelId by remember(activeHotelId, allHotels) {
         mutableIntStateOf(activeHotelId ?: allHotels.firstOrNull()?.id ?: 1)
+    }
+
+    // Selected Account for Account-specific filtering (null = All Accounts)
+    var selectedAccountScopeId by remember(activeBankAccountId, allBankAccounts) {
+        mutableStateOf<Int?>(null)
     }
 
     // Active Action Dialog State
@@ -91,17 +101,24 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
 
     // QR Export & Scanner State
     var activeQrExportData by remember { mutableStateOf<ExportResult.Success?>(null) }
+    var activeQrItemName by remember { mutableStateOf("Full Application Backup") }
     var qrSessionId by remember { mutableStateOf("") }
     var showQrScanner by remember { mutableStateOf(false) }
 
+    // Smart Import Flow State
+    val importUiFlowState by viewModel.importUiFlowState.collectAsStateWithLifecycle()
+    val parentDecisions by viewModel.parentDecisions.collectAsStateWithLifecycle()
+    val acceptedMenuItemKeys by viewModel.acceptedMenuItemKeys.collectAsStateWithLifecycle()
+    val conflictDecisions by viewModel.conflictDecisions.collectAsStateWithLifecycle()
+    val allOwnerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
+
     // Pending file export payload & mime
     var pendingExportContent by remember { mutableStateOf<String?>(null) }
-    var pendingExportFileName by remember { mutableStateOf("backup.json") }
-    var pendingExportMimeType by remember { mutableStateOf("application/json") }
+    var pendingImportDataType by remember { mutableStateOf<BackupDataType?>(null) }
 
-    // File Save Launcher (SAF)
-    val saveFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument(pendingExportMimeType)
+    // File Save Launchers (SAF)
+    val saveJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null && pendingExportContent != null) {
             coroutineScope.launch(Dispatchers.IO) {
@@ -110,7 +127,7 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         os.write(pendingExportContent!!.toByteArray(Charsets.UTF_8))
                     }
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "File saved successfully", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "JSON file saved successfully", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -121,15 +138,36 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
         }
     }
 
-    // File Import Launcher
-    val fileImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+    val saveCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
-        if (uri != null) {
-            val targetType = activeDataTypeForImport ?: BackupDataType.FULL_BACKUP
+        if (uri != null && pendingExportContent != null) {
             coroutineScope.launch(Dispatchers.IO) {
                 try {
-                    val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        os.write(pendingExportContent!!.toByteArray(Charsets.UTF_8))
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "CSV file saved successfully", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    // File Import Launcher (OpenDocument)
+    val openFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val targetType = pendingImportDataType ?: BackupDataType.FULL_BACKUP
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val text = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                     if (!text.isNullOrBlank()) {
                         viewModel.importUniversal(text, targetType, selectedHotelId) { outcome ->
                             when (outcome) {
@@ -140,6 +178,10 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                                     Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
                                 }
                             }
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Selected file is empty", Toast.LENGTH_SHORT).show()
                         }
                     }
                 } catch (e: Exception) {
@@ -153,13 +195,13 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
 
     // Helper function to copy data to clipboard
     fun copyDataToClipboard(type: BackupDataType) {
-        if (type == BackupDataType.FULL_BACKUP) {
-            viewModel.exportDataJson(BackupDataType.FULL_BACKUP, selectedHotelId) { json ->
+        if (type == BackupDataType.FULL_BACKUP || type == BackupDataType.SINGLE_BANK_ACCOUNT || type == BackupDataType.HOTEL_WHOLE || type == BackupDataType.WALLET_WHOLE || type == BackupDataType.ELECTRICITY_WHOLE) {
+            viewModel.exportDataJson(type, selectedHotelId, selectedAccountScopeId) { json ->
                 clipboardManager.setText(AnnotatedString(json))
-                Toast.makeText(context, "Full Backup JSON copied to clipboard!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "${type.displayName} JSON copied to clipboard!", Toast.LENGTH_SHORT).show()
             }
         } else {
-            viewModel.exportDataCsv(type, selectedHotelId) { csv ->
+            viewModel.exportDataCsv(type, selectedHotelId, selectedAccountScopeId) { csv ->
                 clipboardManager.setText(AnnotatedString(csv))
                 Toast.makeText(context, "${type.displayName} CSV copied to clipboard!", Toast.LENGTH_SHORT).show()
             }
@@ -168,10 +210,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
 
     // Helper function to trigger QR send
     fun startQrSend(type: BackupDataType) {
-        viewModel.exportViaQr(type, selectedHotelId) { result ->
+        viewModel.exportViaQr(type, selectedHotelId, selectedAccountScopeId) { result ->
             when (result) {
                 is ExportResult.Success -> {
                     qrSessionId = UUID.randomUUID().toString()
+                    activeQrItemName = type.displayName
                     activeQrExportData = result
                 }
                 is ExportResult.Error -> {
@@ -372,20 +415,21 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(allHotels) { hotel ->
+                        items(allHotels, key = { it.id }) { hotel ->
                             val isSelected = hotel.id == selectedHotelId
+                            val primaryCol = MaterialTheme.colorScheme.primary
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedHotelId = hotel.id },
                                 label = { Text(hotel.name, fontSize = 12.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentCyan.copy(alpha = 0.2f),
-                                    selectedLabelColor = AccentCyan,
+                                    selectedContainerColor = primaryCol.copy(alpha = 0.2f),
+                                    selectedLabelColor = primaryCol,
                                     labelColor = AppTextColor()
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = if (isSelected) AccentCyan else getGlassBorder(),
-                                    selectedBorderColor = AccentCyan,
+                                    borderColor = if (isSelected) primaryCol else getGlassBorder(),
+                                    selectedBorderColor = primaryCol,
                                     enabled = true,
                                     selected = isSelected
                                 )
@@ -479,34 +523,139 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
             )
         }
 
-        // 4. Account Details / Virtual Accounts
+        // Account Scope Selector (All vs Specific Account)
+        if (allBankAccounts.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Account Scope:",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        item {
+                            val isAllSelected = selectedAccountScopeId == null
+                            val secondaryCol = MaterialTheme.colorScheme.secondary
+                            FilterChip(
+                                selected = isAllSelected,
+                                onClick = { selectedAccountScopeId = null },
+                                label = { Text("All Accounts (${allBankAccounts.size})", fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = secondaryCol.copy(alpha = 0.2f),
+                                    selectedLabelColor = secondaryCol,
+                                    labelColor = AppTextColor()
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = if (isAllSelected) secondaryCol else getGlassBorder(),
+                                    selectedBorderColor = secondaryCol,
+                                    enabled = true,
+                                    selected = isAllSelected
+                                )
+                            )
+                        }
+                        items(allBankAccounts, key = { it.id }) { account ->
+                            val isSelected = account.id == selectedAccountScopeId
+                            val secondaryCol = MaterialTheme.colorScheme.secondary
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedAccountScopeId = account.id },
+                                label = { Text(account.name, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = secondaryCol.copy(alpha = 0.2f),
+                                    selectedLabelColor = secondaryCol,
+                                    labelColor = AppTextColor()
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = if (isSelected) secondaryCol else getGlassBorder(),
+                                    selectedBorderColor = secondaryCol,
+                                    enabled = true,
+                                    selected = isSelected
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Whole Wallet / Account Backup (Combined)
         item {
+            val isSingleAcc = selectedAccountScopeId != null
+            val currentAccount = allBankAccounts.find { it.id == selectedAccountScopeId }
+            val accountExpenseCount = if (selectedAccountScopeId != null) {
+                allExpenses.filter { it.bankAccountId == selectedAccountScopeId }.size
+            } else {
+                allExpenses.size
+            }
+
             DataBackupItemCard(
-                title = "Account Details",
-                subtitle = "Bank & virtual accounts, balances, UPI and IFSC",
-                countLabel = "${allBankAccounts.size} Accounts",
-                icon = Icons.Default.AccountBalance,
+                title = if (isSingleAcc) "Whole Account Data (${currentAccount?.name})" else "Whole Wallet Data (All Accounts)",
+                subtitle = if (isSingleAcc) "Complete profile & transaction history for '${currentAccount?.name}'" else "Complete backup of all bank accounts & all transaction records",
+                countLabel = if (isSingleAcc) "1 Account • $accountExpenseCount Txns" else "${allBankAccounts.size} Accounts • ${allExpenses.size} Txns",
+                icon = Icons.Default.AccountBalanceWallet,
                 accentColor = AccentGreen,
-                onCopyClick = { copyDataToClipboard(BackupDataType.BANK_ACCOUNTS) },
-                onQrSendClick = { startQrSend(BackupDataType.BANK_ACCOUNTS) },
+                onCopyClick = { copyDataToClipboard(BackupDataType.WALLET_WHOLE) },
+                onQrSendClick = { startQrSend(BackupDataType.WALLET_WHOLE) },
                 onQrScanClick = { showQrScanner = true },
-                onExportClick = { activeDataTypeForExport = BackupDataType.BANK_ACCOUNTS },
-                onImportClick = { activeDataTypeForImport = BackupDataType.BANK_ACCOUNTS },
+                onExportClick = { activeDataTypeForExport = BackupDataType.WALLET_WHOLE },
+                onImportClick = { activeDataTypeForImport = BackupDataType.WALLET_WHOLE },
                 onPasteClick = {
-                    pasteDataType = BackupDataType.BANK_ACCOUNTS
+                    pasteDataType = BackupDataType.WALLET_WHOLE
                     pasteInputText = ""
                     showPasteDialog = true
                 },
-                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.BANK_ACCOUNTS }
+                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.WALLET_WHOLE }
             )
         }
 
-        // 5. Transaction History / Extra Expenses
+        // 5. Bank Account Profile(s) Only (Individual)
         item {
+            val isSingleAcc = selectedAccountScopeId != null
+            val currentAccount = allBankAccounts.find { it.id == selectedAccountScopeId }
+            val targetDataType = BackupDataType.BANK_ACCOUNTS
+
             DataBackupItemCard(
-                title = "Transaction History",
-                subtitle = "Expense & income logs, categories, amounts and notes",
-                countLabel = "${allExpenses.size} Transactions",
+                title = if (isSingleAcc) "Bank Account Profile (${currentAccount?.name})" else "Bank Account Profiles (All)",
+                subtitle = if (isSingleAcc) "Account balance, UPI ID, IFSC & details without transaction logs" else "Account balances, UPI IDs, IFSC & details for all accounts",
+                countLabel = if (isSingleAcc) "1 Account Profile" else "${allBankAccounts.size} Accounts",
+                icon = Icons.Default.AccountBalance,
+                accentColor = AccentAmber,
+                onCopyClick = { copyDataToClipboard(targetDataType) },
+                onQrSendClick = { startQrSend(targetDataType) },
+                onQrScanClick = { showQrScanner = true },
+                onExportClick = { activeDataTypeForExport = targetDataType },
+                onImportClick = { activeDataTypeForImport = targetDataType },
+                onPasteClick = {
+                    pasteDataType = targetDataType
+                    pasteInputText = ""
+                    showPasteDialog = true
+                },
+                onFormatInfoClick = { showCsvFormatDialogFor = targetDataType }
+            )
+        }
+
+        // 6. Transaction History / Extra Expenses Only (Individual)
+        item {
+            val isSingleAcc = selectedAccountScopeId != null
+            val currentAccount = allBankAccounts.find { it.id == selectedAccountScopeId }
+            val filteredCount = if (isSingleAcc) {
+                allExpenses.filter { it.bankAccountId == selectedAccountScopeId }.size
+            } else {
+                allExpenses.size
+            }
+
+            DataBackupItemCard(
+                title = if (isSingleAcc) "Transaction History (${currentAccount?.name})" else "Transaction History (All Accounts)",
+                subtitle = if (isSingleAcc) "Expense & income logs for '${currentAccount?.name}' only" else "Expense & income logs across all accounts",
+                countLabel = "$filteredCount Transactions",
                 icon = Icons.Default.History,
                 accentColor = AccentPurple,
                 onCopyClick = { copyDataToClipboard(BackupDataType.TRANSACTION_HISTORY) },
@@ -536,14 +685,36 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
             )
         }
 
-        // 6. Datewise Readings
+        // 7. Whole Electricity Data (Combined)
+        item {
+            DataBackupItemCard(
+                title = "Whole Electricity Data",
+                subtitle = "Complete meter readings, tariff rates & paid utility bills",
+                countLabel = "${allReadings.size} Readings • ${allUtilityBills.size} Bills",
+                icon = Icons.Default.ElectricBolt,
+                accentColor = AccentAmber,
+                onCopyClick = { copyDataToClipboard(BackupDataType.ELECTRICITY_WHOLE) },
+                onQrSendClick = { startQrSend(BackupDataType.ELECTRICITY_WHOLE) },
+                onQrScanClick = { showQrScanner = true },
+                onExportClick = { activeDataTypeForExport = BackupDataType.ELECTRICITY_WHOLE },
+                onImportClick = { activeDataTypeForImport = BackupDataType.ELECTRICITY_WHOLE },
+                onPasteClick = {
+                    pasteDataType = BackupDataType.ELECTRICITY_WHOLE
+                    pasteInputText = ""
+                    showPasteDialog = true
+                },
+                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.ELECTRICITY_WHOLE }
+            )
+        }
+
+        // 8. Datewise Readings Only (Individual)
         item {
             DataBackupItemCard(
                 title = "Datewise Meter Readings",
-                subtitle = "Meter readings, date logs, consumed units & status",
+                subtitle = "Meter readings, date logs, consumed units & payment status",
                 countLabel = "${allReadings.size} Readings",
                 icon = Icons.Default.FlashOn,
-                accentColor = AccentAmber,
+                accentColor = AccentGold,
                 onCopyClick = { copyDataToClipboard(BackupDataType.METER_READINGS) },
                 onQrSendClick = { startQrSend(BackupDataType.METER_READINGS) },
                 onQrScanClick = { showQrScanner = true },
@@ -558,7 +729,7 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
             )
         }
 
-        // 7. Paid Bill List
+        // 9. Paid Bill List Only (Individual)
         item {
             DataBackupItemCard(
                 title = "Paid Bill List",
@@ -650,12 +821,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         subtitle = "Structured backup file for devices",
                         accentColor = AccentCyan,
                         onClick = {
+                            val cur = type
                             activeDataTypeForExport = null
-                            viewModel.exportDataJson(type, selectedHotelId) { json ->
+                            viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
                                 pendingExportContent = json
-                                pendingExportFileName = "${type.name.lowercase()}_backup.json"
-                                pendingExportMimeType = "application/json"
-                                saveFileLauncher.launch(pendingExportFileName)
+                                saveJsonLauncher.launch("${cur.name.lowercase()}_backup.json")
                             }
                         }
                     )
@@ -667,12 +837,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         subtitle = "Open in MS Excel or Google Sheets",
                         accentColor = AccentOrange,
                         onClick = {
+                            val cur = type
                             activeDataTypeForExport = null
-                            viewModel.exportDataCsv(type, selectedHotelId) { csv ->
+                            viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
                                 pendingExportContent = csv
-                                pendingExportFileName = "${type.name.lowercase()}_export.csv"
-                                pendingExportMimeType = "text/csv"
-                                saveFileLauncher.launch(pendingExportFileName)
+                                saveCsvLauncher.launch("${cur.name.lowercase()}_export.csv")
                             }
                         }
                     )
@@ -685,7 +854,7 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         accentColor = AccentGold,
                         onClick = {
                             activeDataTypeForExport = null
-                            viewModel.exportDataCsv(type, selectedHotelId) { csv ->
+                            viewModel.exportDataCsv(type, selectedHotelId, selectedAccountScopeId) { csv ->
                                 clipboardManager.setText(AnnotatedString(csv))
                                 Toast.makeText(context, "CSV copied to clipboard!", Toast.LENGTH_SHORT).show()
                             }
@@ -700,10 +869,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         accentColor = AccentPurple,
                         onClick = {
                             activeDataTypeForExport = null
-                            viewModel.exportViaQr(type, selectedHotelId) { result ->
+                            viewModel.exportViaQr(type, selectedHotelId, selectedAccountScopeId) { result ->
                                 when (result) {
                                     is ExportResult.Success -> {
                                         qrSessionId = UUID.randomUUID().toString()
+                                        activeQrItemName = type.displayName
                                         activeQrExportData = result
                                     }
                                     is ExportResult.Error -> {
@@ -754,8 +924,10 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         subtitle = "Pick a .csv or .json file from storage",
                         accentColor = AccentCyan,
                         onClick = {
+                            val cur = type
+                            pendingImportDataType = cur
                             activeDataTypeForImport = null
-                            fileImportLauncher.launch("*/*")
+                            openFileLauncher.launch(arrayOf("*/*", "application/json", "text/csv", "text/comma-separated-values", "text/plain"))
                         }
                     )
 
@@ -904,14 +1076,14 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         }
                     },
                     enabled = !isImporting && pasteInputText.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
                 ) {
                     if (isImporting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         Spacer(Modifier.width(6.dp))
-                        Text("Importing...", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("Importing...", color = Color.White, fontWeight = FontWeight.Bold)
                     } else {
-                        Text("Import & Save", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("Import & Save", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             },
@@ -995,11 +1167,11 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
                         Toast.makeText(context, "Sample template copied", Toast.LENGTH_SHORT).show()
                         showCsvFormatDialogFor = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Copy Template", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("Copy Template", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1011,12 +1183,98 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
     }
 
     // ==========================================
+    // SMART SYNC INTERMEDIATE FLOW DIALOGS
+    // ==========================================
+    when (val state = importUiFlowState) {
+        is FinancialViewModel.ImportUiFlowState.ParentMappingRequired -> {
+            ParentMappingDialog(
+                unmappedParents = state.unmappedParents,
+                availableHotels = allHotels,
+                availableBankAccounts = allBankAccounts,
+                availableOwnerAccounts = allOwnerAccounts,
+                currentResolutions = parentDecisions,
+                onResolutionChanged = { key, res ->
+                    viewModel.setParentResolution(key, res)
+                },
+                onConfirm = {
+                    viewModel.confirmParentMappings { outcome ->
+                        when (outcome) {
+                            is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                            is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                onDismiss = {
+                    viewModel.cancelImportFlow()
+                }
+            )
+        }
+        is FinancialViewModel.ImportUiFlowState.MenuConfirmationRequired -> {
+            MenuConfirmationDialog(
+                pendingMenuItems = state.pendingMenuItems,
+                acceptedKeys = acceptedMenuItemKeys,
+                onToggleItem = { key, isAccepted ->
+                    viewModel.setMenuItemAccepted(key, isAccepted)
+                },
+                onToggleAll = { isAllAccepted ->
+                    viewModel.setAllMenuItemsAccepted(isAllAccepted)
+                },
+                onConfirm = {
+                    viewModel.confirmMenuItems { outcome ->
+                        when (outcome) {
+                            is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                            is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                onDismiss = {
+                    viewModel.cancelImportFlow()
+                }
+            )
+        }
+        is FinancialViewModel.ImportUiFlowState.ConflictsDetected -> {
+            com.example.ui.screens.SyncResolutionDialog(
+                conflicts = state.conflicts,
+                conflictDecisions = conflictDecisions,
+                isMerging = false,
+                onResolutionChanged = { key, res ->
+                    viewModel.setConflictResolution(key, res)
+                },
+                onResolveAllLatest = {
+                    viewModel.resolveAllConflictsLatest()
+                },
+                onResolveAllLocal = {
+                    viewModel.resolveAllConflictsLocal()
+                },
+                onConfirmMerge = {
+                    val plan = viewModel.generateMergePlan()
+                    if (plan != null) {
+                        viewModel.executeMergePlan(plan) { outcome ->
+                            when (outcome) {
+                                is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                                is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                },
+                onDismiss = {
+                    viewModel.cancelImportFlow()
+                }
+            )
+        }
+        else -> {
+            // Handled in other states
+        }
+    }
+
+    // ==========================================
     // QR EXPORT STREAM DIALOG
     // ==========================================
     if (activeQrExportData != null) {
         QrExportStreamDialog(
             exportData = activeQrExportData!!,
             sessionId = qrSessionId,
+            itemName = activeQrItemName,
             onDismiss = { activeQrExportData = null }
         )
     }
@@ -1029,7 +1287,7 @@ fun DataBackupSettingsScreen(viewModel: FinancialViewModel) {
             onDismiss = { showQrScanner = false },
             onSuccess = { payload, key, iv ->
                 showQrScanner = false
-                viewModel.importHotelViaQr(payload, key, iv) { result ->
+                viewModel.importHotelViaQr(payload, key, iv, targetHotelId = selectedHotelId, targetBankAccountId = selectedAccountScopeId ?: 1) { result ->
                     when (result) {
                         is ImportResult.Success -> {
                             Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
@@ -1341,8 +1599,10 @@ private fun getCsvHeaderFor(type: BackupDataType): String {
     return when (type) {
         BackupDataType.HOTEL_MENUS, BackupDataType.HOTEL_WHOLE -> "Bangla Name,English Name,Price,Day Menu,Night Menu,Add On,Category"
         BackupDataType.HOTEL_HISTORY -> "Timestamp,Date,Is Night,Total Amount,Items"
-        BackupDataType.BANK_ACCOUNTS -> "Account Name,Balance,UPI ID,Account Number,IFSC Code,Branch Name"
+        BackupDataType.SINGLE_BANK_ACCOUNT, BackupDataType.BANK_ACCOUNTS -> "Account Name,Balance,UPI ID,Account Number,IFSC Code,Branch Name"
+        BackupDataType.WALLET_WHOLE -> "# BANK ACCOUNTS\nAccount Name,Balance,UPI ID...\n# TRANSACTION HISTORY\nTimestamp,Date,Type..."
         BackupDataType.TRANSACTION_HISTORY -> "Timestamp,Date,Description,Amount,Type,Category,Bank Account ID,Notes"
+        BackupDataType.ELECTRICITY_WHOLE -> "# METER READINGS\nTimestamp,Date,Total Reading...\n# UTILITY BILLS\nBill ID,Start Date,End Date..."
         BackupDataType.METER_READINGS -> "Reading Timestamp,Date,Total Reading,Units Consumed,Is Paid"
         BackupDataType.UTILITY_BILLS -> "Start Date,End Date,Start Date Text,End Date Text,Total Units,Calculated Amount,Due Date,Is Paid,Transaction ID"
         BackupDataType.FULL_BACKUP -> "JSON format containing userProfile, hotels, menus, transactions, bankAccounts, expenses, meterReadings, utilityBills"
@@ -1364,15 +1624,33 @@ private fun getSampleTemplateFor(type: BackupDataType): String {
 1723500000000,"2024-08-13 13:00",false,90.0,"Plain Rice:2:35.0;Chicken Piece:1:20.0"
 1723536000000,"2024-08-13 20:30",true,35.0,"Roti:3:5.0;Egg Curry:1:20.0""""
 
-        BackupDataType.BANK_ACCOUNTS ->
+        BackupDataType.SINGLE_BANK_ACCOUNT, BackupDataType.BANK_ACCOUNTS ->
             """Account Name,Balance,UPI ID,Account Number,IFSC Code,Branch Name
 "Main Bank Account",15000.0,"myhotel@okaxis","1234567890","SBIN0001234","Kolkata Main"
 "Cash Drawer",2500.0,"","","","Daily Cash""""
+
+        BackupDataType.WALLET_WHOLE ->
+            """# BANK ACCOUNTS
+Account Name,Current Balance,UPI ID,Account Number,IFSC Code,Branch Name
+"Main Bank Account",15000.0,"myhotel@okaxis","1234567890","SBIN0001234","Kolkata Main"
+
+# TRANSACTION HISTORY
+Timestamp,Date,Time,Transaction Type,Category,Description,Amount,Bank Account ID,Notes
+1723500000000,"2024-08-13","10:30 AM","Expense","Grocery","Rice & Oil",1200.0,1,"Shop purchase""""
 
         BackupDataType.TRANSACTION_HISTORY ->
             """Timestamp,Date,Description,Amount,Type,Category,Bank Account ID,Notes
 1723500000000,"2024-08-13 10:30","Grocery Supplies",1200.0,"EXPENSE","Grocery",1,"Rice and spices"
 1723510000000,"2024-08-13 14:00","Daily Counter Sale",3500.0,"INCOME","Sales",1,"Lunch receipts""""
+
+        BackupDataType.ELECTRICITY_WHOLE ->
+            """# METER READINGS
+Reading Timestamp,Date,Total Reading (kWh),Units Consumed,Payment Status
+1723400000000,"2024-08-12",12450.0,14.5,"Paid"
+
+# UTILITY BILLS
+Bill ID,Billing Start Date,Billing End Date,Total Units,Effective Rate (₹/unit),Calculated Amount (₹),Due Date,Payment Status,Transaction Reference,Variable Rate Breakdown,Start Timestamp,End Timestamp,Due Timestamp
+"bill-1","2024-07-13","2024-08-12",340.0,7.00,2380.0,"2024-08-25",Paid,"WBSEDCL-123","Flat",1720800000000,1723400000000,1724500000000"""
 
         BackupDataType.METER_READINGS ->
             """Reading Timestamp,Date,Total Reading,Units Consumed,Is Paid

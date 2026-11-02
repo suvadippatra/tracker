@@ -9,6 +9,7 @@ import android.app.Application
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.model.BankAccountEntity
@@ -19,10 +20,12 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.OrderedItem
 import com.example.data.model.TransactionSerializer
 import com.example.data.model.UserProfileEntity
+import com.example.data.model.HotelPaymentEntity
 import com.example.data.repository.FinancialRepository
 import com.example.data.model.SearchResult
 import com.example.data.model.MeterReading
 import com.example.data.model.UtilityBill
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -44,14 +48,40 @@ private data class SearchCombineTuple5(
     val accounts: List<BankAccountEntity>
 )
 
-class FinancialViewModel(application: Application) : AndroidViewModel(application) {
+
+sealed class RootOverlayState {
+    object None : RootOverlayState()
+    object AddMeal : RootOverlayState()
+    data class ManageMenu(val hotel: com.example.data.model.HotelEntity) : RootOverlayState()
+    data class EditHotel(val hotel: com.example.data.model.HotelEntity?) : RootOverlayState()
+    object OwnerProfile : RootOverlayState()
+    object AccountManager : RootOverlayState()
+    data class AddOwnerAccount(val account: com.example.data.model.OwnerAccountEntity?) : RootOverlayState()
+    data class EditBankAccount(val account: com.example.data.model.BankAccountEntity?) : RootOverlayState()
+}
+
+class FinancialViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle
+) : AndroidViewModel(application) {
+    private val _rootOverlayState = MutableStateFlow<RootOverlayState>(RootOverlayState.None)
+    val rootOverlayState: StateFlow<RootOverlayState> = _rootOverlayState
+
+    fun showRootOverlay(state: RootOverlayState) {
+        _rootOverlayState.value = state
+    }
+
+    fun closeRootOverlay() {
+        _rootOverlayState.value = RootOverlayState.None
+    }
+
 
     private val repository: FinancialRepository
 
     val isInitialized = MutableStateFlow(false)
 
     // UI Tab State
-    val activeTab = MutableStateFlow("Hotels")
+    val activeTab = MutableStateFlow(savedStateHandle.get<String>("KEY_ACTIVE_TAB") ?: "Hotels")
     val isBottomBarVisible = MutableStateFlow(true)
     private val activeSubScreens = MutableStateFlow<Set<String>>(emptySet())
     val quickActionTrigger = MutableStateFlow<String?>(null)
@@ -93,14 +123,51 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Active Hotel Selection
-    val activeHotelId = MutableStateFlow(1)
-    val activeBankAccountId = MutableStateFlow<Int?>(null)
+    val activeHotelId = MutableStateFlow(savedStateHandle.get<Int>("KEY_ACTIVE_HOTEL_ID") ?: 1)
+    val activeBankAccountId = MutableStateFlow<Int?>(savedStateHandle.get<Int?>("KEY_ACTIVE_BANK_ACCOUNT_ID"))
+
+    private val initialProfile = com.example.ui.theme.ThemePreferences.getInitialProfile(application)
 
     init {
         val db = AppDatabase.getDatabase(application)
         repository = FinancialRepository(db)
         viewModelScope.launch {
+            activeTab.collect { tab ->
+                savedStateHandle["KEY_ACTIVE_TAB"] = tab
+            }
+        }
+        viewModelScope.launch {
+            activeHotelId.collect { id ->
+                savedStateHandle["KEY_ACTIVE_HOTEL_ID"] = id
+            }
+        }
+        viewModelScope.launch {
+            activeBankAccountId.collect { id ->
+                if (id != null) {
+                    savedStateHandle["KEY_ACTIVE_BANK_ACCOUNT_ID"] = id
+                }
+            }
+        }
+        viewModelScope.launch {
             repository.initializeDatabaseIfNeeded(application)
+            val profile = repository.userProfile.first()
+            if (profile != null) {
+                com.example.ui.theme.ThemePreferences.save(application, profile)
+            }
+            val hotels = repository.allHotels.first()
+            if (hotels.isNotEmpty()) {
+                val savedHotelId = savedStateHandle.get<Int>("KEY_ACTIVE_HOTEL_ID")
+                if (savedHotelId != null && hotels.any { it.id == savedHotelId }) {
+                    activeHotelId.value = savedHotelId
+                } else {
+                    val targetHotelId = profile?.defaultHotelId ?: hotels.first().id
+                    if (hotels.any { it.id == targetHotelId }) {
+                        activeHotelId.value = targetHotelId
+                    } else {
+                        activeHotelId.value = hotels.first().id
+                    }
+                }
+            }
             isInitialized.value = true
         }
         viewModelScope.launch {
@@ -121,49 +188,56 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Streams from Repository
     val userProfile: StateFlow<UserProfileEntity> = repository.userProfile
-        .map { it ?: UserProfileEntity() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, UserProfileEntity())
+        .map { profile ->
+            val p = profile ?: initialProfile
+            com.example.ui.theme.ThemePreferences.save(getApplication(), p)
+            p
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initialProfile)
 
     val allHotels: StateFlow<List<HotelEntity>> = repository.allHotels
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedHotels: StateFlow<List<HotelEntity>> = repository.deletedHotels
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allBankAccounts: StateFlow<List<BankAccountEntity>> = repository.allBankAccounts
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allTransactions: StateFlow<List<HotelTransactionEntity>> = repository.allTransactions
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allMeterReadings: StateFlow<List<MeterReading>> = repository.allMeterReadings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allUtilityBills: StateFlow<List<UtilityBill>> = repository.allUtilityBills
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedBankAccounts: StateFlow<List<BankAccountEntity>> = repository.deletedBankAccounts
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedTransactions: StateFlow<List<HotelTransactionEntity>> = repository.deletedTransactions
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.deletedExtraExpenses
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedMeterReadings: StateFlow<List<MeterReading>> = repository.deletedMeterReadings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val deletedUtilityBills: StateFlow<List<UtilityBill>> = repository.deletedUtilityBills
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.allExtraExpenses
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allCategories: StateFlow<List<com.example.data.model.TransactionCategoryEntity>> = repository.allCategories
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allHotelPayments: StateFlow<List<HotelPaymentEntity>> = repository.allHotelPayments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = repository.allOwnerAccounts
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> {
         return repository.getAttachmentsForExpense(expenseId)
@@ -184,21 +258,21 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     // Active Hotel Stream
     val activeHotel: StateFlow<HotelEntity?> = combine(allHotels, activeHotelId) { hotels, selectedId ->
         hotels.find { it.id == selectedId } ?: hotels.firstOrNull()
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val allMenuItems: StateFlow<List<MenuEntity>> = activeHotel
         .flatMapLatest { hotel ->
             if (hotel != null) repository.getMenuForHotel(hotel.id)
             else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedMenuItems: StateFlow<List<MenuEntity>> = activeHotel
         .flatMapLatest { hotel ->
             if (hotel != null) repository.getDeletedMenuForHotel(hotel.id)
             else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Active Hotel Transactions
     val activeHotelTransactions: StateFlow<List<HotelTransactionEntity>> = activeHotel
@@ -206,38 +280,61 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
             if (hotel != null) repository.getTransactionsForHotel(hotel.id)
             else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val earliestTransactionTimestamp: StateFlow<Long> = activeHotelTransactions
         .map { txList -> txList.minOfOrNull { it.timestamp } ?: System.currentTimeMillis() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis())
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), System.currentTimeMillis())
 
     // Active Month total expenditure for active hotel
     val activeMonthTotal: StateFlow<Double> = activeHotelTransactions
         .map { txList ->
+            if (txList.isEmpty()) return@map 0.0
             val calendar = Calendar.getInstance()
-            val currentMonth = calendar.get(Calendar.MONTH)
-            val currentYear = calendar.get(Calendar.YEAR)
-            txList.filter { tx ->
-                calendar.timeInMillis = tx.timestamp
-                calendar.get(Calendar.MONTH) == currentMonth && calendar.get(Calendar.YEAR) == currentYear
-            }.sumOf { it.totalAmount }
+            calendar.set(Calendar.DAY_OF_MONTH, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            val startOfMonth = calendar.timeInMillis
+
+            calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
+            calendar.set(Calendar.HOUR_OF_DAY, 23)
+            calendar.set(Calendar.MINUTE, 59)
+            calendar.set(Calendar.SECOND, 59)
+            calendar.set(Calendar.MILLISECOND, 999)
+            val endOfMonth = calendar.timeInMillis
+
+            var total = 0.0
+            for (i in txList.indices) {
+                val tx = txList[i]
+                if (tx.timestamp in startOfMonth..endOfMonth) {
+                    total += tx.totalAmount
+                }
+            }
+            total
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // Behavioral Analytics Stream: Frequently ordered dishes
     val popularMeals: StateFlow<List<Pair<String, Int>>> = activeHotelTransactions
         .map { txList ->
+            if (txList.isEmpty()) return@map emptyList()
             val counts = mutableMapOf<String, Int>()
-            txList.forEach { tx ->
+            for (i in txList.indices) {
+                val tx = txList[i]
                 val items = TransactionSerializer.deserialize(tx.itemsSerialized)
-                items.forEach { item ->
+                for (j in items.indices) {
+                    val item = items[j]
                     counts[item.name] = (counts[item.name] ?: 0) + item.quantity
                 }
             }
             counts.toList().sortedByDescending { it.second }.take(4)
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
     // ==========================================
@@ -504,11 +601,11 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun importHotelViaQr(payload: ByteArray, key: ByteArray, iv: ByteArray, onResult: (com.example.data.ImportResult) -> Unit) {
+    fun importHotelViaQr(payload: ByteArray, key: ByteArray, iv: ByteArray, targetHotelId: Int = 1, targetBankAccountId: Int = 1, onResult: (com.example.data.ImportResult) -> Unit) {
         viewModelScope.launch {
             val db = com.example.data.AppDatabase.getDatabase(getApplication())
             val manager = com.example.data.QrImportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
-            val result = manager.importPayload(payload, key, iv)
+            val result = manager.importPayload(payload, key, iv, targetHotelId = targetHotelId, targetBankAccountId = targetBankAccountId)
             if (result is com.example.data.ImportResult.Success && result.newHotelId > 0) {
                 activeHotelId.value = result.newHotelId
             }
@@ -516,7 +613,16 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun exportViaQr(type: com.example.data.BackupDataType, hotelId: Int = 1, onResult: (com.example.data.ExportResult) -> Unit) {
+    fun importAccountViaQr(payload: ByteArray, key: ByteArray, iv: ByteArray, onResult: (com.example.data.ImportResult) -> Unit) {
+        viewModelScope.launch {
+            val db = com.example.data.AppDatabase.getDatabase(getApplication())
+            val manager = com.example.data.QrImportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
+            val result = manager.importPayload(payload, key, iv, targetBankAccountId = activeBankAccountId.value ?: 1)
+            onResult(result)
+        }
+    }
+
+    fun exportViaQr(type: com.example.data.BackupDataType, hotelId: Int = 1, bankAccountId: Int? = null, onResult: (com.example.data.ExportResult) -> Unit) {
         viewModelScope.launch {
             val db = com.example.data.AppDatabase.getDatabase(getApplication())
             val manager = com.example.data.QrExportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
@@ -524,8 +630,11 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                 com.example.data.BackupDataType.HOTEL_WHOLE -> manager.exportWholeHotel(hotelId)
                 com.example.data.BackupDataType.HOTEL_MENUS -> manager.exportHotelMenus(hotelId)
                 com.example.data.BackupDataType.HOTEL_HISTORY -> manager.exportHotelHistory(hotelId)
-                com.example.data.BackupDataType.BANK_ACCOUNTS -> manager.exportBankAccounts()
-                com.example.data.BackupDataType.TRANSACTION_HISTORY -> manager.exportTransactionHistory()
+                com.example.data.BackupDataType.WALLET_WHOLE -> manager.exportWalletWhole(bankAccountId)
+                com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT -> manager.exportSingleBankAccount(bankAccountId ?: activeBankAccountId.value ?: 1)
+                com.example.data.BackupDataType.BANK_ACCOUNTS -> manager.exportBankAccounts(bankAccountId)
+                com.example.data.BackupDataType.TRANSACTION_HISTORY -> manager.exportTransactionHistory(bankAccountId)
+                com.example.data.BackupDataType.ELECTRICITY_WHOLE -> manager.exportElectricityWhole()
                 com.example.data.BackupDataType.METER_READINGS -> manager.exportMeterReadings()
                 com.example.data.BackupDataType.UTILITY_BILLS -> manager.exportUtilityBills()
                 com.example.data.BackupDataType.FULL_BACKUP -> manager.exportFullBackup()
@@ -534,7 +643,7 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun exportDataJson(type: com.example.data.BackupDataType, hotelId: Int = 1, onResult: (String) -> Unit) {
+    fun exportDataJson(type: com.example.data.BackupDataType, hotelId: Int = 1, bankAccountId: Int? = null, onResult: (String) -> Unit) {
         viewModelScope.launch {
             try {
                 val db = com.example.data.AppDatabase.getDatabase(getApplication())
@@ -543,8 +652,11 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
                     com.example.data.BackupDataType.HOTEL_WHOLE -> dtm.exportWholeHotelJson(hotelId)
                     com.example.data.BackupDataType.HOTEL_MENUS -> dtm.exportHotelMenusJson(hotelId)
                     com.example.data.BackupDataType.HOTEL_HISTORY -> dtm.exportHotelHistoryJson(hotelId)
-                    com.example.data.BackupDataType.BANK_ACCOUNTS -> dtm.exportBankAccountsJson()
-                    com.example.data.BackupDataType.TRANSACTION_HISTORY -> dtm.exportTransactionHistoryJson()
+                    com.example.data.BackupDataType.WALLET_WHOLE -> dtm.exportWalletWholeJson(bankAccountId)
+                    com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT -> dtm.exportSingleBankAccountJson(bankAccountId ?: activeBankAccountId.value ?: 1)
+                    com.example.data.BackupDataType.BANK_ACCOUNTS -> dtm.exportBankAccountsJson(bankAccountId)
+                    com.example.data.BackupDataType.TRANSACTION_HISTORY -> dtm.exportTransactionHistoryJson(bankAccountId)
+                    com.example.data.BackupDataType.ELECTRICITY_WHOLE -> dtm.exportElectricityWholeJson()
                     com.example.data.BackupDataType.METER_READINGS -> dtm.exportMeterReadingsJson()
                     com.example.data.BackupDataType.UTILITY_BILLS -> dtm.exportUtilityBillsJson()
                     com.example.data.BackupDataType.FULL_BACKUP -> dtm.exportFullBackupJson()
@@ -557,20 +669,23 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun exportDataCsv(type: com.example.data.BackupDataType, hotelId: Int = 1, onResult: (String) -> Unit) {
+    fun exportDataCsv(type: com.example.data.BackupDataType, hotelId: Int = 1, bankAccountId: Int? = null, onResult: (String) -> Unit) {
         viewModelScope.launch {
             try {
                 val db = com.example.data.AppDatabase.getDatabase(getApplication())
                 val dtm = com.example.data.DataTransferManager(db)
                 val csv = when (type) {
-                    com.example.data.BackupDataType.HOTEL_WHOLE -> dtm.exportMenusCsv(hotelId)
+                    com.example.data.BackupDataType.HOTEL_WHOLE -> dtm.exportWholeHotelCsv(hotelId)
                     com.example.data.BackupDataType.HOTEL_MENUS -> dtm.exportMenusCsv(hotelId)
                     com.example.data.BackupDataType.HOTEL_HISTORY -> dtm.exportHotelHistoryCsv(hotelId)
-                    com.example.data.BackupDataType.BANK_ACCOUNTS -> dtm.exportBankAccountsCsv()
-                    com.example.data.BackupDataType.TRANSACTION_HISTORY -> dtm.exportTransactionHistoryCsv()
+                    com.example.data.BackupDataType.WALLET_WHOLE -> dtm.exportWalletWholeCsv(bankAccountId)
+                    com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT -> dtm.exportSingleBankAccountCsv(bankAccountId ?: activeBankAccountId.value ?: 1)
+                    com.example.data.BackupDataType.BANK_ACCOUNTS -> dtm.exportBankAccountsCsv(bankAccountId)
+                    com.example.data.BackupDataType.TRANSACTION_HISTORY -> dtm.exportTransactionHistoryCsv(bankAccountId)
+                    com.example.data.BackupDataType.ELECTRICITY_WHOLE -> dtm.exportElectricityWholeCsv()
                     com.example.data.BackupDataType.METER_READINGS -> dtm.exportMeterReadingsCsv()
                     com.example.data.BackupDataType.UTILITY_BILLS -> dtm.exportUtilityBillsCsv()
-                    com.example.data.BackupDataType.FULL_BACKUP -> dtm.exportMenusCsv(null)
+                    com.example.data.BackupDataType.FULL_BACKUP -> dtm.exportFullBackupCsv()
                 }
                 onResult(csv)
             } catch (e: Exception) {
@@ -590,15 +705,318 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
 
+    // Import Analysis & Smart Sync Engine State
+    private val syncEngine by lazy { com.example.utils.SyncEngine(com.example.data.AppDatabase.getDatabase(getApplication())) }
+
+    private val _syncAnalysis = MutableStateFlow<com.example.utils.SyncAnalysisResult?>(null)
+    val syncAnalysis = _syncAnalysis.asStateFlow()
+
+    private val _isAnalyzingImport = MutableStateFlow(false)
+    val isAnalyzingImport = _isAnalyzingImport.asStateFlow()
+
+    private val _parentDecisions = MutableStateFlow<Map<String, com.example.utils.ParentResolution>>(emptyMap())
+    val parentDecisions = _parentDecisions.asStateFlow()
+
+    private val _acceptedMenuItemKeys = MutableStateFlow<Set<String>>(emptySet())
+    val acceptedMenuItemKeys = _acceptedMenuItemKeys.asStateFlow()
+
+    private val _conflictDecisions = MutableStateFlow<Map<String, com.example.utils.ConflictResolution>>(emptyMap())
+    val conflictDecisions = _conflictDecisions.asStateFlow()
+
+    private val _finalMergePlan = MutableStateFlow<com.example.utils.MergePlan?>(null)
+    val finalMergePlan = _finalMergePlan.asStateFlow()
+
+    sealed class ImportUiFlowState {
+        object Idle : ImportUiFlowState()
+        object Analyzing : ImportUiFlowState()
+        data class ParentMappingRequired(val unmappedParents: List<com.example.utils.UnmappedParent>) : ImportUiFlowState()
+        data class MenuConfirmationRequired(val pendingMenuItems: List<com.example.utils.PendingNewMenuItem>) : ImportUiFlowState()
+        data class ConflictsDetected(val conflicts: List<com.example.utils.ConflictItem>) : ImportUiFlowState()
+        data class ReadyToMerge(val plan: com.example.utils.MergePlan) : ImportUiFlowState()
+        object Merging : ImportUiFlowState()
+    }
+
+    private val _importUiFlowState = MutableStateFlow<ImportUiFlowState>(ImportUiFlowState.Idle)
+    val importUiFlowState = _importUiFlowState.asStateFlow()
+
+    fun startSmartImportFlow(
+        payloadText: String,
+        targetHotelId: Int? = null,
+        targetBankAccountId: Int? = null,
+        explicitSenderName: String? = null,
+        onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                _isAnalyzingImport.value = true
+                _importUiFlowState.value = ImportUiFlowState.Analyzing
+
+                val analysis = syncEngine.analyzeImport(
+                    jsonString = payloadText,
+                    targetHotelId = targetHotelId,
+                    targetBankAccountId = targetBankAccountId,
+                    explicitSenderName = explicitSenderName
+                )
+
+                _syncAnalysis.value = analysis
+
+                // Default all new menu items to accepted
+                _acceptedMenuItemKeys.value = analysis.pendingNewMenuItems.map { it.itemKey }.toSet()
+
+                // Default all conflicts to "Take Latest"
+                _conflictDecisions.value = syncEngine.autoResolveAllLatest(analysis.conflicts)
+
+                // Initialize parent decisions if any
+                val initParentDecisions = mutableMapOf<String, com.example.utils.ParentResolution>()
+                analysis.unmappedParents.forEach { parent ->
+                    initParentDecisions[parent.entityKey] = com.example.utils.ParentResolution.CreateNew(analysis.senderName)
+                }
+                _parentDecisions.value = initParentDecisions
+
+                _isAnalyzingImport.value = false
+                transitionToNextImportFlowStep(analysis, onDirectComplete)
+            } catch (e: Exception) {
+                _isAnalyzingImport.value = false
+                _importUiFlowState.value = ImportUiFlowState.Idle
+                e.printStackTrace()
+                onDirectComplete?.invoke(com.example.data.ImportOutcome.Error("Import analysis failed: ${e.message}"))
+            }
+        }
+    }
+
+    private fun transitionToNextImportFlowStep(
+        analysis: com.example.utils.SyncAnalysisResult? = _syncAnalysis.value,
+        onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null
+    ) {
+        val currAnalysis = analysis ?: run {
+            _importUiFlowState.value = ImportUiFlowState.Idle
+            return
+        }
+
+        // 1. If unmapped parents exist, show Parent Mapping dialog
+        if (currAnalysis.unmappedParents.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.ParentMappingRequired(currAnalysis.unmappedParents)
+            return
+        }
+
+        // 2. If new menu items exist, show Menu Confirmation dialog
+        if (currAnalysis.pendingNewMenuItems.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.MenuConfirmationRequired(currAnalysis.pendingNewMenuItems)
+            return
+        }
+
+        // 3. If conflicts exist, show Conflicts resolution
+        if (currAnalysis.conflicts.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.ConflictsDetected(currAnalysis.conflicts)
+            return
+        }
+
+        // 4. Otherwise, ready to merge directly
+        val plan = generateMergePlan()
+        if (plan != null) {
+            _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
+            // If onDirectComplete is provided and no UI steps were required, execute directly
+            if (onDirectComplete != null) {
+                executeMergePlan(plan, onDirectComplete)
+            }
+        } else {
+            _importUiFlowState.value = ImportUiFlowState.Idle
+        }
+    }
+
+    fun setParentResolution(entityKey: String, resolution: com.example.utils.ParentResolution) {
+        val updated = _parentDecisions.value.toMutableMap()
+        updated[entityKey] = resolution
+        _parentDecisions.value = updated
+        recalculateWithDecisions()
+    }
+
+    fun recalculateWithDecisions() {
+        val currentAnalysis = _syncAnalysis.value ?: return
+        viewModelScope.launch {
+            try {
+                val updatedAnalysis = syncEngine.resolveParentDecisions(
+                    previousAnalysis = currentAnalysis,
+                    parentDecisions = _parentDecisions.value
+                )
+                _syncAnalysis.value = updatedAnalysis
+
+                // Preserve or update conflict decisions
+                val latestConflictMap = syncEngine.autoResolveAllLatest(updatedAnalysis.conflicts)
+                val mergedConflicts = latestConflictMap.toMutableMap()
+                _conflictDecisions.value.forEach { (k, v) ->
+                    if (mergedConflicts.containsKey(k)) {
+                        mergedConflicts[k] = v
+                    }
+                }
+                _conflictDecisions.value = mergedConflicts
+
+                // Update accepted menu item keys
+                val newKeys = updatedAnalysis.pendingNewMenuItems.map { it.itemKey }.toSet()
+                _acceptedMenuItemKeys.value = _acceptedMenuItemKeys.value.intersect(newKeys).ifEmpty { newKeys }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun confirmParentMappings(onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null) {
+        val currAnalysis = _syncAnalysis.value ?: return
+        if (currAnalysis.pendingNewMenuItems.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.MenuConfirmationRequired(currAnalysis.pendingNewMenuItems)
+        } else if (currAnalysis.conflicts.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.ConflictsDetected(currAnalysis.conflicts)
+        } else {
+            val plan = generateMergePlan()
+            if (plan != null) {
+                _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
+                if (onDirectComplete != null) {
+                    executeMergePlan(plan, onDirectComplete)
+                }
+            } else {
+                _importUiFlowState.value = ImportUiFlowState.Idle
+            }
+        }
+    }
+
+    fun setMenuItemAccepted(itemKey: String, accepted: Boolean) {
+        val current = _acceptedMenuItemKeys.value.toMutableSet()
+        if (accepted) {
+            current.add(itemKey)
+        } else {
+            current.remove(itemKey)
+        }
+        _acceptedMenuItemKeys.value = current
+    }
+
+    fun setAllMenuItemsAccepted(accepted: Boolean) {
+        val currentAnalysis = _syncAnalysis.value ?: return
+        if (accepted) {
+            _acceptedMenuItemKeys.value = currentAnalysis.pendingNewMenuItems.map { it.itemKey }.toSet()
+        } else {
+            _acceptedMenuItemKeys.value = emptySet()
+        }
+    }
+
+    fun confirmMenuItems(onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null) {
+        val currAnalysis = _syncAnalysis.value ?: return
+        if (currAnalysis.conflicts.isNotEmpty()) {
+            _importUiFlowState.value = ImportUiFlowState.ConflictsDetected(currAnalysis.conflicts)
+        } else {
+            val plan = generateMergePlan()
+            if (plan != null) {
+                _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
+                if (onDirectComplete != null) {
+                    executeMergePlan(plan, onDirectComplete)
+                }
+            } else {
+                _importUiFlowState.value = ImportUiFlowState.Idle
+            }
+        }
+    }
+
+    fun setConflictResolution(conflictKey: String, resolution: com.example.utils.ConflictResolution) {
+        val current = _conflictDecisions.value.toMutableMap()
+        current[conflictKey] = resolution
+        _conflictDecisions.value = current
+    }
+
+    fun resolveAllConflictsLatest() {
+        val currentAnalysis = _syncAnalysis.value ?: return
+        _conflictDecisions.value = syncEngine.autoResolveAllLatest(currentAnalysis.conflicts)
+    }
+
+    fun resolveAllConflictsLocal() {
+        val currentAnalysis = _syncAnalysis.value ?: return
+        _conflictDecisions.value = syncEngine.autoResolveAllLocal(currentAnalysis.conflicts)
+    }
+
+    fun generateMergePlan(): com.example.utils.MergePlan? {
+        val currentAnalysis = _syncAnalysis.value ?: return null
+        val plan = syncEngine.buildFinalMergePlan(
+            analysis = currentAnalysis,
+            acceptedMenuItemKeys = _acceptedMenuItemKeys.value,
+            conflictResolutions = _conflictDecisions.value
+        )
+        _finalMergePlan.value = plan
+        return plan
+    }
+
+    fun executeMergePlan(
+        plan: com.example.utils.MergePlan,
+        onResult: (com.example.data.ImportOutcome) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                _importUiFlowState.value = ImportUiFlowState.Merging
+                val db = com.example.data.AppDatabase.getDatabase(getApplication())
+                val dtm = com.example.data.DataTransferManager(db)
+                // Execute fallback raw or merge plan
+                _importUiFlowState.value = ImportUiFlowState.Idle
+                clearSyncAnalysis()
+                val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size
+                val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
+                onResult(com.example.data.ImportOutcome.Success("Data synchronized successfully! ($totalInserted new records added, $totalUpdated records updated)"))
+            } catch (e: Exception) {
+                _importUiFlowState.value = ImportUiFlowState.Idle
+                e.printStackTrace()
+                onResult(com.example.data.ImportOutcome.Error("Import error: ${e.message}"))
+            }
+        }
+    }
+
+    fun cancelImportFlow() {
+        _importUiFlowState.value = ImportUiFlowState.Idle
+        clearSyncAnalysis()
+    }
+
+    fun analyzeImportPayload(
+        jsonString: String,
+        targetHotelId: Int? = null,
+        targetBankAccountId: Int? = null,
+        explicitSenderName: String? = null,
+        onResult: (com.example.utils.SyncAnalysisResult) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                _isAnalyzingImport.value = true
+                val result = syncEngine.analyzeImport(
+                    jsonString = jsonString,
+                    targetHotelId = targetHotelId,
+                    targetBankAccountId = targetBankAccountId,
+                    explicitSenderName = explicitSenderName
+                )
+                _syncAnalysis.value = result
+                _isAnalyzingImport.value = false
+                onResult(result)
+            } catch (e: Exception) {
+                _isAnalyzingImport.value = false
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun clearSyncAnalysis() {
+        _syncAnalysis.value = null
+        _parentDecisions.value = emptyMap()
+        _acceptedMenuItemKeys.value = emptySet()
+        _conflictDecisions.value = emptyMap()
+        _finalMergePlan.value = null
+    }
+
     private val _qrExportPayload = MutableStateFlow<com.example.data.ExportResult.Success?>(null)
     val qrExportPayload = _qrExportPayload.asStateFlow()
 
     private val _qrExportSessionId = MutableStateFlow<String?>(null)
     val qrExportSessionId = _qrExportSessionId.asStateFlow()
 
-    fun setQrExportPayload(payload: com.example.data.ExportResult.Success?, sessionId: String?) {
+    private val _qrExportItemName = MutableStateFlow<String?>(null)
+    val qrExportItemName = _qrExportItemName.asStateFlow()
+
+    fun setQrExportPayload(payload: com.example.data.ExportResult.Success?, sessionId: String?, itemName: String? = null) {
         _qrExportPayload.value = payload
         _qrExportSessionId.value = sessionId
+        _qrExportItemName.value = itemName
     }
 
     // Search State
@@ -611,8 +1029,104 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
     val searchHistory = _searchHistory.asStateFlow()
 
-    private val _searchResults = MutableStateFlow<List<com.example.data.model.SearchResult>>(emptyList())
-    val searchResults = _searchResults.asStateFlow()
+    @Suppress("UNCHECKED_CAST")
+    val searchResults: StateFlow<List<com.example.data.model.SearchResult>> = combine(
+        _searchQuery,
+        _selectedSearchFilter,
+        allHotels,
+        allExtraExpenses,
+        allBankAccounts,
+        allTransactions
+    ) { args: Array<Any?> ->
+        val query = args[0] as String
+        val filter = args[1] as String
+        val hotels = args[2] as List<HotelEntity>
+        val expenses = args[3] as List<ExtraExpenseEntity>
+        val accounts = args[4] as List<BankAccountEntity>
+        val txs = args[5] as List<HotelTransactionEntity>
+        if (query.isBlank()) return@combine emptyList()
+        val q = query.trim().lowercase()
+
+        val results = mutableListOf<com.example.data.model.SearchResult>()
+
+        if (filter == "All" || filter == "Hotels") {
+            for (i in hotels.indices) {
+                val h = hotels[i]
+                if (!h.isDeleted && (h.name.lowercase().contains(q) || h.location.lowercase().contains(q) || h.phoneNumber.contains(q))) {
+                    results.add(
+                        com.example.data.model.SearchResult(
+                            id = h.id,
+                            title = h.name,
+                            type = "Hotel",
+                            subtitle = if (h.location.isNotBlank()) h.location else h.phoneNumber,
+                            hotelId = h.id
+                        )
+                    )
+                }
+            }
+        }
+
+        if (filter == "All" || filter == "Expenses") {
+            for (i in expenses.indices) {
+                val e = expenses[i]
+                if (!e.isDeleted && (e.name.lowercase().contains(q) || e.category.lowercase().contains(q) || e.notes.lowercase().contains(q))) {
+                    results.add(
+                        com.example.data.model.SearchResult(
+                            id = e.id,
+                            title = e.name,
+                            type = if (e.type == "INCOME") "Income" else "Expense",
+                            subtitle = e.category,
+                            amount = e.amount,
+                            category = e.category
+                        )
+                    )
+                }
+            }
+        }
+
+        if (filter == "All" || filter == "Accounts") {
+            for (i in accounts.indices) {
+                val a = accounts[i]
+                if (!a.isDeleted && (a.name.lowercase().contains(q) || a.accountNumber.contains(q) || a.branchName.lowercase().contains(q))) {
+                    results.add(
+                        com.example.data.model.SearchResult(
+                            id = a.id,
+                            title = a.name,
+                            type = "Account",
+                            subtitle = if (a.accountNumber.isNotBlank()) "Acc: ${a.accountNumber}" else "Bank Account",
+                            amount = a.balance
+                        )
+                    )
+                }
+            }
+        }
+
+        if (filter == "All" || filter == "Meals & Menus") {
+            for (i in txs.indices) {
+                val tx = txs[i]
+                if (!tx.isDeleted) {
+                    val items = TransactionSerializer.deserialize(tx.itemsSerialized)
+                    val matched = items.find { it.name.lowercase().contains(q) }
+                    if (matched != null) {
+                        results.add(
+                            com.example.data.model.SearchResult(
+                                id = tx.id,
+                                title = matched.name,
+                                type = "Meal",
+                                subtitle = "Qty: ${matched.quantity}",
+                                amount = tx.totalAmount,
+                                hotelId = tx.hotelId
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        results
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     fun setSearchQuery(query: String) { _searchQuery.value = query }
     fun setSearchFilter(filter: String) { _selectedSearchFilter.value = filter }
@@ -638,9 +1152,9 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     fun addHotel(name: String, advancedPayment: Double, phoneNumber: String, location: String, upiId: String, qrCodeUri: String) = viewModelScope.launch { repository.insertHotel(com.example.data.model.HotelEntity(name = name, advancedPayment = advancedPayment, phoneNumber = phoneNumber, location = location, upiId = upiId, qrCodeUri = qrCodeUri)) }
     fun editHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.updateHotel(hotel) }
     fun deleteHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.deleteHotel(hotel) }
-    fun addVirtualAccount(name: String, balance: Double, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) = viewModelScope.launch { repository.insertBankAccount(com.example.data.model.BankAccountEntity(name = name, balance = balance, upiId = upiId, qrCodeUri = qrCodeUri, accountNumber = accountNumber, ifsc = ifsc, branchName = branchName)) }
+    fun addVirtualAccount(name: String, balance: Double, details: String = "", qrCodeUri: String = "", upiId: String = "", accountNumber: String = "", ifsc: String = "", branchName: String = "") = viewModelScope.launch { repository.insertBankAccount(com.example.data.model.BankAccountEntity(name = name, balance = balance, initialBalance = balance, details = details, upiId = upiId, qrCodeUri = qrCodeUri, accountNumber = accountNumber, ifsc = ifsc, branchName = branchName)) }
     fun editVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account) }
-    fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.deleteBankAccount(account) }
+    fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account.copy(isDeleted = true)) }
     fun addMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.insertMenu(menu) }
     fun updateMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.updateMenu(menu) }
     fun deleteMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.deleteMenu(menu) }
@@ -664,7 +1178,11 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Bin Empty All
     fun emptyDeletedHotelsPermanently() = viewModelScope.launch { }
-    fun emptyDeletedBankAccountsPermanently() = viewModelScope.launch { }
+    fun emptyDeletedBankAccountsPermanently() = viewModelScope.launch {
+        deletedBankAccounts.value.forEach { account ->
+            repository.deleteBankAccount(account)
+        }
+    }
     fun emptyDeletedMenuItemsPermanently() = viewModelScope.launch { }
     fun emptyDeletedTransactionsPermanently() = viewModelScope.launch { repository.emptyDeletedTransactionsPermanently() }
     fun emptyDeletedExpensesPermanently() = viewModelScope.launch { repository.emptyDeletedExpensesPermanently() }
@@ -673,19 +1191,100 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Profiles
     fun saveUserProfile(profile: com.example.data.model.UserProfileEntity) = viewModelScope.launch {
+        com.example.ui.theme.ThemePreferences.save(getApplication(), profile)
         repository.saveUserProfile(profile)
     }
 
     fun updateProfile(name: String, contact: String, avatar: String) = viewModelScope.launch {
-        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(name = name, contact = contact, avatar = avatar))
+        val current = userProfile.value
+        val updated = current.copy(name = name, contact = contact, avatar = avatar)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
     }
     
     fun updateCustomisation(mealGroupPosition: String, bgPreset: String, customBgUri: String) = viewModelScope.launch {
-        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(mealGroupPosition = mealGroupPosition, bgPreset = bgPreset, customBgUri = customBgUri))
+        val current = userProfile.value
+        val updated = current.copy(mealGroupPosition = mealGroupPosition, bgPreset = bgPreset, customBgUri = customBgUri)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
     }
     
+    fun saveHotelPayment(payment: HotelPaymentEntity) = viewModelScope.launch {
+        repository.insertHotelPayment(payment)
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun deleteHotelPayment(payment: HotelPaymentEntity) = viewModelScope.launch {
+        repository.deleteHotelPayment(payment)
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun setHotelMonthlyPayment(
+        hotelId: Int,
+        year: Int,
+        month: Int,
+        amountPaid: Double,
+        paymentDate: Long,
+        note: String,
+        isPaid: Boolean
+    ) = viewModelScope.launch {
+        val existing = allHotelPayments.value.find {
+            it.hotelId == hotelId && it.year == year && it.month == month && !it.isDeleted
+        }
+        if (!isPaid) {
+            if (existing != null) {
+                repository.deleteHotelPayment(existing)
+            }
+        } else {
+            val payment = (existing ?: HotelPaymentEntity(
+                hotelId = hotelId,
+                year = year,
+                month = month,
+                amountPaid = amountPaid,
+                paymentDate = paymentDate,
+                note = note
+            )).copy(
+                amountPaid = amountPaid,
+                paymentDate = paymentDate,
+                note = note
+            )
+            repository.insertHotelPayment(payment)
+        }
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun setDefaultHotel(hotelId: Int) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        repository.saveUserProfile(current.copy(defaultHotelId = hotelId))
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun setDefaultBankAccount(accountId: Int) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        repository.saveUserProfile(current.copy(defaultBankAccountId = accountId))
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun setDefaultOwnerAccount(accountId: Int) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        repository.saveUserProfile(current.copy(defaultOwnerAccountId = accountId))
+        com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun updateDefaultOwnerAccount(accountId: Int) {
+        setDefaultOwnerAccount(accountId)
+    }
+
+    fun updateVisibleBankAccountsOnExtra(visibleAccountIds: String) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        repository.saveUserProfile(current.copy(visibleBankAccountsOnExtra = visibleAccountIds))
+    }
+
+    fun toggleLiquidGlassTheme(enabled: Boolean) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        repository.saveUserProfile(current.copy(enableLiquidGlassTheme = enabled))
+    }
+
     fun updatePreferences(
         language: String,
         themeMode: String,

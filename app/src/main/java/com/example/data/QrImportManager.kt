@@ -21,7 +21,8 @@ class QrImportManager(
         encryptedPayload: ByteArray,
         keyBytes: ByteArray,
         ivBytes: ByteArray,
-        targetHotelId: Int = 1
+        targetHotelId: Int = 1,
+        targetBankAccountId: Int = 1
     ): ImportResult = withContext(Dispatchers.IO) {
         try {
             val secretKey = SecretKeySpec(keyBytes, "AES")
@@ -37,7 +38,7 @@ class QrImportManager(
 
             if (db != null) {
                 val dtm = DataTransferManager(db)
-                val outcome = dtm.importJson(jsonString, targetHotelId = targetHotelId)
+                val outcome = dtm.importJson(jsonString, targetHotelId = targetHotelId, targetBankAccountId = targetBankAccountId)
                 return@withContext when (outcome) {
                     is ImportOutcome.Success -> ImportResult.Success(
                         newHotelId = outcome.newHotelId ?: 0,

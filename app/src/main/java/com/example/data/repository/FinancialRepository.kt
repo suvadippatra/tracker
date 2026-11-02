@@ -9,6 +9,7 @@ import com.example.data.model.HotelEntity
 import com.example.data.model.HotelTransactionEntity
 import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
+import com.example.data.model.HotelPaymentEntity
 import com.example.data.model.MeterReading
 import com.example.data.model.UtilityBill
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,7 @@ class FinancialRepository(private val db: AppDatabase) {
     val allMenuItems: Flow<List<MenuEntity>> = menuDao.getAllMenuItems()
     val allCategories: Flow<List<com.example.data.model.TransactionCategoryEntity>> = categoryDao.getAllCategories()
     val allOwnerAccounts: Flow<List<com.example.data.model.OwnerAccountEntity>> = ownerAccountDao.getAllOwnerAccounts()
+    val allHotelPayments: Flow<List<HotelPaymentEntity>> = hotelPaymentDao.getAllPayments()
 
     val deletedTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getDeletedTransactions()
     val deletedExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getDeletedExpenses()
@@ -240,152 +242,10 @@ class FinancialRepository(private val db: AppDatabase) {
         }
     }
 
-    private suspend fun parseCsvMenu(context: Context): List<MenuEntity> = withContext(Dispatchers.IO) {
-        val menuItems = mutableListOf<MenuEntity>()
-        val generalItems = mutableMapOf<String, Triple<String, String, Double>>() // NormalizedName -> (Bangla, English, Price)
-        val dayItems = mutableSetOf<String>() // Normalized Names
-        val nightItems = mutableSetOf<String>() // Normalized Names
 
-        try {
-            context.assets.open("Smriti_Hotel_Menu.csv").use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream, "UTF-8")).use { reader ->
-                    var line: String?
-                    var currentSection = 0 // 0 = General, 1 = Day Menu, 2 = Night Menu
 
-                    while (reader.readLine().also { line = it } != null) {
-                        val row = line ?: continue
-                        if (row.isBlank()) continue
 
-                        val parts = splitCsvRow(row)
-                        if (parts.isEmpty()) continue
 
-                        val firstCell = parts.getOrNull(0)?.trim() ?: ""
-                        val secondCell = parts.getOrNull(1)?.trim() ?: ""
-                        val thirdCell = parts.getOrNull(2)?.trim() ?: ""
-
-                        // Detect sections
-                        if (firstCell.contains("Day Menu") || secondCell.contains("Day Menu")) {
-                            currentSection = 1
-                        } else if (firstCell.contains("Night Menu") || secondCell.contains("Night Menu")) {
-                            currentSection = 2
-                        }
-
-                        when (currentSection) {
-                            0 -> {
-                                // Parse general items: বাংলা,English,Price (₹),,,,
-                                // e.g. নর্মাল ভাত,Plain Rice,35,,,,
-                                if (firstCell.isNotBlank() && secondCell.isNotBlank() && !firstCell.startsWith("বাংলা")) {
-                                    val price = thirdCell.toDoubleOrNull()
-                                    if (price != null) {
-                                        generalItems[normalizeName(secondCell)] = Triple(firstCell, secondCell, price)
-                                    }
-                                }
-                            }
-                            1 -> {
-                                // Day Menu: ,নর্মাল ভাত (Plain Rice),,,,,,
-                                val itemCell = if (secondCell.isNotBlank()) secondCell else firstCell
-                                if (itemCell.isNotBlank() && !itemCell.contains("Day Menu")) {
-                                    val extracted = extractEnglishName(itemCell)
-                                    if (extracted.isNotBlank()) {
-                                        dayItems.add(normalizeName(extracted))
-                                    }
-                                }
-                            }
-                            2 -> {
-                                // Night Menu: ,রুটি (Roti),,,,,,
-                                val itemCell = if (secondCell.isNotBlank()) secondCell else firstCell
-                                if (itemCell.isNotBlank() && !itemCell.contains("Night Menu")) {
-                                    val extracted = extractEnglishName(itemCell)
-                                    if (extracted.isNotBlank()) {
-                                        nightItems.add(normalizeName(extracted))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Map general items to their categorized day/night/add-on roles
-            val addOnNames = setOf(
-                "chicken piece", "fish piece", "egg curry", "omelette",
-                "thali extras", "thali vegs", "normal vegs", "curd"
-            )
-
-            // Combine all unique item names from Day and Night lists
-            val allUniqueNames = (dayItems + nightItems).toSet()
-
-            for (normName in allUniqueNames) {
-                val generalInfo = generalItems[normName] ?: generalItems[normalizeName(normName)]
-                if (generalInfo != null) {
-                    val bangla = generalInfo.first
-                    val english = generalInfo.second
-                    val price = generalInfo.third
-                    val isDay = dayItems.contains(normName) || dayItems.contains(normalizeName(english))
-                    val isNight = nightItems.contains(normName) || nightItems.contains(normalizeName(english))
-                    val isAddOn = addOnNames.contains(normalizeName(english))
-                    val (emoji, type) = getEmojiAndTypeForName(english)
-
-                    menuItems.add(
-                        MenuEntity(
-                            banglaName = bangla,
-                            englishName = english,
-                            price = price,
-                            isDayMenu = isDay,
-                            isNightMenu = isNight,
-                            isAddOn = isAddOn,
-                            emoji = emoji,
-                            type = type
-                        )
-                    )
-                }
-            }
-
-            // In case some items from general list are missing in sections, let's include them based on basic rules
-            if (menuItems.isEmpty() && generalItems.isNotEmpty()) {
-                for ((norm, triple) in generalItems) {
-                    val isAddOn = addOnNames.contains(norm)
-                    val (emoji, type) = getEmojiAndTypeForName(triple.second)
-                    // Defaults
-                    menuItems.add(
-                        MenuEntity(
-                            banglaName = triple.first,
-                            englishName = triple.second,
-                            price = triple.third,
-                            isDayMenu = !norm.contains("roti") && !norm.contains("luchi") && !norm.contains("aloo paratha"),
-                            isNightMenu = norm.contains("roti") || norm.contains("luchi") || norm.contains("aloo paratha") || norm.contains("chicken") || norm.contains("fish") || norm.contains("egg") || norm.contains("omelette"),
-                            isAddOn = isAddOn,
-                            emoji = emoji,
-                            type = type
-                        )
-                    )
-                }
-            }
-
-        } catch (e: Exception) {
-            Log.e("FinancialRepository", "Error parsing menu CSV", e)
-        }
-
-        return@withContext if (menuItems.isEmpty()) getFallbackMenu() else menuItems
-    }
-
-    private fun splitCsvRow(row: String): List<String> {
-        val result = mutableListOf<String>()
-        val current = java.lang.StringBuilder()
-        var inQuotes = false
-        for (ch in row) {
-            if (ch == '"') {
-                inQuotes = !inQuotes
-            } else if (ch == ',' && !inQuotes) {
-                result.add(current.toString().trim())
-                current.setLength(0)
-            } else {
-                current.append(ch)
-            }
-        }
-        result.add(current.toString().trim())
-        return result
-    }
 
     private fun getFallbackMenu(): List<MenuEntity> {
         return listOf(

@@ -10,7 +10,8 @@ object WidgetUpdater {
         val providers = listOf(
             HotelWidgetProvider::class.java,
             ExpensesWidgetProvider::class.java,
-            OverallWidgetProvider::class.java
+            OverallWidgetProvider::class.java,
+            DailyMonthlySpendWidgetProvider::class.java
         )
 
         for (provider in providers) {

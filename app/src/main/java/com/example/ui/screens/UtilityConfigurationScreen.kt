@@ -67,9 +67,11 @@ fun UtilityConfigurationScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(getDialogBackground())
+                .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Midnight Glow"))
+                .pointerInput(Unit) { detectTapGestures { } }
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.TopCenter
         ) {
             Scaffold(
                 modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
@@ -316,7 +318,7 @@ fun UtilityConfigurationScreen(
                             }
                         }
                     } else {
-                        items(allRates.sortedByDescending { it.effectiveDate }) { rate ->
+                        items(allRates.sortedByDescending { it.effectiveDate }, key = { it.id }) { rate ->
                             GlassCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 cornerRadius = 16.dp
@@ -343,18 +345,30 @@ fun UtilityConfigurationScreen(
                                         )
                                     }
 
-                                    IconButton(
-                                        onClick = { rateToDelete = rate },
-                                        modifier = Modifier
-                                            .background(AccentPink.copy(alpha = 0.1f), CircleShape)
-                                            .size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DeleteForever,
-                                            contentDescription = "Delete Rate",
-                                            tint = AccentPink,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                    var showMenu by remember { mutableStateOf(false) }
+                                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                                        IconButton(
+                                            onClick = { showMenu = true },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Options",
+                                                tint = AppTextColor().copy(alpha = 0.6f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false },
+                                            modifier = Modifier.background(getDialogBackground())
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Move to Bin", color = AccentPink) },
+                                                onClick = { showMenu = false; rateToDelete = rate },
+                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink) }
+                                            )
+                                        }
                                     }
                                 }
                             }
