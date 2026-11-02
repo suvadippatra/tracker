@@ -52,9 +52,9 @@ val LocalDisableHeavyEffects = compositionLocalOf { true }
 fun isHeavyEffectsDisabled(): Boolean = LocalDisableHeavyEffects.current
 
 @Composable
-fun isLiquidGlassEnabled(): Boolean = LocalAppLiquidGlassTheme.current && !LocalDisableHeavyEffects.current
+fun isLiquidGlassEnabled(): Boolean = false
 
-// Glassmorphism design tokens
+// Glassmorphism design tokens (retained for binary compatibility, mapped to M3 surfaces)
 val GlassBackground = Color(0x26FFFFFF)
 val GlassBorderTop = Color(0x66FFFFFF)
 val GlassBorderBottom = Color(0x13FFFFFF)
@@ -77,9 +77,9 @@ val DarkBackgroundGradient = Brush.verticalGradient(
 
 val LightBackgroundGradient = Brush.linearGradient(
     colors = listOf(
-        Color(0xFF81D4FA),
-        Color(0xFFCE93D8),
-        Color(0xFFFFCC80)
+        Color(0xFFF8FAFC),
+        Color(0xFFF1F5F9),
+        Color(0xFFE2E8F0)
     )
 )
 
@@ -91,23 +91,12 @@ val SoftMinimalLightGradient = Brush.verticalGradient(listOf(Color(0xFFF8FAFC), 
 
 @Composable
 fun isAppLightMode(): Boolean {
-    val isGlass = isLiquidGlassEnabled()
     val themeMode = LocalAppTheme.current
-    if (!isGlass) {
-        return if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
-    }
-    val bgPreset = LocalAppBgPreset.current
-    return when (bgPreset) {
-        "Soft Minimal Light" -> true
-        "Midnight Blue", "Emerald Dark", "Sunset Warm", "Purple Twilight" -> false
-        else -> {
-            if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
-        }
-    }
+    return if (themeMode == "Auto") !isSystemInDarkTheme() else themeMode == "Light"
 }
 
 fun getOnColorForBackground(bg: Color): Color {
-    return if (bg.luminance() > 0.45f) Color(0xFF0F172A) else Color.White
+    return if (bg.luminance() > 0.55f) Color(0xFF0F172A) else Color.White
 }
 
 @Composable
@@ -118,10 +107,9 @@ fun AppOnAccentColor(accent: Color = AppAccentColor()): Color {
 @Composable
 fun AppAccentColor(): Color {
     val bgPreset = LocalAppBgPreset.current
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
-    return remember(bgPreset, isGlass, isLight) {
-        com.example.ui.theme.getAppAccentColor(bgPreset, isGlass, isLight)
+    return remember(bgPreset, isLight) {
+        com.example.ui.theme.getAppAccentColor(bgPreset, false, isLight)
     }
 }
 
@@ -132,21 +120,17 @@ fun AppTextColor(): Color {
 
 @Composable
 fun AppSecondaryTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF475569) else Color(0xFFCBD5E1)
+    return if (isAppLightMode()) Color(0xFF334155) else Color(0xFFCBD5E1)
 }
 
 @Composable
 fun AppTertiaryTextColor(): Color {
-    return if (isAppLightMode()) Color(0xFF64748B) else Color(0xFF94A3B8)
+    return if (isAppLightMode()) Color(0xFF475569) else Color(0xFF94A3B8)
 }
 
 @Composable
 fun AppHeadingColor(): Color {
-    return if (!isLiquidGlassEnabled()) {
-        if (isAppLightMode()) Color(0xFF0F172A) else Color(0xFFFFFFFF)
-    } else {
-        if (isAppLightMode()) com.example.ui.theme.HighContrastHeadingLight else AppAccentColor()
-    }
+    return if (isAppLightMode()) Color(0xFF0F172A) else Color(0xFFFFFFFF)
 }
 
 @Composable
@@ -280,10 +264,7 @@ fun getGlassBorder(): Color {
 
 @Composable
 fun getGlassIconButtonBg(): Color {
-    if (!isLiquidGlassEnabled()) {
-        return if (isAppLightMode()) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    }
-    return if (isAppLightMode()) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.12f)
+    return Color.Transparent
 }
 
 @Composable
@@ -358,57 +339,32 @@ fun GlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     borderBrush: Brush? = null,
     content: @Composable RowScope.() -> Unit
 ) {
     val isLight = isAppLightMode()
-    val isGlass = isLiquidGlassEnabled()
     val shape = RoundedCornerShape(cornerRadius)
+    val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    val buttonBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    val borderWidth = if (isLight) 1.5.dp else 1.dp
 
-    if (!isGlass) {
-        val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-        val buttonBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-        val borderWidth = if (isLight) 1.5.dp else 1.dp
-        Row(
-            modifier = modifier
-                .bounceClick()
-                .background(buttonBg, shape)
-                .border(borderWidth, buttonBorder, shape)
-                .clip(shape)
-                .clickable(onClick = onClick)
-                .padding(contentPadding),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
-    } else {
-        Row(
-            modifier = modifier
-                .bounceClick()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = if (isLight) listOf(Color(0xE6FFFFFF), Color(0xB3FFFFFF))
-                                 else listOf(Color(0x3DFFFFFF), Color(0x18FFFFFF))
-                    ),
-                    shape = shape
-                )
-                .border(
-                    width = 1.dp,
-                    brush = borderBrush ?: Brush.verticalGradient(
-                        colors = if (isLight) listOf(Color(0xFFFFFFFF), Color(0x26000000))
-                                 else listOf(GlassBorderTop, GlassBorderBottom)
-                    ),
-                    shape = shape
-                )
-                .clip(shape)
-                .clickable(onClick = onClick)
-                .padding(contentPadding),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
-    }
+    Row(
+        modifier = modifier
+            .defaultMinSize(minHeight = 42.dp)
+            .bounceClick()
+            .background(buttonBg, shape)
+            .then(
+                if (borderBrush != null) Modifier.border(borderWidth, borderBrush, shape)
+                else Modifier.border(borderWidth, buttonBorder, shape)
+            )
+            .clip(shape)
+            .clickable(onClick = onClick)
+            .padding(contentPadding),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        content = content
+    )
 }
 
 fun Modifier.bounceClick(scaleDown: Float = 0.96f): Modifier = this
@@ -424,13 +380,16 @@ fun AttachmentActionChip(
         modifier = Modifier
             .height(38.dp)
             .clip(RoundedCornerShape(19.dp))
-            .background(color.copy(alpha = 0.1f))
-            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(19.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(19.dp))
             .clickable { onClick() }
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -496,28 +455,18 @@ fun GlassTextField(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLight = isAppLightMode()
-    val isGlass = isLiquidGlassEnabled()
     
-    val bgColor = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    } else {
-        if (isLight) Color.Black.copy(alpha = 0.03f) else Color.White.copy(alpha = 0.05f)
-    }
+    val bgColor = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
     
     val borderBrush: Brush = if (isError) {
         SolidColor(AccentPink)
     } else if (isFocused) {
         SolidColor(AppAccentColor())
-    } else if (!isGlass) {
-        SolidColor(if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineVariantDark)
     } else {
-        Brush.verticalGradient(
-            colors = if (isLight) listOf(Color(0x33000000), Color(0x13000000))
-                     else listOf(GlassBorderTop, GlassBorderBottom)
-        )
+        SolidColor(if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineVariantDark)
     }
     
-    val borderWidth = if (isError || isFocused || (isLight && !isGlass)) 1.5.dp else 1.dp
+    val borderWidth = if (isError || isFocused || isLight) 1.5.dp else 1.dp
     
     Column(modifier = modifier) {
         if (label != null) {
@@ -526,7 +475,7 @@ fun GlassTextField(
                     LocalTextStyle provides TextStyle(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppTextColor().copy(alpha = 0.7f)
+                        color = AppSecondaryTextColor()
                     )
                 ) {
                     label()
@@ -571,11 +520,11 @@ fun GlassTextField(
                         leadingIcon()
                         Spacer(modifier = Modifier.width(10.dp))
                     }
-                    Box(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         if (value.isEmpty() && placeholder != null) {
                             CompositionLocalProvider(
                                 LocalTextStyle provides TextStyle(
-                                    color = AppTextColor().copy(alpha = 0.4f),
+                                    color = AppSecondaryTextColor().copy(alpha = 0.75f),
                                     fontSize = 15.sp
                                 )
                             ) {
@@ -688,7 +637,7 @@ fun FullScreenQRPreviewDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.92f))
+                .background(Color.Black.copy(alpha = 0.94f))
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .clickable { onDismiss() },
@@ -721,17 +670,14 @@ fun FullScreenQRPreviewDialog(
                         if (upiId.isNotBlank()) {
                             Text(
                                 text = "UPI: $upiId",
-                                color = Color.White.copy(alpha = 0.7f),
+                                color = Color.White.copy(alpha = 0.75f),
                                 fontSize = 14.sp
                             )
                         }
                     }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                            .bounceClick()
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -745,7 +691,7 @@ fun FullScreenQRPreviewDialog(
 
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxWidth(0.88f)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.White)
@@ -764,7 +710,7 @@ fun FullScreenQRPreviewDialog(
 
                 Text(
                     text = "Tap anywhere or press back to close",
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = Color.White.copy(alpha = 0.65f),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 16.dp)
                 )
@@ -848,18 +794,23 @@ fun M3Button(
         disabledContainerColor = containerColor.copy(alpha = 0.38f),
         disabledContentColor = contentColor.copy(alpha = 0.38f)
     ),
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.bounceClick(),
+        modifier = modifier.defaultMinSize(minHeight = 42.dp).bounceClick(),
         enabled = enabled,
         shape = shape,
         colors = colors,
-        contentPadding = contentPadding,
-        content = content
-    )
+        contentPadding = contentPadding
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            content = content
+        )
+    }
 }
 
 @Composable
@@ -872,21 +823,26 @@ fun M3OutlinedButton(
         width = 1.5.dp,
         color = if (isAppLightMode()) com.example.ui.theme.M3OutlineLight else AppAccentColor()
     ),
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.bounceClick(),
+        modifier = modifier.defaultMinSize(minHeight = 42.dp).bounceClick(),
         enabled = enabled,
         shape = shape,
         border = border,
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = if (isAppLightMode()) Color(0xFF191C1E) else AppAccentColor()
+            contentColor = if (isAppLightMode()) Color(0xFF0F172A) else AppAccentColor()
         ),
-        contentPadding = contentPadding,
-        content = content
-    )
+        contentPadding = contentPadding
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            content = content
+        )
+    }
 }
 
 @Composable

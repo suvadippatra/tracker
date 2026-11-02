@@ -572,33 +572,24 @@ fun GlassHeader(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = onSearchClicked,
-                        modifier = Modifier
-                            .bounceClick()
-                            .size(40.dp)
-                            .background(iconBg, CircleShape)
-                            .border(1.dp, outlineColor, CircleShape)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
                             tint = AppTextColor(),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
                         onClick = onSettingsClicked,
-                        modifier = Modifier
-                            .bounceClick()
-                            .size(40.dp)
-                            .background(iconBg, CircleShape)
-                            .border(1.dp, outlineColor, CircleShape)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
                             tint = AppTextColor(),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -659,33 +650,25 @@ fun GlassHeader(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = onSearchClicked,
-                        modifier = Modifier
-                            .bounceClick()
-                            .size(44.dp)
-                            .background(getGlassIconButtonBg(), CircleShape)
-                            .border(0.5.dp, getGlassBorder(), CircleShape)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
                             tint = AppTextColor(),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
                         onClick = onSettingsClicked,
-                        modifier = Modifier
-                            .bounceClick()
-                            .size(44.dp)
-                            .background(getGlassIconButtonBg(), CircleShape)
-                            .border(0.5.dp, getGlassBorder(), CircleShape)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
                             tint = AppTextColor(),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }

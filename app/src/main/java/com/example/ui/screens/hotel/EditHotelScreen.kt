@@ -136,10 +136,7 @@ fun EditHotelModal(
                                 ) {
                                     IconButton(
                                         onClick = onDismiss,
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(getGlassIconButtonBg(), CircleShape)
-                                            .bounceClick()
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             Icons.AutoMirrored.Filled.ArrowBack,
@@ -147,7 +144,7 @@ fun EditHotelModal(
                                             tint = AppTextColor()
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = if (isBengali) (if (hotel == null) "নতুন হোটেল" else "হোটেল সংশোধন") else (if (hotel == null) "Add Hotel" else "Edit Hotel Info"),
                                         color = AppTextColor(),
@@ -159,52 +156,53 @@ fun EditHotelModal(
                                     )
                                     
                                     // Save Button in TopBar
-                                    IconButton(
-                                onClick = {
-                                    val adv = editHotelAdvanced.toDoubleOrNull() ?: 0.0
-                                    if (editHotelName.isNotBlank()) {
-                                        if (hotel == null) {
-                                            viewModel.addHotel(
-                                                name = editHotelName,
-                                                advancedPayment = adv,
-                                                phoneNumber = editPhone,
-                                                location = editLocation,
-                                                upiId = editUpiId,
-                                                qrCodeUri = editQrCodeUris.joinToString(",")
-                                            )
-                                        } else {
-                                            viewModel.editHotel(hotel.copy(
-                                                name = editHotelName,
-                                                advancedPayment = adv,
-                                                phoneNumber = editPhone,
-                                                location = editLocation,
-                                                upiId = editUpiId,
-                                                qrCodeUri = editQrCodeUris.joinToString(",")
-                                            ))
-                                        }
-                                        onDismiss()
+                                    FilledIconButton(
+                                        onClick = {
+                                            val adv = editHotelAdvanced.toDoubleOrNull() ?: 0.0
+                                            if (editHotelName.isNotBlank()) {
+                                                if (hotel == null) {
+                                                    viewModel.addHotel(
+                                                        name = editHotelName,
+                                                        advancedPayment = adv,
+                                                        phoneNumber = editPhone,
+                                                        location = editLocation,
+                                                        upiId = editUpiId,
+                                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                                    )
+                                                } else {
+                                                    viewModel.editHotel(hotel.copy(
+                                                        name = editHotelName,
+                                                        advancedPayment = adv,
+                                                        phoneNumber = editPhone,
+                                                        location = editLocation,
+                                                        upiId = editUpiId,
+                                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                                    ))
+                                                }
+                                                onDismiss()
+                                            }
+                                        },
+                                        enabled = editHotelName.isNotBlank(),
+                                        modifier = Modifier.size(40.dp),
+                                        colors = IconButtonDefaults.filledIconButtonColors(
+                                            containerColor = AppAccentColor(),
+                                            contentColor = AppOnAccentColor()
+                                        )
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = "Save",
+                                            tint = if (editHotelName.isNotBlank()) AppOnAccentColor() else AppSecondaryTextColor()
+                                        )
                                     }
-                                },
-                                enabled = editHotelName.isNotBlank(),
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(if (editHotelName.isNotBlank()) AccentCyan else AccentCyan.copy(alpha = 0.3f), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = "Save",
-                                    tint = Color.Black
-                                )
-                            }
 
                             if (hotel != null) {
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 var showMenu by remember { mutableStateOf(false) }
                                 Box {
                                     IconButton(
                                         onClick = { showMenu = true },
-                                        modifier = Modifier.size(38.dp).background(getGlassIconButtonBg(), CircleShape).bounceClick()
+                                        modifier = Modifier.size(44.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,

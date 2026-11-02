@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 
+@Suppress("DEPRECATION")
 @Composable
 fun DialogEdgeToEdge() {
     val view = LocalView.current

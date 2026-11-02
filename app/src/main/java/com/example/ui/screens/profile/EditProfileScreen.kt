@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -109,6 +110,8 @@ fun OwnerProfileScreen(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -116,30 +119,29 @@ fun OwnerProfileScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
                                     onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(Icons.Default.ArrowBack, "Back", tint = AppTextColor())
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text("Owner Profile", color = AppTextColor(), fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                IconButton(
+                                FilledTonalIconButton(
                                     onClick = { showEditProfileDialog = true },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(AccentCyan.copy(alpha = 0.15f), CircleShape)
-                                        .bounceClick()
+                                    modifier = Modifier.size(40.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = AppAccentColor().copy(alpha = 0.15f),
+                                        contentColor = AppAccentColor()
+                                    )
                                 ) {
-                                    Icon(Icons.Default.Edit, "Edit Profile", tint = AccentCyan)
+                                    Icon(Icons.Default.Edit, "Edit Profile", tint = AppAccentColor())
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         }
                     ) { padding ->
@@ -437,68 +439,77 @@ fun EditProfileDialog(
         uri?.let { qrUri = com.example.ui.components.copyUriToPersistentFile(context, it, "QR") }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        CompositionLocalProvider(
-            LocalAppTheme provides userProfile.themeMode,
-            LocalAppBgPreset provides userProfile.bgPreset,
-            LocalAppCustomBgUri provides userProfile.customBgUri,
-            LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        com.example.ui.components.DialogEdgeToEdge()
+        Box(modifier = Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalAppTheme provides userProfile.themeMode,
+                LocalAppBgPreset provides userProfile.bgPreset,
+                LocalAppCustomBgUri provides userProfile.customBgUri,
+                LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(getAppBackgroundGradient(userProfile.themeMode, userProfile.bgPreset))
-                        .pointerInput(Unit) { detectTapGestures { } },
-                    contentAlignment = Alignment.TopCenter
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
                 ) {
-                    Scaffold(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .imePadding(),
-                        containerColor = Color.Transparent,
-                        contentWindowInsets = WindowInsets(0.dp),
-                        topBar = {
-                        Row(
+                            .background(getAppBackgroundGradient(userProfile.themeMode, userProfile.bgPreset))
+                            .pointerInput(Unit) { detectTapGestures { } },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Scaffold(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                .fillMaxSize()
+                                .statusBarsPadding()
+                                .navigationBarsPadding()
+                                .imePadding(),
+                            containerColor = Color.Transparent,
+                            contentWindowInsets = WindowInsets(0.dp),
+                            topBar = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = onDismiss,
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Edit Owner Profile",
+                                        color = AppTextColor(),
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    FilledIconButton(
+                                        onClick = { onSave(name, contact, avatar, bankName, accNum, ifsc, branch, upi, qrUri) },
+                                        modifier = Modifier.size(40.dp),
+                                        colors = IconButtonDefaults.filledIconButtonColors(
+                                            containerColor = AppAccentColor(),
+                                            contentColor = AppOnAccentColor()
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                "Edit Owner Profile",
-                                color = AppTextColor(),
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            IconButton(
-                                onClick = { onSave(name, contact, avatar, bankName, accNum, ifsc, branch, upi, qrUri) },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(AccentCyan, CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.Black)
-                            }
-                        }
-                    }
-                ) { innerPadding ->
+                        ) { innerPadding ->
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -636,15 +647,22 @@ fun EditProfileDialog(
     }
 }
 }
+}
 
 @Composable
 fun EmptyStateCard(message: String) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Inbox, null, tint = AppTextColor().copy(alpha = 0.2f), modifier = Modifier.size(48.dp))
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(message, color = AppTextColor().copy(alpha = 0.3f), fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Icon(Icons.Default.Inbox, null, tint = AppAccentColor().copy(alpha = 0.7f), modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = message,
+                    color = AppSecondaryTextColor(),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
     }
@@ -974,6 +992,8 @@ fun AddOwnerAccountDialog(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -981,19 +1001,16 @@ fun AddOwnerAccountDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
                                 onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (account == null) "Add Account" else "Edit Account Details",
                                 color = AppTextColor(),
@@ -1003,7 +1020,7 @@ fun AddOwnerAccountDialog(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            IconButton(
+                            FilledIconButton(
                                 onClick = {
                                     val bal = initialBalanceStr.toDoubleOrNull() ?: 0.0
                                     if (accountName.isNotBlank()) {
@@ -1025,13 +1042,15 @@ fun AddOwnerAccountDialog(
                                         android.widget.Toast.makeText(context, "Enter Account Name", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(AccentCyan, CircleShape)
-                                    .bounceClick()
+                                modifier = Modifier.size(40.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = AppAccentColor(),
+                                    contentColor = AppOnAccentColor()
+                                )
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save", tint = Color.Black)
+                                Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
                 ) { innerPadding ->

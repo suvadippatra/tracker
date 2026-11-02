@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,18 +58,11 @@ fun MeterDialPicker(
     var showFullValueDialog by remember { mutableStateOf(false) }
     var editingDigitIndex by remember { mutableStateOf<Int?>(null) }
 
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
-    val cardBg = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    } else {
-        if (isLight) Color.White.copy(alpha = 0.55f) else Color(0xFF1E2638).copy(alpha = 0.65f)
-    }
-    val borderCol = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    } else {
-        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
-    }
+    val disableHeavy = isHeavyEffectsDisabled()
+    val cardBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    val borderCol = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    val digitRange = remember { (0..9).toList() }
 
     Column(
         modifier = modifier
@@ -76,56 +70,141 @@ fun MeterDialPicker(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Lightweight Odometer Digit Stepper Row (Zero LazyColumn / Zero 3D graphicsLayer lag)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            for (i in 0 until 4) {
-                LightweightDigitStepper(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 2.dp),
-                    value = digits.getOrElse(i) { 0 },
-                    onValueChange = { newVal ->
-                        digits[i] = newVal
-                        onValueChange(assembleDouble(digits))
-                    },
-                    onTapDigit = { editingDigitIndex = i },
-                    textColor = textColor,
-                    accentColor = accentColor,
-                    containerBg = cardBg,
-                    containerBorder = borderCol,
-                    isDecimal = false
+        if (disableHeavy) {
+            // Fast Mode (Disable Heavy Effects = ON): Instant +/- Digital Stepper
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for (i in 0 until 4) {
+                    LightweightDigitStepper(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp),
+                        value = digits.getOrElse(i) { 0 },
+                        onValueChange = { newVal ->
+                            digits[i] = newVal
+                            onValueChange(assembleDouble(digits))
+                        },
+                        onTapDigit = { editingDigitIndex = i },
+                        textColor = textColor,
+                        accentColor = accentColor,
+                        containerBg = cardBg,
+                        containerBorder = borderCol,
+                        isDecimal = false
+                    )
+                }
+
+                Text(
+                    text = ".",
+                    color = accentColor,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
+
+                for (i in 4 until 6) {
+                    LightweightDigitStepper(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp),
+                        value = digits.getOrElse(i) { 0 },
+                        onValueChange = { newVal ->
+                            digits[i] = newVal
+                            onValueChange(assembleDouble(digits))
+                        },
+                        onTapDigit = { editingDigitIndex = i },
+                        textColor = textColor,
+                        accentColor = accentColor,
+                        containerBg = cardBg,
+                        containerBorder = borderCol,
+                        isDecimal = true
+                    )
+                }
             }
+        } else {
+            // Smooth Scrolling Mode (Disable Heavy Effects = OFF): Scrollable Cylindrical Wheel Dials
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for (i in 0 until 4) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(cardBg)
+                            .border(1.dp, borderCol, RoundedCornerShape(10.dp))
+                            .clickable { editingDigitIndex = i }
+                    ) {
+                        WheelPicker(
+                            items = digitRange,
+                            selectedItem = digits.getOrElse(i) { 0 },
+                            onItemSelected = { newVal ->
+                                if (digits.getOrElse(i) { 0 } != newVal) {
+                                    digits[i] = newVal
+                                    onValueChange(assembleDouble(digits))
+                                }
+                            },
+                            itemHeight = 36.dp,
+                            visibleItemsCount = 3
+                        ) { item, isSelected ->
+                            Text(
+                                text = item.toString(),
+                                color = if (isSelected) textColor else AppSecondaryTextColor(),
+                                fontSize = if (isSelected) 20.sp else 15.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
 
-            Text(
-                text = ".",
-                color = accentColor,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 2.dp)
-            )
-
-            for (i in 4 until 6) {
-                LightweightDigitStepper(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 2.dp),
-                    value = digits.getOrElse(i) { 0 },
-                    onValueChange = { newVal ->
-                        digits[i] = newVal
-                        onValueChange(assembleDouble(digits))
-                    },
-                    onTapDigit = { editingDigitIndex = i },
-                    textColor = textColor,
-                    accentColor = accentColor,
-                    containerBg = cardBg,
-                    containerBorder = borderCol,
-                    isDecimal = true
+                Text(
+                    text = ".",
+                    color = accentColor,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
+
+                for (i in 4 until 6) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 2.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(accentColor.copy(alpha = 0.08f))
+                            .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            .clickable { editingDigitIndex = i }
+                    ) {
+                        WheelPicker(
+                            items = digitRange,
+                            selectedItem = digits.getOrElse(i) { 0 },
+                            onItemSelected = { newVal ->
+                                if (digits.getOrElse(i) { 0 } != newVal) {
+                                    digits[i] = newVal
+                                    onValueChange(assembleDouble(digits))
+                                }
+                            },
+                            itemHeight = 36.dp,
+                            visibleItemsCount = 3
+                        ) { item, isSelected ->
+                            Text(
+                                text = item.toString(),
+                                color = if (isSelected) accentColor else accentColor.copy(alpha = 0.6f),
+                                fontSize = if (isSelected) 20.sp else 15.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -298,7 +377,6 @@ private fun LightweightDigitStepper(
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Increment (+) button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,7 +392,6 @@ private fun LightweightDigitStepper(
             )
         }
 
-        // Current digit display (tap to edit directly)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -333,7 +410,6 @@ private fun LightweightDigitStepper(
             )
         }
 
-        // Decrement (-) button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -376,121 +452,285 @@ fun CylindricalDateTimePicker(
     val formattedDate = remember(initialDateTime) { dateFormatter.format(Date(initialDateTime)) }
     val formattedTime = remember(initialDateTime) { timeFormatter.format(Date(initialDateTime)) }
 
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
+    val disableHeavy = isHeavyEffectsDisabled()
     val accent = AppAccentColor()
-    val cardBg = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    } else {
-        if (isLight) Color.White.copy(alpha = 0.55f) else Color(0xFF1E2638).copy(alpha = 0.65f)
-    }
-    val borderCol = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    } else {
-        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
-    }
+    val cardBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    val borderCol = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
 
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Native Date Picker Button
+        if (disableHeavy) {
+            // Fast Native Mode: Native Date & Time Dialog Buttons
             Row(
-                modifier = Modifier
-                    .weight(1.15f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(cardBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                    .clickable {
-                        DatePickerDialog(
-                            context,
-                            { _, y, m, d ->
-                                val newCal = Calendar.getInstance().apply {
-                                    timeInMillis = initialDateTime
-                                    set(Calendar.YEAR, y)
-                                    set(Calendar.MONTH, m)
-                                    set(Calendar.DAY_OF_MONTH, d)
-                                }
-                                onDateTimeChange(newCal.timeInMillis)
-                            },
-                            calendar.get(Calendar.YEAR),
-                            calendar.get(Calendar.MONTH),
-                            calendar.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarToday,
-                    contentDescription = "Select Date",
-                    tint = accent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = formattedDate,
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
+                Row(
+                    modifier = Modifier
+                        .weight(1.15f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                        .clickable {
+                            DatePickerDialog(
+                                context,
+                                { _, y, m, d ->
+                                    val newCal = Calendar.getInstance().apply {
+                                        timeInMillis = initialDateTime
+                                        set(Calendar.YEAR, y)
+                                        set(Calendar.MONTH, m)
+                                        set(Calendar.DAY_OF_MONTH, d)
+                                    }
+                                    onDateTimeChange(newCal.timeInMillis)
+                                },
+                                calendar.get(Calendar.YEAR),
+                                calendar.get(Calendar.MONTH),
+                                calendar.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = "Select Date",
+                        tint = accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = formattedDate,
+                        color = textColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
 
-            // Native Time Picker Button
+                Row(
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(cardBg)
+                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                        .clickable {
+                            TimePickerDialog(
+                                context,
+                                { _, h, min ->
+                                    val newCal = Calendar.getInstance().apply {
+                                        timeInMillis = initialDateTime
+                                        set(Calendar.HOUR_OF_DAY, h)
+                                        set(Calendar.MINUTE, min)
+                                    }
+                                    onDateTimeChange(newCal.timeInMillis)
+                                },
+                                calendar.get(Calendar.HOUR_OF_DAY),
+                                calendar.get(Calendar.MINUTE),
+                                false
+                            ).show()
+                        }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccessTime,
+                        contentDescription = "Select Time",
+                        tint = accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = formattedTime,
+                        color = textColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+        } else {
+            // Smooth Scrolling Cylindrical Wheel Date & Time Picker
+            val currentYear = calendar.get(Calendar.YEAR)
+            val currentMonth = calendar.get(Calendar.MONTH)
+            val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val currentDay = calendar.get(Calendar.DAY_OF_MONTH).coerceIn(1, maxDays)
+            val currentHour12 = calendar.get(Calendar.HOUR).let { if (it == 0) 12 else it }
+            val currentMinute = calendar.get(Calendar.MINUTE)
+            val currentAmPm = if (calendar.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
+
+            val days = remember(maxDays) { (1..maxDays).toList() }
+            val monthNames = remember { DateFormatSymbols.getInstance(Locale.US).shortMonths.take(12) }
+            val years = remember { (2020..2035).toList() }
+            val hours = remember { (1..12).toList() }
+            val minutes = remember { (0..59).toList() }
+            val amPmList = remember { listOf("AM", "PM") }
+
             Row(
                 modifier = Modifier
-                    .weight(0.85f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
                     .background(cardBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                    .clickable {
-                        TimePickerDialog(
-                            context,
-                            { _, h, min ->
-                                val newCal = Calendar.getInstance().apply {
-                                    timeInMillis = initialDateTime
-                                    set(Calendar.HOUR_OF_DAY, h)
-                                    set(Calendar.MINUTE, min)
-                                }
-                                onDateTimeChange(newCal.timeInMillis)
-                            },
-                            calendar.get(Calendar.HOUR_OF_DAY),
-                            calendar.get(Calendar.MINUTE),
-                            false
-                        ).show()
-                    }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .border(1.dp, borderCol, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.AccessTime,
-                    contentDescription = "Select Time",
-                    tint = accent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = formattedTime,
-                    color = textColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+                // Day Wheel
+                WheelPicker(
+                    items = days,
+                    selectedItem = currentDay,
+                    onItemSelected = { d ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            set(Calendar.DAY_OF_MONTH, d.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(0.8f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = String.format(Locale.US, "%02d", item),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 14.sp else 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+
+                // Month Wheel
+                WheelPicker(
+                    items = (0..11).toList(),
+                    selectedItem = currentMonth,
+                    onItemSelected = { m ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            val prevDay = get(Calendar.DAY_OF_MONTH)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            set(Calendar.MONTH, m)
+                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(1.1f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = monthNames.getOrElse(item) { "" },
+                        color = if (isSelected) accent else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 14.sp else 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+
+                // Year Wheel
+                WheelPicker(
+                    items = years,
+                    selectedItem = currentYear.coerceIn(2020, 2035),
+                    onItemSelected = { y ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            val prevDay = get(Calendar.DAY_OF_MONTH)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            set(Calendar.YEAR, y)
+                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(1.1f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = item.toString(),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 14.sp else 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+
+                // Hour Wheel
+                WheelPicker(
+                    items = hours,
+                    selectedItem = currentHour12,
+                    onItemSelected = { h12 ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            set(Calendar.HOUR, if (h12 == 12) 0 else h12)
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(0.8f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = String.format(Locale.US, "%02d", item),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 14.sp else 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+
+                // Minute Wheel
+                WheelPicker(
+                    items = minutes,
+                    selectedItem = currentMinute,
+                    onItemSelected = { min ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            set(Calendar.MINUTE, min)
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(0.8f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = String.format(Locale.US, "%02d", item),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 14.sp else 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+
+                // AM/PM Wheel
+                WheelPicker(
+                    items = amPmList,
+                    selectedItem = currentAmPm,
+                    onItemSelected = { ap ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = initialDateTime
+                            set(Calendar.AM_PM, if (ap == "AM") Calendar.AM else Calendar.PM)
+                        }
+                        onDateTimeChange(newCal.timeInMillis)
+                    },
+                    modifier = Modifier.weight(0.85f),
+                    itemHeight = 34.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = item,
+                        color = if (isSelected) accent else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 13.sp else 11.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal
+                    )
+                }
             }
         }
 
-        // Quick preset chips ("Now", "Yesterday", "-1 Hr")
+        // Quick preset chips ("Now", "-1 Day", "+1 Day")
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)

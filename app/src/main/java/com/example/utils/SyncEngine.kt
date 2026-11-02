@@ -209,9 +209,9 @@ class SyncEngine(private val db: AppDatabase) {
         val root = JSONObject(jsonString.trim())
         var senderName: String? = null
         if (root.has("senderName")) {
-            senderName = root.optString("senderName", null)
+            senderName = root.optString("senderName", "").ifBlank { null }
         } else if (root.has("ownerName")) {
-            senderName = root.optString("ownerName", null)
+            senderName = root.optString("ownerName", "").ifBlank { null }
         }
 
         val hotels = mutableListOf<HotelEntity>()
@@ -346,7 +346,7 @@ class SyncEngine(private val db: AppDatabase) {
                         isAddOn = mObj.optBoolean("isAddOn", false),
                         emoji = mObj.optString("emoji", "🍽️"),
                         type = mObj.optString("type", "Common"),
-                        imageUri = mObj.optString("imageUri", null)
+                        imageUri = mObj.optString("imageUri", "").ifBlank { null }
                     )
                 )
             }
@@ -493,7 +493,7 @@ class SyncEngine(private val db: AppDatabase) {
                         calculatedAmount = uObj.optDouble("calculatedAmount", 0.0),
                         dueDate = uObj.optLong("dueDate", endDate),
                         isPaid = uObj.optBoolean("isPaid", true),
-                        transactionId = uObj.optString("transactionId", null)
+                        transactionId = uObj.optString("transactionId", "").ifBlank { null }
                     )
                 )
             }

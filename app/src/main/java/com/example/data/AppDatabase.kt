@@ -65,178 +65,178 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
 
         val MIGRATION_33_34 = object : Migration(33, 34) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN disableHeavyEffects INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN disableHeavyEffects INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_32_33 = object : Migration(32, 33) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotels_isDeleted` ON `hotels` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_hotelId` ON `menu_items` (`hotelId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_isDeleted` ON `menu_items` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_hotelId_isDeleted` ON `menu_items` (`hotelId`, `isDeleted`)")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotels_isDeleted` ON `hotels` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_hotelId` ON `menu_items` (`hotelId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_isDeleted` ON `menu_items` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_items_hotelId_isDeleted` ON `menu_items` (`hotelId`, `isDeleted`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_hotelId` ON `hotel_transactions` (`hotelId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_timestamp` ON `hotel_transactions` (`timestamp`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_isDeleted` ON `hotel_transactions` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_hotelId_isDeleted_timestamp` ON `hotel_transactions` (`hotelId`, `isDeleted`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_hotelId` ON `hotel_transactions` (`hotelId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_timestamp` ON `hotel_transactions` (`timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_isDeleted` ON `hotel_transactions` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_transactions_hotelId_isDeleted_timestamp` ON `hotel_transactions` (`hotelId`, `isDeleted`, `timestamp`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_bank_accounts_isDeleted` ON `bank_accounts` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_categories_isDeleted` ON `transaction_categories` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_bank_accounts_isDeleted` ON `bank_accounts` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_categories_isDeleted` ON `transaction_categories` (`isDeleted`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_bankAccountId` ON `extra_expenses` (`bankAccountId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_timestamp` ON `extra_expenses` (`timestamp`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_isDeleted` ON `extra_expenses` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_category` ON `extra_expenses` (`category`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_type` ON `extra_expenses` (`type`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_bankAccountId_isDeleted` ON `extra_expenses` (`bankAccountId`, `isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_isDeleted_timestamp` ON `extra_expenses` (`isDeleted`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_bankAccountId` ON `extra_expenses` (`bankAccountId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_timestamp` ON `extra_expenses` (`timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_isDeleted` ON `extra_expenses` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_category` ON `extra_expenses` (`category`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_type` ON `extra_expenses` (`type`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_bankAccountId_isDeleted` ON `extra_expenses` (`bankAccountId`, `isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extra_expenses_isDeleted_timestamp` ON `extra_expenses` (`isDeleted`, `timestamp`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_expenseId` ON `attachments` (`expenseId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_isDeleted` ON `attachments` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_expenseId` ON `attachments` (`expenseId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_isDeleted` ON `attachments` (`isDeleted`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_hotelId` ON `hotel_payments` (`hotelId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_paymentDate` ON `hotel_payments` (`paymentDate`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_isDeleted` ON `hotel_payments` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_hotelId_isDeleted` ON `hotel_payments` (`hotelId`, `isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_hotelId` ON `hotel_payments` (`hotelId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_paymentDate` ON `hotel_payments` (`paymentDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_isDeleted` ON `hotel_payments` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_hotel_payments_hotelId_isDeleted` ON `hotel_payments` (`hotelId`, `isDeleted`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_meter_readings_isDeleted` ON `meter_readings` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_meter_readings_readingDate` ON `meter_readings` (`readingDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_meter_readings_isDeleted` ON `meter_readings` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_meter_readings_readingDate` ON `meter_readings` (`readingDate`)")
 
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_isDeleted` ON `utility_bills` (`isDeleted`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_startDate` ON `utility_bills` (`startDate`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_endDate` ON `utility_bills` (`endDate`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_isPaid` ON `utility_bills` (`isPaid`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_isDeleted` ON `utility_bills` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_startDate` ON `utility_bills` (`startDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_endDate` ON `utility_bills` (`endDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_utility_bills_isPaid` ON `utility_bills` (`isPaid`)")
             }
         }
 
         val MIGRATION_31_32 = object : Migration(31, 32) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE hotels ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE hotels ADD COLUMN importedFrom TEXT DEFAULT NULL")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE hotels ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE hotels ADD COLUMN importedFrom TEXT DEFAULT NULL")
 
-                database.execSQL("ALTER TABLE menu_items ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE menu_items ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE hotel_transactions ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE hotel_transactions ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE bank_accounts ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE bank_accounts ADD COLUMN importedFrom TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN importedFrom TEXT DEFAULT NULL")
 
-                database.execSQL("ALTER TABLE owner_accounts ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE owner_accounts ADD COLUMN importedFrom TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN importedFrom TEXT DEFAULT NULL")
 
-                database.execSQL("ALTER TABLE extra_expenses ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE extra_expenses ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE attachments ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE attachments ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE hotel_payments ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE hotel_payments ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE meter_readings ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE meter_readings ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE utility_bills ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE utility_bills ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE electricity_rates ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE electricity_rates ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
 
-                database.execSQL("ALTER TABLE expenses ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE expenses ADD COLUMN lastUpdatedMillis INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         val MIGRATION_30_31 = object : Migration(30, 31) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN enableLiquidGlassTheme INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN enableLiquidGlassTheme INTEGER NOT NULL DEFAULT 0")
             }
         }
 
         val MIGRATION_29_30 = object : Migration(29, 30) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN visibleBankAccountsOnExtra TEXT NOT NULL DEFAULT ''")
-                database.execSQL("ALTER TABLE owner_accounts ADD COLUMN details TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN visibleBankAccountsOnExtra TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN details TEXT NOT NULL DEFAULT ''")
             }
         }
 
         val MIGRATION_28_29 = object : Migration(28, 29) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE bank_accounts ADD COLUMN details TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN details TEXT NOT NULL DEFAULT ''")
             }
         }
 
         val MIGRATION_27_28 = object : Migration(27, 28) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE bank_accounts ADD COLUMN initialBalance REAL NOT NULL DEFAULT 0.0")
-                database.execSQL("UPDATE bank_accounts SET initialBalance = balance WHERE initialBalance = 0.0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN initialBalance REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("UPDATE bank_accounts SET initialBalance = balance WHERE initialBalance = 0.0")
             }
         }
 
         val MIGRATION_26_27 = object : Migration(26, 27) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN defaultOwnerAccountId INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN defaultOwnerAccountId INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_25_26 = object : Migration(25, 26) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN defaultBankAccountId INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN defaultBankAccountId INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_24_25 = object : Migration(24, 25) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN enableSupplementaryAddons INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN enableSupplementaryAddons INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_23_24 = object : Migration(23, 24) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE utility_bills ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE utility_bills ADD COLUMN note TEXT NOT NULL DEFAULT ''")
             }
         }
 
         val MIGRATION_16_17 = object : Migration(16, 17) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN textSize TEXT NOT NULL DEFAULT 'Medium'")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN textSize TEXT NOT NULL DEFAULT 'Medium'")
             }
         }
 
         val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE menu_items ADD COLUMN imageUri TEXT DEFAULT NULL")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE menu_items ADD COLUMN imageUri TEXT DEFAULT NULL")
             }
         }
         val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE menu_items ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE menu_items ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
             }
         }
         val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE menu_items ADD COLUMN hotelId INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE menu_items ADD COLUMN hotelId INTEGER NOT NULL DEFAULT 1")
             }
         }
         val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN enableStarAnimation INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN enableStarAnimation INTEGER NOT NULL DEFAULT 1")
             }
         }
 
         val MIGRATION_20_21 = object : Migration(20, 21) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN accountNumber TEXT NOT NULL DEFAULT ''")
-                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN ifsc TEXT NOT NULL DEFAULT ''")
-                database.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN branchName TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN accountNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN ifsc TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE BankAccountEntity ADD COLUMN branchName TEXT NOT NULL DEFAULT ''")
             }
         }
 
         val MIGRATION_22_23 = object : Migration(22, 23) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("CREATE TABLE IF NOT EXISTS `expenses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `category` TEXT NOT NULL, `amount` REAL NOT NULL, `timestamp` INTEGER NOT NULL, `note` TEXT NOT NULL, `isDeleted` INTEGER NOT NULL DEFAULT 0)")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `expenses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `category` TEXT NOT NULL, `amount` REAL NOT NULL, `timestamp` INTEGER NOT NULL, `note` TEXT NOT NULL, `isDeleted` INTEGER NOT NULL DEFAULT 0)")
             }
         }
         val MIGRATION_21_22 = object : Migration(21, 22) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN mealGroupPosition TEXT NOT NULL DEFAULT 'BottomBar'")
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN bgPreset TEXT NOT NULL DEFAULT 'Default'")
-                database.execSQL("ALTER TABLE user_profile ADD COLUMN customBgUri TEXT NOT NULL DEFAULT ''")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN mealGroupPosition TEXT NOT NULL DEFAULT 'BottomBar'")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN bgPreset TEXT NOT NULL DEFAULT 'Default'")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN customBgUri TEXT NOT NULL DEFAULT ''")
             }
         }
 

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -85,22 +86,13 @@ fun SlidingDatePickerModal(
         return
     }
 
-    // Lightweight Material 3 fallback dialog when heavy effects are enabled or Activity context is unavailable
+    // Material 3 Cylindrical Wheel Date Picker Dialog when Heavy Effects are enabled (OFF)
     var currentMillis by remember(initialDateMillis) { mutableLongStateOf(initialDateMillis) }
     val dateFormatter = remember { SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) }
 
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
-    val modalBg = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-    } else {
-        if (isLight) Color(0xF5FFFFFF) else Color(0xFA1E2638)
-    }
-    val modalBorder = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    } else {
-        getGlassBorder()
-    }
+    val modalBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    val modalBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -125,12 +117,12 @@ fun SlidingDatePickerModal(
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = dateFormatter.format(Date(currentMillis)),
                     color = AppAccentColor(),
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
 
@@ -140,7 +132,6 @@ fun SlidingDatePickerModal(
                     initialDateMillis = currentMillis,
                     onDateSelected = {
                         currentMillis = it
-                        onDateSelected(it)
                     },
                     textColor = textColor
                 )
@@ -185,20 +176,12 @@ fun InlineDatePicker(
     val dateFormatter = remember { SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) }
     val formattedDate = remember(selectedMillis) { dateFormatter.format(Date(selectedMillis)) }
 
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
+    val disableHeavy = isHeavyEffectsDisabled()
     val accent = AppAccentColor()
 
-    val surfaceBg = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    } else {
-        if (isLight) Color.White.copy(alpha = 0.55f) else Color(0xFF1E2638).copy(alpha = 0.65f)
-    }
-    val borderCol = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    } else {
-        getGlassBorder()
-    }
+    val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    val borderCol = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
 
     Column(
         modifier = Modifier
@@ -206,104 +189,204 @@ fun InlineDatePicker(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Previous Day Button
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(surfaceBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                    .clickable {
-                        val cal = Calendar.getInstance().apply {
-                            timeInMillis = selectedMillis
-                            add(Calendar.DAY_OF_MONTH, -1)
-                        }
-                        selectedMillis = cal.timeInMillis
-                        onDateSelected(selectedMillis)
-                    },
-                contentAlignment = Alignment.Center
+        if (disableHeavy) {
+            // Fast Mode: Native Android DatePickerDialog Pill + Prev/Next Day Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.ChevronLeft,
-                    contentDescription = "Previous Day",
-                    tint = textColor
-                )
-            }
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(surfaceBg)
+                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                        .clickable {
+                            val cal = Calendar.getInstance().apply {
+                                timeInMillis = selectedMillis
+                                add(Calendar.DAY_OF_MONTH, -1)
+                            }
+                            selectedMillis = cal.timeInMillis
+                            onDateSelected(selectedMillis)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronLeft,
+                        contentDescription = "Previous Day",
+                        tint = textColor
+                    )
+                }
 
-            // Center Date Pill (Opens Native Android DatePickerDialog)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(surfaceBg)
+                        .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .clickable {
+                            val cal = Calendar.getInstance().apply { timeInMillis = selectedMillis }
+                            DatePickerDialog(
+                                context,
+                                { _, y, m, d ->
+                                    val newCal = Calendar.getInstance().apply {
+                                        timeInMillis = selectedMillis
+                                        set(Calendar.YEAR, y)
+                                        set(Calendar.MONTH, m)
+                                        set(Calendar.DAY_OF_MONTH, d)
+                                    }
+                                    selectedMillis = newCal.timeInMillis
+                                    onDateSelected(selectedMillis)
+                                },
+                                cal.get(Calendar.YEAR),
+                                cal.get(Calendar.MONTH),
+                                cal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = "Open Calendar",
+                        tint = accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = formattedDate,
+                        color = textColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(surfaceBg)
+                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                        .clickable {
+                            val cal = Calendar.getInstance().apply {
+                                timeInMillis = selectedMillis
+                                add(Calendar.DAY_OF_MONTH, 1)
+                            }
+                            selectedMillis = cal.timeInMillis
+                            onDateSelected(selectedMillis)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Next Day",
+                        tint = textColor
+                    )
+                }
+            }
+        } else {
+            // Smooth Scrolling Cylindrical Wheel Date Picker (Day / Month / Year)
+            val cal = remember(selectedMillis) { Calendar.getInstance().apply { timeInMillis = selectedMillis } }
+            val currentYear = cal.get(Calendar.YEAR)
+            val currentMonth = cal.get(Calendar.MONTH)
+            val maxDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val currentDay = cal.get(Calendar.DAY_OF_MONTH).coerceIn(1, maxDays)
+
+            val days = remember(maxDays) { (1..maxDays).toList() }
+            val monthNames = remember { DateFormatSymbols.getInstance(Locale.US).shortMonths.take(12) }
+            val years = remember { (2020..2035).toList() }
+
             Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
                     .background(surfaceBg)
-                    .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                    .clickable {
-                        val cal = Calendar.getInstance().apply { timeInMillis = selectedMillis }
-                        DatePickerDialog(
-                            context,
-                            { _, y, m, d ->
-                                val newCal = Calendar.getInstance().apply {
-                                    timeInMillis = selectedMillis
-                                    set(Calendar.YEAR, y)
-                                    set(Calendar.MONTH, m)
-                                    set(Calendar.DAY_OF_MONTH, d)
-                                }
-                                selectedMillis = newCal.timeInMillis
-                                onDateSelected(selectedMillis)
-                            },
-                            cal.get(Calendar.YEAR),
-                            cal.get(Calendar.MONTH),
-                            cal.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .border(1.dp, borderCol, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarToday,
-                    contentDescription = "Open Calendar",
-                    tint = accent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = formattedDate,
-                    color = textColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-
-            // Next Day Button
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(surfaceBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                    .clickable {
-                        val cal = Calendar.getInstance().apply {
+                // Day Wheel
+                WheelPicker(
+                    items = days,
+                    selectedItem = currentDay,
+                    onItemSelected = { d ->
+                        val newCal = Calendar.getInstance().apply {
                             timeInMillis = selectedMillis
-                            add(Calendar.DAY_OF_MONTH, 1)
+                            set(Calendar.DAY_OF_MONTH, d.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
                         }
-                        selectedMillis = cal.timeInMillis
+                        selectedMillis = newCal.timeInMillis
                         onDateSelected(selectedMillis)
                     },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "Next Day",
-                    tint = textColor
-                )
+                    modifier = Modifier.weight(1f),
+                    itemHeight = 36.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = String.format(Locale.US, "%02d", item),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 16.sp else 13.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                    )
+                }
+
+                // Month Wheel
+                WheelPicker(
+                    items = (0..11).toList(),
+                    selectedItem = currentMonth,
+                    onItemSelected = { m ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = selectedMillis
+                            val prevDay = get(Calendar.DAY_OF_MONTH)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            set(Calendar.MONTH, m)
+                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                        }
+                        selectedMillis = newCal.timeInMillis
+                        onDateSelected(selectedMillis)
+                    },
+                    modifier = Modifier.weight(1.3f),
+                    itemHeight = 36.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = monthNames.getOrElse(item) { "" },
+                        color = if (isSelected) accent else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 16.sp else 13.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                    )
+                }
+
+                // Year Wheel
+                WheelPicker(
+                    items = years,
+                    selectedItem = currentYear.coerceIn(2020, 2035),
+                    onItemSelected = { y ->
+                        val newCal = Calendar.getInstance().apply {
+                            timeInMillis = selectedMillis
+                            val prevDay = get(Calendar.DAY_OF_MONTH)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                            set(Calendar.YEAR, y)
+                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                        }
+                        selectedMillis = newCal.timeInMillis
+                        onDateSelected(selectedMillis)
+                    },
+                    modifier = Modifier.weight(1.2f),
+                    itemHeight = 36.dp,
+                    visibleItemsCount = 3
+                ) { item, isSelected ->
+                    Text(
+                        text = item.toString(),
+                        color = if (isSelected) textColor else AppSecondaryTextColor(),
+                        fontSize = if (isSelected) 16.sp else 13.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                    )
+                }
             }
         }
 

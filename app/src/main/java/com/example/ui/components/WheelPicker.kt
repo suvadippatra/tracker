@@ -205,40 +205,23 @@ fun <T> WheelPicker(
                         val viewIndex = centerIndex + paddingItemsCount
                         val diff = kotlin.math.abs(index - viewIndex)
 
-                        val alpha = if (!isGlass) {
-                            when (diff) {
-                                0 -> 1f
-                                1 -> 0.42f
-                                2 -> 0.18f
-                                else -> 0f
-                            }
-                        } else {
-                            when (diff) {
-                                0 -> 1f
-                                1 -> 0.38f
-                                2 -> 0.14f
-                                else -> 0f
-                            }
+                        val disableHeavy = isHeavyEffectsDisabled()
+                        val alpha = when (diff) {
+                            0 -> 1f
+                            1 -> 0.45f
+                            2 -> 0.18f
+                            else -> 0f
                         }
 
-                        val scale = if (!isGlass) {
-                            when (diff) {
-                                0 -> 1.0f
-                                1 -> 0.92f
-                                else -> 0.85f
-                            }
-                        } else {
-                            when (diff) {
-                                0 -> 1.0f
-                                1 -> 0.86f
-                                2 -> 0.70f
-                                else -> 0.60f
-                            }
+                        val scale = when (diff) {
+                            0 -> 1.0f
+                            1 -> 0.88f
+                            else -> 0.76f
                         }
 
-                        val rotation = if (!isGlass) 0f else {
+                        val rotation = if (disableHeavy) 0f else {
                             val signedDiff = (index - viewIndex).toFloat()
-                            (-signedDiff * 16f).coerceIn(-45f, 45f)
+                            (-signedDiff * 16f).coerceIn(-40f, 40f)
                         }
 
                         Box(

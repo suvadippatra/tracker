@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.ui.screens
 import com.example.utils.Formatters
 import com.example.ui.components.*
@@ -1688,7 +1689,7 @@ fun MealHistoryModal(
                                             }
                                         }
 
-                                        if (isPaid && currentMonthPayment != null) {
+                                        if (isPaid) {
                                             val dateStr = paymentDateFormat.format(Date(currentMonthPayment.paymentDate))
                                             Text(
                                                 text = dateStr,
@@ -1699,7 +1700,7 @@ fun MealHistoryModal(
                                         }
                                     }
 
-                                    if (isPaid && currentMonthPayment != null && currentMonthPayment.note.isNotBlank()) {
+                                    if (isPaid && currentMonthPayment.note.isNotBlank()) {
                                         Text(
                                             text = currentMonthPayment.note,
                                             color = AppSecondaryTextColor(),

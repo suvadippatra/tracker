@@ -1050,7 +1050,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                     calculatedAmount = item.getDouble("calculatedAmount"),
                                     dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                     isPaid = item.optBoolean("isPaid", true),
-                                    transactionId = item.optString("transactionId", null)
+                                    transactionId = item.optString("transactionId", "").ifBlank { null }
                                 )
                             )
                         }
@@ -1360,7 +1360,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                     calculatedAmount = item.getDouble("calculatedAmount"),
                                     dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                     isPaid = item.optBoolean("isPaid", true),
-                                    transactionId = item.optString("transactionId", null)
+                                    transactionId = item.optString("transactionId", "").ifBlank { null }
                                 )
                             )
                         }
@@ -1409,7 +1409,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                 calculatedAmount = item.getDouble("calculatedAmount"),
                                 dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                 isPaid = item.optBoolean("isPaid", true),
-                                transactionId = item.optString("transactionId", null)
+                                transactionId = item.optString("transactionId", "").ifBlank { null }
                             )
                         )
                     }

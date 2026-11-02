@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.ui.screens.settings.subscreens
 
 import android.widget.Toast
@@ -561,12 +562,13 @@ fun ProfileSettingsScreen(
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
+                    FilledTonalIconButton(
                         onClick = { showEditProfileDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(appAccent.copy(alpha = if (isLight) 0.10f else 0.15f), CircleShape)
-                            .border(1.dp, appAccent.copy(alpha = 0.3f), CircleShape)
+                        modifier = Modifier.size(40.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = appAccent.copy(alpha = if (isLight) 0.12f else 0.18f),
+                            contentColor = appAccent
+                        )
                     ) {
                         Icon(
                             Icons.Default.Edit,
@@ -1106,40 +1108,53 @@ fun EditProfileModal(
     val customBgUri = com.example.ui.components.LocalAppCustomBgUri.current
     val isLiquidGlass = com.example.ui.components.LocalAppLiquidGlassTheme.current
 
-    CompositionLocalProvider(
-        com.example.ui.components.LocalAppTheme provides themeMode,
-        com.example.ui.components.LocalAppBgPreset provides bgPreset,
-        com.example.ui.components.LocalAppCustomBgUri provides customBgUri,
-        com.example.ui.components.LocalAppLiquidGlassTheme provides isLiquidGlass
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+        com.example.ui.components.DialogEdgeToEdge()
+        CompositionLocalProvider(
+            com.example.ui.components.LocalAppTheme provides themeMode,
+            com.example.ui.components.LocalAppBgPreset provides bgPreset,
+            com.example.ui.components.LocalAppCustomBgUri provides customBgUri,
+            com.example.ui.components.LocalAppLiquidGlassTheme provides isLiquidGlass
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset))
-                    .pointerInput(Unit) { detectTapGestures { } },
-                contentAlignment = Alignment.TopCenter
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
             ) {
-                Scaffold(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .imePadding(),
-                    containerColor = Color.Transparent,
-                    contentWindowInsets = WindowInsets(0.dp),
-                    topBar = {
+                        .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset))
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Scaffold(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .imePadding(),
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets(0.dp),
+                        topBar = {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp).background(com.example.ui.components.getGlassIconButtonBg(), CircleShape).clip(CircleShape)) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (prefLanguage == "bn") "প্রোফাইল তথ্য ও পেমেন্ট বিবরণী" else "Edit Profile & Payment Details",
                                     color = AppTextColor(),
@@ -1147,12 +1162,17 @@ fun EditProfileModal(
                                     fontSize = 18.sp,
                                     modifier = Modifier.weight(1f)
                                 )
-                                IconButton(
+                                FilledIconButton(
                                     onClick = { onSave(name, contact, avatar, currency, bankName, accNum, ifsc, branch, upi, qrUri) },
-                                    modifier = Modifier.size(40.dp).background(AppAccentColor(), CircleShape).clip(CircleShape)
+                                    modifier = Modifier.size(40.dp),
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = AppAccentColor(),
+                                        contentColor = AppOnAccentColor()
+                                    )
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         }
                     ) { innerPadding ->
@@ -1355,6 +1375,7 @@ fun EditProfileModal(
         } // closes Box gradient
     } // closes Surface
 } // closes CompositionLocalProvider
+} // closes Dialog
 }
 
 @Composable
@@ -1455,56 +1476,63 @@ fun OwnerAccountEditorModal(
     val customBgUri = com.example.ui.components.LocalAppCustomBgUri.current
     val isLiquidGlass = com.example.ui.components.LocalAppLiquidGlassTheme.current
 
-    CompositionLocalProvider(
-        com.example.ui.components.LocalAppTheme provides themeMode,
-        com.example.ui.components.LocalAppBgPreset provides bgPreset,
-        com.example.ui.components.LocalAppCustomBgUri provides customBgUri,
-        com.example.ui.components.LocalAppLiquidGlassTheme provides isLiquidGlass
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+        com.example.ui.components.DialogEdgeToEdge()
+        CompositionLocalProvider(
+            com.example.ui.components.LocalAppTheme provides themeMode,
+            com.example.ui.components.LocalAppBgPreset provides bgPreset,
+            com.example.ui.components.LocalAppCustomBgUri provides customBgUri,
+            com.example.ui.components.LocalAppLiquidGlassTheme provides isLiquidGlass
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset))
-                    .pointerInput(Unit) { detectTapGestures { } },
-                contentAlignment = Alignment.TopCenter
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
             ) {
-                Scaffold(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .imePadding(),
-                    containerColor = Color.Transparent,
-                    contentWindowInsets = WindowInsets(0.dp),
-                    topBar = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .bounceClick()
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = if (account == null) {
-                                if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
-                            } else {
-                                if (prefLanguage == "bn") "অ্যাকাউন্ট সম্পাদনা" else "Edit Account Details"
-                            },
-                            color = AppTextColor(),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    }
-                },
+                        .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset))
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Scaffold(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .imePadding(),
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets(0.dp),
+                        topBar = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (account == null) {
+                                        if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
+                                    } else {
+                                        if (prefLanguage == "bn") "অ্যাকাউন্ট সম্পাদনা" else "Edit Account Details"
+                                    },
+                                    color = AppTextColor(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                            }
+                        },
                 bottomBar = {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -1740,5 +1768,6 @@ fun OwnerAccountEditorModal(
             }
         }
     }
+}
 }
 }

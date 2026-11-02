@@ -494,24 +494,20 @@ fun BinScreen(
                     ) {
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .border(1.dp, getGlassBorder(), CircleShape)
-                                .bounceClick()
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor())
                         }
                         Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         
                         if (!isCurrentSectionEmpty) {
-                            IconButton(
+                            FilledTonalIconButton(
                                 onClick = { showEmptyBinConfirmation = true },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(AccentPink.copy(alpha = 0.15f), CircleShape)
-                                    .border(1.dp, AccentPink.copy(alpha = 0.3f), CircleShape)
-                                    .bounceClick()
+                                modifier = Modifier.size(40.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = AccentPink.copy(alpha = 0.14f),
+                                    contentColor = AccentPink
+                                )
                             ) {
                                 Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
                             }
@@ -690,11 +686,11 @@ fun BinItemCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(subtitle, color = AppTextColor().copy(alpha = 0.5f), fontSize = 12.sp)
+                Text(subtitle, color = AppSecondaryTextColor(), fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = infoLabel,
-                    color = AccentCyan,
+                    color = AppAccentColor(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )
@@ -736,9 +732,9 @@ fun EmptyBinState(message: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.DeleteOutline, null, tint = AppTextColor().copy(alpha = 0.2f), modifier = Modifier.size(56.dp))
+            Icon(Icons.Default.DeleteOutline, null, tint = AppAccentColor().copy(alpha = 0.65f), modifier = Modifier.size(56.dp))
             Spacer(modifier = Modifier.height(10.dp))
-            Text(message, color = AppTextColor().copy(alpha = 0.4f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(message, color = AppSecondaryTextColor(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

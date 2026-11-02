@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.ui.screens
 
 import androidx.compose.animation.*
@@ -102,22 +103,14 @@ fun SettingsScreen(
                             if (currentScreen != "main") {
                                 IconButton(
                                     onClick = { currentScreen = "main" },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .border(1.dp, getGlassBorder(), CircleShape)
-                                        .bounceClick()
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppTextColor())
                                 }
                             } else {
                                 IconButton(
                                     onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .border(1.dp, getGlassBorder(), CircleShape)
-                                        .bounceClick()
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
                                 }
@@ -363,10 +356,7 @@ fun UnifiedAccountDialog(
                     ) {
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .bounceClick()
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 Icons.Default.ArrowBack,
@@ -374,7 +364,7 @@ fun UnifiedAccountDialog(
                                 tint = AppTextColor()
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (account == null) {
                                 if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
@@ -388,7 +378,7 @@ fun UnifiedAccountDialog(
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
-                        IconButton(
+                        FilledIconButton(
                             onClick = {
                                 if (accName.isNotBlank()) {
                                     val bal = accBal.toDoubleOrNull() ?: 0.0
@@ -403,24 +393,26 @@ fun UnifiedAccountDialog(
                             },
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(AccentCyan, CircleShape)
-                                .testTag("save_account_btn")
-                                .bounceClick()
+                                .testTag("save_account_btn"),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = AppAccentColor(),
+                                contentColor = AppOnAccentColor()
+                            )
                         ) {
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = "Save",
-                                tint = Color.Black
+                                tint = AppOnAccentColor()
                             )
                         }
 
                         if (account != null && accountsCount > 1 && onDelete != null) {
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             var showTopMenu by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(
                                     onClick = { showTopMenu = true },
-                                    modifier = Modifier.size(38.dp).background(getGlassIconButtonBg(), CircleShape).bounceClick()
+                                    modifier = Modifier.size(44.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.MoreVert,
@@ -662,171 +654,230 @@ fun LegalInfoDialog(
     androidx.activity.compose.BackHandler { onDismiss() }
 
     val title = when (type) {
-        "info" -> if (prefLanguage == "bn") "অ্যাপ তথ্য" else "App Information"
+        "info" -> if (prefLanguage == "bn") "ব্যবহারবিধি ও অ্যাপ তথ্য (Help Guide)" else "Help & User Guide"
         "license" -> if (prefLanguage == "bn") "লাইসেন্স ও শর্তাবলী" else "Licenses & Terms"
         "privacy" -> if (prefLanguage == "bn") "প্রাইভেসি পলিসি" else "Privacy Policy"
         else -> ""
     }
 
-    AlertDialog(
+    val content = when (type) {
+        "info" -> if (prefLanguage == "bn") """
+            Traker v1.3.0 (Pure Material 3 & Dual-Mode Speed Release)
+            ডেভেলপার: @suvadippatra (GitHub)
+            © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
+
+            ───────────────────────────
+            📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
+            ───────────────────────────
+
+            ১. 🎨 Pure Material 3 ডিজাইন (Android 8 থেকে সর্বশেষ সংস্করণ)
+            • লিকুইড গ্লাস সম্পূর্ণ অপসারণ: ধীরগতির ট্রান্সলুসেন্ট ব্লার ও ওভারড্র সরিয়ে সম্পূর্ণ অ্যাপটিকে খাঁটি Material Design 3 (M3) সারফেস, পরিষ্কার আইকন বাটন এবং উচ্চ-কনট্রাস্ট লাইট/ডার্ক থিমে রূপান্তর করা হয়েছে।
+            • লাইট মোড ও বাটন কনট্রাস্ট: লাইট মোডে খালি পেজ ও টেক্সট স্পষ্টভাবে পড়ার উপযোগী করা হয়েছে এবং নীল/সবুজ/লাল বাটনের লেখা সঠিকভাবে মাঝখানে সারিবদ্ধ করা হয়েছে।
+            • প্রোফাইল ও অ্যাকাউন্ট পেজ ফিক্স: Edit Profile, Owner Profile, Add Hotel, Add Account, এবং Recycle Bin পেজগুলো সম্পূর্ণ এজ-টু-এজ Material 3 ডায়ালগে সাজানো হয়েছে।
+
+            ২. ⚡ "Disable Heavy Effects" টগল — ২টি মোড (Settings → Appearance)
+            • যখন টগল চালু (ON - Fastest Native Mode):
+              - ডেট ও টাইম পিকার সরাসরি অ্যান্ড্রয়েডের নেটিভ DatePickerDialog এবং TimePickerDialog ব্যবহার করে।
+              - মিটার ডায়াল (Bill ট্যাব) তাৎক্ষণিক '+' / '-' ডিজিটাল স্টেপার এবং কিপ্যাড ইনপুট ব্যবহার করে।
+              - সমস্ত ভারী অ্যানিমেশন বন্ধ থাকে (Android 8 ডিভাইসের জন্য সর্বোচ্চ গতি)।
+            • যখন টগল বন্ধ (OFF - Smooth Scrolling Cylinder Dial Mode):
+              - মিটার রিডিং (৬-চাকার ওডোমিটার) এবং ডেট/টাইম পিকারে স্মুথ স্ক্রলিং সিলিন্ডার ডায়াল (WheelPicker) এবং নেটিভ Material 3 অ্যানিমেশন সক্রিয় থাকে।
+
+            ৩. 📱 ট্যাবলেট উইন্ডো মোড (Lenovo Smart Connect ও Poco/Xiaomi Tablet)
+            • ট্যাবলেট ও ডেস্কটপ মোডে অ্যাপটি পুরো স্ক্রিনে ছড়িয়ে না গিয়ে ডিফল্টভাবে ফোন-অনুপাতের ফ্লোটিং উইন্ডো আকারে (420dp × 820dp, পোর্ট্রেট রেশিও) খোলে। সাধারণ মোবাইলে এটি স্বাভাবিক ফুল-স্ক্রিনে চলে।
+
+            ৪. 📡 উন্নত QR Sync Stream ও অফলাইন ব্যাকআপ
+            • নতুন ফুল-স্ক্রিন QR Sync Stream পেজে QR কোডটি আর কখনো কেটে যায় না—যেকোনো স্ক্রিনে সম্পূর্ণ বর্গাকার ও স্পষ্ট দেখায় এবং সহজেই Play/Pause ও FPS স্পিড নিয়ন্ত্রণ করা যায়।
+
+            ৫. 🛠️ GitHub Actions থেকে ম্যানুয়ালি (ক্লিক করে) APK ও AAB তৈরি করার নিয়ম
+            • অটোমেটিক বিল্ড বন্ধ করা হয়েছে—শুধুমাত্র আপনি ক্লিক করলেই বিল্ড শুরু হবে (JDK 21 ও Gradle 9.3.1 দ্বারা ফিক্সড)।
+            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → বাম পাশ থেকে "Build & Release Android App" নির্বাচন করুন → "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন:
+              - all (AAB + Universal APK + arm64-v8a APK)
+              - aab (Play Store রিলিজ বান্ডেল)
+              - universal-apk (সব ডিভাইসের জন্য APK)
+              - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও দ্রুত APK)
+
+            👨‍💻 ডেভেলপার ও ওপেন সোর্স:
+            GitHub: @suvadippatra (https://github.com/suvadippatra)
+            লাইসেন্স: Apache License 2.0
+        """.trimIndent() else """
+            Traker v1.3.0 (Pure Material 3 & Dual-Mode Speed Release)
+            Developed by @suvadippatra (GitHub)
+            © 2026 @suvadippatra. All rights reserved.
+
+            ───────────────────────────
+            📖 COMPLETE USER GUIDE & HOW TO USE
+            ───────────────────────────
+
+            1. 🎨 PURE MATERIAL 3 UI (ANDROID 8 TO LATEST ANDROID)
+            • Liquid Glass Removed Completely: Replaced all translucent glass layers and circular icon borders with clean, native Material Design 3 surfaces, standard icon buttons, and high-contrast typography across all 25 pages and popups.
+            • High-Contrast Light Mode & Centered Buttons: Fixed faint/invisible empty-state texts in Light Mode and centered text labels across all blue, green, and red action buttons.
+            • Fixed Profile, Hotel, Account & Bin Screens: Edit Profile, Owner Profile, Add Hotel, Add Account, Recycle Bin, and triple-dot (⋮) menus now render in crisp, non-overlapping Material 3 layouts with proper status bar padding.
+
+            2. ⚡ "DISABLE HEAVY EFFECTS" TOGGLE — DUAL-MODE BEHAVIOR
+            Go to Settings → Appearance & Visual Style → "Disable Heavy Effects & Use Native Controls":
+            • When ON (Fastest Native Mode — Default for Android 8):
+              - Uses instant Android OS native DatePickerDialog & TimePickerDialog.
+              - Uses the zero-lag '+' / '-' digital odometer stepper in the Bill Meter Reading dialog.
+              - Disables non-essential animations for maximum responsiveness.
+            • When OFF (Smooth Scrolling Cylinder Dial Mode):
+              - Restores the smooth scrollable cylindrical wheel dial (WheelPicker) in the 6-digit Bill Meter Odometer and Date/Time pickers along with smooth Material 3 animations.
+
+            3. 📱 TABLET WINDOWED LAUNCH (LENOVO SMART CONNECT & POCO/XIAOMI TABLETS)
+            • Configured with portrait orientation lock, fixed resizeableActivity=false, and a 420dp × 820dp window layout manifest declaration so Lenovo ZUI Smart Connect and Xiaomi HyperOS/Poco tablets automatically launch the app in a phone-sized floating window while standard phones open normally.
+
+            4. 📡 REDESIGNED QR SYNC STREAM & OFFLINE BACKUPS
+            • The QR Sync Stream page dynamically sizes the 1:1 square QR code container so the QR code is never clipped or cut off, and uses the top Back/Close actions alongside compact Play/Pause and FPS speed controls.
+
+            5. 🛠️ MANUAL CLICK-TO-RUN GITHUB ACTIONS APK & AAB WORKFLOW
+            • Automatic push/PR builds are disabled—compilation starts ONLY when you manually click "Run workflow" (upgraded to JDK 21 + Gradle 9.3.1 with fixed YAML syntax and automatic debug keystore fallback).
+            • Open your GitHub repository → "Actions" tab → "Build & Release Android App" → click "Run workflow" and choose:
+              - all (Play Store .aab + Universal .apk + arm64-v8a .apk)
+              - aab (Play Store Android App Bundle .aab)
+              - universal-apk (Universal APK for all CPU architectures)
+              - arm64-v8a-apk (Fast, compact 64-bit ARM APK)
+
+            👨‍💻 Developer & Open Source:
+            GitHub: @suvadippatra (https://github.com/suvadippatra)
+            License: Apache License 2.0
+        """.trimIndent()
+        "license" -> if (prefLanguage == "bn") """
+            এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
+            
+            আপনি লাইসেন্সের শর্তাবলী অনুযায়ী এই সফটওয়্যারটি ব্যবহার, বিতরণ এবং পরিবর্তন করতে পারেন।
+            
+            ব্যবহৃত থার্ড-পার্টি লাইব্রেরি:
+            - Jetpack Compose & Material Design 3
+            - Room Database
+            - Kotlin Coroutines
+            - ZXing QR Engine
+        """.trimIndent() else """
+            This application is licensed under the Apache License 2.0.
+            
+            You may use, distribute, and modify this software in accordance with the terms of the license.
+            
+            Third-party libraries used:
+            - Jetpack Compose & Material Design 3
+            - Room Database
+            - Kotlin Coroutines
+            - ZXing QR Engine
+        """.trimIndent()
+        "privacy" -> if (prefLanguage == "bn") """
+            আপনার প্রাইভেসি আমাদের কাছে সবচেয়ে গুরুত্বপূর্ণ।
+            
+            Traker একটি অফলাইন-ফার্স্ট অ্যাপ্লিকেশন। এর অর্থ:
+            ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ফোনেই সংরক্ষিত থাকে।
+            ২. কোনো আর্থিক তথ্য কোনো সার্ভারে পাঠানো হয় না।
+            ৩. আমরা আপনার কোনো ব্যক্তিগত তথ্য সংগ্রহ বা বিক্রি করি না।
+            
+            আপনার তথ্য সম্পূর্ণ আপনার নিয়ন্ত্রণে।
+        """.trimIndent() else """
+            Your privacy is our priority.
+            
+            Traker is an OFFLINE-FIRST application. This means:
+            1. All your data is stored locally on your device.
+            2. No financial data is sent to any external server.
+            3. We do not collect or sell your personal information.
+            
+            You are in full control of your data.
+        """.trimIndent()
+        else -> ""
+    }
+
+    val isLight = isAppLightMode()
+    val bgColor = if (isLight) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        containerColor = getDialogBackground(),
-        shape = RoundedCornerShape(28.dp),
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AsyncImage(
-                    model = com.example.R.drawable.app_logo,
-                    contentDescription = "App Logo",
-                    modifier = Modifier.size(36.dp).clip(CircleShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-                Text(title, color = AppTextColor(), fontWeight = FontWeight.Bold)
-            }
-        },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                val content = when (type) {
-                    "info" -> if (prefLanguage == "bn") """
-                        Traker v1.2.0 (Argon Android 8 High-Speed Release)
-                        ডেভেলপার: @suvadippatra (GitHub)
-                        © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
-
-                        ───────────────────────────
-                        📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
-                        ───────────────────────────
-
-                        ১. ⚡ Argon Modification — Android 8 ফাস্ট মোড ও ফ্ল্যাট মেটেরিয়াল ৩ ইউআই
-                        • সমস্ত ২৫টি পেজ ও পপআপে দ্রুত লোডিং: ওপেনিং সিন (হোটেল ট্যাব, খরচ ট্যাব, বিল ট্যাব, অ্যাপ লক) এবং সমস্ত সাব-স্ক্রিনে ভারী গ্র্যাডিয়েন্ট ও ট্রান্সলুসেন্ট ওভারড্র সরিয়ে ফ্ল্যাট মেটেরিয়াল ৩ (Material 3) সারফেস যুক্ত করা হয়েছে, যাতে Android 8 ডিভাইসেও কোনো ল্যাগ ছাড়াই মুহূর্তের মধ্যে পেজ লোড হয়।
-                        • পরিচিত লেআউট ও ফিচার অক্ষুণ্ণ: প্রতিটি কার্ডের গঠন, ৩-ডট মেনু (⋮), অ্যাকশন বাটন এবং প্রধান ফিচার একই জায়গায় রাখা হয়েছে।
-                        • ভারী ইফেক্ট বন্ধ ও নেটিভ কন্ট্রোল টগল: Settings → Appearance & Visuals থেকে "Disable Heavy Effects & Use Native Controls" অপশনটি চালু/বন্ধ করতে পারবেন।
-
-                        ২. 🗓️ নেটিভ অ্যান্ড্রয়েড ডেট/টাইম পিকার ও হালকা মিটার স্টেপার
-                        • নেটিভ ক্যালেন্ডার ও ঘড়ি: ভারী ৩ডি হুইল পিকারের বদলে অ্যান্ড্রয়েডের নেটিভ DatePickerDialog এবং TimePickerDialog যুক্ত করা হয়েছে, সাথে "Today", "Yesterday", "Now", "+1 Day", "-1 Day" কুইক চিপস।
-                        • ডিজিটাল ওডোমিটার স্টেপার (Bill ট্যাব): ৬-চাকার ভারী মিটার ডায়ালের পরিবর্তে জিরো-ল্যাগ ফ্ল্যাট মেটেরিয়াল ৩ ডিজিটাল স্টেপার ('+' / '-' বাটন) এবং সরাসরি কিবোর্ডে রিডিং লেখার জন্য "Type Reading" বাটন যুক্ত করা হয়েছে।
-
-                        ৩. 💰 ড্যাশবোর্ড, খাবার ও হোটেল ব্যয় ট্র্যাকিং (Hotels & Extras)
-                        • শিফট ও মেনু ট্র্যাকিং: ডে (দুপুর) এবং নাইট (রাত) শিফটে আলাদাভাবে খাবারের হিসাব রাখুন এবং কাস্টম মেনু পরিচালনা করুন।
-                        • মাল্টি-অ্যাকাউন্ট ও ব্যালেন্স: ক্যাশ, ব্যাঙ্ক ও ডিজিটাল ওয়ালেটের ব্যালেন্স, আয়/ব্যয় ও ট্রান্সফার এক নজরে পর্যবেক্ষণ করুন।
-
-                        ৪. 🔒 গোপনীয়তা, অফলাইন ব্যাকআপ ও কিউআর ট্রান্সফার
-                        • ১০০% অফলাইন ও নিরাপদ: আপনার সমস্ত তথ্য ডিভাইসেই সংরক্ষিত থাকে।
-                        • অফলাইন QR ট্রান্সফার ও JSON/CSV ব্যাকআপ: ইন্টারনেট ছাড়াই দ্রুত QR কোড বা ফাইল ব্যাকআপের মাধ্যমে ডাটা স্থানান্তর করুন।
-
-                        ৫. 🛠️ GitHub Actions থেকে ম্যানুয়ালি APK ও AAB তৈরি করার নিয়ম
-                        • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান।
-                        • বাম পাশ থেকে "Build & Release Android App" ওয়ার্কফ্লো নির্বাচন করুন।
-                        • "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন:
-                          - all (AAB + Universal APK + arm64-v8a APK)
-                          - aab (Play Store রিলিজ বান্ডেল)
-                          - universal-apk (সব ডিভাইসের জন্য APK)
-                          - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও দ্রুত APK)
-                        • বিল্ড শেষ হলে ওয়ার্কফ্লো সামারি পেজের নিচে থাকা "Artifacts" সেকশন থেকে ফাইলগুলো ডাউনলোড করুন।
-
-                        👨‍💻 ডেভেলপার ও ওপেন সোর্স:
-                        GitHub: @suvadippatra (https://github.com/suvadippatra)
-                        লাইসেন্স: Apache License 2.0
-                    """.trimIndent() else """
-                        Traker v1.2.0 (Argon Android 8 High-Speed Release)
-                        Developed by @suvadippatra (GitHub)
-                        © 2026 @suvadippatra. All rights reserved.
-
-                        ───────────────────────────
-                        📖 COMPLETE USER GUIDE & HOW TO USE
-                        ───────────────────────────
-
-                        1. ⚡ ARGON MODIFICATION — ANDROID 8 FAST MODE & FLAT M3 UI
-                        • Fast Flat Material 3 Surfaces Across All 25 Pages: Stripped heavy multi-stop gradients, continuous alpha animations, and translucent overdraw layers across all 4 opening scenes (Hotels Tab, Extras Tab, Bill Tab, App Lock) and all 21 secondary screens/modals while keeping the familiar layout, triple-dot (⋮) menus, and features 100% intact.
-                        • Settings Toggle: Go to Settings → Appearance & Visuals → "Disable Heavy Effects & Use Native Controls" (enabled by default) to use native Android pickers and disable heavy visual effects/animations on Android 8+.
-
-                        2. 🗓️ NATIVE ANDROID PICKERS & LIGHTWEIGHT METER STEPPER
-                        • Native Date & Time Dialogs: Replaced heavy 3D wheel pickers with instant Android OS DatePickerDialog and TimePickerDialog plus quick "Today", "Yesterday", "Now", "-1 Day", and "+1 Day" chips.
-                        • Digital Odometer Stepper (Bill Tab): Replaced the 6-wheel 3D cylinder dial with a zero-lag flat Material 3 digital stepper ('+' / '-' buttons per digit) plus a "Type Reading" button for direct decimal keypad entry.
-
-                        3. 💰 HOTEL MEALS, EXTRA EXPENSES & ACCOUNTS
-                        • Meal & Hotel Tracker: Log meals across Day/Night shifts, manage hotel menus, and track monthly food balances.
-                        • Multi-Account & Cashflow: Manage cash, bank, and wallet accounts with instant balance updates and category filtering.
-
-                        4. 🔒 PRIVACY, OFFLINE BACKUP & QR STREAMING
-                        • 100% Offline & Private: All financial data lives securely on your device.
-                        • Offline QR Stream & File Backups: Transfer databases via animated fountain QR codes or export/import JSON & CSV backups.
-
-                        5. 🛠️ HOW TO BUILD APK & AAB MANUALLY ON GITHUB
-                        • Open your repository on GitHub and click the "Actions" tab.
-                        • Select "Build & Release Android App" in the left sidebar and click "Run workflow".
-                        • Choose your desired Build Target:
-                          - all (Builds Play Store .aab + Universal .apk + arm64-v8a .apk)
-                          - aab (Play Store Android App Bundle .aab)
-                          - universal-apk (Universal APK supporting all CPU architectures)
-                          - arm64-v8a-apk (Lightweight, high-speed APK for 64-bit ARM devices)
-                        • Once the workflow finishes, scroll down to the "Artifacts" section on the workflow run page to download your compiled APKs/AAB, or enable "create_release" to attach them to a GitHub Release tag.
-
-                        👨‍💻 Developer & Open Source:
-                        GitHub: @suvadippatra (https://github.com/suvadippatra)
-                        License: Apache License 2.0
-                    """.trimIndent()
-                    "license" -> if (prefLanguage == "bn") """
-                        এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
-                        
-                        আপনি লাইসেন্সের শর্তাবলী অনুযায়ী এই সফটওয়্যারটি ব্যবহার, বিতরণ এবং পরিবর্তন করতে পারেন।
-                        
-                        ব্যবহৃত থার্ড-পার্টি লাইব্রেরি:
-                        - Jetpack Compose
-                        - Room Database
-                        - Kotlin Coroutines
-                        - Material Design 3
-                    """.trimIndent() else """
-                        This application is licensed under the Apache License 2.0.
-                        
-                        You may use, distribute, and modify this software in accordance with the terms of the license.
-                        
-                        Third-party libraries used:
-                        - Jetpack Compose
-                        - Room Database
-                        - Kotlin Coroutines
-                        - Material Design 3
-                    """.trimIndent()
-                    "privacy" -> if (prefLanguage == "bn") """
-                        আপনার প্রাইভেসি আমাদের কাছে সবচেয়ে গুরুত্বপূর্ণ।
-                        
-                        Traker একটি অফলাইন-ফার্স্ট অ্যাপ্লিকেশন। এর অর্থ:
-                        ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ফোনেই সংরক্ষিত থাকে।
-                        ২. কোনো আর্থিক তথ্য কোনো সার্ভারে পাঠানো হয় না।
-                        ৩. আমরা আপনার কোনো ব্যক্তিগত তথ্য সংগ্রহ বা বিক্রি করি না।
-                        
-                        আপনার তথ্য সম্পূর্ণ আপনার নিয়ন্ত্রণে।
-                    """.trimIndent() else """
-                        Your privacy is our priority.
-                        
-                        Traker is an OFFLINE-FIRST application. This means:
-                        1. All your data is stored locally on your device.
-                        2. No financial data is sent to any external server.
-                        3. We do not collect or sell your personal information.
-                        
-                        You are in full control of your data.
-                    """.trimIndent()
-                    else -> ""
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        com.example.ui.components.DialogEdgeToEdge()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = bgColor
+        ) {
+            Scaffold(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                containerColor = bgColor,
+                contentWindowInsets = WindowInsets(0.dp),
+                topBar = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = AppTextColor()
+                            )
+                        }
+                        AsyncImage(
+                            model = com.example.R.drawable.app_logo,
+                            contentDescription = "App Logo",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = title,
+                            color = AppTextColor(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = AppTextColor()
+                            )
+                        }
+                    }
                 }
-                Text(
-                    content,
-                    color = AppTextColor().copy(alpha = 0.8f),
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    if (prefLanguage == "bn") "বন্ধ করুন" else "Close",
-                    color = AppAccentColor(),
-                    fontWeight = FontWeight.Bold
-                )
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = getCardBackground(),
+                        border = BorderStroke(1.dp, getGlassBorder()),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = content,
+                            color = AppTextColor(),
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            modifier = Modifier.padding(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
-    )
+    }
 }
 
 

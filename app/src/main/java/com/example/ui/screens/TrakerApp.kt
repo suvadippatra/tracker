@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.ui.screens
 import com.example.ui.components.*
 import com.example.ui.screens.accounts.AccountManagerScreen
@@ -204,16 +205,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     var isUnlocked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var initialLockChecked by remember { mutableStateOf(false) }
 
-    val isGlass = userProfile.enableLiquidGlassTheme && !userProfile.disableHeavyEffects
-    val isLight = if (!isGlass) {
-        if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
-    } else {
-        when (userProfile.bgPreset) {
-            "Soft Minimal Light" -> true
-            "Midnight Blue", "Emerald Dark", "Sunset Warm", "Purple Twilight" -> false
-            else -> if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
-        }
-    }
+    val isLight = if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
         androidx.compose.runtime.SideEffect {
@@ -260,7 +252,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         LocalAppTheme provides userProfile.themeMode,
         LocalAppBgPreset provides userProfile.bgPreset,
         LocalAppCustomBgUri provides userProfile.customBgUri,
-        LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme,
+        LocalAppLiquidGlassTheme provides false,
         LocalDisableHeavyEffects provides userProfile.disableHeavyEffects,
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
@@ -270,32 +262,13 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         MyApplicationTheme(
             darkTheme = !isAppLightMode(),
             preset = userProfile.bgPreset,
-            isLiquidGlass = userProfile.enableLiquidGlassTheme && !userProfile.disableHeavyEffects
+            isLiquidGlass = false
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(getAppBackgroundGradient())
             ) {
-                if (userProfile.customBgUri.isNotBlank()) {
-                    coil.compose.AsyncImage(
-                        model = userProfile.customBgUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                if (isAppLightMode()) Color.White.copy(alpha = 0.40f)
-                                else Color.Black.copy(alpha = 0.50f)
-                            )
-                    )
-                }
-                if (!userProfile.disableHeavyEffects && userProfile.enableLiquidGlassTheme && userProfile.enableStarAnimation && userProfile.customBgUri.isBlank()) {
-                    MovingStarsBackground(isLight = isAppLightMode())
-                }
                 if (showLockScreen) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         AppLockScreen(

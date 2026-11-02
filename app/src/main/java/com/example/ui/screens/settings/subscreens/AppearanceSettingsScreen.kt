@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,8 +38,6 @@ fun AppearanceSettingsScreen(
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val prefLanguage = userProfile.language
 
-    val isGlassEnabled = userProfile.enableLiquidGlassTheme
-
     val themeModes = listOf(
         Triple("Auto", if (prefLanguage == "bn") "সিস্টেম অনুযায়ী (অটো)" else "System Default (Auto)", Icons.Default.BrightnessAuto),
         Triple("Dark", if (prefLanguage == "bn") "ডার্ক মোড (পিওর ব্ল্যাক)" else "Dark Mode (Pure Black)", Icons.Default.DarkMode),
@@ -54,22 +51,6 @@ fun AppearanceSettingsScreen(
     )
 
     val isLightMode = isAppLightMode()
-
-    val bgPresets = if (isLightMode) {
-        listOf(
-            Triple("Soft Minimal Light", if (prefLanguage == "bn") "সফট মিনিমাল লাইট" else "Soft Minimal", listOf(Color(0xFFF8FAFC), Color(0xFFE2E8F0))),
-            Triple("Sunset Warm", if (prefLanguage == "bn") "সানসেট ওয়ার্ম" else "Sunset Warm", listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5))),
-            Triple("Midnight Blue", if (prefLanguage == "bn") "ওশান গ্লো" else "Ocean Glow", listOf(Color(0xFFF0F9FF), Color(0xFFE0F2FE)))
-        )
-    } else {
-        listOf(
-            Triple("Default", if (prefLanguage == "bn") "পিওর ব্ল্যাক" else "Pure Black", listOf(Color(0xFF000000), Color(0xFF101010))),
-            Triple("Midnight Blue", if (prefLanguage == "bn") "মিডনাইট ব্লু" else "Midnight Blue", listOf(Color(0xFF0F172A), Color(0xFF0284C7))),
-            Triple("Emerald Dark", if (prefLanguage == "bn") "ইমারেল্ড ডার্ক" else "Emerald Dark", listOf(Color(0xFF064E3B), Color(0xFF0F766E))),
-            Triple("Sunset Warm", if (prefLanguage == "bn") "সানসেট ওয়ার্ম" else "Sunset Warm", listOf(Color(0xFF451A03), Color(0xFF9A3412))),
-            Triple("Purple Twilight", if (prefLanguage == "bn") "পার্পল টুইলাইট" else "Purple Twilight", listOf(Color(0xFF2E1065), Color(0xFF581C87)))
-        )
-    }
 
     val m3AccentPresets = if (isLightMode) {
         listOf(
@@ -97,35 +78,22 @@ fun AppearanceSettingsScreen(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. Performance & Android 8 Mode + Visual Style
+        // 1. Performance & Dial Control Mode
         item {
-            PixelSettingsGroup(title = if (prefLanguage == "bn") "পারফরম্যান্স ও ইউজার ইন্টারফেস স্টাইল" else "Performance & Visual Style") {
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "পারফরম্যান্স ও পিকার কন্ট্রোল" else "Performance & Picker Controls") {
                 PixelSettingsSwitchItem(
                     icon = Icons.Default.Speed,
                     title = if (prefLanguage == "bn") "ভারী ইফেক্ট বন্ধ ও নেটিভ কন্ট্রোল (Android 8 ফাস্ট মোড)" else "Disable Heavy Effects & Use Native Controls",
                     subtitle = if (prefLanguage == "bn") {
-                        "অ্যান্ড্রয়েড ৮+ এ দ্রুত গতির জন্য ফ্ল্যাট মেটেরিয়াল ৩ সারফেস, নেটিভ ডেট/টাইম পিকার ও হালকা ডিজিটাল স্টেপার ব্যবহার করুন"
+                        "চালু (ON): নেটিভ ডেট/টাইম ডায়ালগ ও +/- ডিজিটাল স্টেপার (সবচেয়ে দ্রুত)। বন্ধ (OFF): স্ক্রলযোগ্য সিলিন্ডার হুইল ডায়াল ও নেটিভ অ্যানিমেশন।"
                     } else {
-                        "Use flat Material 3 surfaces, native Android date/time dialogs, and lightweight controls for instant response on Android 8+"
+                        "ON: Instant native Android Date/Time dialogs & +/- digital stepper. OFF: Scrollable cylindrical wheel dials & smooth native animations."
                     },
                     checked = userProfile.disableHeavyEffects,
                     onCheckedChange = { isChecked ->
                         viewModel.toggleDisableHeavyEffects(isChecked)
                     },
-                    showDivider = true
-                )
-                PixelSettingsSwitchItem(
-                    icon = Icons.Default.BlurOn,
-                    title = if (prefLanguage == "bn") "লিকুইড গ্লাস স্টাইল" else "Liquid Glass Visual Style",
-                    subtitle = if (prefLanguage == "bn") {
-                        "স্বচ্ছ গ্লাসমরফিজম ও অ্যাম্বিয়েন্ট গ্র্যাডিয়েন্ট ব্যাকগ্রাউন্ড সক্ষম করুন"
-                    } else {
-                        "Enable translucent glassmorphism and ambient gradient backdrops"
-                    },
-                    checked = isGlassEnabled && !userProfile.disableHeavyEffects,
-                    onCheckedChange = { isChecked ->
-                        viewModel.toggleLiquidGlassTheme(isChecked)
-                    }
+                    showDivider = false
                 )
             }
         }
@@ -194,130 +162,65 @@ fun AppearanceSettingsScreen(
             }
         }
 
-        // 4. Ambient Backgrounds / Material 3 Accent Palette
+        // 4. Material 3 Accent Palette
         item {
-            if (isGlassEnabled) {
-                PixelSettingsGroup(title = if (prefLanguage == "bn") "অ্যাম্বিয়েন্ট ব্যাকগ্রাউন্ড প্রিসেট" else "Ambient Glass Backgrounds") {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        bgPresets.chunked(2).forEach { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                row.forEach { (presetKey, label, colors) ->
-                                    val isSelected = userProfile.bgPreset == presetKey || (presetKey == "Default" && userProfile.bgPreset.isBlank())
-                                    val appAccent = AppAccentColor()
-                                    Row(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(50.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Brush.horizontalGradient(colors))
-                                            .border(
-                                                width = if (isSelected) 2.dp else 1.dp,
-                                                color = if (isSelected) appAccent else Color.White.copy(alpha = 0.25f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.saveUserProfile(userProfile.copy(bgPreset = presetKey))
-                                            }
-                                            .padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            modifier = Modifier.weight(1f)
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "মেটেরিয়াল ৩ কালার প্যালেট" else "Material 3 Accent Colors") {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    m3AccentPresets.chunked(2).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            row.forEach { (accentKey, label, color) ->
+                                val isSelected = userProfile.bgPreset == accentKey || (userProfile.bgPreset == "Default" && accentKey == "M3 Ocean Blue")
+                                val isLight = isAppLightMode()
+                                val itemBg = if (isSelected) color.copy(alpha = if (isLight) 0.12f else 0.20f) else getSettingsItemBg()
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(itemBg)
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) color else getGlassBorder(),
+                                            shape = RoundedCornerShape(12.dp)
                                         )
-                                        if (isSelected) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .background(appAccent),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
+                                        .clickable {
+                                            viewModel.saveUserProfile(userProfile.copy(bgPreset = accentKey))
                                         }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = label,
+                                        color = AppTextColor(),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = color,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
-                                }
-                                if (row.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        }
-                    }
-                }
-            } else {
-                PixelSettingsGroup(title = if (prefLanguage == "bn") "মেটেরিয়াল ৩ কালার প্যালেট" else "Material 3 Accent Colors") {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        m3AccentPresets.chunked(2).forEach { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                row.forEach { (accentKey, label, color) ->
-                                    val isSelected = userProfile.bgPreset == accentKey || (userProfile.bgPreset == "Default" && accentKey == "M3 Ocean Blue")
-                                    val isLight = isAppLightMode()
-                                    val itemBg = if (isSelected) color.copy(alpha = if (isLight) 0.12f else 0.20f) else getSettingsItemBg()
-                                    Row(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(itemBg)
-                                            .border(
-                                                width = if (isSelected) 1.5.dp else 1.dp,
-                                                color = if (isSelected) color else getGlassBorder(),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.saveUserProfile(userProfile.copy(bgPreset = accentKey))
-                                            }
-                                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .clip(CircleShape)
-                                                .background(color)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = label,
-                                            color = AppTextColor(),
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (isSelected) {
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = color,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                if (row.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
+                            if (row.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -325,22 +228,9 @@ fun AppearanceSettingsScreen(
             }
         }
 
-        // 5. Animation & Interface Features
+        // 5. Interface Features
         item {
-            PixelSettingsGroup(title = if (prefLanguage == "bn") "অ্যানিমেশন ও ইন্টারফেস" else "Animation & Interface Controls") {
-                if (isGlassEnabled) {
-                    PixelSettingsSwitchItem(
-                        icon = Icons.Default.AutoAwesome,
-                        title = if (prefLanguage == "bn") "ব্যাকগ্রাউন্ড স্টার অ্যানিমেশন" else "Ambient Star Animation",
-                        subtitle = if (prefLanguage == "bn") "পটভূমিতে মৃদু নক্ষত্র প্রভাব" else "Subtle background sparkle effect",
-                        checked = userProfile.enableStarAnimation,
-                        onCheckedChange = { isChecked ->
-                            viewModel.saveUserProfile(userProfile.copy(enableStarAnimation = isChecked))
-                        },
-                        showDivider = true
-                    )
-                }
-
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "ইন্টারফেস ও অর্ডার সেটিংস" else "Interface & Order Controls") {
                 PixelSettingsSwitchItem(
                     icon = Icons.Default.RestaurantMenu,
                     title = if (prefLanguage == "bn") "সাপ্লিমেন্টারি অ্যাড-অন" else "Supplementary Add-ons",

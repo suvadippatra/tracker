@@ -1,3 +1,4 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 package com.example.ui.viewmodel
 
 import androidx.compose.runtime.getValue

@@ -2,28 +2,26 @@ package com.example.ui.components
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.data.QrFountainEncoder
 import com.example.data.ExportResult
+import com.example.data.QrFountainEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -49,14 +47,13 @@ fun QrExportStreamDialog(
     val encoder = remember { QrFountainEncoder(exportData.payload, sessionId, exportData.key, exportData.iv) }
     var packetIndex by remember { mutableIntStateOf(0) }
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    
-    // Initially paused as required: user must click start QR frames to start streaming
+
+    // Initially paused so user can align scanner before starting stream
     var isPaused by remember { mutableStateOf(true) }
     var hasStarted by remember { mutableStateOf(false) }
 
     val cycleSize = encoder.k + 2
 
-    // Auto-calculate optimal FPS based on total chunks
     val optimalFps = remember(encoder.k) {
         when {
             encoder.k < 15 -> 10f
@@ -93,7 +90,33 @@ fun QrExportStreamDialog(
     val accentColor = AppAccentColor()
     val textColor = AppTextColor()
     val secondaryTextColor = AppSecondaryTextColor()
-    val bgGradient = getAppBackgroundGradient()
+    val surfaceBg = if (isLight) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+
+    val displayItemName = remember(itemName) {
+        if (itemName.startsWith("sending", ignoreCase = true)) {
+            itemName
+        } else {
+            "Sending: $itemName"
+        }
+    }
+
+    val statusBgColor = when {
+        !hasStarted -> if (isLight) Color(0xFF0284C7).copy(alpha = 0.12f) else Color(0xFF38BDF8).copy(alpha = 0.18f)
+        isPaused -> if (isLight) Color(0xFFD97706).copy(alpha = 0.12f) else Color(0xFFFBBF24).copy(alpha = 0.18f)
+        else -> if (isLight) Color(0xFF16A34A).copy(alpha = 0.12f) else Color(0xFF4ADE80).copy(alpha = 0.18f)
+    }
+    val statusTextColor = when {
+        !hasStarted -> if (isLight) Color(0xFF0369A1) else Color(0xFF38BDF8)
+        isPaused -> if (isLight) Color(0xFFB45309) else Color(0xFFFBBF24)
+        else -> if (isLight) Color(0xFF15803D) else Color(0xFF4ADE80)
+    }
+
+    val cyclePos = packetIndex % cycleSize
+    val frameLabel = when {
+        cyclePos == 0 -> "INIT Header"
+        cyclePos <= encoder.k -> "Chunk $cyclePos / ${encoder.k}"
+        else -> "Recovery Packet"
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -107,444 +130,180 @@ fun QrExportStreamDialog(
         com.example.ui.components.DialogEdgeToEdge()
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color.Transparent
+            color = surfaceBg
         ) {
-            Box(
+            Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(bgGradient)
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Modern Custom Header / Top Bar
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                containerColor = surfaceBg,
+                contentWindowInsets = WindowInsets(0.dp),
+                topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = textColor
                             )
                         }
-                        
+
                         Text(
                             text = "QR Sync Stream",
                             color = textColor,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
                             modifier = Modifier.weight(1f)
                         )
-                        
-                        // Transparent spacer to balance the back button
-                        Spacer(modifier = Modifier.width(48.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = statusBgColor
+                        ) {
+                            Text(
+                                text = when {
+                                    !hasStarted -> "READY"
+                                    isPaused -> "PAUSED"
+                                    else -> "STREAMING"
+                                },
+                                color = statusTextColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = textColor
+                            )
+                        }
                     }
+                }
+            ) { innerPadding ->
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    val isLandscape = maxWidth > maxHeight
 
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .navigationBarsPadding()
-                    ) {
-                        val isLandscape = maxWidth > maxHeight
-                        
-                        // Format display name as "sending [itemName]"
-                        val displayItemName = remember(itemName) {
-                            if (itemName.startsWith("sending", ignoreCase = true)) {
-                                itemName
-                            } else {
-                                "sending $itemName"
-                            }
-                        }
-
-                        // Theme-sensitive status pills and banners
-                        val statusBgColor = when {
-                            !hasStarted -> if (isLight) Color(0xFF0070F3).copy(alpha = 0.12f) else Color(0xFF00E5FF).copy(alpha = 0.18f)
-                            isPaused -> if (isLight) Color(0xFFE65100).copy(alpha = 0.12f) else Color(0xFFFF9800).copy(alpha = 0.18f)
-                            else -> if (isLight) Color(0xFF2E7D32).copy(alpha = 0.12f) else Color(0xFF4CAF50).copy(alpha = 0.18f)
-                        }
-                        val statusTextColor = when {
-                            !hasStarted -> if (isLight) Color(0xFF0070F3) else Color(0xFF00E5FF)
-                            isPaused -> if (isLight) Color(0xFFE65100) else Color(0xFFFFB74D)
-                            else -> if (isLight) Color(0xFF2E7D32) else Color(0xFF81C784)
-                        }
-                        val bannerBgColor = if (isLight) accentColor.copy(alpha = 0.1f) else Color(0xFF1E2330)
-                        val bannerTextColor = if (isLight) accentColor else Color(0xFF00E5FF)
-
-                        if (isLandscape) {
-                            // Landscape Layout: Side-by-Side horizontal columns
-                            Row(
+                    if (isLandscape) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left: Unclipped Square QR Code Box
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                // Left Pane: Info, Status, Controls, Close Button
-                                Column(
+                                Surface(
                                     modifier = Modifier
-                                        .weight(1.2f)
-                                        .fillMaxHeight()
-                                        
-                                        .padding(end = 16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    // Status Pill
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = statusBgColor
-                                    ) {
-                                        Text(
-                                            text = when {
-                                                !hasStarted -> "READY"
-                                                isPaused -> "PAUSED"
-                                                else -> "STREAMING"
-                                            },
-                                            color = statusTextColor,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    // Sending Information Banner
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = bannerBgColor,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Text(
-                                                text = displayItemName,
-                                                color = bannerTextColor,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                            val cyclePos = packetIndex % cycleSize
-                                            val frameLabel = when {
-                                                cyclePos == 0 -> "INIT Header"
-                                                cyclePos <= encoder.k -> "Chunk $cyclePos/${encoder.k}"
-                                                else -> "Recovery"
-                                            }
-                                            Text(
-                                                text = frameLabel,
-                                                color = secondaryTextColor,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
-
-                                    // Controls Panel
-                                    Row(
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        IconButton(
-                                            onClick = { if (packetIndex > 0) packetIndex-- },
-                                            enabled = isPaused && packetIndex > 0,
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (isPaused && packetIndex > 0) {
-                                                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF232838)
-                                                    } else {
-                                                        if (isLight) Color.Black.copy(alpha = 0.03f) else Color(0xFF191D28)
-                                                    }
-                                                )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                                contentDescription = "Previous Frame",
-                                                tint = if (isPaused && packetIndex > 0) textColor else secondaryTextColor.copy(alpha = 0.3f),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.width(12.dp))
-
-                                        Button(
-                                            onClick = {
-                                                if (!hasStarted) {
-                                                    hasStarted = true
-                                                    isPaused = false
-                                                } else {
-                                                    isPaused = !isPaused
-                                                }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = when {
-                                                    !hasStarted -> accentColor
-                                                    isPaused -> accentColor
-                                                    else -> if (isLight) Color(0xFFE65100) else Color(0xFFFF9800)
-                                                },
-                                                contentColor = if (isLight) Color.White else Color.Black
-                                            ),
-                                            shape = RoundedCornerShape(12.dp),
-                                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (!hasStarted || isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = when {
-                                                    !hasStarted -> "Start QR Frames"
-                                                    isPaused -> "Resume Frames"
-                                                    else -> "Pause"
-                                                },
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.width(12.dp))
-
-                                        IconButton(
-                                            onClick = { packetIndex++ },
-                                            enabled = isPaused,
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (isPaused) {
-                                                        if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF232838)
-                                                    } else {
-                                                        if (isLight) Color.Black.copy(alpha = 0.03f) else Color(0xFF191D28)
-                                                    }
-                                                )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                                contentDescription = "Next Frame",
-                                                tint = if (isPaused) textColor else secondaryTextColor.copy(alpha = 0.3f),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-
-                                    // Speed Slider
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "Speed: ${fps.toInt()} FPS",
-                                            color = accentColor,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Slider(
-                                            value = fps,
-                                            onValueChange = { fps = it },
-                                            valueRange = 1f..15f,
-                                            steps = 13,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(30.dp),
-                                            colors = SliderDefaults.colors(
-                                                thumbColor = accentColor,
-                                                activeTrackColor = accentColor,
-                                                inactiveTrackColor = if (isLight) Color.Black.copy(alpha = 0.1f) else Color(0xFF2A3040)
-                                            )
-                                        )
-                                    }
-
-                                    
-
-                                    // Close Action
-                                    OutlinedButton(
-                                        onClick = onDismiss,
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252)),
-                                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFFF5252).copy(alpha = 0.5f)),
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(44.dp)
-                                    ) {
-                                        Text(
-                                            "Close Transfer",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
-                                        )
-                                    }
-                                }
-
-                                // Right Pane: QR Code Area (Fills available height)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                    contentAlignment = Alignment.Center
+                                        .fillMaxHeight(0.92f)
+                                        .aspectRatio(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.5.dp, getGlassBorder()),
+                                    shadowElevation = 2.dp
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxHeight(0.95f)
-                                            .aspectRatio(1f)
-                                            .clip(RoundedCornerShape(18.dp))
-                                            .background(Color.White)
-                                            .padding(16.dp),
+                                            .fillMaxSize()
+                                            .padding(12.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (currentBitmap != null) {
                                             Image(
                                                 bitmap = currentBitmap!!.asImageBitmap(),
                                                 contentDescription = "QR Stream Frame",
-                                                modifier = Modifier.fillMaxSize()
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit
                                             )
                                         } else {
                                             CircularProgressIndicator(
                                                 color = accentColor,
                                                 strokeWidth = 3.dp,
-                                                modifier = Modifier.size(44.dp)
+                                                modifier = Modifier.size(40.dp)
                                             )
                                         }
                                     }
                                 }
                             }
-                        } else {
-                            // Portrait Layout: Stacked vertically with dynamic QR sizing
+
+                            // Right: Stream Info & Controls
                             Column(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // Status Pill
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = statusBgColor
-                                ) {
-                                    Text(
-                                        text = when {
-                                            !hasStarted -> "READY"
-                                            isPaused -> "PAUSED"
-                                            else -> "STREAMING"
-                                        },
-                                        color = statusTextColor,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                                    )
-                                }
-
-                                // Sending Information Banner
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = bannerBgColor,
+                                    color = getCardBackground(),
+                                    border = BorderStroke(1.dp, getGlassBorder()),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier.padding(12.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
                                             text = displayItemName,
-                                            color = bannerTextColor,
-                                            fontSize = 13.sp,
+                                            color = accentColor,
+                                            fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             textAlign = TextAlign.Center,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        val cyclePos = packetIndex % cycleSize
-                                        val frameLabel = when {
-                                            cyclePos == 0 -> "INIT Header"
-                                            cyclePos <= encoder.k -> "Chunk $cyclePos/${encoder.k}"
-                                            else -> "Recovery"
-                                        }
                                         Text(
                                             text = frameLabel,
                                             color = secondaryTextColor,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                 }
 
-                                // Middle Section: QR Code Area (Dynamic expansion to remaining space)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxHeight()
-                                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(Color.White)
-                                            .padding(10.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (currentBitmap != null) {
-                                            Image(
-                                                bitmap = currentBitmap!!.asImageBitmap(),
-                                                contentDescription = "QR Stream Frame",
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            CircularProgressIndicator(
-                                                color = accentColor,
-                                                strokeWidth = 3.dp,
-                                                modifier = Modifier.size(36.dp)
-                                            )
-                                        }
-                                    }
-                                }
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                                // Controls: tightly packed horizontal row
                                 Row(
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    IconButton(
+                                    FilledTonalIconButton(
                                         onClick = { if (packetIndex > 0) packetIndex-- },
                                         enabled = isPaused && packetIndex > 0,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isPaused && packetIndex > 0) {
-                                                    if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF232838)
-                                                } else {
-                                                    if (isLight) Color.Black.copy(alpha = 0.03f) else Color(0xFF191D28)
-                                                }
-                                            )
+                                        modifier = Modifier.size(44.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Previous Frame",
-                                            tint = if (isPaused && packetIndex > 0) textColor else secondaryTextColor.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(18.dp)
+                                            contentDescription = "Previous Frame"
                                         )
                                     }
-
-                                    Spacer(modifier = Modifier.width(10.dp))
 
                                     Button(
                                         onClick = {
@@ -556,102 +315,261 @@ fun QrExportStreamDialog(
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = when {
-                                                !hasStarted -> accentColor
-                                                isPaused -> accentColor
-                                                else -> if (isLight) Color(0xFFE65100) else Color(0xFFFF9800)
-                                            },
-                                            contentColor = if (isLight) Color.White else Color.Black
+                                            containerColor = if (!hasStarted || isPaused) accentColor else Color(0xFFE65100),
+                                            contentColor = if (!hasStarted || isPaused) AppOnAccentColor(accentColor) else Color.White
                                         ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                                        modifier = Modifier.height(36.dp)
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.height(44.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (!hasStarted || isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
-                                        Spacer(Modifier.width(6.dp))
+                                        Spacer(Modifier.width(8.dp))
                                         Text(
                                             text = when {
-                                                !hasStarted -> "Start QR Frames"
-                                                isPaused -> "Resume Frames"
-                                                else -> "Pause"
+                                                !hasStarted -> "Start QR Stream"
+                                                isPaused -> "Resume Stream"
+                                                else -> "Pause Stream"
                                             },
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
+                                            fontSize = 13.sp
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(10.dp))
-
-                                    IconButton(
+                                    FilledTonalIconButton(
                                         onClick = { packetIndex++ },
                                         enabled = isPaused,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isPaused) {
-                                                    if (isLight) Color.Black.copy(alpha = 0.08f) else Color(0xFF232838)
-                                                } else {
-                                                    if (isLight) Color.Black.copy(alpha = 0.03f) else Color(0xFF191D28)
-                                                }
-                                            )
+                                        modifier = Modifier.size(44.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = "Next Frame",
-                                            tint = if (isPaused) textColor else secondaryTextColor.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(18.dp)
+                                            contentDescription = "Next Frame"
                                         )
                                     }
                                 }
 
-                                // Compact Speed Slider
+                                Spacer(modifier = Modifier.height(14.dp))
+
                                 Column(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        text = "Speed: ${fps.toInt()} FPS",
-                                        color = accentColor,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = "Stream Speed: ${fps.toInt()} FPS",
+                                        color = textColor,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                     Slider(
                                         value = fps,
                                         onValueChange = { fps = it },
                                         valueRange = 1f..15f,
                                         steps = 13,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(24.dp),
+                                        modifier = Modifier.fillMaxWidth(),
                                         colors = SliderDefaults.colors(
                                             thumbColor = accentColor,
-                                            activeTrackColor = accentColor,
-                                            inactiveTrackColor = if (isLight) Color.Black.copy(alpha = 0.1f) else Color(0xFF2A3040)
+                                            activeTrackColor = accentColor
                                         )
                                     )
                                 }
-
-                                // Compact Close Action
-                                OutlinedButton(
-                                    onClick = onDismiss,
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252)),
-                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFF5252).copy(alpha = 0.5f)),
-                                    shape = RoundedCornerShape(10.dp),
+                            }
+                        }
+                    } else {
+                        // Portrait Layout: Clean Material 3 vertical stack with guaranteed unclipped QR Code
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Top Info Card
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = getCardBackground(),
+                                border = BorderStroke(1.dp, getGlassBorder()),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(40.dp)
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        "Close Transfer",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = displayItemName,
+                                            color = textColor,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "Point receiver camera at QR code below",
+                                            color = secondaryTextColor,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = accentColor.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            text = frameLabel,
+                                            color = accentColor,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Center QR Code Container — Guaranteed 1:1 Square without clipping on any screen
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val qrSide = minOf(maxWidth * 0.90f, maxHeight * 0.96f)
+                                Surface(
+                                    modifier = Modifier.size(qrSide),
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.5.dp, getGlassBorder()),
+                                    shadowElevation = 2.dp
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(14.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (currentBitmap != null) {
+                                            Image(
+                                                bitmap = currentBitmap!!.asImageBitmap(),
+                                                contentDescription = "QR Stream Frame",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                        } else {
+                                            CircularProgressIndicator(
+                                                color = accentColor,
+                                                strokeWidth = 3.dp,
+                                                modifier = Modifier.size(40.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom Controls Card
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = getCardBackground(),
+                                border = BorderStroke(1.dp, getGlassBorder()),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        FilledTonalIconButton(
+                                            onClick = { if (packetIndex > 0) packetIndex-- },
+                                            enabled = isPaused && packetIndex > 0,
+                                            modifier = Modifier.size(44.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                                contentDescription = "Previous Frame"
+                                            )
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                if (!hasStarted) {
+                                                    hasStarted = true
+                                                    isPaused = false
+                                                } else {
+                                                    isPaused = !isPaused
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (!hasStarted || isPaused) accentColor else Color(0xFFE65100),
+                                                contentColor = if (!hasStarted || isPaused) AppOnAccentColor(accentColor) else Color.White
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (!hasStarted || isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = when {
+                                                    !hasStarted -> "Start QR Frames"
+                                                    isPaused -> "Resume Frames"
+                                                    else -> "Pause Stream"
+                                                },
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        FilledTonalIconButton(
+                                            onClick = { packetIndex++ },
+                                            enabled = isPaused,
+                                            modifier = Modifier.size(44.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                contentDescription = "Next Frame"
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            text = "Speed: ${fps.toInt()} FPS",
+                                            color = textColor,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Slider(
+                                            value = fps,
+                                            onValueChange = { fps = it },
+                                            valueRange = 1f..15f,
+                                            steps = 13,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(28.dp),
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = accentColor,
+                                                activeTrackColor = accentColor
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
