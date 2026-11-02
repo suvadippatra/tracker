@@ -606,18 +606,24 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                             )
                         }
 
-                        val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                        val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                        val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                        
-                        Box(
-                            modifier = Modifier
+                        val disableHeavy = isHeavyEffectsDisabled()
+                        val pageModifier = if (disableHeavy) {
+                            Modifier.fillMaxWidth()
+                        } else {
+                            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                            val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                            val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                            Modifier
                                 .fillMaxWidth()
                                 .graphicsLayer {
                                     scaleX = scale
                                     scaleY = scale
                                     this.alpha = alpha
                                 }
+                        }
+                        
+                        Box(
+                            modifier = pageModifier
                         ) {
                             GlassCard(
                                 modifier = Modifier

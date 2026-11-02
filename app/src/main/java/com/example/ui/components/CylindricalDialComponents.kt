@@ -1,24 +1,34 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
@@ -29,91 +39,144 @@ fun MeterDialPicker(
     textColor: Color = AppTextColor(),
     accentColor: Color = AccentCyan
 ) {
-    val formattedValue = String.format(Locale.US, "%07.2f", initialValue)
-    val initialDigits = formattedValue.replace(".", "").map { it.toString().toInt() }
-    
-    // Local state for digits to ensure independence during interaction
+    val formattedValue = remember(initialValue) { String.format(Locale.US, "%07.2f", initialValue.coerceIn(0.0, 9999.99)) }
+    val initialDigits = remember(formattedValue) {
+        formattedValue.replace(".", "").map { it.digitToIntOrNull() ?: 0 }
+    }
+
     val digits = remember { mutableStateListOf<Int>().apply { addAll(initialDigits) } }
-    
-    // Sync with external value changes (e.g. if parent resets)
+
     LaunchedEffect(initialValue) {
         val currentFormatted = String.format(Locale.US, "%07.2f", assembleDouble(digits))
-        if (currentFormatted != formattedValue) {
+        if (currentFormatted != formattedValue && initialDigits.size == 6) {
             digits.clear()
             digits.addAll(initialDigits)
         }
     }
 
-    var showEditDialog by remember { mutableStateOf<Int?>(null) }
-    
-    Row(
+    var showFullValueDialog by remember { mutableStateOf(false) }
+    var editingDigitIndex by remember { mutableStateOf<Int?>(null) }
+
+    val isGlass = isLiquidGlassEnabled()
+    val isLight = isAppLightMode()
+    val cardBg = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    } else {
+        if (isLight) Color.White.copy(alpha = 0.55f) else Color(0xFF1E2638).copy(alpha = 0.65f)
+    }
+    val borderCol = if (!isGlass) {
+        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    } else {
+        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
+    }
+
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Thousands, Hundreds, Tens, Units
-        for (i in 0 until 4) {
-            DialDigit(
-                modifier = Modifier.weight(1f).padding(horizontal = 1.5.dp),
-                value = digits[i],
-                onValueChange = { newValue ->
-                    digits[i] = newValue
-                    onValueChange(assembleDouble(digits))
-                },
-                onDoubleTap = { showEditDialog = i },
-                textColor = textColor,
-                accentColor = accentColor
-            )
-        }
-        
-        Box(
-            modifier = Modifier
-                .height(120.dp)
-                .padding(horizontal = 2.dp),
-            contentAlignment = Alignment.Center
+        // Lightweight Odometer Digit Stepper Row (Zero LazyColumn / Zero 3D graphicsLayer lag)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            for (i in 0 until 4) {
+                LightweightDigitStepper(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp),
+                    value = digits.getOrElse(i) { 0 },
+                    onValueChange = { newVal ->
+                        digits[i] = newVal
+                        onValueChange(assembleDouble(digits))
+                    },
+                    onTapDigit = { editingDigitIndex = i },
+                    textColor = textColor,
+                    accentColor = accentColor,
+                    containerBg = cardBg,
+                    containerBorder = borderCol,
+                    isDecimal = false
+                )
+            }
+
             Text(
                 text = ".",
                 color = accentColor,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 2.dp)
             )
+
+            for (i in 4 until 6) {
+                LightweightDigitStepper(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp),
+                    value = digits.getOrElse(i) { 0 },
+                    onValueChange = { newVal ->
+                        digits[i] = newVal
+                        onValueChange(assembleDouble(digits))
+                    },
+                    onTapDigit = { editingDigitIndex = i },
+                    textColor = textColor,
+                    accentColor = accentColor,
+                    containerBg = cardBg,
+                    containerBorder = borderCol,
+                    isDecimal = true
+                )
+            }
         }
-        
-        // Tenths, Hundredths
-        for (i in 4 until 6) {
-            DialDigit(
-                modifier = Modifier.weight(1f).padding(horizontal = 1.5.dp),
-                value = digits[i],
-                onValueChange = { newValue ->
-                    digits[i] = newValue
-                    onValueChange(assembleDouble(digits))
-                },
-                onDoubleTap = { showEditDialog = i },
-                textColor = textColor,
-                accentColor = accentColor
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Direct Keypad Input Button for instant reading entry
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(accentColor.copy(alpha = 0.12f))
+                .border(1.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                .clickable { showFullValueDialog = true }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = "Type Meter Reading",
+                tint = accentColor,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Type Reading (${String.format(Locale.US, "%.2f", assembleDouble(digits))} kWh)",
+                color = accentColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
 
-    if (showEditDialog != null) {
-        var textInput by remember { mutableStateOf(digits[showEditDialog!!].toString()) }
+    if (editingDigitIndex != null) {
+        val idx = editingDigitIndex!!
+        var textInput by remember(idx) { mutableStateOf(digits.getOrElse(idx) { 0 }.toString()) }
         AlertDialog(
-            onDismissRequest = { showEditDialog = null },
+            onDismissRequest = { editingDigitIndex = null },
             containerColor = getDialogBackground(),
             titleContentColor = AppTextColor(),
             textContentColor = AppTextColor(),
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Enter Digit", fontWeight = FontWeight.Bold) },
+            title = { Text("Enter Digit (0-9)", fontWeight = FontWeight.Bold) },
             text = {
                 Box(modifier = Modifier.fillMaxWidth().imePadding()) {
                     GlassTextField(
                         value = textInput,
                         onValueChange = { if (it.length <= 1 && it.all { c -> c.isDigit() }) textInput = it },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -122,10 +185,10 @@ fun MeterDialPicker(
             confirmButton = {
                 Button(
                     onClick = {
-                        val newVal = textInput.toIntOrNull() ?: digits[showEditDialog!!]
-                        digits[showEditDialog!!] = newVal
+                        val newVal = textInput.toIntOrNull()?.coerceIn(0, 9) ?: digits[idx]
+                        digits[idx] = newVal
                         onValueChange(assembleDouble(digits))
-                        showEditDialog = null
+                        editingDigitIndex = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
                     shape = RoundedCornerShape(12.dp)
@@ -135,7 +198,74 @@ fun MeterDialPicker(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showEditDialog = null },
+                    onClick = { editingDigitIndex = null },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel", color = AppSecondaryTextColor())
+                }
+            }
+        )
+    }
+
+    if (showFullValueDialog) {
+        var fullInput by remember {
+            mutableStateOf(String.format(Locale.US, "%.2f", assembleDouble(digits)))
+        }
+        AlertDialog(
+            onDismissRequest = { showFullValueDialog = false },
+            containerColor = getDialogBackground(),
+            titleContentColor = AppTextColor(),
+            textContentColor = AppTextColor(),
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Enter Meter Reading", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                    Text(
+                        text = "Enter value between 0.00 and 9999.99",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    GlassTextField(
+                        value = fullInput,
+                        onValueChange = { input ->
+                            if (input.length <= 7 && input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) {
+                                fullInput = input
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val parsed = fullInput.toDoubleOrNull()?.coerceIn(0.0, 9999.99)
+                        if (parsed != null) {
+                            val formatted = String.format(Locale.US, "%07.2f", parsed)
+                            val newDigits = formatted.replace(".", "").map { it.digitToIntOrNull() ?: 0 }
+                            if (newDigits.size == 6) {
+                                digits.clear()
+                                digits.addAll(newDigits)
+                                onValueChange(assembleDouble(digits))
+                            }
+                        }
+                        showFullValueDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Apply", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showFullValueDialog = false },
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Cancel", color = AppSecondaryTextColor())
@@ -145,72 +275,84 @@ fun MeterDialPicker(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DialDigit(
+private fun LightweightDigitStepper(
     modifier: Modifier = Modifier,
     value: Int,
     onValueChange: (Int) -> Unit,
-    onDoubleTap: () -> Unit,
+    onTapDigit: () -> Unit,
     textColor: Color,
-    accentColor: Color = AccentCyan
+    accentColor: Color,
+    containerBg: Color,
+    containerBorder: Color,
+    isDecimal: Boolean
 ) {
-    val isGlass = isLiquidGlassEnabled()
-    val isLight = isAppLightMode()
-    
-    val containerBg = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    } else {
-        if (isLight) Color.White.copy(alpha = 0.45f) else Color(0xFF1E2638).copy(alpha = 0.50f)
-    }
-    val containerBorder = if (!isGlass) {
-        if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    } else {
-        if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
-    }
-
-    BoxWithConstraints(
+    Column(
         modifier = modifier
-            .height(120.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(containerBg)
-            .border(1.dp, containerBorder, RoundedCornerShape(10.dp))
-            .combinedClickable(
-                onClick = {},
-                onDoubleClick = onDoubleTap
+            .border(
+                width = 1.dp,
+                color = if (isDecimal) accentColor.copy(alpha = 0.45f) else containerBorder,
+                shape = RoundedCornerShape(10.dp)
             ),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val calculatedItemHeight = (maxHeight / 3).coerceIn(34.dp, 42.dp)
-        val calculatedFontSize = (maxWidth.value * 0.48f).coerceIn(16f, 22f).sp
+        // Increment (+) button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .clickable { onValueChange((value + 1) % 10) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowUp,
+                contentDescription = "Increment digit",
+                tint = AppSecondaryTextColor(),
+                modifier = Modifier.size(18.dp)
+            )
+        }
 
-        WheelPicker(
-            items = (0..9).toList(),
-            selectedItem = value,
-            onItemSelected = { onValueChange(it) },
-            modifier = Modifier.fillMaxSize(),
-            itemHeight = calculatedItemHeight,
-            visibleItemsCount = 3
-        ) { digit, isSelected ->
-            val digitColor = if (isSelected) {
-                if (!isGlass) accentColor else textColor
-            } else {
-                textColor.copy(alpha = 0.35f)
-            }
+        // Current digit display (tap to edit directly)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .background(if (isDecimal) accentColor.copy(alpha = 0.10f) else Color.Transparent)
+                .clickable { onTapDigit() },
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                text = digit.toString(),
-                color = digitColor,
-                fontSize = if (isSelected) calculatedFontSize else (calculatedFontSize.value * 0.88f).sp,
-                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                text = value.toString(),
+                color = if (isDecimal) accentColor else textColor,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = FontFamily.Monospace,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        // Decrement (-) button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .clickable { onValueChange((value + 9) % 10) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = "Decrement digit",
+                tint = AppSecondaryTextColor(),
+                modifier = Modifier.size(18.dp)
             )
         }
     }
 }
 
 private fun assembleDouble(digits: List<Int>): Double {
+    if (digits.size < 6) return 0.0
     val integerPart = digits[0] * 1000 + digits[1] * 100 + digits[2] * 10 + digits[3]
     val decimalPart = digits[4] * 0.1 + digits[5] * 0.01
     return integerPart + decimalPart
@@ -223,194 +365,169 @@ fun CylindricalDateTimePicker(
     onDateTimeChange: (Long) -> Unit,
     textColor: Color = AppTextColor()
 ) {
+    val context = LocalContext.current
     val calendar = remember(initialDateTime) {
         Calendar.getInstance().apply { timeInMillis = initialDateTime }
     }
-    
-    val year = calendar.get(Calendar.YEAR)
-    val month = calendar.get(Calendar.MONTH)
-    val day = calendar.get(Calendar.DAY_OF_MONTH)
-    val hour24 = calendar.get(Calendar.HOUR_OF_DAY)
-    val hour12 = if (hour24 % 12 == 0) 12 else hour24 % 12
-    val isPm = hour24 >= 12
-    val minute = calendar.get(Calendar.MINUTE)
-    
-    val years = (2024..2030).map { it.toString() }
-    val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    val months = (0..11).map { i -> "${monthNames[i]}(${String.format(Locale.US, "%02d", i + 1)})" }
-    val days = (1..31).map { String.format(Locale.US, "%02d", it) }
-    val hours12List = (1..12).map { String.format(Locale.US, "%02d", it) }
-    val minutes = (0..59).map { String.format(Locale.US, "%02d", it) }
-    val amPmList = listOf("AM", "PM")
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Date Part
-            DateTimePickerWheel(
-                startIndex = days.indexOf(String.format(Locale.US, "%02d", day)),
-                texts = days,
-                onValueChange = { d ->
-                    calendar.set(Calendar.DAY_OF_MONTH, d + 1)
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "DD",
-                width = 50.dp
-            )
-            DateTimePickerWheel(
-                startIndex = month,
-                texts = months,
-                onValueChange = { m ->
-                    calendar.set(Calendar.MONTH, m)
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "MM",
-                width = 95.dp
-            )
-            DateTimePickerWheel(
-                startIndex = years.indexOf(year.toString()).coerceAtLeast(0),
-                texts = years,
-                onValueChange = { y ->
-                    calendar.set(Calendar.YEAR, years[y].toInt())
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "YYYY",
-                width = 65.dp
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Time Part
-            DateTimePickerWheel(
-                startIndex = hour12 - 1,
-                texts = hours12List,
-                onValueChange = { hIdx ->
-                    val h12 = hIdx + 1
-                    val newHour24 = when {
-                        isPm && h12 < 12 -> h12 + 12
-                        isPm && h12 == 12 -> 12
-                        !isPm && h12 == 12 -> 0
-                        else -> h12
-                    }
-                    calendar.set(Calendar.HOUR_OF_DAY, newHour24)
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "HH",
-                width = 50.dp
-            )
-            Text(":", color = textColor, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            DateTimePickerWheel(
-                startIndex = minute,
-                texts = minutes,
-                onValueChange = { m ->
-                    calendar.set(Calendar.MINUTE, m)
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "MIN",
-                width = 50.dp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            DateTimePickerWheel(
-                startIndex = if (isPm) 1 else 0,
-                texts = amPmList,
-                onValueChange = { amPmIdx ->
-                    val pm = amPmIdx == 1
-                    val h12_current = if (calendar.get(Calendar.HOUR_OF_DAY) % 12 == 0) 12 else calendar.get(Calendar.HOUR_OF_DAY) % 12
-                    val newHour24 = when {
-                        pm && h12_current < 12 -> h12_current + 12
-                        pm && h12_current == 12 -> 12
-                        !pm && h12_current == 12 -> 0
-                        else -> h12_current
-                    }
-                    calendar.set(Calendar.HOUR_OF_DAY, newHour24)
-                    onDateTimeChange(calendar.timeInMillis)
-                },
-                textColor = textColor,
-                label = "AM/PM",
-                width = 65.dp
-            )
-        }
-    }
-}
+    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
-@Composable
-private fun DateTimePickerWheel(
-    startIndex: Int,
-    texts: List<String>,
-    onValueChange: (Int) -> Unit,
-    textColor: Color,
-    label: String,
-    width: Dp = 50.dp
-) {
+    val formattedDate = remember(initialDateTime) { dateFormatter.format(Date(initialDateTime)) }
+    val formattedTime = remember(initialDateTime) { timeFormatter.format(Date(initialDateTime)) }
+
     val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
-
-    val containerBg = if (!isGlass) {
+    val accent = AppAccentColor()
+    val cardBg = if (!isGlass) {
         if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
     } else {
-        if (isLight) Color.White.copy(alpha = 0.45f) else Color(0xFF1E2638).copy(alpha = 0.50f)
+        if (isLight) Color.White.copy(alpha = 0.55f) else Color(0xFF1E2638).copy(alpha = 0.65f)
     }
-    val containerBorder = if (!isGlass) {
+    val borderCol = if (!isGlass) {
         if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
     } else {
         if (isLight) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, color = AppSecondaryTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(4.dp))
-        BoxWithConstraints(
-            modifier = Modifier
-                .size(width = width, height = 100.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(containerBg)
-                .border(1.dp, containerBorder, RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val calculatedItemHeight = (maxHeight / 3).coerceIn(28.dp, 34.dp)
-            val calculatedFontSize = (maxWidth.value * 0.28f).coerceIn(12f, 15f).sp
-
-            WheelPicker(
-                items = texts,
-                selectedItem = if (startIndex in texts.indices) texts[startIndex] else texts.first(),
-                onItemSelected = { selected ->
-                    val index = texts.indexOf(selected)
-                    if (index != -1) onValueChange(index)
-                },
-                modifier = Modifier.fillMaxSize(),
-                itemHeight = calculatedItemHeight,
-                visibleItemsCount = 3
-            ) { text, isSelected ->
-                val activeTextColor = if (isSelected) {
-                    if (!isGlass) AccentCyan else textColor
-                } else {
-                    textColor.copy(alpha = 0.35f)
-                }
+            // Native Date Picker Button
+            Row(
+                modifier = Modifier
+                    .weight(1.15f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(cardBg)
+                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                    .clickable {
+                        DatePickerDialog(
+                            context,
+                            { _, y, m, d ->
+                                val newCal = Calendar.getInstance().apply {
+                                    timeInMillis = initialDateTime
+                                    set(Calendar.YEAR, y)
+                                    set(Calendar.MONTH, m)
+                                    set(Calendar.DAY_OF_MONTH, d)
+                                }
+                                onDateTimeChange(newCal.timeInMillis)
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        ).show()
+                    }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = "Select Date",
+                    tint = accent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = text,
-                    color = activeTextColor,
-                    fontSize = if (isSelected) calculatedFontSize else (calculatedFontSize.value * 0.88f).sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    text = formattedDate,
+                    color = textColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+
+            // Native Time Picker Button
+            Row(
+                modifier = Modifier
+                    .weight(0.85f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(cardBg)
+                    .border(1.dp, borderCol, RoundedCornerShape(12.dp))
+                    .clickable {
+                        TimePickerDialog(
+                            context,
+                            { _, h, min ->
+                                val newCal = Calendar.getInstance().apply {
+                                    timeInMillis = initialDateTime
+                                    set(Calendar.HOUR_OF_DAY, h)
+                                    set(Calendar.MINUTE, min)
+                                }
+                                onDateTimeChange(newCal.timeInMillis)
+                            },
+                            calendar.get(Calendar.HOUR_OF_DAY),
+                            calendar.get(Calendar.MINUTE),
+                            false
+                        ).show()
+                    }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = "Select Time",
+                    tint = accent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = formattedTime,
+                    color = textColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }
+
+        // Quick preset chips ("Now", "Yesterday", "-1 Hr")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+        ) {
+            QuickTimeChip(label = "Now", accent = accent) {
+                onDateTimeChange(System.currentTimeMillis())
+            }
+            QuickTimeChip(label = "-1 Day", accent = accent) {
+                onDateTimeChange(initialDateTime - 86_400_000L)
+            }
+            QuickTimeChip(label = "+1 Day", accent = accent) {
+                onDateTimeChange(initialDateTime + 86_400_000L)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickTimeChip(
+    label: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(accent.copy(alpha = 0.12f))
+            .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = accent,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }

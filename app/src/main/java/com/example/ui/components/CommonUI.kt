@@ -46,9 +46,13 @@ val LocalAppTheme = compositionLocalOf { "Auto" }
 val LocalAppBgPreset = compositionLocalOf { "Default" }
 val LocalAppCustomBgUri = compositionLocalOf { "" }
 val LocalAppLiquidGlassTheme = compositionLocalOf { false }
+val LocalDisableHeavyEffects = compositionLocalOf { true }
 
 @Composable
-fun isLiquidGlassEnabled(): Boolean = LocalAppLiquidGlassTheme.current
+fun isHeavyEffectsDisabled(): Boolean = LocalDisableHeavyEffects.current
+
+@Composable
+fun isLiquidGlassEnabled(): Boolean = LocalAppLiquidGlassTheme.current && !LocalDisableHeavyEffects.current
 
 // Glassmorphism design tokens
 val GlassBackground = Color(0x26FFFFFF)

@@ -181,10 +181,16 @@ fun AppLockScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val disableHeavy = isHeavyEffectsDisabled()
                 for (i in 0 until 4) {
                     val active = i < enteredPin.length
                     val color = if (isError) AccentPink else if (active) AccentCyan else AppTextColor().copy(alpha = 0.2f)
-                    val size by animateDpAsState(if (active) 16.dp else 12.dp)
+                    val size = if (disableHeavy) {
+                        if (active) 16.dp else 12.dp
+                    } else {
+                        val animSize by animateDpAsState(if (active) 16.dp else 12.dp, label = "pin_dot")
+                        animSize
+                    }
 
                     Box(
                         modifier = Modifier

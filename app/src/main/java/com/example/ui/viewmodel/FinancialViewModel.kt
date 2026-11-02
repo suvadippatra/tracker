@@ -1282,7 +1282,23 @@ class FinancialViewModel(
 
     fun toggleLiquidGlassTheme(enabled: Boolean) = viewModelScope.launch {
         val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(enableLiquidGlassTheme = enabled))
+        val updated = current.copy(
+            enableLiquidGlassTheme = enabled,
+            disableHeavyEffects = if (enabled) false else current.disableHeavyEffects
+        )
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
+    }
+
+    fun toggleDisableHeavyEffects(disabled: Boolean) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        val updated = current.copy(
+            disableHeavyEffects = disabled,
+            enableLiquidGlassTheme = if (disabled) false else current.enableLiquidGlassTheme,
+            enableStarAnimation = if (disabled) false else current.enableStarAnimation
+        )
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
     }
 
     fun updatePreferences(

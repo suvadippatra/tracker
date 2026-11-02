@@ -107,7 +107,7 @@ fun AboutSettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (prefLanguage == "bn") "সংস্করণ ১.১.০ (হাই-পারফরম্যান্স রিলিজ)" else "Version 1.1.0 (High-Performance)",
+                            text = if (prefLanguage == "bn") "সংস্করণ ১.২.০ (Argon হাই-স্পিড রিলিজ)" else "Version 1.2.0 (Argon High-Speed)",
                             color = AppAccentColor(),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold

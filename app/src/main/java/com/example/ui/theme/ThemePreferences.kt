@@ -12,6 +12,7 @@ object ThemePreferences {
     private const val KEY_ENABLE_STARS = "enable_stars"
     private const val KEY_LANGUAGE = "language"
     private const val KEY_ENABLE_LIQUID_GLASS = "enable_liquid_glass"
+    private const val KEY_DISABLE_HEAVY_EFFECTS = "disable_heavy_effects"
 
     fun save(context: Context, profile: UserProfileEntity) {
         try {
@@ -24,6 +25,7 @@ object ThemePreferences {
                 .putBoolean(KEY_ENABLE_STARS, profile.enableStarAnimation)
                 .putString(KEY_LANGUAGE, profile.language)
                 .putBoolean(KEY_ENABLE_LIQUID_GLASS, profile.enableLiquidGlassTheme)
+                .putBoolean(KEY_DISABLE_HEAVY_EFFECTS, profile.disableHeavyEffects)
                 .apply()
         } catch (_: Exception) {}
     }
@@ -38,6 +40,7 @@ object ThemePreferences {
             val enableStars = prefs.getBoolean(KEY_ENABLE_STARS, true)
             val language = prefs.getString(KEY_LANGUAGE, "en") ?: "en"
             val enableLiquidGlass = prefs.getBoolean(KEY_ENABLE_LIQUID_GLASS, false)
+            val disableHeavyEffects = prefs.getBoolean(KEY_DISABLE_HEAVY_EFFECTS, true)
 
             UserProfileEntity(
                 bgPreset = bgPreset,
@@ -46,10 +49,11 @@ object ThemePreferences {
                 textSize = textSize,
                 enableStarAnimation = enableStars,
                 language = language,
-                enableLiquidGlassTheme = enableLiquidGlass
+                enableLiquidGlassTheme = enableLiquidGlass,
+                disableHeavyEffects = disableHeavyEffects
             )
         } catch (_: Exception) {
-            UserProfileEntity(bgPreset = "Sunset Warm", themeMode = "Dark", enableLiquidGlassTheme = false)
+            UserProfileEntity(bgPreset = "Sunset Warm", themeMode = "Dark", enableLiquidGlassTheme = false, disableHeavyEffects = true)
         }
     }
 }

@@ -149,6 +149,7 @@ fun SettingsScreen(
                 ) {
                     when (currentScreen) {
                         "main" -> SettingsMainList(
+                            prefLanguage = userProfile?.language ?: "en",
                             onNavigate = { currentScreen = it },
                             onOpenBin = { currentScreen = "bin" },
                             onOpenOwnerProfile = onOpenOwnerProfile
@@ -185,6 +186,7 @@ fun SettingsDialog(
 
 @Composable
 fun SettingsMainList(
+    prefLanguage: String = "en",
     onNavigate: (String) -> Unit,
     onOpenBin: () -> Unit,
     onOpenOwnerProfile: () -> Unit
@@ -211,7 +213,7 @@ fun SettingsMainList(
                 PixelSettingsItem(
                     icon = Icons.Default.Palette,
                     title = "Appearance & Visual Style",
-                    subtitle = "Themes, liquid glass engine, accent colors",
+                    subtitle = "Themes, Android 8 fast mode, accent colors",
                     onClick = { onNavigate("appearance") }
                 )
             }
@@ -246,7 +248,21 @@ fun SettingsMainList(
         }
 
         item {
-            PixelSettingsGroup(title = "About App") {
+            var showHelpGuide by remember { mutableStateOf(false) }
+            if (showHelpGuide) {
+                LegalInfoDialog(
+                    type = "info",
+                    prefLanguage = prefLanguage,
+                    onDismiss = { showHelpGuide = false }
+                )
+            }
+            PixelSettingsGroup(title = "Help & About App") {
+                PixelSettingsItem(
+                    icon = Icons.Default.HelpOutline,
+                    title = if (prefLanguage == "bn") "ব্যবহারবিধি ও গাইড (Help)" else "Help & User Guide",
+                    subtitle = if (prefLanguage == "bn") "সকল ২৫টি পেজ, Android 8 ফাস্ট মোড ও GitHub APK গাইড" else "Complete guide to all 25 pages, Android 8 fast mode & GitHub APK build",
+                    onClick = { showHelpGuide = true }
+                )
                 PixelSettingsItem(
                     icon = Icons.Default.Info,
                     title = "About & Legal",
@@ -674,7 +690,7 @@ fun LegalInfoDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 val content = when (type) {
                     "info" -> if (prefLanguage == "bn") """
-                        Traker v1.0.0 (রিলিজ)
+                        Traker v1.2.0 (Argon Android 8 High-Speed Release)
                         ডেভেলপার: @suvadippatra (GitHub)
                         © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -682,47 +698,38 @@ fun LegalInfoDialog(
                         📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
                         ───────────────────────────
 
-                        ১. 💰 ড্যাশবোর্ড ও আর্থিক হিসাব (Dashboard)
-                        • অ্যাকাউন্ট ব্যালেন্স: আপনার মোট ক্যাশ, ব্যাঙ্ক ও ডিজিটাল ওয়ালেটের ব্যালেন্স এক নজরে পর্যবেক্ষণ করুন।
-                        • আয়/ব্যয় এন্ট্রি: নিচে থাকা '+' বাটনে ট্যাপ করে দ্রুত যেকোনো খরচ বা আয়ের হিসাব যুক্ত করুন। অ্যাকাউন্ট, ক্যাটাগরি ও বিবরণ নির্বাচন করুন।
-                        • মাসিক বিশ্লেষণ: ফিল্টারের মাধ্যমে প্রতি মাসের মোট আয়, মোট ব্যয় ও নিট সঞ্চয় পর্যালোচনা করুন।
+                        ১. ⚡ Argon Modification — Android 8 ফাস্ট মোড ও ফ্ল্যাট মেটেরিয়াল ৩ ইউআই
+                        • সমস্ত ২৫টি পেজ ও পপআপে দ্রুত লোডিং: ওপেনিং সিন (হোটেল ট্যাব, খরচ ট্যাব, বিল ট্যাব, অ্যাপ লক) এবং সমস্ত সাব-স্ক্রিনে ভারী গ্র্যাডিয়েন্ট ও ট্রান্সলুসেন্ট ওভারড্র সরিয়ে ফ্ল্যাট মেটেরিয়াল ৩ (Material 3) সারফেস যুক্ত করা হয়েছে, যাতে Android 8 ডিভাইসেও কোনো ল্যাগ ছাড়াই মুহূর্তের মধ্যে পেজ লোড হয়।
+                        • পরিচিত লেআউট ও ফিচার অক্ষুণ্ণ: প্রতিটি কার্ডের গঠন, ৩-ডট মেনু (⋮), অ্যাকশন বাটন এবং প্রধান ফিচার একই জায়গায় রাখা হয়েছে।
+                        • ভারী ইফেক্ট বন্ধ ও নেটিভ কন্ট্রোল টগল: Settings → Appearance & Visuals থেকে "Disable Heavy Effects & Use Native Controls" অপশনটি চালু/বন্ধ করতে পারবেন।
 
-                        ২. 🍽️ খাবার ও হোটেল ব্যয় ট্র্যাকিং (Meal Tracker)
-                        • শিফট নির্বাচন: ডে (দুপুর) এবং নাইট (রাত) শিফটে আলাদাভাবে খাবারের হিসাব রাখুন।
-                        • মেনু ও কাস্টম আইটেম: ভাত, ডাল-সবজি, মাছ, চিকেন, ডিম, রুটি ইত্যাদি আইটেম নির্বাচন করুন অথবা নিজস্ব খাবার ও মূল্য যোগ করুন।
-                        • পরিমাণ পরিবর্তন: '+' ও '-' বোতাম ব্যবহার করে প্লেট সংখ্যা ও অতিরিক্ত খাবার নির্ধারণ করুন।
-                        • মাসিক হিস্ট্রি ও সোয়াইপ: বিগত মাসগুলোর হিস্ট্রি দেখতে বাঁয়ে/ডানে সোয়াইপ করুন অথবা '<' '>' বোতাম ব্যবহার করুন।
+                        ২. 🗓️ নেটিভ অ্যান্ড্রয়েড ডেট/টাইম পিকার ও হালকা মিটার স্টেপার
+                        • নেটিভ ক্যালেন্ডার ও ঘড়ি: ভারী ৩ডি হুইল পিকারের বদলে অ্যান্ড্রয়েডের নেটিভ DatePickerDialog এবং TimePickerDialog যুক্ত করা হয়েছে, সাথে "Today", "Yesterday", "Now", "+1 Day", "-1 Day" কুইক চিপস।
+                        • ডিজিটাল ওডোমিটার স্টেপার (Bill ট্যাব): ৬-চাকার ভারী মিটার ডায়ালের পরিবর্তে জিরো-ল্যাগ ফ্ল্যাট মেটেরিয়াল ৩ ডিজিটাল স্টেপার ('+' / '-' বাটন) এবং সরাসরি কিবোর্ডে রিডিং লেখার জন্য "Type Reading" বাটন যুক্ত করা হয়েছে।
 
-                        ৩. 🏦 ব্যাঙ্ক অ্যাকাউন্ট ও স্থানান্তর (Accounts & Transfer)
-                        • মাল্টি-অ্যাকাউন্ট: ক্যাশ, সেভিংস ব্যাঙ্ক বা ওয়ালেট আলাদাভাবে ব্যালেন্স পরিচালনা করুন।
-                        • অ্যাকাউন্ট ট্রান্সফার: এক অ্যাকাউন্ট থেকে অন্য অ্যাকাউন্টে টাকা স্থানান্তর করুন যা ব্যালেন্সে স্বয়ংক্রিয়ভাবে সমন্বয় হবে।
-                        • রিয়েল-টাইম ব্যালেন্স: প্রতিটি লেনদেন বা পরিবর্তনের সাথে সাথে অ্যাকাউন্ট ব্যালেন্স স্বয়ংক্রিয়ভাবে আপডেট হয়।
+                        ৩. 💰 ড্যাশবোর্ড, খাবার ও হোটেল ব্যয় ট্র্যাকিং (Hotels & Extras)
+                        • শিফট ও মেনু ট্র্যাকিং: ডে (দুপুর) এবং নাইট (রাত) শিফটে আলাদাভাবে খাবারের হিসাব রাখুন এবং কাস্টম মেনু পরিচালনা করুন।
+                        • মাল্টি-অ্যাকাউন্ট ও ব্যালেন্স: ক্যাশ, ব্যাঙ্ক ও ডিজিটাল ওয়ালেটের ব্যালেন্স, আয়/ব্যয় ও ট্রান্সফার এক নজরে পর্যবেক্ষণ করুন।
 
-                        ৪. ⚡ সাব-মিটার ও ইউটিলিটি ট্র্যাকিং (Meter Tracker)
-                        • রিডিং এন্ট্রি: বিদ্যুৎ বা জলের সাব-মিটারের পূর্ববর্তী ও বর্তমান রিডিং লিখে রাখুন।
-                        • ইউনিট ও বিল হিসাব: ব্যবহৃত ইউনিট এবং প্রতি ইউনিটের রেট গুণ করে নির্ভুল বিল বের করুন।
+                        ৪. 🔒 গোপনীয়তা, অফলাইন ব্যাকআপ ও কিউআর ট্রান্সফার
+                        • ১০০% অফলাইন ও নিরাপদ: আপনার সমস্ত তথ্য ডিভাইসেই সংরক্ষিত থাকে।
+                        • অফলাইন QR ট্রান্সফার ও JSON/CSV ব্যাকআপ: ইন্টারনেট ছাড়াই দ্রুত QR কোড বা ফাইল ব্যাকআপের মাধ্যমে ডাটা স্থানান্তর করুন।
 
-                        ৫. 🔒 গোপনীয়তা, ব্যাকআপ ও কিউআর ট্রান্সফার
-                        • ১০০% অফলাইন ও নিরাপদ: কোনো ক্লাউড সার্ভার নেই, কোনো ট্র্যাকার নেই। আপনার সমস্ত তথ্য ডিভাইসেই সংরক্ষিত।
-                        • অফলাইন QR ট্রান্সফার: ইন্টারনেট ছাড়াই দ্রুত QR কোড স্ক্যান করে অন্য ফোনে ডাটাবেস ট্রান্সফার করুন।
-                        • ব্যাকআপ ও রিস্টোর: ডিভাইসে সরাসরি JSON বা CSV ফাইল হিসেবে ডাটা এক্সপোর্ট ও ইমপোর্ট করুন।
-                        • অ্যাপ লক ও বায়োমেট্রিক: পিন কোড অথবা ফিঙ্গারপ্রিন্ট দিয়ে অ্যাপের নিরাপত্তা নিশ্চিত করুন।
-                        • রিসাইকেল বিন: ভুলবশত কোনো লেনদেন মুছে গেলে রিসাইকেল বিন থেকে সহজেই রিস্টোর করুন।
-
-                        ৬. 🎨 থিম ও ভাষা নির্বাচন
-                        • থিম কাস্টমাইজেশন: ডার্ক, লাইট, OLED পিওর ব্ল্যাক অথবা পিক্সেল ইউআই থিম বেছে নিন।
-                        • দ্বিভাষিক সমর্থন: যেকোনো সময় বাংলা ও ইংরেজির মধ্যে ভাষা পরিবর্তন করুন।
-
-                        ৭. 🚀 হাই-পারফরম্যান্স ও জিরো-ল্যাগ ইঞ্জিন (v1.1.0)
-                        • তাত্ক্ষণিক স্পর্শ প্রতিক্রিয়া (0ms Touch Response): কোনো ব্লকিং অ্যানিমেশন বা টাচ বিলম্ব নেই। বোতাম বা ট্যাবে ট্যাপ করলেই সাথে সাথে কাজ করে।
-                        • সুপারফাস্ট অ্যাপ লঞ্চ: কোনো লোডিং স্ক্রিন ছাড়াই তাৎক্ষণিকভাবে মূল ড্যাশবোর্ড স্ক্রিন চালু হয়।
-                        • লিকুইড গ্লাস ও মেটেরিয়াল ৩ অপ্টিমাইজেশন: উভয় থিমেই মসৃণ ও দীর্ঘস্থায়ী ব্যাটারি সাশ্রয়ী পারফরম্যান্স।
+                        ৫. 🛠️ GitHub Actions থেকে ম্যানুয়ালি APK ও AAB তৈরি করার নিয়ম
+                        • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান।
+                        • বাম পাশ থেকে "Build & Release Android App" ওয়ার্কফ্লো নির্বাচন করুন।
+                        • "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন:
+                          - all (AAB + Universal APK + arm64-v8a APK)
+                          - aab (Play Store রিলিজ বান্ডেল)
+                          - universal-apk (সব ডিভাইসের জন্য APK)
+                          - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও দ্রুত APK)
+                        • বিল্ড শেষ হলে ওয়ার্কফ্লো সামারি পেজের নিচে থাকা "Artifacts" সেকশন থেকে ফাইলগুলো ডাউনলোড করুন।
 
                         👨‍💻 ডেভেলপার ও ওপেন সোর্স:
                         GitHub: @suvadippatra (https://github.com/suvadippatra)
                         লাইসেন্স: Apache License 2.0
                     """.trimIndent() else """
-                        Traker v1.1.0 (High-Performance Release)
+                        Traker v1.2.0 (Argon Android 8 High-Speed Release)
                         Developed by @suvadippatra (GitHub)
                         © 2026 @suvadippatra. All rights reserved.
 
@@ -730,41 +737,31 @@ fun LegalInfoDialog(
                         📖 COMPLETE USER GUIDE & HOW TO USE
                         ───────────────────────────
 
-                        1. 💰 DASHBOARD & FINANCIAL FLOWS
-                        • Liquid Balances: Monitor cash-in-hand, active bank accounts, and digital wallets at a glance.
-                        • Fast Entries: Tap the floating '+' button to record income or expenses with customizable categories, accounts, and tags.
-                        • Cashflow Breakdown: Review month-by-month financial summaries, savings rates, and expense trends.
+                        1. ⚡ ARGON MODIFICATION — ANDROID 8 FAST MODE & FLAT M3 UI
+                        • Fast Flat Material 3 Surfaces Across All 25 Pages: Stripped heavy multi-stop gradients, continuous alpha animations, and translucent overdraw layers across all 4 opening scenes (Hotels Tab, Extras Tab, Bill Tab, App Lock) and all 21 secondary screens/modals while keeping the familiar layout, triple-dot (⋮) menus, and features 100% intact.
+                        • Settings Toggle: Go to Settings → Appearance & Visuals → "Disable Heavy Effects & Use Native Controls" (enabled by default) to use native Android pickers and disable heavy visual effects/animations on Android 8+.
 
-                        2. 🍽️ MEAL & HOTEL EXPENSE TRACKER
-                        • Shift Tracking: Log meals separated into Day (Lunch) and Night (Dinner) shifts.
-                        • Dynamic Menu: Select standard food items (Rice, Curry, Fish, Chicken, Roti, Vegs) or add your own custom items with custom prices.
-                        • Multi-Item Adjuster: Use '+' / '-' counters to accurately adjust quantities and add-ons.
-                        • Monthly Meal History: Swipe left/right or use '<' '>' arrow buttons to navigate through historical meal logs within active limits.
+                        2. 🗓️ NATIVE ANDROID PICKERS & LIGHTWEIGHT METER STEPPER
+                        • Native Date & Time Dialogs: Replaced heavy 3D wheel pickers with instant Android OS DatePickerDialog and TimePickerDialog plus quick "Today", "Yesterday", "Now", "-1 Day", and "+1 Day" chips.
+                        • Digital Odometer Stepper (Bill Tab): Replaced the 6-wheel 3D cylinder dial with a zero-lag flat Material 3 digital stepper ('+' / '-' buttons per digit) plus a "Type Reading" button for direct decimal keypad entry.
 
-                        3. 🏦 BANK ACCOUNTS & TRANSFERS
-                        • Multi-Account Management: Create cash, bank, or wallet accounts with distinctive colors and icons.
-                        • Inter-Account Transfers: Move balances across accounts cleanly without skewing income/expense statistics.
-                        • Real-Time Integrity: Account balances reflect every transaction, edit, soft-delete, or restore instantaneously.
+                        3. 💰 HOTEL MEALS, EXTRA EXPENSES & ACCOUNTS
+                        • Meal & Hotel Tracker: Log meals across Day/Night shifts, manage hotel menus, and track monthly food balances.
+                        • Multi-Account & Cashflow: Manage cash, bank, and wallet accounts with instant balance updates and category filtering.
 
-                        4. ⚡ METER & UTILITY BILLING
-                        • Meter Readings: Record initial and latest readings for electricity and water sub-meters.
-                        • Exact Billing: Calculates unit consumption multiplied by rate-per-unit for precise utility calculations.
+                        4. 🔒 PRIVACY, OFFLINE BACKUP & QR STREAMING
+                        • 100% Offline & Private: All financial data lives securely on your device.
+                        • Offline QR Stream & File Backups: Transfer databases via animated fountain QR codes or export/import JSON & CSV backups.
 
-                        5. 🔒 PRIVACY, OFFLINE BACKUP & QR TRANSFER
-                        • 100% Offline & Private: No third-party servers, zero telemetry. All financial data lives securely on your device.
-                        • Offline QR Stream: Transfer whole databases across devices without internet using visual high-speed QR streaming.
-                        • File Backups: Export and import JSON / CSV backups directly to your local device storage.
-                        • Security Lock: Protect access using device Biometrics (Fingerprint) or custom PIN lock.
-                        • Recycle Bin: Safely restore deleted transactions with automatic balance recalculation.
-
-                        6. 🎨 THEMES & LOCALIZATION
-                        • Adaptive Themes: Dark, Light, OLED Pure Black, and Pixel UI styling.
-                        • Dual Language: Full native Bengali (বাংলা) and English localization.
-
-                        7. 🚀 HIGH-PERFORMANCE ZERO-LAG ENGINE (v1.1.0)
-                        • 0ms Touch Response: Instant tap and gesture dispatch with zero input lag across all buttons and tabs.
-                        • Instant Cold Launch: Renders cached UI immediately on launch with background database hydration.
-                        • Material 3 & Liquid Glass Optimization: Silky smooth 60fps scrolling and interactions with battery-saving graphics.
+                        5. 🛠️ HOW TO BUILD APK & AAB MANUALLY ON GITHUB
+                        • Open your repository on GitHub and click the "Actions" tab.
+                        • Select "Build & Release Android App" in the left sidebar and click "Run workflow".
+                        • Choose your desired Build Target:
+                          - all (Builds Play Store .aab + Universal .apk + arm64-v8a .apk)
+                          - aab (Play Store Android App Bundle .aab)
+                          - universal-apk (Universal APK supporting all CPU architectures)
+                          - arm64-v8a-apk (Lightweight, high-speed APK for 64-bit ARM devices)
+                        • Once the workflow finishes, scroll down to the "Artifacts" section on the workflow run page to download your compiled APKs/AAB, or enable "create_release" to attach them to a GitHub Release tag.
 
                         👨‍💻 Developer & Open Source:
                         GitHub: @suvadippatra (https://github.com/suvadippatra)

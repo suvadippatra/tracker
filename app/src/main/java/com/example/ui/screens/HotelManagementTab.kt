@@ -347,14 +347,20 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                 userScrollEnabled = hotels.size > 1
                             ) { page ->
                                 val hotel = hotels[page]
-                                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                                val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                                val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                                Box(modifier = Modifier.graphicsLayer {
-                                    scaleX = scale
-                                    scaleY = scale
-                                    this.alpha = alpha
-                                }) {
+                                val disableHeavy = isHeavyEffectsDisabled()
+                                val pageModifier = if (disableHeavy) {
+                                    Modifier
+                                } else {
+                                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                    val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                                    val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                                    Modifier.graphicsLayer {
+                                        scaleX = scale
+                                        scaleY = scale
+                                        this.alpha = alpha
+                                    }
+                                }
+                                Box(modifier = pageModifier) {
                                     GlassCard(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -716,14 +722,20 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                             userScrollEnabled = hotels.size > 1
                         ) { page ->
                             val hotel = hotels[page]
-                            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                            val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                            val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
-                            Box(modifier = Modifier.graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                                this.alpha = alpha
-                            }) {
+                            val disableHeavy = isHeavyEffectsDisabled()
+                            val pageModifier = if (disableHeavy) {
+                                Modifier
+                            } else {
+                                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                val scale = 1f - (0.05f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                                val alpha = 1f - (0.3f * kotlin.math.abs(pageOffset).coerceAtMost(1f))
+                                Modifier.graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                    this.alpha = alpha
+                                }
+                            }
+                            Box(modifier = pageModifier) {
                                 GlassCard(
                                     modifier = Modifier
                                         .fillMaxWidth()

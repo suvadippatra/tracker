@@ -29,7 +29,8 @@ data class UserProfileEntity(
     val customBgUri: String = "",
     val enableSupplementaryAddons: Boolean = true,
     val visibleBankAccountsOnExtra: String = "",
-    val enableLiquidGlassTheme: Boolean = false
+    val enableLiquidGlassTheme: Boolean = false,
+    val disableHeavyEffects: Boolean = true
 )
 
 @Entity(tableName = "hotels", indices = [Index("isDeleted")])

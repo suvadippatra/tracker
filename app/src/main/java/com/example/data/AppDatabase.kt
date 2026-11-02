@@ -45,7 +45,7 @@ import com.example.data.dao.OwnerAccountDao
         com.example.data.model.HotelPaymentEntity::class,
         com.example.data.model.ExpenseEntity::class
     ],
-    version = 33,
+    version = 34,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -63,6 +63,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun hotelPaymentDao(): com.example.data.dao.HotelPaymentDao
     abstract fun syncDao(): com.example.data.dao.SyncDao
     companion object {
+
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE user_profile ADD COLUMN disableHeavyEffects INTEGER NOT NULL DEFAULT 1")
+            }
+        }
 
         val MIGRATION_32_33 = object : Migration(32, 33) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -245,7 +251,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "traker_database"
                 )
                 .fallbackToDestructiveMigration(true)
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
+                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)
                 .build()
                 INSTANCE = instance
                 instance

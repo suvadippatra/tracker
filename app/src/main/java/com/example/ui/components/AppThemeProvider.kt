@@ -9,6 +9,7 @@ import com.example.ui.components.LocalAppTheme
 import com.example.ui.components.LocalAppBgPreset
 import com.example.ui.components.LocalAppCustomBgUri
 import com.example.ui.components.LocalAppLiquidGlassTheme
+import com.example.ui.components.LocalDisableHeavyEffects
 
 @Composable
 fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> Unit) {
@@ -24,6 +25,7 @@ fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> U
         LocalAppBgPreset provides userProfile.bgPreset,
         LocalAppCustomBgUri provides userProfile.customBgUri,
         LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme,
+        LocalDisableHeavyEffects provides userProfile.disableHeavyEffects,
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
             fontScale = customFontScale

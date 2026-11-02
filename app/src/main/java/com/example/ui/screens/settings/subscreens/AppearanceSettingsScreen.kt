@@ -97,9 +97,23 @@ fun AppearanceSettingsScreen(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. Visual Style & Engine
+        // 1. Performance & Android 8 Mode + Visual Style
         item {
-            PixelSettingsGroup(title = if (prefLanguage == "bn") "ইউজার ইন্টারফেস স্টাইল" else "Visual Style & Engine") {
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "পারফরম্যান্স ও ইউজার ইন্টারফেস স্টাইল" else "Performance & Visual Style") {
+                PixelSettingsSwitchItem(
+                    icon = Icons.Default.Speed,
+                    title = if (prefLanguage == "bn") "ভারী ইফেক্ট বন্ধ ও নেটিভ কন্ট্রোল (Android 8 ফাস্ট মোড)" else "Disable Heavy Effects & Use Native Controls",
+                    subtitle = if (prefLanguage == "bn") {
+                        "অ্যান্ড্রয়েড ৮+ এ দ্রুত গতির জন্য ফ্ল্যাট মেটেরিয়াল ৩ সারফেস, নেটিভ ডেট/টাইম পিকার ও হালকা ডিজিটাল স্টেপার ব্যবহার করুন"
+                    } else {
+                        "Use flat Material 3 surfaces, native Android date/time dialogs, and lightweight controls for instant response on Android 8+"
+                    },
+                    checked = userProfile.disableHeavyEffects,
+                    onCheckedChange = { isChecked ->
+                        viewModel.toggleDisableHeavyEffects(isChecked)
+                    },
+                    showDivider = true
+                )
                 PixelSettingsSwitchItem(
                     icon = Icons.Default.BlurOn,
                     title = if (prefLanguage == "bn") "লিকুইড গ্লাস স্টাইল" else "Liquid Glass Visual Style",
@@ -108,7 +122,7 @@ fun AppearanceSettingsScreen(
                     } else {
                         "Enable translucent glassmorphism and ambient gradient backdrops"
                     },
-                    checked = isGlassEnabled,
+                    checked = isGlassEnabled && !userProfile.disableHeavyEffects,
                     onCheckedChange = { isChecked ->
                         viewModel.toggleLiquidGlassTheme(isChecked)
                     }

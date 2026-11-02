@@ -162,11 +162,8 @@ fun BillTrackingTab(
                                 }
 
                                 val primaryCol = MaterialTheme.colorScheme.primary
-                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.2f) else Color.Transparent
-                                val borderBrush = Brush.verticalGradient(
-                                    if (isSelected) listOf(primaryCol, primaryCol.copy(alpha = 0.3f))
-                                    else listOf(AppTextColor().copy(alpha = 0.1f), AppTextColor().copy(alpha = 0.1f))
-                                )
+                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.16f) else Color.Transparent
+                                val borderCol = if (isSelected) primaryCol.copy(alpha = 0.55f) else AppTextColor().copy(alpha = 0.12f)
 
                                 Box(
                                     modifier = Modifier
@@ -174,7 +171,7 @@ fun BillTrackingTab(
                                         .bounceClick()
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(tabBg)
-                                        .border(1.dp, borderBrush, RoundedCornerShape(12.dp))
+                                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
                                         .clickable { subTab = tab }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center

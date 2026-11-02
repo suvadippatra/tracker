@@ -89,6 +89,7 @@ fun GlassSwitch(
     inactiveText: String = "OFF"
 ) {
     val isLight = isAppLightMode()
+    val disableHeavy = isHeavyEffectsDisabled()
     Box(
         modifier = Modifier
             .width(100.dp)
@@ -98,11 +99,16 @@ fun GlassSwitch(
             .border(1.dp, if (isLight) Color(0xFFFFFFFF) else getGlassBorder(), RoundedCornerShape(17.dp))
             .clickable { onCheckedChange(!checked) }
     ) {
-        val thumbOffset by animateDpAsState(
-            targetValue = if (checked) 50.dp else 2.dp,
-            animationSpec = spring(stiffness = Spring.StiffnessMedium),
-            label = "switch_thumb"
-        )
+        val thumbOffset = if (disableHeavy) {
+            if (checked) 50.dp else 2.dp
+        } else {
+            val animated by animateDpAsState(
+                targetValue = if (checked) 50.dp else 2.dp,
+                animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                label = "switch_thumb"
+            )
+            animated
+        }
 
         Box(
             modifier = Modifier
@@ -111,11 +117,10 @@ fun GlassSwitch(
                 .width(48.dp)
                 .fillMaxHeight()
                 .background(
-                    brush = if (checked) {
-                        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
+                    color = if (checked) {
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        if (isLight) Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xE6FFFFFF)))
-                        else Brush.linearGradient(listOf(Color(0x33FFFFFF), getGlassIconButtonBg()))
+                        if (isLight) Color(0xFFFFFFFF) else getGlassIconButtonBg()
                     },
                     shape = RoundedCornerShape(15.dp)
                 )
@@ -199,7 +204,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     var isUnlocked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var initialLockChecked by remember { mutableStateOf(false) }
 
-    val isGlass = userProfile.enableLiquidGlassTheme
+    val isGlass = userProfile.enableLiquidGlassTheme && !userProfile.disableHeavyEffects
     val isLight = if (!isGlass) {
         if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
     } else {
@@ -256,6 +261,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         LocalAppBgPreset provides userProfile.bgPreset,
         LocalAppCustomBgUri provides userProfile.customBgUri,
         LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme,
+        LocalDisableHeavyEffects provides userProfile.disableHeavyEffects,
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
             fontScale = customFontScale
@@ -264,7 +270,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         MyApplicationTheme(
             darkTheme = !isAppLightMode(),
             preset = userProfile.bgPreset,
-            isLiquidGlass = userProfile.enableLiquidGlassTheme
+            isLiquidGlass = userProfile.enableLiquidGlassTheme && !userProfile.disableHeavyEffects
         ) {
             Box(
                 modifier = Modifier
@@ -287,7 +293,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                             )
                     )
                 }
-                if (userProfile.enableLiquidGlassTheme && userProfile.enableStarAnimation && userProfile.customBgUri.isBlank()) {
+                if (!userProfile.disableHeavyEffects && userProfile.enableLiquidGlassTheme && userProfile.enableStarAnimation && userProfile.customBgUri.isBlank()) {
                     MovingStarsBackground(isLight = isAppLightMode())
                 }
                 if (showLockScreen) {
@@ -307,15 +313,11 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                         )
                     }
                 } else {
-                                        MainAppLayout(viewModel)
+                    MainAppLayout(viewModel)
                     
                     // Root Overlay Architecture (Layer 2)
                     val rootOverlay by viewModel.rootOverlayState.collectAsStateWithLifecycle()
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = rootOverlay != com.example.ui.viewmodel.RootOverlayState.None,
-                        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(150)),
-                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150))
-                    ) {
+                    if (rootOverlay != com.example.ui.viewmodel.RootOverlayState.None) {
                         Box(modifier = Modifier.fillMaxSize()) {
                             when (val state = rootOverlay) {
                                 is com.example.ui.viewmodel.RootOverlayState.AddMeal -> {
@@ -414,7 +416,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
 }
 
 
-// smooth number roll
+// smooth number roll (instant when heavy effects are disabled)
 @Composable
 fun RollingNumberText(
     value: Double,
@@ -425,13 +427,19 @@ fun RollingNumberText(
         fontWeight = FontWeight.Bold
     )
 ) {
-    val animatedValue by animateFloatAsState(
-        targetValue = value.toFloat(),
-        animationSpec = tween(durationMillis = 150),
-        label = "number_roll"
-    )
+    val disableHeavy = isHeavyEffectsDisabled()
+    val displayValue = if (disableHeavy) {
+        value.toFloat()
+    } else {
+        val animatedValue by animateFloatAsState(
+            targetValue = value.toFloat(),
+            animationSpec = tween(durationMillis = 150),
+            label = "number_roll"
+        )
+        animatedValue
+    }
     Text(
-        text = "$prefix${String.format(Locale.US, "%,.2f", animatedValue)}",
+        text = "$prefix${String.format(Locale.US, "%,.2f", displayValue)}",
         style = style,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis

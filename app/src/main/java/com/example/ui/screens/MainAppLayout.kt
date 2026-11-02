@@ -400,16 +400,26 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                 )
             },
             bottomBar = {
-                AnimatedVisibility(
-                    visible = isBottomBarVisible,
-                    enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(150))
-                ) {
-                    GlassBottomNavigation(
-                        activeTab = activeTab,
-                        onTabSelected = { viewModel.activeTab.value = it },
-                        language = userProfile?.language ?: "en"
-                    )
+                if (isHeavyEffectsDisabled()) {
+                    if (isBottomBarVisible) {
+                        GlassBottomNavigation(
+                            activeTab = activeTab,
+                            onTabSelected = { viewModel.activeTab.value = it },
+                            language = userProfile?.language ?: "en"
+                        )
+                    }
+                } else {
+                    AnimatedVisibility(
+                        visible = isBottomBarVisible,
+                        enter = fadeIn(tween(150)),
+                        exit = fadeOut(tween(150))
+                    ) {
+                        GlassBottomNavigation(
+                            activeTab = activeTab,
+                            onTabSelected = { viewModel.activeTab.value = it },
+                            language = userProfile?.language ?: "en"
+                        )
+                    }
                 }
             }
         ) { innerPadding ->
