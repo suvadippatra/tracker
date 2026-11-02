@@ -12,7 +12,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class BackupRestoreManager(private val context: Context) {
-    private val dbName = "app_database"
+    private val dbName = "traker_database"
 
     suspend fun createBackup(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {

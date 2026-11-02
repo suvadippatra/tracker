@@ -128,27 +128,20 @@ fun AppLockScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // App Logo & Lock Icon
+        // App Logo (Clean, unclipped, pure original colors)
         Box(
-            modifier = Modifier
-                .size(88.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isError) Color(0x33FF4081) else Color(0x1F00E5FF),
-                    CircleShape
-                )
-                .border(1.5.dp, if (isError) AccentPink else AccentCyan, CircleShape),
+            modifier = Modifier.size(80.dp),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.foundation.Image(
                 painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.app_logo),
                 contentDescription = "App Logo",
-                modifier = Modifier.size(72.dp).clip(CircleShape),
+                modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = if (language == "bn") "${userName.ifBlank { "ব্যবহারকারী" }} এর পকেট লক করা আছে" else "${userName.ifBlank { "User" }}'s Pocket is Locked",

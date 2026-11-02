@@ -1,2 +1,0 @@
-#!/bin/bash
-perl -0777 -pi -e 's/                    Icon\(Icons\.Default\.SwapVert, contentDescription = "Toggle", tint = AppAccentColor\(\)\)\n                \}\n            \}\n        item \{/                    Icon(Icons.Default.SwapVert, contentDescription = "Toggle", tint = AppAccentColor())\n                }\n            }\n        }\n        item {/s' app/src/main/java/com/example/ui/screens/settings/subscreens/AppearanceSettingsScreen.kt

@@ -204,6 +204,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     val isLockedManual by viewModel.isLockedManual.collectAsStateWithLifecycle()
     var isUnlocked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var initialLockChecked by remember { mutableStateOf(false) }
+    var showSplashScreen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
 
     val isLight = if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
     val view = androidx.compose.ui.platform.LocalView.current
@@ -269,7 +270,14 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                     .fillMaxSize()
                     .background(getAppBackgroundGradient())
             ) {
-                if (showLockScreen) {
+                if (showSplashScreen) {
+                    SplashScreen(
+                        isInitialized = isInitialized,
+                        language = userProfile.language,
+                        disableHeavyEffects = userProfile.disableHeavyEffects,
+                        onFinish = { showSplashScreen = false }
+                    )
+                } else if (showLockScreen) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         AppLockScreen(
                             correctPin = userProfile.appLockPin,

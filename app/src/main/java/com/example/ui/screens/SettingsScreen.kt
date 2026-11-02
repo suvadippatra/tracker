@@ -662,7 +662,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v1.3.0 (Pure Material 3 & Dual-Mode Speed Release)
+            Traker v0.0.1 (Pure Material 3 & Dual-Mode Speed Release)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -683,25 +683,34 @@ fun LegalInfoDialog(
             • যখন টগল বন্ধ (OFF - Smooth Scrolling Cylinder Dial Mode):
               - মিটার রিডিং (৬-চাকার ওডোমিটার) এবং ডেট/টাইম পিকারে স্মুথ স্ক্রলিং সিলিন্ডার ডায়াল (WheelPicker) এবং নেটিভ Material 3 অ্যানিমেশন সক্রিয় থাকে।
 
-            ৩. 📱 ট্যাবলেট উইন্ডো মোড (Lenovo Smart Connect ও Poco/Xiaomi Tablet)
-            • ট্যাবলেট ও ডেস্কটপ মোডে অ্যাপটি পুরো স্ক্রিনে ছড়িয়ে না গিয়ে ডিফল্টভাবে ফোন-অনুপাতের ফ্লোটিং উইন্ডো আকারে (420dp × 820dp, পোর্ট্রেট রেশিও) খোলে। সাধারণ মোবাইলে এটি স্বাভাবিক ফুল-স্ক্রিনে চলে।
+            ৩. 💾 ৪টি কার্যকর ব্যাকআপ ও রিস্টোর বিকল্প (Data & Backups)
+            • সম্পূর্ণ JSON ব্যাকআপ: সমস্ত হোটেল, হিসাব, খাবার অর্ডার, খরচ ও মিটার রিডিং একক ফাইলে এক্সপোর্ট ও ইমপোর্ট করুন।
+            • অফলাইন QR Sync Stream: ইন্টারনেট ছাড়াই ফাউন্টেন কোডের মাধ্যমে এক ফোন থেকে অন্য ফোনে ডাটা ট্রান্সফার করুন।
+            • সরাসরি SQLite ডাটাবেস ব্যাকআপ: সম্পূর্ণ 'traker_database' ডাটাবেস জিপ ফাইলে ব্যাকআপ নিন এবং তাৎক্ষণিক পুনরুদ্ধার করুন।
+            • CSV এক্সপোর্ট: এক্সেল বা স্প্রেডশিটে দেখার জন্য হোটেল ও খরচের তালিকা CSV আকারে নামিয়ে নিন।
 
-            ৪. 📡 উন্নত QR Sync Stream ও অফলাইন ব্যাকআপ
-            • নতুন ফুল-স্ক্রিন QR Sync Stream পেজে QR কোডটি আর কখনো কেটে যায় না—যেকোনো স্ক্রিনে সম্পূর্ণ বর্গাকার ও স্পষ্ট দেখায় এবং সহজেই Play/Pause ও FPS স্পিড নিয়ন্ত্রণ করা যায়।
+            ৪. 📱 ট্যাবলেট উইন্ডো মোড (Lenovo Smart Connect ও Poco/Xiaomi Tablet)
+            • ট্যাবলেট ও ডেস্কটপ মোডে অ্যাপটি পুরো স্ক্রিনে ছড়িয়ে না গিয়ে ডিফল্টভাবে ফোন-অনুপাতের ফ্লোটিং উইন্ডো আকারে (420dp × 820dp, পোর্ট্রেট রেশিও) খোলে। সাধারণ মোবাইলে এটি স্বাভাবিক ফুল-স্ক্রিনে চলে।
 
             ৫. 🛠️ GitHub Actions থেকে ম্যানুয়ালি (ক্লিক করে) APK ও AAB তৈরি করার নিয়ম
             • অটোমেটিক বিল্ড বন্ধ করা হয়েছে—শুধুমাত্র আপনি ক্লিক করলেই বিল্ড শুরু হবে (JDK 21 ও Gradle 9.3.1 দ্বারা ফিক্সড)।
-            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → বাম পাশ থেকে "Build & Release Android App" নির্বাচন করুন → "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন:
+            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → বাম পাশ থেকে "Manual Android APK & AAB Builder" নির্বাচন করুন → "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন (ডিফল্ট ট্যাগ: v0.0.1):
               - all (AAB + Universal APK + arm64-v8a APK)
               - aab (Play Store রিলিজ বান্ডেল)
               - universal-apk (সব ডিভাইসের জন্য APK)
-              - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও দ্রুত APK)
+              - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও অতি ক্ষুদ্র আকারের APK)
+
+            ৬. ✨ "Care Comes to Life" স্প্ল্যাশ অ্যানিমেশন ও লোগো প্রেজেন্টেশন
+            • পুরনো কালো ব্যাকগ্রাউন্ড এবং বৃত্তাকার লোডিং স্পিনার সম্পূর্ণরূপে অপসারিত।
+            • সিস্টেম লাইট ও ডার্ক মোডের সাথে সামঞ্জস্যপূর্ণ ব্যাকগ্রাউন্ড (উষ্ণ অফ-হোয়াইট বা গভীর টিল-ব্ল্যাক)।
+            • মূল PNG লোগোটি আলতোভাবে ভেসে উঠে স্বাভাবিক অবস্থানে স্থির হয় এবং মাঝখানের কমলা হার্টটিতে মৃদু কার্ডিয়াক পালস ও আভা জ্বলে ওঠে যা সেবা ও মানবিক সহায়তার বার্তা প্রকাশ করে।
+            • মোবাইল ও ট্যাবলেটে সুন্দরভাবে ফিট হয় এবং হোম স্ক্রিনে মসৃণভাবে ট্রানজিশন করে।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v1.3.0 (Pure Material 3 & Dual-Mode Speed Release)
+            Traker v0.0.1 (Pure Material 3 & Dual-Mode Speed Release)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -723,19 +732,28 @@ fun LegalInfoDialog(
             • When OFF (Smooth Scrolling Cylinder Dial Mode):
               - Restores the smooth scrollable cylindrical wheel dial (WheelPicker) in the 6-digit Bill Meter Odometer and Date/Time pickers along with smooth Material 3 animations.
 
-            3. 📱 TABLET WINDOWED LAUNCH (LENOVO SMART CONNECT & POCO/XIAOMI TABLETS)
+            3. 💾 4 WORKING DATA BACKUP & RESTORE OPTIONS
+            • Full JSON Backup & Restore: Complete snapshot export and selective/full restore of hotels, daily meals, accounts, extra expenses, and utility bills.
+            • Offline QR Sync Stream: Offline device-to-device data migration via animated Fountain QR codes with unclipped display and configurable FPS.
+            • Direct SQLite Database Backup: Direct zipped snapshot of 'traker_database' for 100% exact local recovery.
+            • CSV Export: Export meals, expenditures, and bill histories for spreadsheet viewing.
+
+            4. 📱 TABLET WINDOWED LAUNCH (LENOVO SMART CONNECT & POCO/XIAOMI TABLETS)
             • Configured with portrait orientation lock, fixed resizeableActivity=false, and a 420dp × 820dp window layout manifest declaration so Lenovo ZUI Smart Connect and Xiaomi HyperOS/Poco tablets automatically launch the app in a phone-sized floating window while standard phones open normally.
 
-            4. 📡 REDESIGNED QR SYNC STREAM & OFFLINE BACKUPS
-            • The QR Sync Stream page dynamically sizes the 1:1 square QR code container so the QR code is never clipped or cut off, and uses the top Back/Close actions alongside compact Play/Pause and FPS speed controls.
-
             5. 🛠️ MANUAL CLICK-TO-RUN GITHUB ACTIONS APK & AAB WORKFLOW
-            • Automatic push/PR builds are disabled—compilation starts ONLY when you manually click "Run workflow" (upgraded to JDK 21 + Gradle 9.3.1 with fixed YAML syntax and automatic debug keystore fallback).
-            • Open your GitHub repository → "Actions" tab → "Build & Release Android App" → click "Run workflow" and choose:
+            • Automatic push/PR builds are disabled—compilation starts ONLY when you manually click "Run workflow" (upgraded to JDK 21 + Gradle 9.3.1 with fixed YAML syntax, setup-java v5, and automatic debug keystore fallback).
+            • Open your GitHub repository → "Actions" tab → "Manual Android APK & AAB Builder" → click "Run workflow" and choose (default tag: v0.0.1):
               - all (Play Store .aab + Universal .apk + arm64-v8a .apk)
               - aab (Play Store Android App Bundle .aab)
               - universal-apk (Universal APK for all CPU architectures)
-              - arm64-v8a-apk (Fast, compact 64-bit ARM APK)
+              - arm64-v8a-apk (Fast, ultra-compact 64-bit ARM APK)
+
+            6. ✨ "CARE COMES TO LIFE" SPLASH ANIMATION & LOGO PRESENTATION
+            • Replaced generic black background and circular rotating spinners with an intentional, premium native Jetpack Compose entrance animation.
+            • Adapts to Android Light Mode (warm off-white) and Dark Mode (deep teal-black) with zero rectangular white frames or color alterations to your PNG logo.
+            • The logo gently floats upward by 22dp, naturally settles, and illuminates its central orange heart with a gentle cardiac pulse and soft warm aura ("Care Comes to Life").
+            • Responsive on phone and tablet screens with safe drawing window insets and smooth dissolve into the home or lock screen.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)

@@ -1,5 +1,0 @@
-#!/bin/bash
-perl -pi -e 's/\.clickable \{ showEditProfileDialog = true \}/.clickable { onOpenOwnerProfile() }/g' app/src/main/java/com/example/ui/screens/settings/subscreens/ProfileSettingsScreen.kt
-
-# Add edit pencil button at the end of the row (before closing Row brace)
-perl -0777 -pi -e 's/(val currencyBg = if \(isLight\) Color\(0xFFFFF3E0\) else Color\(0x40D84315\)\n\s*val currencyBorder = if \(isLight\) Color\(0xFFFFB74D\) else Color\(0xFFFF8A65\).*?\n\s*\}.*?\n\s*\}.*?\n\s*)\}/$1Spacer(modifier = Modifier.weight(1f))\n                        IconButton(\n                            onClick = { showEditProfileDialog = true },\n                            modifier = Modifier.size(36.dp).clip(CircleShape).background(AppTextColor().copy(alpha = 0.05f))\n                        ) {\n                            Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = AppTextColor(), modifier = Modifier.size(16.dp))\n                        }\n                    }/s' app/src/main/java/com/example/ui/screens/settings/subscreens/ProfileSettingsScreen.kt
