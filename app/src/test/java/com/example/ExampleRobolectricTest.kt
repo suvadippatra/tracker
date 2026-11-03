@@ -19,7 +19,10 @@ class ExampleRobolectricTest {
 
     @Test
     fun testSettingsDialog() {
-        val viewModel = FinancialViewModel(ApplicationProvider.getApplicationContext())
+        val viewModel = FinancialViewModel(
+            ApplicationProvider.getApplicationContext(),
+            androidx.lifecycle.SavedStateHandle()
+        )
         composeTestRule.setContent {
             SettingsDialog(
                 viewModel = viewModel,

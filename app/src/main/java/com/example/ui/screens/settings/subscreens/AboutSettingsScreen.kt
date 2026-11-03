@@ -71,31 +71,31 @@ fun AboutSettingsScreen(
         listOf(
             HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "Smart Bill & Meter Reading Calculator",
-                titleBn = "স্মার্ট বিল ও মিটার রিডিং ক্যালকুলেটর",
-                descEn = "Interpolates multiple meter readings between any two dates accurately. If readings stop updating after the last unpaid bill, the total preserves your unpaid balance + ₹0 new usage.",
-                descBn = "যেকোনো দুটি তারিখের মধ্যে একাধিক মিটার রিডিং নিখুঁতভাবে গণনা করে। রিডিং আপডেট বন্ধ থাকলেও বকেয়া বিলের সাথে ₹০ নতুন চার্জ যোগ করে সঠিক হিসাব দেখায়।"
+                titleEn = "Smart Bill Interpolation & Inactive Unpaid Carry-Over",
+                titleBn = "স্মার্ট বিল ইন্টারপোলেশন ও বকেয়া জের",
+                descEn = "Linearly interpolates unlisted dates between meter readings and splits rate changes pro-rata. If readings stop updating after the last unpaid bill, selecting a later date carries over your unpaid balance + ₹0 new usage.",
+                descBn = "মিটার রিডিংয়ে না থাকা তারিখের মাঝামাঝি রিডিং ইন্টারপোলেট করে এবং রেট পরিবর্তন আনুপাতিক হারে ভাগ করে। রিডিং বন্ধ থাকলেও পূর্বের বকেয়া বিলের সাথে ₹০ নতুন চার্জ যোগ করে সঠিক হিসাব দেখায়।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.ReceiptLong,
+                titleEn = "Dual-Mode Meal & Account History ('Adding One by One')",
+                titleBn = "ডুয়াল-মোড খাবার ও অ্যাকাউন্ট হিস্ট্রি",
+                descEn = "Swipe left or right to browse months in both Hotel Meal History and Wallet Account History. Toggle between Summed View and 'Adding One by One' Expression View (e.g. (60 + 80) + 50 = ₹190) with full Meal Group support.",
+                descBn = "হোটেল ও অ্যাকাউন্ট হিস্ট্রিতে ডানে-বামে সোয়াইপ করে মাস পরিবর্তন করুন এবং সামড ভিউ ও 'একের পর এক যোগ' এক্সপ্রেশন ভিউয়ের মধ্যে পরিবর্তন করুন।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.AutoAwesome,
-                titleEn = "Borderless Native Shadows & Plus Jakarta Sans",
-                titleBn = "বর্ডারলেস নেটিভ শ্যাডো ও প্লাস জাকার্তা স্যান্স ফন্ট",
-                descEn = "All harsh card and button borders are removed in favor of smooth Android hardware elevation shadows and unified Plus Jakarta Sans typography.",
-                descBn = "সকল কার্ড ও বাটনের বর্ডার সরিয়ে অ্যান্ড্রয়েডের নেটিভ শ্যাডো এবং আধুনিক Plus Jakarta Sans ফন্ট যুক্ত করা হয়েছে।"
+                titleEn = "Borderless Material 3 Light Mode & Android 8–10 Full-Screen",
+                titleBn = "বর্ডারলেস মেটেরিয়াল ৩ ও অ্যান্ড্রয়েড ৮-১০ ফুল-স্ক্রিন",
+                descEn = "Clean borderless Material 3 surfaces with native elevation shadows, deep M3 primary blue buttons, rounded 16dp inputs, circular '<' back navigation, text-only menus, and zero top/bottom cropping on Android 8–10.",
+                descBn = "লাইট ও ডার্ক মোডে বর্ডারলেস মেটেরিয়াল ৩ শ্যাডো, গাঢ় নীল বাটন, ১৬ ডিপি রাউন্ডেড টেক্সট বক্স, '<' ব্যাক বাটন এবং অ্যান্ড্রয়েড ৮-১০ এ পূর্ণ-স্ক্রিন সাপোর্ট।"
             ),
             HelpGuideQuickItem(
-                icon = Icons.Default.DarkMode,
-                titleEn = "Instant Light & Dark Splash Detection",
-                titleBn = "তাৎক্ষণিক লাইট ও ডার্ক স্প্ল্যাশ ডিটেকশন",
-                descEn = "Detects your system or saved theme before the first frame renders, completely eliminating any black screen flash before the splash animation.",
-                descBn = "অ্যানিমেশন শুরুর আগেই লাইট বা ডার্ক থিম শনাক্ত করে, ফলে অ্যাপ চালুর সময় কোনো কালো স্ক্রিন দেখা যায় না।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.Speed,
-                titleEn = "Dual-Mode UI & Tablet Menu Navigation",
-                titleBn = "ডুয়াল-মোড ইউআই ও ট্যাবলেট নেভিগেশন",
-                descEn = "Switch between Liquid Glass and Material 3 with Fast/Smooth animation speed, plus a unified triple-line menu button on tablet sidebars.",
-                descBn = "লিকুইড গ্লাস ও মেটেরিয়াল ৩ থিমের সাথে ফাস্ট/স্মুথ অ্যানিমেশন স্পিড এবং ট্যাবলেটের সাইডবারে ট্রিপল-লাইন মেনু বাটন।"
+                icon = Icons.Default.QrCode,
+                titleEn = "Normalized Data Export & Adaptive QR Streaming",
+                titleBn = "নরমালাইজড ডেটা এক্সপোর্ট ও অ্যাডাপ্টিভ কিউআর স্ট্রিমিং",
+                descEn = "Exports all independent base data (including Electricity Bill Rates, Owner Accounts & Hotel Payments) while omitting derived fields that the app recalculates automatically, paired with adaptive QR packet splitting.",
+                descBn = "বিদ্যুৎ বিলের রেট, ওনার অ্যাকাউন্ট ও হোটেল পেমেন্টসহ সকল মৌলিক ডেটা এক্সপোর্ট করে এবং অপ্রয়োজনীয় ডিরাইভড ডেটা বাদ দিয়ে দ্রুত কিউআর স্ট্রিমিং নিশ্চিত করে।"
             )
         )
     }

@@ -1,6 +1,6 @@
 {
-  "summary":  "Revised implementation plan detailing every page, tab, sub-page, and modal across the entire application (including the 4+ opening scene pages), along with Android 8 UI simplification, lightweight & native controls, settings toggle, Help Guide updates, and the manual GitHub Actions workflow for AAB, Universal APK, and arm64-v8a APK builds.",
-  "updatedAt":  "2026-11-02T09:55:05.087365954Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Revised implementation plan adding: (1) Android 8–10 full-screen visual leak and top/bottom cropping fixes across DialogEdgeToEdge, RootOverlay screens, Add/Edit Hotel & Account pages, History pages, and Settings sub-pages; and (2) upgraded Meal History page (left/right swipe + Summed vs. Adding-One-by-One Expression view modes with meal groups) plus a new matching Account History viewing page in the Extra/Account section.",
+  "updatedAt": "2026-11-03T09:50:41.984187676Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

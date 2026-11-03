@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -60,8 +61,8 @@ fun MeterDialPicker(
 
     val isLight = isAppLightMode()
     val disableHeavy = isHeavyEffectsDisabled()
-    val cardBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    val borderCol = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
+    val cardBg = if (isLight) Color(0xFFEFF4F9) else com.example.ui.theme.M3SurfaceHighDark
+    val decimalBg = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
     val digitRange = remember { (0..9).toList() }
 
     Column(
@@ -81,7 +82,7 @@ fun MeterDialPicker(
                     LightweightDigitStepper(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 2.dp),
+                            .padding(horizontal = 3.dp),
                         value = digits.getOrElse(i) { 0 },
                         onValueChange = { newVal ->
                             digits[i] = newVal
@@ -91,7 +92,7 @@ fun MeterDialPicker(
                         textColor = textColor,
                         accentColor = accentColor,
                         containerBg = cardBg,
-                        containerBorder = borderCol,
+                        containerBorder = Color.Transparent,
                         isDecimal = false
                     )
                 }
@@ -108,7 +109,7 @@ fun MeterDialPicker(
                     LightweightDigitStepper(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 2.dp),
+                            .padding(horizontal = 3.dp),
                         value = digits.getOrElse(i) { 0 },
                         onValueChange = { newVal ->
                             digits[i] = newVal
@@ -117,8 +118,8 @@ fun MeterDialPicker(
                         onTapDigit = { editingDigitIndex = i },
                         textColor = textColor,
                         accentColor = accentColor,
-                        containerBg = cardBg,
-                        containerBorder = borderCol,
+                        containerBg = decimalBg,
+                        containerBorder = Color.Transparent,
                         isDecimal = true
                     )
                 }
@@ -131,13 +132,19 @@ fun MeterDialPicker(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 for (i in 0 until 4) {
+                    val boxShape = RoundedCornerShape(12.dp)
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 2.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .padding(horizontal = 3.dp)
+                            .UARTShadow(
+                                elevation = if (isLight) 1.5.dp else 2.5.dp,
+                                shape = boxShape,
+                                ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
+                                spotColor = if (isLight) Color(0x1E0F172A) else Color(0x66000000)
+                            )
+                            .clip(boxShape)
                             .background(cardBg)
-                            .border(1.dp, borderCol, RoundedCornerShape(10.dp))
                             .clickable { editingDigitIndex = i }
                     ) {
                         WheelPicker(
@@ -173,13 +180,19 @@ fun MeterDialPicker(
                 )
 
                 for (i in 4 until 6) {
+                    val boxShape = RoundedCornerShape(12.dp)
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 2.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(accentColor.copy(alpha = 0.08f))
-                            .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 3.dp)
+                            .UARTShadow(
+                                elevation = if (isLight) 1.5.dp else 2.5.dp,
+                                shape = boxShape,
+                                ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
+                                spotColor = if (isLight) Color(0x1E0F172A) else Color(0x66000000)
+                            )
+                            .clip(boxShape)
+                            .background(decimalBg)
                             .clickable { editingDigitIndex = i }
                     ) {
                         WheelPicker(
@@ -208,16 +221,22 @@ fun MeterDialPicker(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Direct Keypad Input Button for instant reading entry
+        // Direct Keypad Input Button for instant reading entry (Material 3 borderless tonal pill)
+        val chipShape = RoundedCornerShape(14.dp)
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(accentColor.copy(alpha = 0.12f))
-                .border(1.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                .UARTShadow(
+                    elevation = if (isLight) 2.dp else 3.dp,
+                    shape = chipShape,
+                    ambientColor = if (isLight) Color(0x160F172A) else Color(0x44000000),
+                    spotColor = if (isLight) Color(0x200F172A) else Color(0x66000000)
+                )
+                .clip(chipShape)
+                .background(decimalBg)
                 .clickable { showFullValueDialog = true }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -368,13 +387,9 @@ private fun LightweightDigitStepper(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(containerBg)
-            .border(
-                width = 1.dp,
-                color = if (isDecimal) accentColor.copy(alpha = 0.45f) else containerBorder,
-                shape = RoundedCornerShape(10.dp)
-            ),
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(containerBg),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
@@ -474,9 +489,9 @@ fun CylindricalDateTimePicker(
                     modifier = Modifier
                         .weight(1.15f)
                         .height(48.dp)
+                        .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
                         .background(cardBg)
-                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
                         .clickable {
                             DatePickerDialog(
                                 context,
@@ -518,9 +533,9 @@ fun CylindricalDateTimePicker(
                     modifier = Modifier
                         .weight(0.85f)
                         .height(48.dp)
+                        .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
                         .background(cardBg)
-                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
                         .clickable {
                             TimePickerDialog(
                                 context,
@@ -577,9 +592,9 @@ fun CylindricalDateTimePicker(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(14.dp))
                     .clip(RoundedCornerShape(14.dp))
                     .background(cardBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(14.dp))
                     .padding(horizontal = 6.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -754,18 +769,21 @@ private fun QuickTimeChip(
     accent: Color,
     onClick: () -> Unit
 ) {
+    val isLight = isAppLightMode()
+    val chipBg = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+    val chipFg = if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(accent.copy(alpha = 0.12f))
-            .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .background(chipBg)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = accent,
+            color = chipFg,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
         )

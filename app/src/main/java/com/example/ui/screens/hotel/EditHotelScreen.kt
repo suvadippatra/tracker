@@ -130,21 +130,25 @@ fun EditHotelModal(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .statusBarsPadding()
+                                        .dialogSafeTopPadding(extraTop = 8.dp)
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
                                         onClick = onDismiss,
-                                        modifier = Modifier.size(48.dp)
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
                                     ) {
                                         Icon(
-                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            Icons.Default.ChevronLeft,
                                             contentDescription = if (isBengali) "ফিরে যান" else "Back",
-                                            tint = AppTextColor()
+                                            tint = AppTextColor(),
+                                            modifier = Modifier.size(26.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = if (isBengali) (if (hotel == null) "নতুন হোটেল" else "হোটেল সংশোধন") else (if (hotel == null) "Add Hotel" else "Edit Hotel Info"),
                                         color = AppTextColor(),
@@ -216,18 +220,10 @@ fun EditHotelModal(
                                         modifier = Modifier.background(getDialogBackground())
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text(if (isBengali) "ট্র্যাশ বিনে সরান" else "Move to Trash Bin", color = AccentPink) },
+                                            text = { Text(if (isBengali) "ট্র্যাশ বিনে সরান" else "Move to Trash Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                             onClick = {
                                                 showMenu = false
                                                 showDeleteConfirm = true
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = null,
-                                                    tint = AccentPink,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
                                             }
                                         )
                                     }
@@ -248,9 +244,9 @@ fun EditHotelModal(
                                 .fillMaxWidth()
                                 .widthIn(max = 680.dp)
                                 .verticalScroll(rememberScrollState())
-                                
+                                .dialogSafeBottomPadding(extraBottom = 16.dp)
                                 .imePadding()
-                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                                .padding(horizontal = 20.dp, vertical = 20.dp)
                         ) {
                             if (showDeleteConfirm) {
                                 com.example.ui.components.Tier1DeleteDialog(
@@ -389,15 +385,18 @@ fun EditHotelModal(
                                         .fillMaxWidth()
                                         .defaultMinSize(minHeight = 52.dp)
                                         .bounceClick(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.15f)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AppAccentColor(),
+                                        contentColor = AppOnAccentColor()
+                                    ),
                                     shape = RoundedCornerShape(16.dp),
-                                    elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp)
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 0.dp)
                                 ) {
-                                    Icon(Icons.Default.RestaurantMenu, contentDescription = "Manage Menu", tint = AccentCyan)
+                                    Icon(Icons.Default.RestaurantMenu, contentDescription = "Manage Menu", tint = AppOnAccentColor())
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = if (isBengali) "মেনু এডিটর খুলুন" else "Open Menu Editor",
-                                        color = AccentCyan,
+                                        color = AppOnAccentColor(),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )

@@ -687,18 +687,25 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                 }
                                                 DropdownMenu(
                                                     expanded = showAccountMenu,
-                                                    onDismissRequest = { showAccountMenu = false }
+                                                    onDismissRequest = { showAccountMenu = false },
+                                                    modifier = Modifier.background(getDialogBackground())
                                                 ) {
                                                     DropdownMenuItem(
-                                                        text = { Text("Edit this account", color = AppAccentColor()) },
+                                                        text = { Text("Edit Account Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                         onClick = {
                                                             showAccountMenu = false
                                                             editingAccount = account
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.Edit, null, tint = AppAccentColor()) }
+                                                        }
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("Share Account via QR", color = AccentGreen) },
+                                                        text = { Text("View Account History", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
+                                                        onClick = {
+                                                            showAccountMenu = false
+                                                            showDetailedHistory = true
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("Share Account via QR", color = AccentGreen, fontWeight = FontWeight.Medium) },
                                                         onClick = {
                                                             showAccountMenu = false
                                                             viewModel.exportViaQr(com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT, bankAccountId = account.id) { result ->
@@ -710,44 +717,35 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                                     android.widget.Toast.makeText(context, "Export failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
                                                                 }
                                                             }
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.QrCode, null, tint = AccentGreen) }
+                                                        }
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("Import Ledger via QR", color = AppAccentColor()) },
+                                                        text = { Text("Import Ledger via QR", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
                                                         onClick = {
                                                             showAccountMenu = false
                                                             showQrImportScanner = true
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.QrCodeScanner, null, tint = AppAccentColor()) }
+                                                        }
                                                     )
                                                     val isDefaultAcc = userProfile?.defaultBankAccountId == account.id
                                                     DropdownMenuItem(
                                                         text = {
                                                             Text(
-                                                                if (isDefaultAcc) "★ Default Account" else "☆ Set as Default Account",
-                                                                color = if (isDefaultAcc) AppAccentColor() else AppTextColor()
+                                                                if (isDefaultAcc) "Default Account (Active)" else "Set as Default Account",
+                                                                color = if (isDefaultAcc) AppAccentColor() else AppTextColor(),
+                                                                fontWeight = if (isDefaultAcc) FontWeight.Bold else FontWeight.Medium
                                                             )
                                                         },
                                                         onClick = {
                                                             viewModel.setDefaultBankAccount(account.id)
                                                             showAccountMenu = false
-                                                        },
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                Icons.Default.Star,
-                                                                null,
-                                                                tint = AppAccentColor()
-                                                            )
                                                         }
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("Delete", color = Color.Red) },
+                                                        text = { Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                                         onClick = {
                                                             showAccountMenu = false
                                                             showDeleteDialog = true
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                                                        }
                                                     )
                                                 }
                                             }
@@ -1403,8 +1401,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Delete", color = AccentPink) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                        text = { Text("Delete Transaction", color = AccentPink, fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showExpMenu = false
                                             showDeleteDialog = true
@@ -1785,139 +1782,344 @@ fun ExtraExpenseDetailedHistoryScreen(
     val currentMonthOffset by rememberUpdatedState(monthOffset)
     val currentIsEarliestMonth by rememberUpdatedState(isEarliestMonth)
 
+    var isExpressionView by remember { mutableStateOf(false) }
     var totalDragAmount by remember { mutableStateOf(0f) }
     androidx.activity.compose.BackHandler(onBack = onDismiss)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(getAppBackgroundGradient(com.example.ui.components.LocalAppTheme.current))
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDragAmount = 0f },
-                    onDragEnd = {
-                        val swipeThreshold = 40.dp.toPx()
-                        if (totalDragAmount > swipeThreshold) {
-                            // Swipe Right -> Previous Month (Go back in time, if not already at earliest month)
-                            if (!currentIsEarliestMonth) {
-                                monthOffset -= 1
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        com.example.ui.components.DialogEdgeToEdge()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(com.example.ui.components.LocalAppTheme.current))
+                    .dialogSystemBarsPadding(extraTop = 8.dp)
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { totalDragAmount = 0f },
+                            onDragEnd = {
+                                val swipeThreshold = 40.dp.toPx()
+                                if (totalDragAmount > swipeThreshold) {
+                                    if (!currentIsEarliestMonth) {
+                                        monthOffset -= 1
+                                    }
+                                } else if (totalDragAmount < -swipeThreshold) {
+                                    if (currentMonthOffset < 0) {
+                                        monthOffset += 1
+                                    }
+                                }
+                                totalDragAmount = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                totalDragAmount += dragAmount
                             }
-                        } else if (totalDragAmount < -swipeThreshold) {
-                            // Swipe Left -> Next Month (Go forward in time, restricted to not exceed current month)
-                            if (currentMonthOffset < 0) {
-                                monthOffset += 1
+                        )
+                    },
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Scaffold(
+                    modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
+                    contentWindowInsets = WindowInsets(0.dp),
+                    topBar = {
+                        Column(modifier = Modifier.background(Color.Transparent).padding(top = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(getGlassIconButtonBg(), CircleShape)
+                                        .bounceClick()
+                                ) {
+                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    "Account & Transaction History",
+                                    color = AppTextColor(),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Dual View Mode Toggle (Summed View vs Adding One by One Expression View)
+                            val isLight = isAppLightMode()
+                            val activePillBg = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                            val activePillText = if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(getCardBackground())
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    onClick = { isExpressionView = false },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (!isExpressionView) activePillBg else Color.Transparent,
+                                    shadowElevation = if (!isExpressionView) 2.dp else 0.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "Summed View",
+                                            color = if (!isExpressionView) activePillText else AppSecondaryTextColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = if (!isExpressionView) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    onClick = { isExpressionView = true },
+                                    modifier = Modifier.weight(1f).height(38.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isExpressionView) activePillBg else Color.Transparent,
+                                    shadowElevation = if (isExpressionView) 2.dp else 0.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "Adding One by One",
+                                            color = if (isExpressionView) activePillText else AppSecondaryTextColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isExpressionView) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                item {
+                                    FilterChip(
+                                        selected = selectedAccountId == null,
+                                        onClick = { selectedAccountId = null },
+                                        label = { Text("All Accounts") },
+                                        border = null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = getCardBackground(),
+                                            labelColor = AppTextColor(),
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                }
+                                items(accounts, key = { it.id }, contentType = { "account_filter_chip" }) { acc ->
+                                    FilterChip(
+                                        selected = selectedAccountId == acc.id,
+                                        onClick = { selectedAccountId = acc.id },
+                                        label = { Text(acc.name) },
+                                        border = null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = getCardBackground(),
+                                            labelColor = AppTextColor(),
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val currentDisplayMonth = remember(monthOffset) {
+                                    val cal = Calendar.getInstance()
+                                    cal.add(Calendar.MONTH, monthOffset)
+                                    monthFormat.format(cal.time)
+                                }
+                                IconButton(onClick = { monthOffset -= 1 }, enabled = !isEarliestMonth, modifier = Modifier.bounceClick()) {
+                                    Icon(Icons.Default.ChevronLeft, "Previous Month", tint = if (!isEarliestMonth) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text("Swipe left or right to switch months", color = AppSecondaryTextColor(), fontSize = 10.sp)
+                                }
+                                IconButton(onClick = { monthOffset += 1 }, enabled = monthOffset < 0, modifier = Modifier.bounceClick()) {
+                                    Icon(Icons.Default.ChevronRight, "Next Month", tint = if (monthOffset < 0) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
+                                }
                             }
                         }
-                        totalDragAmount = 0f
                     },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDragAmount += dragAmount
+                    containerColor = Color.Transparent
+                ) { padding ->
+                    if (filteredExpenses.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                            val currentDisplayMonth = remember(monthOffset) {
+                                val cal = Calendar.getInstance()
+                                cal.add(Calendar.MONTH, monthOffset)
+                                monthFormat.format(cal.time)
+                            }
+                            EmptyStateCard(message = "No past transactions for $currentDisplayMonth.")
+                        }
+                    } else {
+                        val monthIncome = remember(filteredExpenses) {
+                            filteredExpenses.filter { it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
+                        }
+                        val monthExpense = remember(filteredExpenses) {
+                            filteredExpenses.filter { !it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
+                        }
+                        if (isExpressionView) {
+                            val dayGroups = remember(filteredExpenses) {
+                                filteredExpenses.groupBy { exp ->
+                                    Formatters.formatDayDotMonthYear(exp.timestamp)
+                                }.map { (dateStr, dayExps) ->
+                                    val ordered = dayExps.sortedBy { it.timestamp }
+                                    val expItems = ordered.filter { !it.type.equals("INCOME", ignoreCase = true) }
+                                    val incItems = ordered.filter { it.type.equals("INCOME", ignoreCase = true) }
+                                    val expSum = expItems.sumOf { it.amount }.toInt()
+                                    val incSum = incItems.sumOf { it.amount }.toInt()
+                                    val expExpr = if (expItems.isNotEmpty()) {
+                                        expItems.joinToString(" + ") { it.amount.toInt().toString() } + " = ₹$expSum"
+                                    } else ""
+                                    val incExpr = if (incItems.isNotEmpty()) {
+                                        incItems.joinToString(" + ") { "+${it.amount.toInt()}" } + " = +₹$incSum"
+                                    } else ""
+                                    Triple(dateStr, Pair(expSum, incSum), Triple(expExpr, incExpr, ordered))
+                                }
+                            }
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(dayGroups, key = { it.first }, contentType = { "account_day_expr" }) { (dateStr, sums, details) ->
+                                    val (expSum, incSum) = sums
+                                    val (expExpr, incExpr, dayItems) = details
+                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(dateStr, color = AppTextColor(), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    if (incSum > 0) {
+                                                        Text("+₹$incSum", color = AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                    if (expSum > 0) {
+                                                        Text("-₹$expSum", color = AccentPink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                            if (expExpr.isNotBlank()) {
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Text(
+                                                    text = "$dateStr (Expense) → $expExpr",
+                                                    color = AccentPink,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            if (incExpr.isNotBlank()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "$dateStr (Income) → $incExpr",
+                                                    color = AccentGreen,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            dayItems.forEach { item ->
+                                                val accName = accounts.find { it.id == item.bankAccountId }?.name ?: "Account"
+                                                val isInc = item.type.equals("INCOME", ignoreCase = true)
+                                                Text(
+                                                    text = "• ${item.name} (${item.category} • $accName): ${if (isInc) "+" else "-"}₹${item.amount.toInt()}",
+                                                    color = AppSecondaryTextColor(),
+                                                    fontSize = 11.sp,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("Monthly Summary", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Income: +₹${monthIncome.toInt()}  |  Expense: -₹${monthExpense.toInt()}", color = AppSecondaryTextColor(), fontSize = 12.sp)
+                                            }
+                                            val net = (monthIncome - monthExpense).toInt()
+                                            Text(
+                                                text = if (net >= 0) "+₹$net" else "-₹${kotlin.math.abs(net)}",
+                                                color = if (net >= 0) AccentGreen else AccentPink,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(60.dp))
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
+                            ) {
+                                items(filteredExpenses, key = { it.id }, contentType = { "past_expense_item" }) { expense ->
+                                    val account = accounts.find { it.id == expense.bankAccountId }
+                                    TransactionItem(
+                                        expense = expense,
+                                        accountName = account?.name ?: "Unknown",
+                                        onDelete = { viewModel.deleteExtraExpense(expense) }
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("Monthly Summary", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Income: +₹${monthIncome.toInt()}  |  Expense: -₹${monthExpense.toInt()}", color = AppSecondaryTextColor(), fontSize = 12.sp)
+                                            }
+                                            val net = (monthIncome - monthExpense).toInt()
+                                            Text(
+                                                text = if (net >= 0) "+₹$net" else "-₹${kotlin.math.abs(net)}",
+                                                color = if (net >= 0) AccentGreen else AccentPink,
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(80.dp))
+                                }
+                            }
+                        }
                     }
-                )
-            },
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Scaffold(
-            modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
-            topBar = {
-            Column(modifier = Modifier.background(Color.Transparent).padding(top = 16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onDismiss, modifier = Modifier.background(getGlassIconButtonBg(), CircleShape).bounceClick()) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Detailed History",
-                        color = AppTextColor(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
-                
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        FilterChip(
-                            selected = selectedAccountId == null,
-                            onClick = { selectedAccountId = null },
-                            label = { Text("All Accounts") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                labelColor = AppTextColor(),
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedContainerColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-                    items(accounts, key = { it.id }, contentType = { "account_filter_chip" }) { acc ->
-                        FilterChip(
-                            selected = selectedAccountId == acc.id,
-                            onClick = { selectedAccountId = acc.id },
-                            label = { Text(acc.name) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                labelColor = AppTextColor(),
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedContainerColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val currentDisplayMonth = remember(monthOffset) {
-                        val cal = Calendar.getInstance()
-                        cal.add(Calendar.MONTH, monthOffset)
-                        monthFormat.format(cal.time)
-                    }
-                    IconButton(onClick = { monthOffset -= 1 }, enabled = !isEarliestMonth, modifier = Modifier.bounceClick()) {
-                        Icon(Icons.Default.ChevronLeft, "Previous Month", tint = if (!isEarliestMonth) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
-                    }
-                    Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    IconButton(onClick = { monthOffset += 1 }, enabled = monthOffset < 0, modifier = Modifier.bounceClick()) {
-                        Icon(Icons.Default.ChevronRight, "Next Month", tint = if (monthOffset < 0) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
-                    }
-                }
-            }
-        },
-        containerColor = Color.Transparent
-    ) { padding ->
-        if (filteredExpenses.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                val currentDisplayMonth = remember(monthOffset) {
-                    val cal = Calendar.getInstance()
-                    cal.add(Calendar.MONTH, monthOffset)
-                    monthFormat.format(cal.time)
-                }
-                EmptyStateCard(message = "No past transactions for $currentDisplayMonth.")
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
-            ) {
-                items(filteredExpenses, key = { it.id }, contentType = { "past_expense_item" }) { expense ->
-                    val account = accounts.find { it.id == expense.bankAccountId }
-                    TransactionItem(
-                        expense = expense,
-                        accountName = account?.name ?: "Unknown",
-                        onDelete = { viewModel.deleteExtraExpense(expense) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                item { Spacer(modifier = Modifier.height(120.dp)) }
             }
         }
     }
-}
 }
 
 @Composable

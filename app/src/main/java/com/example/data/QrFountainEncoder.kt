@@ -8,13 +8,21 @@ class QrFountainEncoder(
     val sessionId: String,
     val key: ByteArray,
     val iv: ByteArray,
-    val chunkSize: Int = 700
+    val chunkSize: Int = optimalChunkSize(payload.size)
 ) {
-    val k = (payload.size + chunkSize - 1) / chunkSize
+    companion object {
+        fun optimalChunkSize(payloadBytes: Int): Int = when {
+            payloadBytes <= 1200 -> minOf(payloadBytes.coerceAtLeast(1), 400)
+            payloadBytes <= 4000 -> 480
+            else -> 550
+        }
+    }
+
+    val k = ((payload.size + chunkSize - 1) / chunkSize).coerceAtLeast(1)
     val chunks = Array(k) { i ->
         val start = i * chunkSize
         val end = minOf(start + chunkSize, payload.size)
-        payload.copyOfRange(start, end)
+        if (start < end) payload.copyOfRange(start, end) else ByteArray(0)
     }
     
     fun getInitPacket(): ByteArray {

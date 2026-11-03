@@ -135,44 +135,55 @@ fun BinScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Section Selector Tabs
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .background(getGlassIconButtonBg(), RoundedCornerShape(12.dp))
-                    .border(1.dp, getGlassBorder(), RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = getGlassIconButtonBg(),
+                shadowElevation = if (isAppLightMode()) 2.dp else 3.dp
             ) {
-                val tabs = listOf(
-                    "Hotels" to (if (isBn) "হোটেল" else "Hotels"),
-                    "Accounts" to (if (isBn) "অ্যাকাউন্ট" else "Accounts"),
-                    "Menu" to (if (isBn) "মেনু" else "Menu"),
-                    "Meals" to (if (isBn) "খাবার" else "Meals"),
-                    "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
-                    "Readings" to (if (isBn) "মিটার রিডিং" else "Readings")
-                )
-                tabs.forEach { (section, label) ->
-                    val isSelected = activeSection == section
-                    Box(
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) AccentCyan.copy(alpha = 0.2f) else Color.Transparent)
-                            .clickable { 
-                                activeSection = section
-                                searchQuery = "" // Clear search when switching tabs
-                                selectedAccountIds = emptySet()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val tabs = listOf(
+                        "Hotels" to (if (isBn) "হোটেল" else "Hotels"),
+                        "Accounts" to (if (isBn) "অ্যাকাউন্ট" else "Accounts"),
+                        "Menu" to (if (isBn) "মেনু" else "Menu"),
+                        "Meals" to (if (isBn) "খাবার" else "Meals"),
+                        "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
+                        "Readings" to (if (isBn) "মিটার রিডিং" else "Readings")
+                    )
+                    tabs.forEach { (section, label) ->
+                        val isSelected = activeSection == section
+                        Surface(
+                            modifier = Modifier
+                                .height(38.dp)
+                                .clickable {
+                                    activeSection = section
+                                    searchQuery = "" // Clear search when switching tabs
+                                    selectedAccountIds = emptySet()
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) {
+                                if (isAppLightMode()) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                            } else Color.Transparent,
+                            shadowElevation = if (isSelected) 2.dp else 0.dp
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) AppAccentColor() else AppTextColor().copy(alpha = 0.65f),
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
                             }
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.6f),
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 13.sp
-                        )
+                        }
                     }
                 }
             }
@@ -471,58 +482,69 @@ fun BinScreen(
     }
 
     if (showHeader) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Midnight Glow"))
-                .pointerInput(Unit) { detectTapGestures { } }
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.Center
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
         ) {
-            Scaffold(
-                modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
-                containerColor = Color.Transparent,
-                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
-                topBar = {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.size(48.dp)
+            DialogEdgeToEdge()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Midnight Glow"))
+                    .pointerInput(Unit) { detectTapGestures { } }
+                    .dialogSystemBarsPadding(extraTop = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Scaffold(
+                    modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
+                    topBar = {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor())
-                        }
-                        Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        
-                        if (!isCurrentSectionEmpty) {
-                            FilledTonalIconButton(
-                                onClick = { showEmptyBinConfirmation = true },
-                                modifier = Modifier.size(40.dp),
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = AccentPink.copy(alpha = 0.14f),
-                                    contentColor = AccentPink
-                                )
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                                    .bounceClick()
                             ) {
-                                Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                                Icon(Icons.Default.ChevronLeft, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
                             }
-                        } else {
-                            Box(modifier = Modifier.size(40.dp))
+                            Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            
+                            if (!isCurrentSectionEmpty) {
+                                FilledTonalIconButton(
+                                    onClick = { showEmptyBinConfirmation = true },
+                                    modifier = Modifier.size(40.dp),
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = AccentPink.copy(alpha = 0.14f),
+                                        contentColor = AccentPink
+                                    )
+                                ) {
+                                    Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                                }
+                            } else {
+                                Box(modifier = Modifier.size(40.dp))
+                            }
                         }
                     }
-                }
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    binContent()
+                ) { padding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        binContent()
+                    }
                 }
             }
         }

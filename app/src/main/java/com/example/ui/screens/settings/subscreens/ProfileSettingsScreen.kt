@@ -857,14 +857,12 @@ fun AccountCardItem(
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, modifier = Modifier.background(getDialogBackground())) {
                             DropdownMenuItem(
-                                text = { Text(if (prefLanguage == "bn") "সম্পাদনা করুন" else "Edit", color = AppTextColor()) },
-                                onClick = { showMenu = false; onEdit() },
-                                leadingIcon = { Icon(Icons.Default.Edit, null, tint = AppTextColor()) }
+                                text = { Text(if (prefLanguage == "bn") "সম্পাদনা করুন" else "Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                onClick = { showMenu = false; onEdit() }
                             )
                             DropdownMenuItem(
-                                text = { Text(if (prefLanguage == "bn") "বিনে সরান" else "Move to Bin", color = AccentPink) },
-                                onClick = { showMenu = false; showDeleteConfirm = true },
-                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink) }
+                                text = { Text(if (prefLanguage == "bn") "বিনে সরান" else "Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
+                                onClick = { showMenu = false; showDeleteConfirm = true }
                             )
                         }
                     }
@@ -1136,8 +1134,7 @@ fun EditProfileModal(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -1145,16 +1142,18 @@ fun EditProfileModal(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
                                     onClick = onDismiss,
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(getGlassIconButtonBg(), CircleShape)
                                 ) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = if (prefLanguage == "bn") "প্রোফাইল তথ্য ও পেমেন্ট বিবরণী" else "Edit Profile & Payment Details",
                                     color = AppTextColor(),
@@ -1172,7 +1171,6 @@ fun EditProfileModal(
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         }
                     ) { innerPadding ->
@@ -1180,9 +1178,9 @@ fun EditProfileModal(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(innerPadding)
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 20.dp, vertical = 16.dp)
                                 .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                 Text(
                     text = if (prefLanguage == "bn") "মালিকের সাধারণ তথ্য" else "Owner Profile Info",
@@ -1196,11 +1194,14 @@ fun EditProfileModal(
                     onValueChange = { name = it },
                     label = { Text(if (prefLanguage == "bn") "মালিকের নাম / ব্যবসার নাম" else "Owner / Business Name") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AppTextColor(),
                         unfocusedTextColor = AppTextColor(),
                         focusedBorderColor = AppAccentColor(),
-                        unfocusedBorderColor = getGlassBorder()
+                        unfocusedBorderColor = getGlassBorder(),
+                        focusedContainerColor = getCardBackground(),
+                        unfocusedContainerColor = getCardBackground()
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1210,12 +1211,15 @@ fun EditProfileModal(
                     onValueChange = { contact = it },
                     label = { Text(if (prefLanguage == "bn") "মোবাইল নম্বর" else "Contact Phone / Mobile") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AppTextColor(),
                         unfocusedTextColor = AppTextColor(),
                         focusedBorderColor = AppAccentColor(),
-                        unfocusedBorderColor = getGlassBorder()
+                        unfocusedBorderColor = getGlassBorder(),
+                        focusedContainerColor = getCardBackground(),
+                        unfocusedContainerColor = getCardBackground()
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1228,12 +1232,12 @@ fun EditProfileModal(
                 )
 
                 Surface(
-                    color = AppAccentColor().copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.4f))
+                    color = if (isAppLightMode()) Color(0xFFD3E3FD) else AppAccentColor().copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp),
+                    shadowElevation = 1.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -1259,11 +1263,14 @@ fun EditProfileModal(
                     onValueChange = { bankName = it },
                     label = { Text(if (prefLanguage == "bn") "ব্যাংকের নাম / অ্যাকাউন্ট লেবেল" else "Bank Name / Label") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AppTextColor(),
                         unfocusedTextColor = AppTextColor(),
                         focusedBorderColor = AppAccentColor(),
-                        unfocusedBorderColor = getGlassBorder()
+                        unfocusedBorderColor = getGlassBorder(),
+                        focusedContainerColor = getCardBackground(),
+                        unfocusedContainerColor = getCardBackground()
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1273,11 +1280,14 @@ fun EditProfileModal(
                     onValueChange = { accNum = it },
                     label = { Text(if (prefLanguage == "bn") "অ্যাকাউন্ট নম্বর" else "Account Number") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AppTextColor(),
                         unfocusedTextColor = AppTextColor(),
                         focusedBorderColor = AppAccentColor(),
-                        unfocusedBorderColor = getGlassBorder()
+                        unfocusedBorderColor = getGlassBorder(),
+                        focusedContainerColor = getCardBackground(),
+                        unfocusedContainerColor = getCardBackground()
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1288,11 +1298,14 @@ fun EditProfileModal(
                         onValueChange = { ifsc = it },
                         label = { Text(if (prefLanguage == "bn") "IFSC কোড" else "IFSC Code") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.weight(1f)
                     )
@@ -1302,11 +1315,14 @@ fun EditProfileModal(
                         onValueChange = { branch = it },
                         label = { Text(if (prefLanguage == "bn") "শাখা" else "Branch") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.weight(1f)
                     )
@@ -1317,11 +1333,14 @@ fun EditProfileModal(
                     onValueChange = { upi = it },
                     label = { Text(if (prefLanguage == "bn") "UPI ID (যেমন: example@upi)" else "UPI ID (e.g. name@upi)") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AppTextColor(),
                         unfocusedTextColor = AppTextColor(),
                         focusedBorderColor = AppAccentColor(),
-                        unfocusedBorderColor = getGlassBorder()
+                        unfocusedBorderColor = getGlassBorder(),
+                        focusedContainerColor = getCardBackground(),
+                        unfocusedContainerColor = getCardBackground()
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1504,23 +1523,24 @@ fun OwnerAccountEditorModal(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
                                     onClick = onDismiss,
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(getGlassIconButtonBg(), CircleShape)
                                 ) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = if (account == null) {
                                         if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
@@ -1550,7 +1570,7 @@ fun OwnerAccountEditorModal(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Text(
                                 text = if (account == null) "Add Account" else "Update",
@@ -1565,9 +1585,9 @@ fun OwnerAccountEditorModal(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(pv)
-                        .padding(horizontal = 20.dp)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Account Name
                     OutlinedTextField(
@@ -1575,11 +1595,14 @@ fun OwnerAccountEditorModal(
                         onValueChange = { accountName = it },
                         label = { Text(if (prefLanguage == "bn") "অ্যাকাউন্টের নাম" else "Account Name (e.g. Cash, HDFC)") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1590,12 +1613,15 @@ fun OwnerAccountEditorModal(
                         label = { Text(if (prefLanguage == "bn") "প্রারম্ভিক ব্যালেন্স (₹)" else "Account Balance (₹)") },
                         placeholder = { Text("0.00") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1604,11 +1630,14 @@ fun OwnerAccountEditorModal(
                         value = details,
                         onValueChange = { details = it },
                         label = { Text(if (prefLanguage == "bn") "বিবরণ (ঐচ্ছিক)" else "Details (Optional)") },
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth().height(90.dp)
                     )
@@ -1617,9 +1646,8 @@ fun OwnerAccountEditorModal(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(16.dp))
                             .background(getCardBackground())
-                            .border(1.dp, getGlassBorder(), RoundedCornerShape(12.dp))
                             .padding(16.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -1641,7 +1669,6 @@ fun OwnerAccountEditorModal(
                                             .size(70.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(Color.White)
-                                            .border(1.dp, getGlassBorder(), RoundedCornerShape(8.dp))
                                     ) {
                                         AsyncImage(
                                             model = qrCodeUri,
@@ -1697,12 +1724,15 @@ fun OwnerAccountEditorModal(
                         onValueChange = { accountNumber = it },
                         label = { Text("Account Number") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1713,11 +1743,14 @@ fun OwnerAccountEditorModal(
                             onValueChange = { ifscCode = it },
                             label = { Text("IFSC Code") },
                             singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = AppTextColor(),
                                 unfocusedTextColor = AppTextColor(),
                                 focusedBorderColor = AppAccentColor(),
-                                unfocusedBorderColor = getGlassBorder()
+                                unfocusedBorderColor = getGlassBorder(),
+                                focusedContainerColor = getCardBackground(),
+                                unfocusedContainerColor = getCardBackground()
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -1726,11 +1759,14 @@ fun OwnerAccountEditorModal(
                             onValueChange = { branchName = it },
                             label = { Text("Branch Name") },
                             singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = AppTextColor(),
                                 unfocusedTextColor = AppTextColor(),
                                 focusedBorderColor = AppAccentColor(),
-                                unfocusedBorderColor = getGlassBorder()
+                                unfocusedBorderColor = getGlassBorder(),
+                                focusedContainerColor = getCardBackground(),
+                                unfocusedContainerColor = getCardBackground()
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -1741,11 +1777,14 @@ fun OwnerAccountEditorModal(
                         onValueChange = { upiId = it },
                         label = { Text("UPI ID (e.g. name@upi)") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1755,11 +1794,14 @@ fun OwnerAccountEditorModal(
                         onValueChange = { ownerName = it },
                         label = { Text("Account Holder Name") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
                             unfocusedTextColor = AppTextColor(),
                             focusedBorderColor = AppAccentColor(),
-                            unfocusedBorderColor = getGlassBorder()
+                            unfocusedBorderColor = getGlassBorder(),
+                            focusedContainerColor = getCardBackground(),
+                            unfocusedContainerColor = getCardBackground()
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )

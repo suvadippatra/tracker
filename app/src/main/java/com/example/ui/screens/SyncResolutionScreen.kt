@@ -159,12 +159,16 @@ fun SyncResolutionScreen(
                         IconButton(
                             onClick = onBack,
                             enabled = !isMerging,
-                            modifier = Modifier.testTag("resolution_back_button")
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(com.example.ui.components.getGlassIconButtonBg(), androidx.compose.foundation.shape.CircleShape)
+                                .testTag("resolution_back_button")
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
+                                Icons.Default.ChevronLeft,
                                 contentDescription = "Back",
-                                tint = TextPrimary
+                                tint = TextPrimary,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     },

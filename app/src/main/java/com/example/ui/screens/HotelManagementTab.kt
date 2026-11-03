@@ -424,49 +424,47 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                         DropdownMenu(
                                                             expanded = openDropdownHotelId == hotel.id,
                                                             onDismissRequest = { openDropdownHotelId = null },
-                                                            modifier = Modifier
-                                                                .background(getDialogBackground())
-                                                                .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
+                                                            modifier = Modifier.background(getDialogBackground())
                                                         ) {
                                                             DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AppTextColor()) },
+                                                                text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit Hotel Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                                 onClick = {
                                                                     viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
                                                                     openDropdownHotelId = null
-                                                                },
-                                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppTextColor()) }
+                                                                }
                                                             )
                                                             val isDefaultHotel = userProfile.defaultHotelId == hotel.id
                                                             DropdownMenuItem(
                                                                 text = {
                                                                     Text(
-                                                                        if (isDefaultHotel) (if (isBengali) "★ ডিফল্ট হোটেল" else "★ Default Hotel")
-                                                                        else (if (isBengali) "☆ ডিফল্ট হোটেল হিসেবে সেট করুন" else "☆ Set as Default Hotel"),
-                                                                        color = if (isDefaultHotel) Color(0xFFFFC107) else AppTextColor()
+                                                                        if (isDefaultHotel) (if (isBengali) "ডিফল্ট হোটেল (নির্বাচিত)" else "Default Hotel (Active)")
+                                                                        else (if (isBengali) "ডিফল্ট হোটেল হিসেবে সেট করুন" else "Set as Default Hotel"),
+                                                                        color = if (isDefaultHotel) AppAccentColor() else AppTextColor(),
+                                                                        fontWeight = if (isDefaultHotel) FontWeight.Bold else FontWeight.Medium
                                                                     )
                                                                 },
                                                                 onClick = {
                                                                     viewModel.setDefaultHotel(hotel.id)
                                                                     openDropdownHotelId = null
                                                                     android.widget.Toast.makeText(context, if (isBengali) "ডিফল্ট হোটেল সেট করা হয়েছে" else "Default Hotel Updated", android.widget.Toast.LENGTH_SHORT).show()
-                                                                },
-                                                                leadingIcon = {
-                                                                    Icon(
-                                                                        Icons.Default.Star,
-                                                                        contentDescription = null,
-                                                                        tint = Color(0xFFFFC107)
-                                                                    )
                                                                 }
                                                             )
                                                             DropdownMenuItem(
-                                                                text = { Text("Export transactions (PDF)", color = AppTextColor()) },
+                                                                text = { Text(if (isBengali) "মিলের ইতিহাস দেখুন" else "View Meal History", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                                                onClick = {
+                                                                    openDropdownHotelId = null
+                                                                    showMealHistory = true
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                text = { Text("Export Transactions (PDF)", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                                 onClick = {
                                                                     pdfExportLauncher.launch("transactions_${hotel.name.replace(" ", "_")}.pdf")
                                                                     openDropdownHotelId = null
                                                                 }
                                                             )
                                                             DropdownMenuItem(
-                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor()) },
+                                                                text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
                                                                 onClick = {
                                                                     openDropdownHotelId = null
                                                                     viewModel.exportHotelViaQr(hotel.id) { result ->
@@ -799,49 +797,47 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                     DropdownMenu(
                                                         expanded = openDropdownHotelId == hotel.id,
                                                         onDismissRequest = { openDropdownHotelId = null },
-                                                        modifier = Modifier
-                                                            .background(getDialogBackground())
-                                                            .border(0.5.dp, getGlassBorder(), RoundedCornerShape(8.dp))
+                                                        modifier = Modifier.background(getDialogBackground())
                                                     ) {
                                                         DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit this hotel", color = AppTextColor()) },
+                                                            text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit Hotel Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                             onClick = {
                                                                 viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
                                                                 openDropdownHotelId = null
-                                                            },
-                                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppTextColor()) }
+                                                            }
                                                         )
                                                         val isDefaultHotel = userProfile.defaultHotelId == hotel.id
                                                         DropdownMenuItem(
                                                             text = {
                                                                 Text(
-                                                                    if (isDefaultHotel) (if (isBengali) "★ ডিফল্ট হোটেল" else "★ Default Hotel")
-                                                                    else (if (isBengali) "☆ ডিফল্ট হোটেল হিসেবে সেট করুন" else "☆ Set as Default Hotel"),
-                                                                    color = if (isDefaultHotel) Color(0xFFFFC107) else AppTextColor()
+                                                                    if (isDefaultHotel) (if (isBengali) "ডিফল্ট হোটেল (নির্বাচিত)" else "Default Hotel (Active)")
+                                                                    else (if (isBengali) "ডিফল্ট হোটেল হিসেবে সেট করুন" else "Set as Default Hotel"),
+                                                                    color = if (isDefaultHotel) AppAccentColor() else AppTextColor(),
+                                                                    fontWeight = if (isDefaultHotel) FontWeight.Bold else FontWeight.Medium
                                                                 )
                                                             },
                                                             onClick = {
                                                                 viewModel.setDefaultHotel(hotel.id)
                                                                 openDropdownHotelId = null
                                                                 android.widget.Toast.makeText(context, if (isBengali) "ডিফল্ট হোটেল সেট করা হয়েছে" else "Default Hotel Updated", android.widget.Toast.LENGTH_SHORT).show()
-                                                            },
-                                                            leadingIcon = {
-                                                                Icon(
-                                                                    Icons.Default.Star,
-                                                                    contentDescription = null,
-                                                                    tint = Color(0xFFFFC107)
-                                                                )
                                                             }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text("Export transactions (PDF)", color = AppTextColor()) },
+                                                            text = { Text(if (isBengali) "মিলের ইতিহাস দেখুন" else "View Meal History", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                openDropdownHotelId = null
+                                                                showMealHistory = true
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text("Export Transactions (PDF)", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                             onClick = {
                                                                 pdfExportLauncher.launch("transactions_${hotel.name.replace(" ", "_")}.pdf")
                                                                 openDropdownHotelId = null
                                                             }
                                                         )
                                                         DropdownMenuItem(
-                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor()) },
+                                                            text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
                                                             onClick = {
                                                                 openDropdownHotelId = null
                                                                 viewModel.exportHotelViaQr(hotel.id) { result ->
@@ -1336,7 +1332,7 @@ fun MealHistoryModal(
                     modifier = Modifier
                         .fillMaxSize()
                         .widthIn(max = 840.dp)
-                        .statusBarsPadding()
+                        .dialogSystemBarsPadding(extraTop = 8.dp)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                 // Header
@@ -1345,24 +1341,75 @@ fun MealHistoryModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onDismiss, modifier = Modifier.background(getGlassBorder(), CircleShape).bounceClick()
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(getGlassIconButtonBg(), CircleShape)
+                            .bounceClick()
                     ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
                     }
 
                     Text(
-                        text = "Meal Record Ledger",
+                        text = if (userProfile?.language == "bn") "মিলের ইতিহাস লেজার" else "Meal Record Ledger",
                         color = AppTextColor(),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
 
-                    IconButton(onClick = { isDayWiseView = !isDayWiseView }, modifier = Modifier.background(getGlassBorder(), CircleShape).bounceClick()) {
-                        Icon(if (isDayWiseView) Icons.Default.List else Icons.Default.DateRange, contentDescription = "Toggle View", tint = AppTextColor())
+                    Spacer(modifier = Modifier.size(40.dp))
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dual View Mode Selector (Summed View vs "Adding One by One" Expression View)
+                val isLight = isAppLightMode()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(getCardBackground())
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val summedActiveBg = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                    val activeTextCol = if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
+                    Surface(
+                        onClick = { isDayWiseView = false },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (!isDayWiseView) summedActiveBg else Color.Transparent,
+                        shadowElevation = if (!isDayWiseView) 2.dp else 0.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (userProfile?.language == "bn") "সামগ্রিক ভিউ (Summed)" else "Summed View",
+                                color = if (!isDayWiseView) activeTextCol else AppSecondaryTextColor(),
+                                fontSize = 13.sp,
+                                fontWeight = if (!isDayWiseView) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                    Surface(
+                        onClick = { isDayWiseView = true },
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isDayWiseView) summedActiveBg else Color.Transparent,
+                        shadowElevation = if (isDayWiseView) 2.dp else 0.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (userProfile?.language == "bn") "একের পর এক যোগ (a + b)" else "Adding One by One",
+                                color = if (isDayWiseView) activeTextCol else AppSecondaryTextColor(),
+                                fontSize = 13.sp,
+                                fontWeight = if (isDayWiseView) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1372,12 +1419,19 @@ fun MealHistoryModal(
                     IconButton(onClick = { monthOffset -= 1 }, enabled = !isEarliestMonth, modifier = Modifier.bounceClick()) {
                         Icon(Icons.Default.ChevronLeft, "Previous Month", tint = if (!isEarliestMonth) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
                     }
-                    Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(currentDisplayMonth, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = if (userProfile?.language == "bn") "মাস পরিবর্তনের জন্য বামে/ডানে সোয়াইপ করুন" else "Swipe left or right to switch months",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 10.sp
+                        )
+                    }
                     IconButton(onClick = { monthOffset += 1 }, enabled = monthOffset < 0) {
                         Icon(Icons.Default.ChevronRight, "Next Month", tint = if (monthOffset < 0) AppTextColor() else AppTextColor().copy(alpha = 0.3f))
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 if (filteredTransactions.isEmpty()) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -1389,15 +1443,42 @@ fun MealHistoryModal(
                             filteredTransactions.groupBy { tx ->
                                 Formatters.formatDayDotMonthYear(tx.timestamp)
                             }.map { (dateStr, dayTxs) ->
+                                val orderedDayTxs = dayTxs.sortedBy { it.timestamp }
                                 var dayTotal = 0.0
                                 val amountsSb = StringBuilder()
-                                for (i in dayTxs.indices) {
-                                    val tx = dayTxs[i]
+                                val sessionGroupBreakdowns = mutableListOf<String>()
+                                for (i in orderedDayTxs.indices) {
+                                    val tx = orderedDayTxs[i]
                                     dayTotal += tx.totalAmount
                                     if (i > 0) amountsSb.append(" + ")
-                                    amountsSb.append(tx.totalAmount.toInt())
+                                    val groups = com.example.data.model.TransactionSerializer.deserializeGroups(tx.itemsSerialized)
+                                    if (groups.size > 1) {
+                                        val grpExpr = groups.joinToString(" + ") { it.subtotal.toInt().toString() }
+                                        amountsSb.append("($grpExpr)")
+                                        groups.forEachIndexed { gIdx, grp ->
+                                            val itemAddition = grp.items.joinToString(" + ") { "${(it.quantity * it.price).toInt()}" }
+                                            val itemNames = grp.items.joinToString(", ") { "${it.name} x${it.quantity}" }
+                                            sessionGroupBreakdowns.add(
+                                                "${if (tx.isNight) "Night" else "Day"} • Group ${gIdx + 1}: $itemAddition = ₹${grp.subtotal.toInt()} ($itemNames)"
+                                            )
+                                        }
+                                    } else {
+                                        amountsSb.append(tx.totalAmount.toInt())
+                                        val items = com.example.data.model.TransactionSerializer.deserialize(tx.itemsSerialized)
+                                        val itemAddition = items.joinToString(" + ") { "${(it.quantity * it.price).toInt()}" }
+                                        val itemNames = items.joinToString(", ") { "${it.name} x${it.quantity}" }
+                                        if (items.size > 1) {
+                                            sessionGroupBreakdowns.add(
+                                                "${if (tx.isNight) "Night" else "Day"}: $itemAddition = ₹${tx.totalAmount.toInt()} ($itemNames)"
+                                            )
+                                        } else {
+                                            sessionGroupBreakdowns.add(
+                                                "${if (tx.isNight) "Night" else "Day"}: ₹${tx.totalAmount.toInt()} ($itemNames)"
+                                            )
+                                        }
+                                    }
                                 }
-                                Triple(dateStr, dayTotal.toInt(), amountsSb.toString())
+                                Triple(dateStr, dayTotal.toInt(), Pair(amountsSb.toString(), sessionGroupBreakdowns))
                             }
                         }
                         
@@ -1405,7 +1486,8 @@ fun MealHistoryModal(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(dayGroupList, key = { it.first }, contentType = { "day_group" }) { (dateStr, dayTotalInt, amountsStr) ->
+                            items(dayGroupList, key = { it.first }, contentType = { "day_group" }) { (dateStr, dayTotalInt, exprPair) ->
+                                val (amountsStr, groupLines) = exprPair
                                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                                     Column(
                                         modifier = Modifier
@@ -1439,12 +1521,24 @@ fun MealHistoryModal(
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "$dateStr → $amountsStr = $dayTotalInt",
-                                            color = AppTextColor().copy(alpha = 0.7f),
-                                            fontSize = 13.sp
+                                            text = "$dateStr → $amountsStr = ₹$dayTotalInt",
+                                            color = AppAccentColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
+                                        if (groupLines.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            groupLines.forEach { line ->
+                                                Text(
+                                                    text = line,
+                                                    color = AppSecondaryTextColor(),
+                                                    fontSize = 11.sp,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1556,34 +1650,18 @@ fun MealHistoryModal(
                                             ) {
                                                 if (onEditTransaction != null) {
                                                     DropdownMenuItem(
-                                                        text = { Text("Edit Transaction", color = AppAccentColor()) },
+                                                        text = { Text("Edit Transaction", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
                                                         onClick = {
                                                             showMenu = false
                                                             onEditTransaction(tx)
-                                                        },
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Edit,
-                                                                contentDescription = null,
-                                                                tint = AppAccentColor(),
-                                                                modifier = Modifier.size(16.dp)
-                                                            )
                                                         }
                                                     )
                                                 }
                                                 DropdownMenuItem(
-                                                    text = { Text("Delete Transaction", color = AccentPink) },
+                                                    text = { Text("Delete Transaction", color = AccentPink, fontWeight = FontWeight.Medium) },
                                                     onClick = {
                                                         showMenu = false
                                                         showDeleteConfirm = true
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Delete,
-                                                            contentDescription = null,
-                                                            tint = AccentPink,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
                                                     }
                                                 )
                                             }
@@ -1603,7 +1681,6 @@ fun MealHistoryModal(
                     GlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .navigationBarsPadding()
                     ) {
                         Column(
                             modifier = Modifier
@@ -2461,9 +2538,12 @@ fun UnifiedHotelDialog(
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        
+        com.example.ui.components.DialogEdgeToEdge()
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = Color.Transparent
@@ -2475,7 +2555,9 @@ fun UnifiedHotelDialog(
                 contentAlignment = Alignment.TopCenter
             ) {
                 Scaffold(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .dialogSystemBarsPadding(extraTop = 8.dp),
                     containerColor = Color.Transparent,
                     contentWindowInsets = WindowInsets(0.dp),
                     topBar = {
@@ -2493,9 +2575,10 @@ fun UnifiedHotelDialog(
                                     .bounceClick()
                             ) {
                                 Icon(
-                                    Icons.Default.ArrowBack,
+                                    Icons.Default.ChevronLeft,
                                     contentDescription = "Back",
-                                    tint = AppTextColor()
+                                    tint = AppTextColor(),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(16.dp))
@@ -2526,8 +2609,7 @@ fun UnifiedHotelDialog(
                                         modifier = Modifier.background(getDialogBackground())
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Move to Bin", color = AccentPink) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                            text = { Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                             onClick = {
                                                 showHotelMenu = false
                                                 showDeleteConfirm = true

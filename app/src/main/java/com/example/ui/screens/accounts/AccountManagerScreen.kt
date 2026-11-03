@@ -68,83 +68,93 @@ fun AccountManagerScreen(
     val themeMode = userProfile.themeMode
     val bgPreset = userProfile.bgPreset
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        CompositionLocalProvider(
-            LocalAppTheme provides themeMode,
-            LocalAppBgPreset provides bgPreset,
-            LocalAppCustomBgUri provides userProfile.customBgUri,
-            LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        Box(modifier = Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalAppTheme provides themeMode,
+                LocalAppBgPreset provides bgPreset,
+                LocalAppCustomBgUri provides userProfile.customBgUri,
+                LocalAppLiquidGlassTheme provides userProfile.enableLiquidGlassTheme
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(getAppBackgroundGradient(themeMode, bgPreset))
-                        .pointerInput(Unit) { detectTapGestures { } },
-                    contentAlignment = Alignment.TopCenter
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
                 ) {
-                    Scaffold(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .imePadding(),
-                        containerColor = Color.Transparent,
-                        contentWindowInsets = WindowInsets(0.dp),
-                        topBar = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(getGlassIconButtonBg(), CircleShape)
-                            .bounceClick()
+                            .background(getAppBackgroundGradient(themeMode, bgPreset))
+                            .pointerInput(Unit) { detectTapGestures { } },
+                        contentAlignment = Alignment.TopCenter
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-
-                    Text(
-                        text = if (isBengali) "অ্যাকাউন্ট ব্যবস্থাপনা" else "Account Manager",
-                        color = AppTextColor(),
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    IconButton(
-                        onClick = { isAddingBankAccount = true },
+                        Scaffold(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .dialogSystemBarsPadding(extraTop = 8.dp)
+                                .imePadding(),
+                            containerColor = Color.Transparent,
+                            contentWindowInsets = WindowInsets(0.dp),
+                            topBar = {
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .background(AppAccentColor(), CircleShape)
-                            .bounceClick()
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Account",
-                            tint = AppOnAccentColor()
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), CircleShape)
+                                .bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Back",
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+
+                        Text(
+                            text = if (isBengali) "অ্যাকাউন্ট ব্যবস্থাপনা" else "Account Manager",
+                            color = AppTextColor(),
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold
                         )
+
+                        IconButton(
+                            onClick = { isAddingBankAccount = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(AppAccentColor(), CircleShape)
+                                .bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Account",
+                                tint = AppOnAccentColor()
+                            )
+                        }
                     }
                 }
-            }
-        ) { innerPadding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
-            ) {
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp)
+                ) {
                 // Summary Card
                 item {
                     val totalBalance = bankAccounts.filter { !it.isDeleted }.sumOf { it.balance }
@@ -441,6 +451,7 @@ fun AccountManagerScreen(
 }
 }
 }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -488,93 +499,103 @@ fun AccountEditorScreen(
     val themeMode = LocalAppTheme.current
     val bgPreset = LocalAppBgPreset.current
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(getAppBackgroundGradient(themeMode, bgPreset))
-                    .pointerInput(Unit) { detectTapGestures { } },
-                contentAlignment = Alignment.TopCenter
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        Box(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
             ) {
-                Scaffold(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .imePadding(),
-                    containerColor = Color.Transparent,
-                    contentWindowInsets = WindowInsets(0.dp),
-                    topBar = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(getAppBackgroundGradient(themeMode, bgPreset))
+                        .pointerInput(Unit) { detectTapGestures { } },
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    IconButton(
-                        onClick = onDismiss,
+                    Scaffold(
                         modifier = Modifier
-                            .size(40.dp)
-                            .background(getGlassIconButtonBg(), CircleShape)
-                            .bounceClick()
+                            .fillMaxSize()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
+                            .imePadding(),
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets(0.dp),
+                        topBar = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = AppTextColor()
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = if (account == null) {
-                            if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
-                        } else {
-                            if (prefLanguage == "bn") "অ্যাকাউন্ট সংশোধন" else "Edit Account Details"
-                        },
-                        color = AppTextColor(),
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    IconButton(
-                        onClick = {
-                            if (accName.isNotBlank()) {
-                                val bal = accBal.toDoubleOrNull() ?: 0.0
-                                onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), CircleShape)
+                                .bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Back",
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = if (account == null) {
+                                if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
                             } else {
-                                Toast.makeText(
-                                    context,
-                                    if (prefLanguage == "bn") "অ্যাকাউন্টের নাম দিন" else "Enter Account Name",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(AppAccentColor(), CircleShape)
-                            .bounceClick()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Save",
-                            tint = AppOnAccentColor()
+                                if (prefLanguage == "bn") "অ্যাকাউন্ট সংশোধন" else "Edit Account Details"
+                            },
+                            color = AppTextColor(),
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        IconButton(
+                            onClick = {
+                                if (accName.isNotBlank()) {
+                                    val bal = accBal.toDoubleOrNull() ?: 0.0
+                                    onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        if (prefLanguage == "bn") "অ্যাকাউন্টের নাম দিন" else "Enter Account Name",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(AppAccentColor(), CircleShape)
+                                .bounceClick()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Save",
+                                tint = AppOnAccentColor()
+                            )
+                        }
                     }
                 }
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 GlassTextField(
                     value = accName,
                     onValueChange = { accName = it },
@@ -622,26 +643,29 @@ fun AccountEditorScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(70.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color.White)
-                                        .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
-                                    contentAlignment = Alignment.Center
+                                Surface(
+                                    modifier = Modifier.size(70.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White,
+                                    shadowElevation = 2.dp
                                 ) {
-                                    AsyncImage(
-                                        model = qrCodeUri,
-                                        contentDescription = "Account Image",
-                                        modifier = Modifier.fillMaxSize()
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        AsyncImage(
+                                            model = qrCodeUri,
+                                            contentDescription = "Account Image",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
                                 }
 
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(
+                                    FilledTonalButton(
                                         onClick = { imagePickerLauncher.launch("image/*") },
                                         shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                            contentColor = AppAccentColor()
+                                        )
                                     ) {
                                         Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -659,16 +683,18 @@ fun AccountEditorScreen(
                                 }
                             }
                         } else {
-                            OutlinedButton(
+                            FilledTonalButton(
                                 onClick = { imagePickerLauncher.launch("image/*") },
-                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 46.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                    contentColor = AppAccentColor()
+                                )
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (prefLanguage == "bn") "ছবি বা QR কোড যোগ করুন" else "Add Image / QR Code", fontWeight = FontWeight.Medium)
+                                Text(if (prefLanguage == "bn") "ছবি বা QR কোড যোগ করুন" else "Add Image / QR Code", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -738,6 +764,7 @@ fun AccountEditorScreen(
             }
         }
     }
+}
 }
 }
 }

@@ -85,7 +85,7 @@ fun SettingsScreen(
             contentAlignment = Alignment.TopCenter
         ) {
             Scaffold(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    modifier = Modifier.fillMaxSize().dialogSystemBarsPadding(extraTop = 8.dp),
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
@@ -100,20 +100,25 @@ fun SettingsScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (currentScreen != "main") {
-                                IconButton(
-                                    onClick = { currentScreen = "main" },
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                                }
-                            } else {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                                }
+                            IconButton(
+                                onClick = {
+                                    if (currentScreen != "main") {
+                                        currentScreen = "main"
+                                    } else {
+                                        onDismiss()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                                    .bounceClick()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronLeft,
+                                    contentDescription = "Back",
+                                    tint = AppTextColor(),
+                                    modifier = Modifier.size(26.dp)
+                                )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
@@ -127,7 +132,7 @@ fun SettingsScreen(
                                     "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
                                     else -> "Settings"
                                 },
-                                fontSize = 22.sp,
+                                fontSize = 21.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AppTextColor()
                             )
@@ -168,13 +173,22 @@ fun SettingsDialog(
     onOpenOwnerProfile: () -> Unit,
     onOpenUtilityConfig: () -> Unit
 ) {
-    SettingsScreen(
-        viewModel = viewModel,
-        onDismiss = onDismiss,
-        onOpenBin = onOpenBin,
-        onOpenOwnerProfile = onOpenOwnerProfile,
-        onOpenUtilityConfig = onOpenUtilityConfig
-    )
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        SettingsScreen(
+            viewModel = viewModel,
+            onDismiss = onDismiss,
+            onOpenBin = onOpenBin,
+            onOpenOwnerProfile = onOpenOwnerProfile,
+            onOpenUtilityConfig = onOpenUtilityConfig
+        )
+    }
 }
 
 @Composable
@@ -327,8 +341,7 @@ fun UnifiedAccountDialog(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -336,21 +349,24 @@ fun UnifiedAccountDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), CircleShape)
+                                .bounceClick()
                         ) {
                             Icon(
-                                Icons.Default.ArrowBack,
+                                Icons.Default.ChevronLeft,
                                 contentDescription = "Back",
-                                tint = AppTextColor()
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(26.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = if (account == null) {
                                 if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
@@ -412,18 +428,10 @@ fun UnifiedAccountDialog(
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete Account", color = AccentPink) },
+                                        text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete Account", color = AccentPink, fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showTopMenu = false
                                             showDeleteConfirm = true
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = null,
-                                                tint = AccentPink,
-                                                modifier = Modifier.size(18.dp)
-                                            )
                                         }
                                     )
                                 }
@@ -444,7 +452,7 @@ fun UnifiedAccountDialog(
                         .widthIn(max = 640.dp)
                         .verticalScroll(rememberScrollState())
                         .imePadding()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Account Name
@@ -653,7 +661,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v0.0.1 (Pure Material 3, Native Shadows & Smart Bill Engine)
+            Traker v0.0.1 (Pure Material 3, Smart Bill Interpolation & Dual-Mode History)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -661,39 +669,29 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 🎨 বর্ডারহীন নেটিভ শ্যাডো ও Plus Jakarta Sans টাইপোগ্রাফি
-            • বর্ডার অপসারণ ও নেটিভ শ্যাডো: অ্যাপের সকল বাটন, কার্ড, চিপ এবং নেভিগেশন বার থেকে পুরনো বর্ডার সরিয়ে অ্যান্ড্রয়েডের নেটিভ এলিভেশন শ্যাডো (Surface shadowElevation) যুক্ত করা হয়েছে।
-            • আধুনিক কাস্টম ফন্ট (Plus Jakarta Sans): সম্পূর্ণ অ্যাপে স্পষ্ট ও সুষম টাইপোগ্রাফির জন্য 'Plus Jakarta Sans' ফন্ট এবং সামঞ্জস্যপূর্ণ Material 3 ফন্ট স্কেল (Small 90%, Medium 100%, Large 110%) যুক্ত করা হয়েছে।
-            • ট্যাবলেট নেভিগেশন বার ফিক্স: ট্যাবলেট ও বড় স্ক্রিনে বাম দিকের সাইডবারের উপরের অতিরিক্ত হোটেল আইকন সরিয়ে স্ট্যান্ডার্ড ট্রিপল-লাইন (☰ Menu) বাটন যুক্ত করা হয়েছে।
-            • নতুন About ও Help পেজ: Help গাইডটি সরাসরি নতুন ডিজাইনের About পেজের ভেতরে যুক্ত করা হয়েছে।
+            ১. ⚡ স্মার্ট বিদ্যুৎ বিল ক্যালকুলেটর (অপরিশোধিত বিল ক্যারি-ওভার ও লিনিয়ার ইন্টারপোলেশন)
+            • নিষ্ক্রিয় মিটার রিডিং ও অপরিশোধিত বিল ক্যারি-ওভার: মিটার রিডিং আপডেট বন্ধ রাখলেও আগের অপরিশোধিত রিডিং ও পূর্ববর্তী Unpaid বিল স্বয়ংক্রিয়ভাবে যোগ হয় (+ অতিরিক্ত দিনের জন্য ₹০)—কখনোই ভুলবশত ₹০ দেখায় না।
+            • তালিকাভুক্ত নয় এমন তারিখের লিনিয়ার ইন্টারপোলেশন: নির্বাচিত তারিখে সরাসরি রিডিং না থাকলে পূর্ববর্তী ও পরবর্তী রিডিংয়ের সময়ের অনুপাতে (r1 + fraction × (r2 - r1)) স্বয়ংক্রিয়ভাবে ইউনিট ও প্রো-রাটা রেট হিসাব করা হয়।
 
-            ২. ⚡ নির্ভুল বিদ্যুৎ বিল ও মিটার রিডিং ক্যালকুলেটর (Fixed Zero-Rupee Bug)
-            • একাধিক মিটার রিডিং ও যেকোনো ২টি তারিখের বিল: অনেকগুলো মিটার রিডিং থাকলে যেকোনো দুটি তারিখ (সোজা বা উল্টো ক্রমে) নির্বাচন করলে সঠিক ব্যবহৃত ইউনিট ও টাকার পরিমাণ হিসাব হয়।
-            • রিডিং আপডেট বন্ধ থাকলেও সঠিক বিল: আপনি যদি কিছুদিন নতুন মিটার রিডিং দেওয়া বন্ধও রাখেন, তবে শেষ অপরিশোধিত (Unpaid) তারিখ থেকে বর্তমান বা পূর্ববর্তী তারিখ পর্যন্ত হিসাব করলে আগের অপরিশোধিত বিল + ০ টাকা (অতিরিক্ত দিনের জন্য) সঠিকভাবে দেখায়—কখনোই ভুলবশত শূন্য (০) দেখায় না।
-            • ডিফল্ট ইউনিট রেট ও ব্যাকআপ রিস্টোর: Utility Configuration পেজে ডিফল্ট ইউনিট রেট (যেমন ₹8/kWh) সংরক্ষিত থাকে এবং JSON/CSV ব্যাকআপ ইমপোর্ট করলে স্বয়ংক্রিয়ভাবে রেট ও পরিশোধিত স্ট্যাটাস পুনরুদ্ধার হয়।
+            ২. 🎨 লাইট ও ডার্ক মোড Material 3 শ্যাডো এবং বর্ডারহীন UI
+            • বর্ডারহীন Material 3 সারফেস: মিটার ডায়াল (MeterDialPicker), বিল সামারি সাব-ট্যাব, হোটেল/অ্যাকাউন্ট/প্রোফাইল এডিটর এবং ইউটিলিটি কনফিগারেশন পেজ থেকে সমস্ত বর্ডার সরিয়ে অ্যান্ড্রয়েডের নেটিভ শ্যাডো ও গভীর নীল (#0B57D0) বাটন যুক্ত করা হয়েছে।
+            • সার্বজনীন '<' ব্যাক বাটন ও ক্লিন মেনু: সমস্ত পেজে গোলাকার টোনাল কন্টেইনারের ভেতরে '<' ব্যাক বাটন এবং আইকন ও ডুপ্লিকেট ইমোজি ছাড়া স্মুথ ড্রয়ার মেনু যুক্ত করা হয়েছে।
 
-            ৩. 🌗 কালো স্ক্রিন ছাড়াই তাৎক্ষণিক লাইট/ডার্ক স্প্ল্যাশ অ্যানিমেশন
-            • অ্যানিমেশন শুরুর আগেই সিস্টেম ও অ্যাপের লাইট বা ডার্ক মোড শনাক্ত করা হয় (MainActivity ও values-night/themes.xml এর মাধ্যমে)। ফলে অ্যাপ খোলার সময় কোনো কালো স্ক্রিন দেখা যায় না; লাইট মোডে উষ্ণ অফ-হোয়াইট (#FCFCFD) এবং ডার্ক মোডে গভীর টিল-ব্ল্যাক (#0A1317) ব্যাকগ্রাউন্ডের ওপর সরাসরি লোগো অ্যানিমেশন শুরু হয়।
+            ৩. 📱 Android 8–10 ফুল-স্ক্রিন ওভারলে ফিক্স
+            • পুরনো অ্যান্ড্রয়েড ফোনে (Android 8–10) হোটেল/অ্যাকাউন্ট/প্রোফাইল এডিটর ও হিস্ট্রি পেজের ওপরে বা নিচে কেটে যাওয়া (Cropping) এবং নিচের পেজ দেখা যাওয়ার সমস্যা সম্পূর্ণ সমাধান করা হয়েছে।
 
-            ৪. ⚡ "Disable Heavy Effects" টগল — ২টি মোড (Settings → Appearance)
-            • যখন টগল চালু (ON - Fastest Native Mode):
-              - ডেট ও টাইম পিকার সরাসরি অ্যান্ড্রয়েডের নেটিভ DatePickerDialog এবং TimePickerDialog ব্যবহার করে।
-              - মিটার ডায়াল (Bill ট্যাব) তাৎক্ষণিক '+' / '-' ডিজিটাল স্টেপার এবং কিপ্যাড ইনপুট ব্যবহার করে।
-            • যখন টগল বন্ধ (OFF - Smooth Scrolling Cylinder Dial Mode):
-              - মিটার রিডিং (৬-চাকার ওডোমিটার) এবং ডেট/টাইম পিকারে স্মুথ স্ক্রলিং সিলিন্ডার ডায়াল (WheelPicker) সক্রিয় থাকে।
+            ৪. 📊 খাবার ও অ্যাকাউন্ট হিস্ট্রি — ২টি ভিউ মোড ও সোয়াইপ নেভিগেশন
+            • ডানে-বামে সোয়াইপ করে মাস পরিবর্তন করুন।
+            • Summed View (মোট যোগফল) এবং "Adding One by One" Expression View (যেমন: 40 + 20 + 50 = ₹110, মিল গ্রুপসহ) — খাবার এবং Extra (Account) উভয় বিভাগেই যুক্ত করা হয়েছে।
 
-            ৫. 💾 ৪টি কার্যকর ব্যাকআপ ও রিস্টোর বিকল্প (Data & Backups)
-            • সম্পূর্ণ JSON ব্যাকআপ, অফলাইন QR Sync Stream, সরাসরি SQLite ডাটাবেস জিপ ব্যাকআপ এবং CSV এক্সপোর্ট/ইমপোর্ট।
-
-            ৬. 🛠️ GitHub Actions (KSP2 ও Node 24 ফিক্সড) থেকে APK ও AAB তৈরি
-            • KSP কম্পাইলেশন ত্রুটি (ksp.useKSP2=true ও --max-workers=2) এবং GitHub Actions Node 24 ও Ubuntu 24.04 সতর্কবার্তা সম্পূর্ণ সমাধান করা হয়েছে।
-            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → "Manual Android APK & AAB Builder" → "Run workflow" ক্লিক করে all, aab, universal-apk বা arm64-v8a-apk তৈরি করুন।
+            ৫. 💾 উন্নত ডাটা এক্সপোর্ট ও QR Sync ইঞ্জিন
+            • বিদ্যুৎ বিলের রেট (ElectricityRate), ইউটিলিটি ফিক্সড চার্জ ও ডিফল্ট রেটসহ সকল মৌলিক ডাটা এক্সপোর্ট হয় এবং হিসাবযোগ্য ডাটা (Derived fields) ইমপোর্টের সময় স্বয়ংক্রিয়ভাবে পুনর্গণনা হয়।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v0.0.1 (Pure Material 3, Native Shadows & Smart Bill Engine)
+            Traker v0.0.1 (Pure Material 3, Smart Bill Interpolation & Dual-Mode History)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -701,31 +699,23 @@ fun LegalInfoDialog(
             📖 COMPLETE USER GUIDE & RECENT UPDATES
             ───────────────────────────
 
-            1. 🎨 BORDERLESS NATIVE SHADOWS & PLUS JAKARTA SANS TYPOGRAPHY
-            • Native Android Shadows (Zero Harsh Borders): Removed artificial 1dp borders across all buttons, cards, chips, date pickers, and navigation bars throughout the app, replacing them with authentic Android elevation shadows.
-            • Plus Jakarta Sans Font & Harmonized Typography Scale: Installed Google Font 'Plus Jakarta Sans' across all 15 Material 3 text styles with unified font scaling (Small 90%, Medium 100%, Large 110%) to eliminate visual size mismatches.
-            • Tablet Side Navigation Menu Button: Replaced the duplicate top-left hotel icon on tablet layouts with the standard triple-line (☰ Menu) navigation drawer button.
-            • Redesigned About & Help Hub: Integrated the Help & User Guide directly inside the redesigned About page layout.
+            1. ⚡ SMART UTILITY BILL ENGINE (UNPAID CARRY-OVER & INTERPOLATION)
+            • Inactive Meter Reading Carry-Over: When meter readings are paused/inactive, selecting up to a later date carries over all unpaid reading intervals and unpaid recorded bills (+ ₹0 for inactive days after the last reading) instead of defaulting to zero.
+            • Linear Interpolation for Unlisted Dates: Selecting start/end dates not explicitly listed in meter readings interpolates meter values proportionally between bounding readings and splits rate changes pro-rata.
 
-            2. ⚡ ACCURATE METER READING & UTILITY BILL ENGINE (FIXED ZERO-RUPEE BUG)
-            • Multi-Reading & Any Two-Date Selection: Selecting any two dates across many meter readings accurately computes consumed units and rupee totals regardless of date selection order or multiple same-day logs.
-            • Stopped-Updating-Readings Support: Even if you stop logging daily meter readings, calculating from the last unpaid reading date (or baseline date) to today/previous date preserves the unpaid bill + ₹0 for the unlogged days—never falsely dropping to ₹0.00.
-            • Persistent Default Unit Rate & Backup Restore: Added configurable Default Rate per Unit in Utility Configuration and full ElectricityRate + Paid/Unpaid status preservation across JSON and CSV backups.
+            2. 🎨 LIGHT & DARK MATERIAL 3 BORDERLESS SHADOWS & '<' NAVIGATION
+            • Borderless M3 Surfaces: Removed borders from MeterDialPicker digits, Type Reading chips, sub-tabs, and editor cards, replacing them with opaque Material 3 tonal surfaces, native elevation shadows, and Google Blue (#0B57D0) primary actions.
+            • Universal '<' Back Button & Clean Menus: Standardized all back buttons to '<' inside a circular tonal container and updated all triple-line menus to smooth text-only rows without icons or duplicate emojis.
 
-            3. 🌗 ZERO-BLACK-SCREEN LIGHT/DARK DETECTION BEFORE ANIMATION
-            • Synchronously detects Light Mode (#FCFCFD warm off-white) or Dark Mode (#0A1317 deep teal-black) via ThemePreferences and native values-night/themes.xml before frame 0 of MainActivity and SplashScreen, eliminating any initial black screen flash.
+            3. 📱 ANDROID 8–10 FULL-SCREEN OVERLAY & SAFE INSETS FIX
+            • Resolved top/bottom cropping and background page bleed on Android 8–10 across Profile, Hotel, Account, History, and Settings sub-pages using physical display metrics and resource-backed status/navigation bar safe padding.
 
-            4. ⚡ "DISABLE HEAVY EFFECTS" TOGGLE — DUAL-MODE BEHAVIOR
-            Go to Settings → Appearance & Visual Style → "Disable Heavy Effects & Use Native Controls":
-            • When ON (Fastest Native Mode): Uses Android OS native DatePickerDialog & TimePickerDialog and instant '+' / '-' digital odometer steppers.
-            • When OFF (Smooth Cylinder Dial Mode): Uses smooth scrollable cylindrical wheel dials (WheelPicker) for the 6-digit meter odometer and date/time pickers.
+            4. 📊 DUAL-MODE MEAL & ACCOUNT HISTORY (SWIPE + EXPRESSION VIEW)
+            • Swipe left/right to switch months smoothly in both Meal History and the new Account History page.
+            • Toggle between "Summed View" and "Adding One by One Expression View" (e.g., 40 + 20 + 50 = ₹110 with Meal Group breakdowns).
 
-            5. 💾 4 WORKING DATA BACKUP & RESTORE OPTIONS
-            • Full JSON Backup & Restore, Offline QR Sync Stream, Direct SQLite Database ZIP Backup, and Multi-Section CSV Export & Import.
-
-            6. 🛠️ FIXED GITHUB ACTIONS APK & AAB WORKFLOW (KSP2 & NODE 24 READY)
-            • Fixed the KSP ApplicationManager NPE crash by enabling KSP2 (ksp.useKSP2=true), disabling out-of-memory in-process compiler flags, and setting --max-workers=2.
-            • Upgraded GitHub Actions to ubuntu-24.04 and Node 24 (actions/checkout@v5, setup-gradle@v5, upload-artifact@v5) with zero deprecation warnings or notices.
+            5. 💾 NORMALIZED DATA EXPORT & ADAPTIVE QR STREAMING
+            • Exports all independent base records (including Electricity Bill Rates, Fixed Service Charge, Default Rate, Owner Accounts, and Categories) while recomputing derived fields automatically on import, paired with adaptive QR packet splitting.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
@@ -792,27 +782,31 @@ fun LegalInfoDialog(
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
+                    .dialogSystemBarsPadding(extraTop = 8.dp),
                 containerColor = bgColor,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), CircleShape)
+                                .bounceClick()
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = Icons.Default.ChevronLeft,
                                 contentDescription = "Back",
-                                tint = AppTextColor()
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(26.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(12.dp))
                         AsyncImage(
                             model = com.example.R.drawable.app_logo,
                             contentDescription = "App Logo",
@@ -831,7 +825,7 @@ fun LegalInfoDialog(
                         )
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,

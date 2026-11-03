@@ -251,7 +251,7 @@ fun getGlassBorder(): Color {
 
 @Composable
 fun getGlassIconButtonBg(): Color {
-    return Color.Transparent
+    return if (isAppLightMode()) Color(0xFFE8EEF5) else Color(0xFF1E293B)
 }
 
 @Composable
@@ -272,7 +272,7 @@ fun GlassCard(
 
     Box(
         modifier = modifier
-            . UARTShadow(
+            .UARTShadow(
                 elevation = shadowElev,
                 shape = shape,
                 ambientColor = ambientShadow,
@@ -316,7 +316,7 @@ fun GlassButton(
 
     Row(
         modifier = modifier
-            .defaultMinSize(minHeight = 42.dp)
+            .defaultMinSize(minHeight = 44.dp)
             .bounceClick()
             .UARTShadow(
                 elevation = if (isLight) 2.5.dp else 4.dp,
@@ -343,18 +343,20 @@ fun AttachmentActionChip(
     color: Color,
     onClick: () -> Unit
 ) {
+    val isLight = isAppLightMode()
     val shape = RoundedCornerShape(19.dp)
+    val opaqueBg = if (isLight) Color(0xFFEFF4F9) else Color(0xFF1E293B)
     Box(
         modifier = Modifier
             .height(38.dp)
             .UARTShadow(
                 elevation = 2.dp,
                 shape = shape,
-                ambientColor = color.copy(alpha = 0.18f),
-                spotColor = color.copy(alpha = 0.25f)
+                ambientColor = if (isLight) Color(0x180F172A) else Color(0x44000000),
+                spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
             )
             .clip(shape)
-            .background(color.copy(alpha = 0.14f))
+            .background(opaqueBg)
             .clickable { onClick() }
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
@@ -428,9 +430,14 @@ fun GlassTextField(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLight = isAppLightMode()
-    
-    val bgColor = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    
+    val fieldShape = RoundedCornerShape(16.dp)
+
+    val bgColor = if (isLight) {
+        if (isFocused) Color(0xFFFFFFFF) else Color(0xFFEFF4F9)
+    } else {
+        if (isFocused) Color(0xFF28313E) else com.example.ui.theme.M3SurfaceHighDark
+    }
+
     val borderBrush: Brush = if (isError) {
         SolidColor(AccentPink)
     } else if (isFocused) {
@@ -438,9 +445,9 @@ fun GlassTextField(
     } else {
         SolidColor(Color.Transparent)
     }
-    
+
     val borderWidth = if (isError || isFocused) 1.5.dp else 0.dp
-    
+
     Column(modifier = modifier) {
         if (label != null) {
             Box(modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)) {
@@ -455,28 +462,29 @@ fun GlassTextField(
                 }
             }
         }
-        
+
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .UARTShadow(
-                    elevation = if (isLight) 1.5.dp else 2.5.dp,
-                    shape = RoundedCornerShape(12.dp),
+                    elevation = if (isFocused) 3.dp else (if (isLight) 1.5.dp else 2.5.dp),
+                    shape = fieldShape,
                     ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
                     spotColor = if (isLight) Color(0x1C0F172A) else Color(0x66000000)
                 )
+                .clip(fieldShape)
                 .background(
                     color = bgColor,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = fieldShape
                 )
                 .then(
                     if (borderWidth > 0.dp) {
                         Modifier.border(
                             width = borderWidth,
                             brush = borderBrush,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = fieldShape
                         )
                     } else Modifier
                 )
@@ -497,7 +505,7 @@ fun GlassTextField(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (leadingIcon != null) {
@@ -859,7 +867,11 @@ fun M3Chip(
 ) {
     val isLight = isAppLightMode()
     val accent = AppAccentColor()
-    val bgColor = if (selected) accent.copy(alpha = 0.18f) else if (isLight) Color(0xFFF1F5F9) else Color(0xFF252525)
+    val bgColor = if (selected) {
+        if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+    } else {
+        if (isLight) Color(0xFFF1F5F9) else Color(0xFF252525)
+    }
     val textColor = if (selected) accent else AppTextColor()
     val shape = RoundedCornerShape(18.dp)
 

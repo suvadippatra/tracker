@@ -162,14 +162,22 @@ fun BillTrackingTab(
                                     if (tab == "Log") "Log Reading" else "Bill Summary"
                                 }
 
-                                val primaryCol = MaterialTheme.colorScheme.primary
-                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.16f) else getCardBackground()
+                                val tabBg = if (isSelected) {
+                                    if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                                } else {
+                                    getCardBackground()
+                                }
+                                val tabFg = if (isSelected) {
+                                    if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
+                                } else {
+                                    AppTextColor()
+                                }
 
                                 Surface(
                                     modifier = Modifier
                                         .weight(1f)
                                         .bounceClick(),
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(14.dp),
                                     color = tabBg,
                                     shadowElevation = if (isSelected) 3.dp else 1.dp,
                                     onClick = { subTab = tab }
@@ -180,7 +188,7 @@ fun BillTrackingTab(
                                     ) {
                                         Text(
                                             text = label,
-                                            color = if (isSelected) primaryCol else AppTextColor(),
+                                            color = tabFg,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -522,16 +530,14 @@ fun DailyReadingInputScreen(
                                 modifier = Modifier.background(getDialogBackground())
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Edit", color = AppTextColor()) },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
+                                    text = { Text("Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                     onClick = {
                                         showMenu = false
                                         showEditDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Remove to bin", color = AccentPink) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                    text = { Text("Remove to bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                     onClick = {
                                         showMenu = false
                                         showDeleteDialog = true
@@ -898,15 +904,19 @@ fun BillSummaryScreen(
     val includesPaid = paidSessionsInRange.isNotEmpty()
 
     val paidBillDisplayItems = remember(successState.bills, currency, language) {
-        successState.bills.filter { it.isPaid }.sortedByDescending { it.endDate }.map { bill ->
+        successState.bills.sortedByDescending { it.endDate }.map { bill ->
             UtilityBillDisplayItem(
                 id = bill.id,
                 bill = bill,
                 formattedAmount = String.format(Locale.getDefault(), "%s %.2f", currency, bill.calculatedAmount),
                 formattedSubtitle = "${String.format(Locale.getDefault(), "%.2f", bill.totalUnits)} Units (${Formatters.formatDayMonthYear(bill.startDate)} - ${Formatters.formatDayMonthYear(bill.endDate)})",
                 formattedDueDate = if (bill.dueDate > 0) "Due: ${Formatters.formatDayMonthYear(bill.dueDate)}" else "",
-                statusText = if (language == "bn") "পরিশোধিত" else "PAID",
-                isPaid = true
+                statusText = if (bill.isPaid) {
+                    if (language == "bn") "পরিশোধিত" else "PAID"
+                } else {
+                    if (language == "bn") "অপরিশোধিত" else "UNPAID"
+                },
+                isPaid = bill.isPaid
             )
         }
     }
@@ -1211,18 +1221,22 @@ fun BillSummaryScreen(
 
                     Button(
                         onClick = { showGenerateBillDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor().copy(alpha = 0.18f)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                        ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 0.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(50.dp)
                             .bounceClick()
                     ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = "Generate", tint = AppAccentColor())
+                        val btnFg = if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
+                        Icon(Icons.Default.ReceiptLong, contentDescription = "Generate", tint = btnFg)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = if (language == "bn") "বিল চূড়ান্ত করুন" else "Finalize & Record Bill",
-                            color = AppAccentColor(),
+                            color = btnFg,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -1233,7 +1247,7 @@ fun BillSummaryScreen(
 
         item {
             Text(
-                text = if (language == "bn") "পরিশোধিত বিলের ইতিহাস" else "Paid Bill History",
+                text = if (language == "bn") "বিলের ইতিহাস" else "Recorded Bill History",
                 color = AppHeadingColor(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -1243,7 +1257,7 @@ fun BillSummaryScreen(
 
         if (paidBillDisplayItems.isEmpty()) {
             item(key = "empty_paid_bills") {
-                EmptyStateCard(message = if (language == "bn") "কোনো পরিশোধিত বিল নেই।" else "No paid bill records found.")
+                EmptyStateCard(message = if (language == "bn") "কোনো বিল রেকর্ড পাওয়া যায়নি।" else "No recorded bills found.")
             }
         } else {
             items(visiblePaidBillItems.value, key = { it.id }, contentType = { "paid_bill_item" }) { item ->
@@ -1273,8 +1287,8 @@ fun BillSummaryScreen(
                                 )
                             }
 
-                            val statusBg = AppPaidBgColor()
-                            val statusTextColor = AppPaidTextColor()
+                            val statusBg = if (item.isPaid) AppPaidBgColor() else AppUnpaidBgColor()
+                            val statusTextColor = if (item.isPaid) AppPaidTextColor() else AppUnpaidTextColor()
 
                             Box(
                                 modifier = Modifier
@@ -1354,8 +1368,7 @@ fun BillSummaryScreen(
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (bill.isPaid) "Mark as Unpaid & Note" else "Mark as Paid & Note", color = AppTextColor()) },
-                                        leadingIcon = { Icon(if (bill.isPaid) Icons.Default.Close else Icons.Default.Check, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
+                                        text = { Text(if (bill.isPaid) "Mark as Unpaid & Note" else "Mark as Paid & Note", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showBillMenu = false
                                             billToEditStatus = bill
@@ -1364,8 +1377,7 @@ fun BillSummaryScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (language == "bn") "নোট সম্পাদনা" else "Edit Note / Status", color = AppTextColor()) },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
+                                        text = { Text(if (language == "bn") "নোট সম্পাদনা" else "Edit Note / Status", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showBillMenu = false
                                             billToEditStatus = bill
@@ -1374,8 +1386,7 @@ fun BillSummaryScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Remove to bin", color = AccentPink) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                        text = { Text("Remove to bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showBillMenu = false
                                             deletingBill = bill

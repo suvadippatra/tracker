@@ -52,10 +52,11 @@ fun getAppAccentColor(bgPreset: String?, isLiquidGlass: Boolean, isLightMode: Bo
                     "Ocean", "Ocean Blue", "M3 Ocean Blue", "Midnight Blue" -> OceanPrimaryLight
                     "Rose", "Crimson", "Crimson Red", "M3 Crimson" -> RosePrimaryLight
                     "Gold", "Amber", "Amber Gold", "Sunset Warm", "M3 Amber" -> GoldPrimaryLight
-                    "Obsidian", "Pure Black", "Default" -> ObsidianPrimaryLight
+                    "Obsidian", "Pure Black" -> ObsidianPrimaryLight
+                    "Default" -> Color(0xFF0B57D0)
                     "Purple", "Deep Purple", "M3 Purple", "Purple Twilight" -> M3AccentPurple
                     "Cyan Teal", "M3 Cyan Teal", "Soft Minimal Light" -> M3AccentCyanTeal
-                    else -> OceanPrimaryLight
+                    else -> Color(0xFF0B57D0)
                 }
             } else {
                 when (preset) {
@@ -63,10 +64,11 @@ fun getAppAccentColor(bgPreset: String?, isLiquidGlass: Boolean, isLightMode: Bo
                     "Ocean", "Ocean Blue", "M3 Ocean Blue", "Midnight Blue" -> OceanPrimaryDark
                     "Rose", "Crimson", "Crimson Red", "M3 Crimson" -> RosePrimaryDark
                     "Gold", "Amber", "Amber Gold", "Sunset Warm", "M3 Amber" -> GoldPrimaryDark
-                    "Obsidian", "Pure Black", "Default" -> ObsidianPrimaryDark
+                    "Obsidian", "Pure Black" -> ObsidianPrimaryDark
+                    "Default" -> Color(0xFF7FCFFF)
                     "Purple", "Deep Purple", "M3 Purple", "Purple Twilight" -> M3AccentPurple
                     "Cyan Teal", "M3 Cyan Teal", "Soft Minimal Light" -> M3AccentCyanTeal
-                    else -> OceanPrimaryDark
+                    else -> Color(0xFF7FCFFF)
                 }
             }
         }
@@ -136,7 +138,7 @@ fun buildAppColorScheme(
                 onBackground = Color.White,
                 onSurface = Color.White
             )
-            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" || (p == "Default" && !isLiquidGlass) -> darkColorScheme(
+            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> darkColorScheme(
                 primary = if (isLiquidGlass) GlassNeonCyan else ObsidianPrimaryDark,
                 onPrimary = if (isLiquidGlass) Color(0xFF0F172A) else Color.White,
                 primaryContainer = ObsidianPrimaryContainerDark,
@@ -173,11 +175,11 @@ fun buildAppColorScheme(
                 onSurface = Color.White
             )
             else -> darkColorScheme(
-                // Ocean / Default
-                primary = if (isLiquidGlass) GlassMidnightBlue else OceanPrimaryDark,
-                onPrimary = Color(0xFF0F172A),
-                primaryContainer = OceanPrimaryContainerDark,
-                onPrimaryContainer = OceanOnPrimaryContainerDark,
+                // Ocean / Default Material 3 Blue
+                primary = if (isLiquidGlass) GlassMidnightBlue else Color(0xFF7FCFFF),
+                onPrimary = Color(0xFF003355),
+                primaryContainer = Color(0xFF004A77),
+                onPrimaryContainer = Color(0xFFC2E7FF),
                 secondary = OceanSecondaryDark,
                 onSecondary = Color(0xFF0F172A),
                 secondaryContainer = Color(0xFF004B70),
@@ -248,7 +250,7 @@ fun buildAppColorScheme(
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A)
             )
-            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" || (p == "Default" && !isLiquidGlass) -> lightColorScheme(
+            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> lightColorScheme(
                 primary = ObsidianPrimaryLight,
                 onPrimary = Color.White,
                 primaryContainer = ObsidianPrimaryContainerLight,
@@ -285,15 +287,15 @@ fun buildAppColorScheme(
                 onSurface = Color(0xFF0F172A)
             )
             else -> lightColorScheme(
-                // Ocean / Default
-                primary = OceanPrimaryLight,
+                // Ocean / Default Material 3 Deep Primary Blue
+                primary = Color(0xFF0B57D0),
                 onPrimary = Color.White,
-                primaryContainer = OceanPrimaryContainerLight,
-                onPrimaryContainer = OceanOnPrimaryContainerLight,
-                secondary = OceanSecondaryLight,
+                primaryContainer = Color(0xFFD3E3FD),
+                onPrimaryContainer = Color(0xFF041E49),
+                secondary = Color(0xFF00639B),
                 onSecondary = Color.White,
-                secondaryContainer = Color(0xFFC7E7FF),
-                onSecondaryContainer = Color(0xFF001E30),
+                secondaryContainer = Color(0xFFC2E7FF),
+                onSecondaryContainer = Color(0xFF001D35),
                 tertiary = Color(0xFF006399),
                 background = M3BackgroundLight,
                 surface = M3SurfaceLight,

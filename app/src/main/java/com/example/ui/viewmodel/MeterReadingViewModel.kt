@@ -54,7 +54,7 @@ class MeterReadingViewModel(
     val defaultElectricityRate = MutableStateFlow(prefs.getFloat("default_electricity_rate", 8.0f).toDouble())
 
     // Current Date Range state
-    var isManualDateRangeSet = savedStateHandle.contains("KEY_CALC_START_DATE") || savedStateHandle.contains("KEY_CALC_END_DATE")
+    var isManualDateRangeSet: Boolean = savedStateHandle.get<Boolean>("KEY_MANUAL_RANGE_SET") ?: false
     val calculationStartDate = MutableStateFlow<Long>(
         savedStateHandle.get<Long>("KEY_CALC_START_DATE") ?: getStartOfMonthMillis()
     )
@@ -97,6 +97,16 @@ class MeterReadingViewModel(
         }
     }
 
+    private data class NormalizedReading(
+        val id: String,
+        val readingDate: Long,
+        val dayStart: Long,
+        val rawTotal: Double,
+        val rawUnitsConsumed: Double,
+        val cumulativeReading: Double,
+        val isPaid: Boolean
+    )
+
     private fun getDayStart(time: Long): Long {
         val cal = Calendar.getInstance()
         cal.timeInMillis = time
@@ -117,34 +127,76 @@ class MeterReadingViewModel(
         return cal.timeInMillis
     }
 
-    private fun estimateReadingAt(
+    private fun normalizeReadings(readings: List<MeterReading>): List<NormalizedReading> {
+        val sorted = readings.sortedBy { it.readingDate }
+        if (sorted.isEmpty()) return emptyList()
+
+        val result = ArrayList<NormalizedReading>(sorted.size)
+        var currentCumulative = sorted[0].totalReading.coerceAtLeast(0.0)
+        result.add(
+            NormalizedReading(
+                id = sorted[0].id,
+                readingDate = sorted[0].readingDate,
+                dayStart = getDayStart(sorted[0].readingDate),
+                rawTotal = sorted[0].totalReading,
+                rawUnitsConsumed = sorted[0].unitsConsumed,
+                cumulativeReading = currentCumulative,
+                isPaid = sorted[0].isPaid
+            )
+        )
+
+        for (i in 1 until sorted.size) {
+            val r = sorted[i]
+            val prev = sorted[i - 1]
+            val rawDiff = r.totalReading - prev.totalReading
+            val step = when {
+                rawDiff > 0.0 -> rawDiff
+                r.unitsConsumed > 0.0 -> r.unitsConsumed
+                else -> 0.0
+            }
+            currentCumulative += step
+            result.add(
+                NormalizedReading(
+                    id = r.id,
+                    readingDate = r.readingDate,
+                    dayStart = getDayStart(r.readingDate),
+                    rawTotal = r.totalReading,
+                    rawUnitsConsumed = r.unitsConsumed,
+                    cumulativeReading = currentCumulative,
+                    isPaid = r.isPaid
+                )
+            )
+        }
+        return result
+    }
+
+    private fun estimateNormalizedReadingAt(
         time: Long,
-        readings: List<MeterReading>,
+        normalized: List<NormalizedReading>,
         isEndBoundary: Boolean = true
     ): Double? {
-        val sorted = readings.sortedBy { it.readingDate }
-        if (sorted.isEmpty()) return null
+        if (normalized.isEmpty()) return null
 
         val timeDay = getDayStart(time)
-        val sameDayReadings = sorted.filter { getDayStart(it.readingDate) == timeDay }
+        val sameDayReadings = normalized.filter { it.dayStart == timeDay }
         if (sameDayReadings.isNotEmpty()) {
             return if (isEndBoundary) {
-                sameDayReadings.maxOf { it.totalReading }
+                sameDayReadings.maxOf { it.cumulativeReading }
             } else {
-                sameDayReadings.minOf { it.totalReading }
+                sameDayReadings.minOf { it.cumulativeReading }
             }
         }
 
-        val preceding = sorted.filter { getDayStart(it.readingDate) < timeDay }
+        val preceding = normalized.filter { it.dayStart < timeDay }
             .maxByOrNull { it.readingDate }
-        val succeeding = sorted.filter { getDayStart(it.readingDate) > timeDay }
+        val succeeding = normalized.filter { it.dayStart > timeDay }
             .minByOrNull { it.readingDate }
 
         if (preceding != null && succeeding != null) {
-            val t1 = getDayStart(preceding.readingDate)
-            val t2 = getDayStart(succeeding.readingDate)
-            val r1 = sorted.filter { getDayStart(it.readingDate) == t1 }.maxOf { it.totalReading }
-            val r2 = sorted.filter { getDayStart(it.readingDate) == t2 }.minOf { it.totalReading }
+            val t1 = preceding.dayStart
+            val t2 = succeeding.dayStart
+            val r1 = normalized.filter { it.dayStart == t1 }.maxOf { it.cumulativeReading }
+            val r2 = normalized.filter { it.dayStart == t2 }.minOf { it.cumulativeReading }
 
             if (t2 <= t1) return r1
 
@@ -155,12 +207,12 @@ class MeterReadingViewModel(
         // If query is after all readings, return latest (so days after stopping readings add 0 units / 0 rupees);
         // if before all readings, return earliest.
         if (preceding != null && succeeding == null) {
-            val lastDay = getDayStart(preceding.readingDate)
-            return sorted.filter { getDayStart(it.readingDate) == lastDay }.maxOf { it.totalReading }
+            val lastDay = preceding.dayStart
+            return normalized.filter { it.dayStart == lastDay }.maxOf { it.cumulativeReading }
         }
         if (preceding == null && succeeding != null) {
-            val firstDay = getDayStart(succeeding.readingDate)
-            return sorted.filter { getDayStart(it.readingDate) == firstDay }.minOf { it.totalReading }
+            val firstDay = succeeding.dayStart
+            return normalized.filter { it.dayStart == firstDay }.minOf { it.cumulativeReading }
         }
 
         return null
@@ -217,23 +269,56 @@ class MeterReadingViewModel(
                 ?: validRates.first().ratePerUnit
         }
 
-        val chronologicallySorted = sortedReadings.sortedBy { it.readingDate }
-        if (chronologicallySorted.isEmpty()) {
+        val normalized = normalizeReadings(sortedReadings)
+
+        // Helper for unpaid bills carry-over prior to or overlapping an inactive window
+        fun getUnpaidBillsPriorTo(cutoffDay: Long): List<UtilityBill> {
+            return bills.filter { !it.isPaid && it.calculatedAmount > 0.0 && getDayStart(it.startDate) <= cutoffDay }
+        }
+
+        if (normalized.isEmpty()) {
             val defaultRate = getActiveRateAt(endDay)
+            val unpaidBills = getUnpaidBillsPriorTo(endDay)
+            val carriedUnits = unpaidBills.sumOf { it.totalUnits }
+            val carriedCost = unpaidBills.sumOf { it.calculatedAmount }
+            val breakdown = unpaidBills.map { bill ->
+                val effRate = if (bill.totalUnits > 0.0) Math.round((bill.calculatedAmount / bill.totalUnits) * 100.0) / 100.0 else defaultRate
+                RateBreakdownItem(
+                    ratePerUnit = effRate,
+                    units = bill.totalUnits,
+                    cost = bill.calculatedAmount,
+                    periodStart = getDayStart(bill.startDate),
+                    periodEnd = getDayStart(bill.endDate)
+                )
+            }
             return DetailedBillResult(
-                totalUnits = 0.0,
-                totalCost = fixedCharge,
-                breakdown = emptyList(),
+                totalUnits = Math.round(carriedUnits * 100.0) / 100.0,
+                totalCost = Math.round((carriedCost + fixedCharge) * 100.0) / 100.0,
+                breakdown = breakdown,
                 activeRates = if (defaultRate > 0.0) listOf(defaultRate) else emptyList()
             )
         }
 
+        val lastReadingDay = normalized.last().dayStart
+
         if (startDay == endDay) {
-            val dayReadings = chronologicallySorted.filter { getDayStart(it.readingDate) == startDay }
-            val dayUnits = if (dayReadings.isNotEmpty()) {
-                val sumUnits = dayReadings.sumOf { it.unitsConsumed }
-                if (sumUnits > 0.0) sumUnits else (dayReadings.maxOf { it.totalReading } - dayReadings.minOf { it.totalReading }).coerceAtLeast(0.0)
+            val dayReadings = normalized.filter { it.dayStart == startDay }
+            var dayUnits = if (dayReadings.isNotEmpty()) {
+                val sumUnits = dayReadings.sumOf { it.rawUnitsConsumed }
+                if (sumUnits > 0.0) sumUnits else (dayReadings.maxOf { it.cumulativeReading } - dayReadings.minOf { it.cumulativeReading }).coerceAtLeast(0.0)
             } else 0.0
+
+            // If user selected a single day on or after lastReadingDay when readings stopped updating, carry over unpaid readings/bills
+            if (dayUnits <= 0.0 && startDay >= lastReadingDay) {
+                val unpaidReadings = normalized.filter { !it.isPaid && it.dayStart <= endDay }
+                if (unpaidReadings.isNotEmpty()) {
+                    val firstUnpaid = unpaidReadings.first()
+                    val firstIdx = normalized.indexOfFirst { it.id == firstUnpaid.id }
+                    val baseVal = if (firstIdx > 0) normalized[firstIdx - 1].cumulativeReading else (firstUnpaid.cumulativeReading - firstUnpaid.rawUnitsConsumed).coerceAtLeast(0.0)
+                    dayUnits = (normalized.last().cumulativeReading - baseVal).coerceAtLeast(0.0)
+                }
+            }
+
             val rate = getActiveRateAt(startDay)
             val cost = Math.round((dayUnits * rate + fixedCharge) * 100.0) / 100.0
             return DetailedBillResult(
@@ -244,15 +329,9 @@ class MeterReadingViewModel(
             )
         }
 
-        val lastReadingDay = getDayStart(chronologicallySorted.last().readingDate)
-
-        // Determine effective startDay and startReading baseline:
-        // If the user stopped updating readings after lastReadingDay and selects from the last unpaid reading date
-        // to today/a later date (startDay >= lastReadingDay && endDay >= lastReadingDay), or if startDay lands on
-        // the first unpaid reading after paid sessions, use the pre-unpaid baseline so the previous unpaid bill + 0 rupees is preserved.
         var effectiveStartDay = startDay
-        var rawStartReading = estimateReadingAt(minTime, chronologicallySorted, isEndBoundary = false)
-        val rawEndReading = estimateReadingAt(maxTime, chronologicallySorted, isEndBoundary = true)
+        var rawStartReading = estimateNormalizedReadingAt(minTime, normalized, isEndBoundary = false)
+        val rawEndReading = estimateNormalizedReadingAt(maxTime, normalized, isEndBoundary = true)
 
         if (rawStartReading == null || rawEndReading == null) {
             val defaultRate = getActiveRateAt(endDay)
@@ -264,32 +343,41 @@ class MeterReadingViewModel(
             )
         }
 
-        // Case 1: User stopped updating readings and selected [lastReadingDay..endDay] where no readings exist after startDay
-        val readingsAfterStart = chronologicallySorted.filter { getDayStart(it.readingDate) > startDay }
+        // Case 1: Meter readings are inactive in the selected window (user stopped updating readings after lastReadingDay
+        // and selected from the last unpaid reading date or a later date up to endDay, or no readings exist after startDay).
+        // Carry over previous unpaid reading intervals + unpaid bills + 0 rupees for the inactive duration after lastReadingDay.
+        val readingsAfterStart = normalized.filter { it.dayStart > startDay }
         if (readingsAfterStart.isEmpty() && (rawEndReading - rawStartReading) <= 0.0) {
-            val unpaidReadings = chronologicallySorted.filter { !it.isPaid && getDayStart(it.readingDate) <= endDay }
+            val unpaidReadings = normalized.filter { !it.isPaid && it.dayStart <= endDay }
             if (unpaidReadings.isNotEmpty()) {
-                val firstUnpaid = unpaidReadings.first()
-                val firstUnpaidIndex = chronologicallySorted.indexOfFirst { it.id == firstUnpaid.id }
-                if (firstUnpaidIndex > 0) {
-                    val baselineReading = chronologicallySorted[firstUnpaidIndex - 1]
-                    rawStartReading = baselineReading.totalReading
-                    effectiveStartDay = getDayStart(baselineReading.readingDate)
+                // Find the first unpaid reading after the most recent paid reading (or the very first reading if none are paid)
+                val lastPaidIdx = normalized.indexOfLast { it.isPaid && it.dayStart <= endDay }
+                val firstUnpaidIdx = if (lastPaidIdx >= 0 && lastPaidIdx + 1 < normalized.size) {
+                    lastPaidIdx + 1
                 } else {
-                    rawStartReading = (firstUnpaid.totalReading - firstUnpaid.unitsConsumed).coerceAtLeast(0.0)
-                    effectiveStartDay = getDayStart(firstUnpaid.readingDate)
+                    normalized.indexOfFirst { !it.isPaid }
+                }
+                if (firstUnpaidIdx > 0) {
+                    val baselineReading = normalized[firstUnpaidIdx - 1]
+                    rawStartReading = baselineReading.cumulativeReading
+                    effectiveStartDay = baselineReading.dayStart
+                } else if (firstUnpaidIdx == 0) {
+                    val firstReading = normalized[0]
+                    rawStartReading = (firstReading.cumulativeReading - firstReading.rawUnitsConsumed).coerceAtLeast(0.0)
+                    effectiveStartDay = firstReading.dayStart
                 }
             }
         } else {
             // Case 2: startDay lands directly on an unpaid reading whose own unitsConsumed should be part of this period
-            // (e.g., first unpaid reading after paid readings, or only 1 reading day in range)
-            val startDayReadings = chronologicallySorted.filter { getDayStart(it.readingDate) == startDay }
+            // (e.g., first unpaid reading after paid readings)
+            val startDayReadings = normalized.filter { it.dayStart == startDay }
             val firstOnStartDay = startDayReadings.firstOrNull()
-            if (firstOnStartDay != null && !firstOnStartDay.isPaid && firstOnStartDay.unitsConsumed > 0.0) {
-                val idx = chronologicallySorted.indexOfFirst { it.id == firstOnStartDay.id }
-                val allPriorPaid = idx > 0 && chronologicallySorted.subList(0, idx).all { it.isPaid }
+            if (firstOnStartDay != null && !firstOnStartDay.isPaid && firstOnStartDay.rawUnitsConsumed > 0.0) {
+                val idx = normalized.indexOfFirst { it.id == firstOnStartDay.id }
+                val allPriorPaid = idx > 0 && normalized.subList(0, idx).all { it.isPaid }
                 if (allPriorPaid) {
-                    rawStartReading = chronologicallySorted[idx - 1].totalReading
+                    rawStartReading = normalized[idx - 1].cumulativeReading
+                    effectiveStartDay = normalized[idx - 1].dayStart
                 }
             }
         }
@@ -299,13 +387,12 @@ class MeterReadingViewModel(
 
         var totalUnits = (endReading - startReading).coerceAtLeast(0.0)
 
-        // Fallback if totalReading difference is 0 but readings within [effectiveStartDay..endDay] recorded positive unitsConsumed
+        // Fallback if cumulative difference is 0 but readings within [effectiveStartDay..endDay] recorded positive unitsConsumed
         if (totalUnits <= 0.0) {
-            val readingsInWindow = chronologicallySorted.filter {
-                val d = getDayStart(it.readingDate)
-                d in effectiveStartDay..endDay && !it.isPaid
+            val readingsInWindow = normalized.filter {
+                it.dayStart in effectiveStartDay..endDay && !it.isPaid
             }
-            val summedUnits = readingsInWindow.sumOf { it.unitsConsumed }
+            val summedUnits = readingsInWindow.sumOf { it.rawUnitsConsumed }
             if (summedUnits > 0.0) {
                 totalUnits = summedUnits
             }
@@ -323,26 +410,57 @@ class MeterReadingViewModel(
         val rawBreakdownItems = mutableListOf<RateBreakdownItem>()
         var totalCost = 0.0
 
+        // Include any explicit unpaid UtilityBill records strictly prior to effectiveStartDay when readings are inactive (endDay > lastReadingDay)
+        if (endDay >= lastReadingDay) {
+            val priorUnpaidBills = bills.filter {
+                !it.isPaid && it.calculatedAmount > 0.0 && getDayEnd(it.endDate) < effectiveStartDay
+            }
+            for (unpaidBill in priorUnpaidBills) {
+                val effRate = if (unpaidBill.totalUnits > 0.0) {
+                    Math.round((unpaidBill.calculatedAmount / unpaidBill.totalUnits) * 100.0) / 100.0
+                } else {
+                    getActiveRateAt(unpaidBill.startDate)
+                }
+                totalUnits += unpaidBill.totalUnits
+                totalCost += unpaidBill.calculatedAmount
+                rawBreakdownItems.add(
+                    RateBreakdownItem(
+                        ratePerUnit = effRate,
+                        units = unpaidBill.totalUnits,
+                        cost = unpaidBill.calculatedAmount,
+                        periodStart = getDayStart(unpaidBill.startDate),
+                        periodEnd = getDayStart(unpaidBill.endDate)
+                    )
+                )
+            }
+        }
+
+        val windowUnits = (endReading - startReading).coerceAtLeast(0.0).let { diff ->
+            if (diff > 0.0) diff else normalized.filter { it.dayStart in effectiveStartDay..endDay && !it.isPaid }.sumOf { it.rawUnitsConsumed }.coerceAtLeast(0.0)
+        }
+
         if (regionBoundaries.size <= 2) {
             val activeRate = getActiveRateAt(effectiveStartDay)
-            val cost = totalUnits * activeRate
-            totalCost = cost
-            rawBreakdownItems.add(
-                RateBreakdownItem(
-                    ratePerUnit = activeRate,
-                    units = totalUnits,
-                    cost = cost,
-                    periodStart = startDay,
-                    periodEnd = endDay
+            val cost = windowUnits * activeRate
+            totalCost += cost
+            if (windowUnits > 0.0 || rawBreakdownItems.isEmpty()) {
+                rawBreakdownItems.add(
+                    RateBreakdownItem(
+                        ratePerUnit = activeRate,
+                        units = windowUnits,
+                        cost = cost,
+                        periodStart = startDay,
+                        periodEnd = endDay
+                    )
                 )
-            )
+            }
         } else {
             for (i in 0 until regionBoundaries.size - 1) {
                 val rStart = regionBoundaries[i]
                 val rEnd = regionBoundaries[i + 1]
 
-                val startValue = if (i == 0) startReading else (estimateReadingAt(rStart, chronologicallySorted, isEndBoundary = false) ?: startReading)
-                val endValue = if (i == regionBoundaries.size - 2) endReading else (estimateReadingAt(rEnd, chronologicallySorted, isEndBoundary = true) ?: endReading)
+                val startValue = if (i == 0) startReading else (estimateNormalizedReadingAt(rStart, normalized, isEndBoundary = false) ?: startReading)
+                val endValue = if (i == regionBoundaries.size - 2) endReading else (estimateNormalizedReadingAt(rEnd, normalized, isEndBoundary = true) ?: endReading)
 
                 val intervalUnits = (endValue - startValue).coerceAtLeast(0.0)
                 val activeRate = getActiveRateAt(rStart)
@@ -522,6 +640,7 @@ class MeterReadingViewModel(
 
     fun setCalculationDateRange(start: Long, end: Long) {
         isManualDateRangeSet = true
+        savedStateHandle["KEY_MANUAL_RANGE_SET"] = true
         calculationStartDate.value = start
         calculationEndDate.value = end
     }

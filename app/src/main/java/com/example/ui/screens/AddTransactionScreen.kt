@@ -248,7 +248,7 @@ fun AddTransactionScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .statusBarsPadding()
+                                        .dialogSafeTopPadding(extraTop = 4.dp)
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
@@ -261,9 +261,10 @@ fun AddTransactionScreen(
                                             .bounceClick()
                                     ) {
                                         Icon(
-                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            Icons.Default.ChevronLeft,
                                             contentDescription = if (isBengali) "ফিরে যান" else "Back",
-                                            tint = AppTextColor()
+                                            tint = AppTextColor(),
+                                            modifier = Modifier.size(26.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))

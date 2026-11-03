@@ -118,8 +118,7 @@ fun GlobalSearchScreen(
             modifier = Modifier
                 .fillMaxHeight()
                 .widthIn(max = 840.dp)
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .dialogSystemBarsPadding(extraTop = 4.dp)
                 .imePadding()
         ) {
             // Search Input Header
@@ -129,12 +128,23 @@ fun GlobalSearchScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {
-                    viewModel.setSearchQuery("")
-                    onDismiss()
-                }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                IconButton(
+                    onClick = {
+                        viewModel.setSearchQuery("")
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(getGlassIconButtonBg(), CircleShape)
+                ) {
+                    Icon(
+                        Icons.Default.ChevronLeft,
+                        contentDescription = "Back",
+                        tint = AppTextColor(),
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Box(
                     modifier = Modifier

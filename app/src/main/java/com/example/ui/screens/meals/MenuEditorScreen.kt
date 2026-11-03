@@ -118,159 +118,174 @@ fun MenuManagementScreen(
     val customBgUri = userProfile?.customBgUri ?: ""
     val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        CompositionLocalProvider(
-            LocalAppTheme provides themeMode,
-            LocalAppBgPreset provides bgPreset,
-            LocalAppCustomBgUri provides customBgUri,
-            LocalAppLiquidGlassTheme provides isLiquidGlass
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
+    Dialog(
+        onDismissRequest = onBack,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        Box(modifier = Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalAppTheme provides themeMode,
+                LocalAppBgPreset provides bgPreset,
+                LocalAppCustomBgUri provides customBgUri,
+                LocalAppLiquidGlassTheme provides isLiquidGlass
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(getAppBackgroundGradient(themeMode, bgPreset))
-                        .pointerInput(Unit) { detectTapGestures { } },
-                    contentAlignment = Alignment.TopCenter
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (isAppLightMode()) com.example.ui.theme.M3BackgroundLight else com.example.ui.theme.M3BackgroundDark
                 ) {
-                    Scaffold(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .imePadding(),
-                        containerColor = Color.Transparent,
-                        contentWindowInsets = WindowInsets(0.dp),
-                        topBar = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = onBack,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
-                                ) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = hotel.name,
-                                        color = AppTextColor(),
-                                        fontSize = 19.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "Manage categories and items",
-                                        color = AppTextColor().copy(alpha = 0.7f),
-                                        fontSize = 12.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { csvImportLauncher.launch("text/*") },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
-                                ) {
-                                    Icon(Icons.Default.UploadFile, contentDescription = "Import CSV", tint = AppTextColor())
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                IconButton(
-                                    onClick = { csvExportLauncher.launch("menu_${hotel.name.replace(" ", "_")}.csv") },
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = "Export CSV", tint = AppTextColor())
-                                }
-                            }
-                        }
-                    ) { innerPadding ->
-                        Column(
+                            .background(getAppBackgroundGradient(themeMode, bgPreset))
+                            .pointerInput(Unit) { detectTapGestures { } },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(innerPadding)
-                        ) {
-                            // Table Content
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                            ) {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    // Table Header
-                                    Row(
+                                .dialogSystemBarsPadding(extraTop = 8.dp)
+                                .imePadding(),
+                            containerColor = Color.Transparent,
+                            contentWindowInsets = WindowInsets(0.dp),
+                            topBar = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = onBack,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color.Black.copy(alpha = 0.1f))
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
                                     ) {
-                                        Text("Item", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(2f))
-                                        Text("Type", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                        Text("Price", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                        Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
                                     }
-                                    
-                                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = hotel.name,
+                                            color = AppTextColor(),
+                                            fontSize = 19.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "Manage categories and items",
+                                            color = AppTextColor().copy(alpha = 0.7f),
+                                            fontSize = 12.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { csvImportLauncher.launch("text/*") },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
+                                    ) {
+                                        Icon(Icons.Default.UploadFile, contentDescription = "Import CSV", tint = AppTextColor())
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { csvExportLauncher.launch("menu_${hotel.name.replace(" ", "_")}.csv") },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
+                                    ) {
+                                        Icon(Icons.Default.Download, contentDescription = "Export CSV", tint = AppTextColor())
+                                    }
+                                }
+                            }
+                        ) { innerPadding ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                                    .padding(top = 8.dp)
+                            ) {
+                                // Table Content
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        // Table Header
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(if (isAppLightMode()) Color(0xFFE8EEF5) else Color.White.copy(alpha = 0.06f))
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Item", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(2f))
+                                            Text("Type", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                            Text("Price", color = AppTextColor(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                        }
+                                        
+                                        HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f))
 
-                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                        items(menuItems, key = { it.id }) { item ->
-                                            MenuTableRow(
-                                                item = item,
-                                                onSave = { updatedItem -> viewModel.updateMenu(updatedItem) },
-                                                onDelete = { viewModel.deleteMenu(item) }
-                                            )
-                                            HorizontalDivider(color = AppTextColor().copy(alpha = 0.05f))
+                                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                            items(menuItems, key = { it.id }) { item ->
+                                                MenuTableRow(
+                                                    item = item,
+                                                    onSave = { updatedItem -> viewModel.updateMenu(updatedItem) },
+                                                    onDelete = { viewModel.deleteMenu(item) }
+                                                )
+                                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.05f))
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            
-                            // Bottom Add Area
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                            ) {
-                                Button(
-                                    onClick = { showAddMenu = true },
-                                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
-                                    shape = RoundedCornerShape(12.dp)
+                                
+                                // Bottom Add Area
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = "Add Item", tint = Color.White)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Add New Item", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Button(
+                                        onClick = { showAddMenu = true },
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = AppAccentColor(),
+                                            contentColor = AppOnAccentColor()
+                                        ),
+                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add Item", tint = AppOnAccentColor())
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Add New Item", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (showAddMenu) {
-            AddMenuItemDialog(
-                hotelId = hotel.id,
-                onDismiss = { showAddMenu = false },
-                onSave = { newItem ->
-                    viewModel.addMenu(newItem)
-                    showAddMenu = false
-                }
-            )
+            if (showAddMenu) {
+                AddMenuItemDialog(
+                    hotelId = hotel.id,
+                    onDismiss = { showAddMenu = false },
+                    onSave = { newItem ->
+                        viewModel.addMenu(newItem)
+                        showAddMenu = false
+                    }
+                )
+            }
         }
     }
 }
@@ -446,14 +461,12 @@ fun MenuTableRow(
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, modifier = Modifier.background(com.example.ui.components.getDialogBackground())) {
                         DropdownMenuItem(
-                            text = { Text("Edit", color = AppTextColor()) },
-                            onClick = { showMenu = false; isEditing = true },
-                            leadingIcon = { Icon(Icons.Default.Edit, null, tint = AppTextColor(), modifier = Modifier.size(16.dp)) }
+                            text = { Text("Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                            onClick = { showMenu = false; isEditing = true }
                         )
                         DropdownMenuItem(
-                            text = { Text("Move to Bin", color = AccentPink) },
-                            onClick = { showMenu = false; showDeleteConfirm = true },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(16.dp)) }
+                            text = { Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
+                            onClick = { showMenu = false; showDeleteConfirm = true }
                         )
                     }
                 }
@@ -541,30 +554,33 @@ fun AddMenuItemDialog(
                         "Common" to Icons.Default.Brightness4
                     ).forEach { (typeOpt, icon) ->
                         val isSelected = newType == typeOpt
-                        Box(
+                        Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) AccentCyan else AppTextColor().copy(alpha = 0.08f))
-                                .border(1.dp, if (isSelected) AccentCyan else Color.Transparent, RoundedCornerShape(12.dp))
-                                .clickable { newType = typeOpt }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
+                                .clickable { newType = typeOpt },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) AppAccentColor() else getGlassIconButtonBg(),
+                            shadowElevation = if (isSelected) 3.dp else 0.dp
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = typeOpt,
-                                    tint = if (isSelected) Color.Black else AccentCyan,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    typeOpt,
-                                    color = if (isSelected) Color.Black else AppTextColor(),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = typeOpt,
+                                        tint = if (isSelected) AppOnAccentColor() else AppAccentColor(),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        typeOpt,
+                                        color = if (isSelected) AppOnAccentColor() else AppTextColor(),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

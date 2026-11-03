@@ -110,8 +110,7 @@ fun OwnerProfileScreen(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -119,17 +118,20 @@ fun OwnerProfileScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
                                     onClick = onDismiss,
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(getGlassIconButtonBg(), CircleShape)
+                                        .bounceClick()
                                 ) {
-                                    Icon(Icons.Default.ArrowBack, "Back", tint = AppTextColor())
+                                    Icon(Icons.Default.ChevronLeft, "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text("Owner Profile", color = AppTextColor(), fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 FilledTonalIconButton(
                                     onClick = { showEditProfileDialog = true },
@@ -141,7 +143,6 @@ fun OwnerProfileScreen(
                                 ) {
                                     Icon(Icons.Default.Edit, "Edit Profile", tint = AppAccentColor())
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         }
                     ) { padding ->
@@ -150,7 +151,7 @@ fun OwnerProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp)
                 ) {
                     item {
                         // Profile Info Section
@@ -241,15 +242,18 @@ fun OwnerProfileScreen(
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         
-                        OutlinedButton(
+                        Button(
                             onClick = { showAddAccountDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .defaultMinSize(minHeight = 48.dp)
+                                .defaultMinSize(minHeight = 50.dp)
                                 .wrapContentHeight(),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, AppAccentColor()),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                            shape = RoundedCornerShape(14.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppAccentColor(),
+                                contentColor = AppOnAccentColor()
+                            )
                         ) {
                             Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
@@ -468,8 +472,7 @@ fun EditProfileDialog(
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .statusBarsPadding()
-                                .navigationBarsPadding()
+                                .dialogSystemBarsPadding(extraTop = 8.dp)
                                 .imePadding(),
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0.dp),
@@ -477,16 +480,19 @@ fun EditProfileDialog(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
                                         onClick = onDismiss,
-                                        modifier = Modifier.size(48.dp)
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
                                     ) {
-                                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                        Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         "Edit Owner Profile",
                                         color = AppTextColor(),
@@ -506,7 +512,6 @@ fun EditProfileDialog(
                                     ) {
                                         Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
                                 }
                             }
                         ) { innerPadding ->
@@ -521,10 +526,9 @@ fun EditProfileDialog(
                                 .fillMaxWidth()
                                 .widthIn(max = 680.dp)
                                 .verticalScroll(rememberScrollState())
-                                .navigationBarsPadding()
                                 .imePadding()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                                .padding(horizontal = 20.dp, vertical = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Box(
@@ -615,25 +619,26 @@ fun EditProfileDialog(
                                 singleLine = true
                             )
 
-                            Box(
+                            Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .defaultMinSize(minHeight = 80.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(getCardBackground())
-                                    .border(1.dp, getGlassBorder(), RoundedCornerShape(12.dp))
                                     .clickable { qrPicker.launch("image/*") },
-                                contentAlignment = Alignment.Center
+                                shape = RoundedCornerShape(16.dp),
+                                color = getCardBackground(),
+                                shadowElevation = if (isAppLightMode()) 2.dp else 4.dp
                             ) {
-                                if (qrUri.isNotBlank()) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(8.dp)) {
-                                        AsyncImage(model = qrUri, contentDescription = "QR Code", modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit)
-                                        Text("UPI QR Code Attached (Tap to change)", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                    }
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(12.dp)) {
-                                        Icon(Icons.Default.QrCode, contentDescription = null, tint = AccentCyan)
-                                        Text("+ Upload UPI QR Code Image", color = AccentCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (qrUri.isNotBlank()) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(8.dp)) {
+                                            AsyncImage(model = qrUri, contentDescription = "QR Code", modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Fit)
+                                            Text("UPI QR Code Attached (Tap to change)", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    } else {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(12.dp)) {
+                                            Icon(Icons.Default.QrCode, contentDescription = null, tint = AppAccentColor())
+                                            Text("+ Upload UPI QR Code Image", color = AppAccentColor(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -766,12 +771,11 @@ fun OwnerAccountCard(
                         )
                         if (isDefault) {
                             Surface(
-                                color = AccentGold.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f))
+                                color = if (isAppLightMode()) Color(0xFFFEF3C7) else Color(0xFF451A03),
+                                shape = RoundedCornerShape(6.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(10.dp))
@@ -812,52 +816,46 @@ fun OwnerAccountCard(
                     onDismissRequest = { showOverflowMenu = false },
                     modifier = Modifier
                         .background(getDialogBackground())
-                        .border(BorderStroke(1.dp, getGlassBorder()), RoundedCornerShape(12.dp))
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Edit Account", color = AppTextColor()) },
+                        text = { Text("Edit Account", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                         onClick = {
                             showOverflowMenu = false
                             onEdit()
-                        },
-                        leadingIcon = { Icon(Icons.Default.Edit, null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) }
+                        }
                     )
                     if (!isDefault) {
                         DropdownMenuItem(
-                            text = { Text("Set as Default", color = AppTextColor()) },
+                            text = { Text("Set as Default", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                             onClick = {
                                 showOverflowMenu = false
                                 onSetDefault()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Star, null, tint = AccentGold, modifier = Modifier.size(18.dp)) }
+                            }
                         )
                     }
                     if (account.qrCodeUri.isNotBlank()) {
                         DropdownMenuItem(
-                            text = { Text("Show QR Code", color = AppTextColor()) },
+                            text = { Text("Show QR Code", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                             onClick = {
                                 showOverflowMenu = false
                                 showQRDialog = true
-                            },
-                            leadingIcon = { Icon(Icons.Default.QrCode, null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) }
+                            }
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("View Account Details", color = AppTextColor()) },
+                        text = { Text("View Account Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                         onClick = {
                             showOverflowMenu = false
                             showViewDetailsModal = true
-                        },
-                        leadingIcon = { Icon(Icons.Default.Visibility, null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) }
+                        }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete Account", color = AccentPink) },
+                        text = { Text("Delete Account", color = AccentPink, fontWeight = FontWeight.Medium) },
                         onClick = {
                             showOverflowMenu = false
                             showDeleteConfirmation = true
-                        },
-                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink, modifier = Modifier.size(18.dp)) }
+                        }
                     )
                 }
             }
@@ -911,10 +909,10 @@ fun DetailRowItem(
 
     if (showLargeView) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showLargeView = false }) {
-            Box(
-                modifier = Modifier
-                    .background(getDialogBackground(), RoundedCornerShape(24.dp))
-                    .border(BorderStroke(1.dp, getGlassBorder()), RoundedCornerShape(24.dp))
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = getDialogBackground(),
+                shadowElevation = 8.dp
             ) {
                 Column(
                     modifier = Modifier.padding(28.dp),
@@ -924,9 +922,9 @@ fun DetailRowItem(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(rawValue, color = AppTextColor(), fontSize = 24.sp, fontWeight = FontWeight.Black)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Double tap row to copy", color = AccentCyan, fontSize = 11.sp)
+                    Text("Double tap row to copy", color = AppAccentColor(), fontSize = 11.sp)
                     Spacer(modifier = Modifier.height(24.dp))
-                    TextButton(onClick = { showLargeView = false }) { Text("Close", color = AccentCyan, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { showLargeView = false }) { Text("Close", color = AppAccentColor(), fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -992,8 +990,7 @@ fun AddOwnerAccountDialog(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
+                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -1001,16 +998,19 @@ fun AddOwnerAccountDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
                                 onClick = onDismiss,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                                    .bounceClick()
                             ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTextColor())
+                                Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = if (account == null) "Add Account" else "Edit Account Details",
                                 color = AppTextColor(),
@@ -1050,7 +1050,6 @@ fun AddOwnerAccountDialog(
                             ) {
                                 Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
                 ) { innerPadding ->
@@ -1065,10 +1064,9 @@ fun AddOwnerAccountDialog(
                                 .fillMaxWidth()
                                 .widthIn(max = 680.dp)
                                 .verticalScroll(rememberScrollState())
-                                .navigationBarsPadding()
                                 .imePadding()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(horizontal = 20.dp, vertical = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             GlassTextField(
                                 value = accountName,
@@ -1104,26 +1102,29 @@ fun AddOwnerAccountDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color.White)
-                                            .border(1.dp, AccentCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
-                                        contentAlignment = Alignment.Center
+                                    Surface(
+                                        modifier = Modifier.size(64.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color.White,
+                                        shadowElevation = 2.dp
                                     ) {
-                                        AsyncImage(
-                                            model = qrCodeUri,
-                                            contentDescription = "Account Image",
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            AsyncImage(
+                                                model = qrCodeUri,
+                                                contentDescription = "Account Image",
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
 
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        OutlinedButton(
+                                        FilledTonalButton(
                                             onClick = { qrPicker.launch("image/*") },
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentCyan)
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.filledTonalButtonColors(
+                                                containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                                contentColor = AppAccentColor()
+                                            )
                                         ) {
                                             Text("Change Image", fontSize = 11.sp)
                                         }
@@ -1137,16 +1138,15 @@ fun AddOwnerAccountDialog(
                                     }
                                 }
                             } else {
-                                OutlinedButton(
+                                FilledTonalButton(
                                     onClick = { qrPicker.launch("image/*") },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .defaultMinSize(minHeight = 44.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.6f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = AccentCyan,
-                                        containerColor = if (isAppLightMode()) AccentCyan.copy(alpha = 0.05f) else AccentCyan.copy(alpha = 0.12f)
+                                        .defaultMinSize(minHeight = 46.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                        contentColor = AppAccentColor()
                                     )
                                 ) {
                                     Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
@@ -1399,44 +1399,51 @@ fun SelectVisibleAccountsOnExtraDialog(
                         val isChecked = acc.id in selectedIds
                         val displayName = acc.accountName.ifBlank { acc.ownerName.ifBlank { "Account #${acc.id}" } }
                         
-                        Row(
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isChecked) AccentCyan.copy(alpha = 0.15f) else getCardBackground())
-                                .border(1.dp, if (isChecked) AccentCyan else getGlassBorder(), RoundedCornerShape(12.dp))
                                 .clickable {
                                     selectedIds = if (isChecked) selectedIds - acc.id else selectedIds + acc.id
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
                                 },
-                                colors = CheckboxDefaults.colors(checkedColor = AccentCyan)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = displayName,
-                                    color = AppTextColor(),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isChecked) {
+                                if (isAppLightMode()) Color(0xFFD3E3FD) else Color(0xFF004A77)
+                            } else getCardBackground(),
+                            shadowElevation = if (isChecked) 3.dp else 1.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
+                                    },
+                                    colors = CheckboxDefaults.colors(checkedColor = AppAccentColor())
                                 )
-                                val subDetail = when {
-                                    acc.upiId.isNotBlank() -> "UPI: ${acc.upiId}"
-                                    acc.accountNumber.isNotBlank() -> "A/C: ${acc.accountNumber}"
-                                    acc.branchName.isNotBlank() -> "Branch: ${acc.branchName}"
-                                    else -> "Owner: ${acc.ownerName}"
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = displayName,
+                                        color = AppTextColor(),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    val subDetail = when {
+                                        acc.upiId.isNotBlank() -> "UPI: ${acc.upiId}"
+                                        acc.accountNumber.isNotBlank() -> "A/C: ${acc.accountNumber}"
+                                        acc.branchName.isNotBlank() -> "Branch: ${acc.branchName}"
+                                        else -> "Owner: ${acc.ownerName}"
+                                    }
+                                    Text(
+                                        text = subDetail,
+                                        color = AppSecondaryTextColor(),
+                                        fontSize = 12.sp
+                                    )
                                 }
-                                Text(
-                                    text = subDetail,
-                                    color = AppSecondaryTextColor(),
-                                    fontSize = 12.sp
-                                )
                             }
                         }
                     }
@@ -1446,7 +1453,7 @@ fun SelectVisibleAccountsOnExtraDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(selectedIds) },
-                colors = ButtonDefaults.buttonColors(containerColor = AccentCyan, contentColor = Color.Black),
+                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(if (prefLanguage == "bn") "সংরক্ষণ করুন" else "Save Selection", fontWeight = FontWeight.Bold)
@@ -1487,9 +1494,13 @@ fun ViewAccountDialog(
     androidx.activity.compose.BackHandler(onBack = onDismiss)
 
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        
+        com.example.ui.components.DialogEdgeToEdge()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1513,7 +1524,7 @@ fun ViewAccountDialog(
                     ),
                 shape = RoundedCornerShape(24.dp),
                 color = getDialogBackground(),
-                border = BorderStroke(1.dp, getGlassBorder())
+                shadowElevation = 10.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -1532,8 +1543,7 @@ fun ViewAccountDialog(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(AppAccentColor().copy(alpha = 0.18f))
-                                    .border(1.dp, AppAccentColor().copy(alpha = 0.4f), CircleShape),
+                                    .background(AppAccentColor().copy(alpha = 0.16f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -1566,10 +1576,10 @@ fun ViewAccountDialog(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Header Banner Card
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                    Surface(
+                        color = getSettingsItemBg(),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, getGlassBorder()),
+                        shadowElevation = 2.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1596,10 +1606,10 @@ fun ViewAccountDialog(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Info Card Group with Badged Header & Tap-To-Copy
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                    Surface(
+                        color = getSettingsItemBg(),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, getGlassBorder()),
+                        shadowElevation = 2.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -1696,10 +1706,10 @@ fun ViewAccountDialog(
                     // QR Code Card if available
                     if (account.qrCodeUri.isNotBlank()) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                        Surface(
+                            color = getSettingsItemBg(),
                             shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, getGlassBorder()),
+                            shadowElevation = 2.dp,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
@@ -1765,29 +1775,34 @@ fun ViewAccountDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         if (account.qrCodeUri.isNotBlank()) {
-                            Button(
+                            FilledTonalButton(
                                 onClick = { showFullScreenQR = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = getSettingsItemBg()),
-                                border = BorderStroke(1.dp, getGlassBorder()),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = getSettingsItemBg(),
+                                    contentColor = AppTextColor()
+                                ),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Default.QrCode, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("QR Code", color = AppTextColor())
+                                Text("QR Code", color = AppTextColor(), fontWeight = FontWeight.SemiBold)
                             }
                         }
 
                         if (onEdit != null) {
                             Button(
                                 onClick = { onDismiss(); onEdit() },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AppAccentColor(),
+                                    contentColor = AppOnAccentColor()
+                                ),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Edit", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Edit", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
                             }
                         }
                     }

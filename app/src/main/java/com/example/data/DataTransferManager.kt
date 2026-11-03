@@ -37,6 +37,9 @@ class DataTransferManager(private val db: AppDatabase) {
     private val extraExpenseDao = db.extraExpenseDao()
     private val meterDao = db.meterDao()
     private val userProfileDao = db.userProfileDao()
+    private val ownerAccountDao = db.ownerAccountDao()
+    private val transactionCategoryDao = db.transactionCategoryDao()
+    private val hotelPaymentDao = db.hotelPaymentDao()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     private val dateOnlyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -50,10 +53,11 @@ class DataTransferManager(private val db: AppDatabase) {
         val hotel = hotelDao.getHotelByIdSync(hotelId) ?: throw IllegalArgumentException("Hotel not found")
         val menus = menuDao.getMenusForHotelSync(hotelId)
         val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
+        val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
 
         val profile = userProfileDao.getUserProfileSync()
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.HOTEL_WHOLE.name)
             put("exportDate", System.currentTimeMillis())
             if (!profile?.name.isNullOrBlank()) {
@@ -66,6 +70,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 put("phoneNumber", hotel.phoneNumber)
                 put("location", hotel.location)
                 put("upiId", hotel.upiId)
+                put("qrCodeUri", hotel.qrCodeUri)
             })
 
             val menuArray = JSONArray()
@@ -88,8 +93,23 @@ class DataTransferManager(private val db: AppDatabase) {
                 txArray.put(formatTransactionToJson(t))
             }
             put("transactions", txArray)
+
+            if (payments.isNotEmpty()) {
+                val payArray = JSONArray()
+                payments.forEach { p ->
+                    payArray.put(JSONObject().apply {
+                        put("hotelId", p.hotelId)
+                        put("year", p.year)
+                        put("month", p.month)
+                        put("amountPaid", p.amountPaid)
+                        put("paymentDate", p.paymentDate)
+                        put("note", p.note)
+                    })
+                }
+                put("hotelPayments", payArray)
+            }
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportHotelMenusJson(hotelId: Int): String = withContext(Dispatchers.IO) {
@@ -134,42 +154,15 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     private fun formatTransactionToJson(t: HotelTransactionEntity): JSONObject {
+        // Export only independent base fields; derived date/time strings and expanded mealGroups
+        // subtotals are calculated by the app from timestamp and itemsSerialized.
         return JSONObject().apply {
             put("id", t.id)
             put("hotelId", t.hotelId)
             put("timestamp", t.timestamp)
-            put("date", dateOnlyFormat.format(Date(t.timestamp)))
-            put("time", timeOnlyFormat.format(Date(t.timestamp)))
             put("isNight", t.isNight)
-            put("session", if (t.isNight) "Night" else "Day")
             put("totalAmount", t.totalAmount)
             put("itemsSerialized", t.itemsSerialized)
-
-            // Group-wise meal breakdown
-            val groups = TransactionSerializer.deserializeGroups(t.itemsSerialized)
-            val groupsArray = JSONArray()
-            groups.forEachIndexed { index, group ->
-                val groupObj = JSONObject().apply {
-                    put("groupIndex", index + 1)
-                    put("groupName", "Meal Group ${index + 1}")
-                    val itemsArray = JSONArray()
-                    var groupSubtotal = 0.0
-                    group.items.forEach { item ->
-                        val itemTotal = item.quantity * item.price
-                        groupSubtotal += itemTotal
-                        itemsArray.put(JSONObject().apply {
-                            put("name", item.name)
-                            put("quantity", item.quantity)
-                            put("price", item.price)
-                            put("subtotal", itemTotal)
-                        })
-                    }
-                    put("groupTotal", groupSubtotal)
-                    put("items", itemsArray)
-                }
-                groupsArray.put(groupObj)
-            }
-            put("mealGroups", groupsArray)
         }
     }
 
@@ -180,7 +173,7 @@ class DataTransferManager(private val db: AppDatabase) {
         val accounts = bankAccountDao.getAllBankAccountsSync()
         val expenses = extraExpenseDao.getAllExpensesSync()
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.WALLET_WHOLE.name)
             put("exportDate", System.currentTimeMillis())
             val bankArr = JSONArray()
@@ -188,7 +181,6 @@ class DataTransferManager(private val db: AppDatabase) {
                 bankArr.put(JSONObject().apply {
                     put("id", b.id)
                     put("name", b.name)
-                    put("balance", b.balance)
                     put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
                     put("details", b.details)
                     put("qrCodeUri", b.qrCodeUri)
@@ -204,8 +196,6 @@ class DataTransferManager(private val db: AppDatabase) {
             expenses.forEach { e ->
                 expArr.put(JSONObject().apply {
                     put("timestamp", e.timestamp)
-                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
-                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
                     put("name", e.name)
                     put("amount", e.amount)
                     put("bankAccountId", e.bankAccountId)
@@ -216,7 +206,7 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("expenses", expArr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportBankAccountsJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
@@ -226,7 +216,7 @@ class DataTransferManager(private val db: AppDatabase) {
             bankAccountDao.getAllBankAccountsSync()
         }
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.BANK_ACCOUNTS.name)
             if (bankAccountId != null) put("bankAccountId", bankAccountId)
             put("exportDate", System.currentTimeMillis())
@@ -234,7 +224,6 @@ class DataTransferManager(private val db: AppDatabase) {
             accounts.forEach { a ->
                 arr.put(JSONObject().apply {
                     put("name", a.name)
-                    put("balance", a.balance)
                     put("initialBalance", if (a.initialBalance != 0.0 || a.balance == 0.0) a.initialBalance else a.balance)
                     put("details", a.details)
                     put("qrCodeUri", a.qrCodeUri)
@@ -246,20 +235,19 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("bankAccounts", arr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportSingleBankAccountJson(bankAccountId: Int): String = withContext(Dispatchers.IO) {
         val account = bankAccountDao.getBankAccountByIdSync(bankAccountId) ?: throw IllegalArgumentException("Bank account not found")
         val expenses = extraExpenseDao.getAllExpensesSync().filter { it.bankAccountId == bankAccountId }
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.SINGLE_BANK_ACCOUNT.name)
             put("exportDate", System.currentTimeMillis())
             put("bankAccount", JSONObject().apply {
                 put("id", account.id)
                 put("name", account.name)
-                put("balance", account.balance)
                 put("initialBalance", if (account.initialBalance != 0.0 || account.balance == 0.0) account.initialBalance else account.balance)
                 put("details", account.details)
                 put("qrCodeUri", account.qrCodeUri)
@@ -272,8 +260,6 @@ class DataTransferManager(private val db: AppDatabase) {
             expenses.forEach { e ->
                 arr.put(JSONObject().apply {
                     put("timestamp", e.timestamp)
-                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
-                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
                     put("name", e.name)
                     put("amount", e.amount)
                     put("bankAccountId", e.bankAccountId)
@@ -284,14 +270,14 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("expenses", arr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportTransactionHistoryJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
         val allExpenses = extraExpenseDao.getAllExpensesSync()
         val expenses = if (bankAccountId != null) allExpenses.filter { it.bankAccountId == bankAccountId } else allExpenses
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.TRANSACTION_HISTORY.name)
             if (bankAccountId != null) put("bankAccountId", bankAccountId)
             put("exportDate", System.currentTimeMillis())
@@ -299,8 +285,6 @@ class DataTransferManager(private val db: AppDatabase) {
             expenses.forEach { e ->
                 arr.put(JSONObject().apply {
                     put("timestamp", e.timestamp)
-                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
-                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
                     put("name", e.name)
                     put("amount", e.amount)
                     put("bankAccountId", e.bankAccountId)
@@ -311,7 +295,7 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("expenses", arr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportElectricityWholeJson(): String = withContext(Dispatchers.IO) {
@@ -320,7 +304,7 @@ class DataTransferManager(private val db: AppDatabase) {
         val rates = meterDao.getAllElectricityRatesSync()
 
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.ELECTRICITY_WHOLE.name)
             put("exportDate", System.currentTimeMillis())
 
@@ -329,9 +313,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 readArr.put(JSONObject().apply {
                     put("id", r.id)
                     put("readingDate", r.readingDate)
-                    put("dateText", dateOnlyFormat.format(Date(r.readingDate)))
                     put("totalReading", r.totalReading)
-                    put("unitsConsumed", r.unitsConsumed)
                     put("isPaid", r.isPaid)
                 })
             }
@@ -343,12 +325,9 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("id", b.id)
                     put("startDate", b.startDate)
                     put("endDate", b.endDate)
-                    put("startDateText", dateOnlyFormat.format(Date(b.startDate)))
-                    put("endDateText", dateOnlyFormat.format(Date(b.endDate)))
                     put("totalUnits", b.totalUnits)
                     put("calculatedAmount", b.calculatedAmount)
                     put("dueDate", b.dueDate)
-                    put("dueDateText", dateOnlyFormat.format(Date(b.dueDate)))
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
                 })
@@ -364,13 +343,14 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("electricityRates", rateArr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportMeterReadingsJson(): String = withContext(Dispatchers.IO) {
         val readings = meterDao.getAllReadingsSync()
+        val rates = meterDao.getAllElectricityRatesSync()
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.METER_READINGS.name)
             put("exportDate", System.currentTimeMillis())
             val arr = JSONArray()
@@ -378,21 +358,29 @@ class DataTransferManager(private val db: AppDatabase) {
                 arr.put(JSONObject().apply {
                     put("id", r.id)
                     put("readingDate", r.readingDate)
-                    put("dateText", dateOnlyFormat.format(Date(r.readingDate)))
                     put("totalReading", r.totalReading)
-                    put("unitsConsumed", r.unitsConsumed)
                     put("isPaid", r.isPaid)
                 })
             }
             put("meterReadings", arr)
+
+            val rateArr = JSONArray()
+            rates.forEach { r ->
+                rateArr.put(JSONObject().apply {
+                    put("ratePerUnit", r.ratePerUnit)
+                    put("effectiveDate", r.effectiveDate)
+                })
+            }
+            put("electricityRates", rateArr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportUtilityBillsJson(): String = withContext(Dispatchers.IO) {
         val bills = meterDao.getAllUtilityBillsSync()
+        val rates = meterDao.getAllElectricityRatesSync()
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.UTILITY_BILLS.name)
             put("exportDate", System.currentTimeMillis())
             val arr = JSONArray()
@@ -401,34 +389,42 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("id", b.id)
                     put("startDate", b.startDate)
                     put("endDate", b.endDate)
-                    put("startDateText", dateOnlyFormat.format(Date(b.startDate)))
-                    put("endDateText", dateOnlyFormat.format(Date(b.endDate)))
                     put("totalUnits", b.totalUnits)
                     put("calculatedAmount", b.calculatedAmount)
                     put("dueDate", b.dueDate)
-                    put("dueDateText", dateOnlyFormat.format(Date(b.dueDate)))
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
                 })
             }
             put("utilityBills", arr)
+
+            val rateArr = JSONArray()
+            rates.forEach { r ->
+                rateArr.put(JSONObject().apply {
+                    put("ratePerUnit", r.ratePerUnit)
+                    put("effectiveDate", r.effectiveDate)
+                })
+            }
+            put("electricityRates", rateArr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     suspend fun exportFullBackupJson(): String = withContext(Dispatchers.IO) {
         val hotels = hotelDao.getAllHotelsSync()
         val menus = menuDao.getAllMenuItemsSync()
         val transactions = transactionDao.getAllTransactionsSync()
+        val hotelPayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
         val bankAccounts = bankAccountDao.getAllBankAccountsSync()
         val expenses = extraExpenseDao.getAllExpensesSync()
+        val ownerAccounts = ownerAccountDao.getAllOwnerAccountsSync().filter { !it.isDeleted }
         val readings = meterDao.getAllReadingsSync()
         val bills = meterDao.getAllUtilityBillsSync()
         val rates = meterDao.getAllElectricityRatesSync()
         val profile = userProfileDao.getUserProfileSync()
 
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.FULL_BACKUP.name)
             put("exportDate", System.currentTimeMillis())
 
@@ -440,6 +436,10 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("language", profile.language)
                     put("themeMode", profile.themeMode)
                     put("enableSupplementaryAddons", profile.enableSupplementaryAddons)
+                    put("bgPreset", profile.bgPreset)
+                    put("enableLiquidGlassTheme", profile.enableLiquidGlassTheme)
+                    put("disableHeavyEffects", profile.disableHeavyEffects)
+                    put("mealGroupPosition", profile.mealGroupPosition)
                 })
             }
 
@@ -452,6 +452,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("phoneNumber", h.phoneNumber)
                     put("location", h.location)
                     put("upiId", h.upiId)
+                    put("qrCodeUri", h.qrCodeUri)
                 })
             }
             put("hotels", hotelsArr)
@@ -478,11 +479,26 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("transactions", txArr)
 
+            if (hotelPayments.isNotEmpty()) {
+                val payArr = JSONArray()
+                hotelPayments.forEach { p ->
+                    payArr.put(JSONObject().apply {
+                        put("hotelId", p.hotelId)
+                        put("year", p.year)
+                        put("month", p.month)
+                        put("amountPaid", p.amountPaid)
+                        put("paymentDate", p.paymentDate)
+                        put("note", p.note)
+                    })
+                }
+                put("hotelPayments", payArr)
+            }
+
             val bankArr = JSONArray()
             bankAccounts.forEach { b ->
                 bankArr.put(JSONObject().apply {
+                    put("id", b.id)
                     put("name", b.name)
-                    put("balance", b.balance)
                     put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
                     put("details", b.details)
                     put("qrCodeUri", b.qrCodeUri)
@@ -498,8 +514,6 @@ class DataTransferManager(private val db: AppDatabase) {
             expenses.forEach { e ->
                 expArr.put(JSONObject().apply {
                     put("timestamp", e.timestamp)
-                    put("date", dateOnlyFormat.format(Date(e.timestamp)))
-                    put("time", timeOnlyFormat.format(Date(e.timestamp)))
                     put("name", e.name)
                     put("amount", e.amount)
                     put("bankAccountId", e.bankAccountId)
@@ -510,14 +524,30 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("expenses", expArr)
 
+            if (ownerAccounts.isNotEmpty()) {
+                val ownerArr = JSONArray()
+                ownerAccounts.forEach { oa ->
+                    ownerArr.put(JSONObject().apply {
+                        put("ownerName", oa.ownerName)
+                        put("ownerMobile", oa.ownerMobile)
+                        put("accountName", oa.accountName)
+                        put("accountNumber", oa.accountNumber)
+                        put("ifscCode", oa.ifscCode)
+                        put("branchName", oa.branchName)
+                        put("upiId", oa.upiId)
+                        put("qrCodeUri", oa.qrCodeUri)
+                        put("details", oa.details)
+                    })
+                }
+                put("ownerAccounts", ownerArr)
+            }
+
             val readArr = JSONArray()
             readings.forEach { r ->
                 readArr.put(JSONObject().apply {
                     put("id", r.id)
                     put("readingDate", r.readingDate)
-                    put("dateText", dateOnlyFormat.format(Date(r.readingDate)))
                     put("totalReading", r.totalReading)
-                    put("unitsConsumed", r.unitsConsumed)
                     put("isPaid", r.isPaid)
                 })
             }
@@ -529,12 +559,9 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("id", b.id)
                     put("startDate", b.startDate)
                     put("endDate", b.endDate)
-                    put("startDateText", dateOnlyFormat.format(Date(b.startDate)))
-                    put("endDateText", dateOnlyFormat.format(Date(b.endDate)))
                     put("totalUnits", b.totalUnits)
                     put("calculatedAmount", b.calculatedAmount)
                     put("dueDate", b.dueDate)
-                    put("dueDateText", dateOnlyFormat.format(Date(b.dueDate)))
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
                 })
@@ -550,7 +577,7 @@ class DataTransferManager(private val db: AppDatabase) {
             }
             put("electricityRates", rateArr)
         }
-        root.toString(2)
+        root.toString()
     }
 
     fun formatMealGroupsCompact(itemsSerialized: String): String {
@@ -900,13 +927,18 @@ class DataTransferManager(private val db: AppDatabase) {
 
                     if (root.has("userProfile")) {
                         val pObj = root.getJSONObject("userProfile")
-                        val profile = UserProfileEntity(
-                            name = pObj.optString("name", ""),
-                            contact = pObj.optString("contact", ""),
-                            currencySymbol = pObj.optString("currencySymbol", "₹"),
-                            language = pObj.optString("language", "en"),
-                            themeMode = pObj.optString("themeMode", "Auto"),
-                            enableSupplementaryAddons = pObj.optBoolean("enableSupplementaryAddons", true)
+                        val existing = userProfileDao.getUserProfileSync() ?: UserProfileEntity()
+                        val profile = existing.copy(
+                            name = pObj.optString("name", existing.name),
+                            contact = pObj.optString("contact", existing.contact),
+                            currencySymbol = pObj.optString("currencySymbol", existing.currencySymbol),
+                            language = pObj.optString("language", existing.language),
+                            themeMode = pObj.optString("themeMode", existing.themeMode),
+                            enableSupplementaryAddons = pObj.optBoolean("enableSupplementaryAddons", existing.enableSupplementaryAddons),
+                            bgPreset = pObj.optString("bgPreset", existing.bgPreset),
+                            enableLiquidGlassTheme = pObj.optBoolean("enableLiquidGlassTheme", existing.enableLiquidGlassTheme),
+                            disableHeavyEffects = pObj.optBoolean("disableHeavyEffects", existing.disableHeavyEffects),
+                            mealGroupPosition = pObj.optString("mealGroupPosition", existing.mealGroupPosition)
                         )
                         userProfileDao.insertOrUpdateProfile(profile)
                     }
@@ -923,7 +955,8 @@ class DataTransferManager(private val db: AppDatabase) {
                                     advancedPayment = hObj.optDouble("advancedPayment", 0.0),
                                     phoneNumber = hObj.optString("phoneNumber", ""),
                                     location = hObj.optString("location", ""),
-                                    upiId = hObj.optString("upiId", "")
+                                    upiId = hObj.optString("upiId", ""),
+                                    qrCodeUri = hObj.optString("qrCodeUri", "")
                                 )
                             ).toInt()
                             if (origId != -1) hotelIdMap[origId] = newId
@@ -978,7 +1011,32 @@ class DataTransferManager(private val db: AppDatabase) {
                         totalCount += list.size
                     }
 
+                    if (root.has("hotelPayments")) {
+                        val payArr = root.getJSONArray("hotelPayments")
+                        val list = mutableListOf<HotelPaymentEntity>()
+                        for (i in 0 until payArr.length()) {
+                            val item = payArr.getJSONObject(i)
+                            val origHotelId = item.optInt("hotelId", 1)
+                            val mappedHotelId = hotelIdMap[origHotelId] ?: origHotelId
+                            val payDate = item.optLong("paymentDate", item.optLong("timestamp", System.currentTimeMillis()))
+                            val cal = Calendar.getInstance().apply { timeInMillis = payDate }
+                            list.add(
+                                HotelPaymentEntity(
+                                    hotelId = mappedHotelId,
+                                    year = item.optInt("year", cal.get(Calendar.YEAR)),
+                                    month = item.optInt("month", cal.get(Calendar.MONTH)),
+                                    amountPaid = item.optDouble("amountPaid", item.optDouble("amount", 0.0)),
+                                    paymentDate = payDate,
+                                    note = item.optString("note", "")
+                                )
+                            )
+                        }
+                        hotelPaymentDao.insertPayments(list)
+                        totalCount += list.size
+                    }
+
                     val bankIdMap = mutableMapOf<Int, Int>()
+                    val importedAccounts = mutableMapOf<Int, BankAccountEntity>()
                     if (root.has("bankAccounts")) {
                         val bArr = root.getJSONArray("bankAccounts")
                         for (i in 0 until bArr.length()) {
@@ -986,20 +1044,20 @@ class DataTransferManager(private val db: AppDatabase) {
                             val origId = item.optInt("id", -1)
                             val bal = item.optDouble("balance", 0.0)
                             val initBal = item.optDouble("initialBalance", bal)
-                            val newId = bankAccountDao.insertBankAccount(
-                                BankAccountEntity(
-                                    name = item.getString("name"),
-                                    balance = bal,
-                                    initialBalance = initBal,
-                                    details = item.optString("details", ""),
-                                    qrCodeUri = item.optString("qrCodeUri", ""),
-                                    upiId = item.optString("upiId", ""),
-                                    accountNumber = item.optString("accountNumber", ""),
-                                    ifsc = item.optString("ifsc", ""),
-                                    branchName = item.optString("branchName", "")
-                                )
-                            ).toInt()
+                            val entity = BankAccountEntity(
+                                name = item.getString("name"),
+                                balance = if (item.has("balance")) bal else initBal,
+                                initialBalance = initBal,
+                                details = item.optString("details", ""),
+                                qrCodeUri = item.optString("qrCodeUri", ""),
+                                upiId = item.optString("upiId", ""),
+                                accountNumber = item.optString("accountNumber", ""),
+                                ifsc = item.optString("ifsc", ""),
+                                branchName = item.optString("branchName", "")
+                            )
+                            val newId = bankAccountDao.insertBankAccount(entity).toInt()
                             if (origId != -1) bankIdMap[origId] = newId
+                            importedAccounts[newId] = entity.copy(id = newId)
                             totalCount++
                         }
                     }
@@ -1025,23 +1083,75 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         extraExpenseDao.insertExpenses(list)
                         totalCount += list.size
+
+                        // Recompute derived bank account balance from initialBalance + income - expense
+                        for ((accId, accEntity) in importedAccounts) {
+                            val accTxs = list.filter { it.bankAccountId == accId }
+                            if (accTxs.isNotEmpty()) {
+                                val netChange = accTxs.sumOf {
+                                    if (it.type.equals("INCOME", ignoreCase = true)) it.amount else -it.amount
+                                }
+                                bankAccountDao.updateBankAccount(
+                                    accEntity.copy(balance = accEntity.initialBalance + netChange)
+                                )
+                            }
+                        }
+                    }
+
+                    if (root.has("ownerAccounts")) {
+                        val oArr = root.getJSONArray("ownerAccounts")
+                        for (i in 0 until oArr.length()) {
+                            val item = oArr.getJSONObject(i)
+                            ownerAccountDao.insertOwnerAccount(
+                                OwnerAccountEntity(
+                                    ownerName = item.optString("ownerName", item.optString("accountHolderName", "")),
+                                    ownerMobile = item.optString("ownerMobile", item.optString("phoneNumber", "")),
+                                    accountName = item.optString("accountName", item.optString("bankName", "")),
+                                    accountNumber = item.optString("accountNumber", ""),
+                                    ifscCode = item.optString("ifscCode", ""),
+                                    branchName = item.optString("branchName", ""),
+                                    upiId = item.optString("upiId", ""),
+                                    qrCodeUri = item.optString("qrCodeUri", ""),
+                                    details = item.optString("details", item.optString("notes", ""))
+                                )
+                            )
+                            totalCount++
+                        }
+                    }
+
+                    if (root.has("customCategories")) {
+                        val cArr = root.getJSONArray("customCategories")
+                        for (i in 0 until cArr.length()) {
+                            val item = cArr.getJSONObject(i)
+                            val catName = item.optString("name", "")
+                            if (catName.isNotBlank()) {
+                                transactionCategoryDao.insertCategory(
+                                    TransactionCategoryEntity(
+                                        name = catName,
+                                        type = item.optString("type", "EXPENSE")
+                                    )
+                                )
+                                totalCount++
+                            }
+                        }
                     }
 
                     if (root.has("meterReadings")) {
                         val rArr = root.getJSONArray("meterReadings")
-                        val list = mutableListOf<MeterReading>()
+                        val rawList = mutableListOf<MeterReading>()
                         for (i in 0 until rArr.length()) {
                             val item = rArr.getJSONObject(i)
-                            list.add(
+                            rawList.add(
                                 MeterReading(
                                     id = item.optString("id", UUID.randomUUID().toString()),
                                     readingDate = item.getLong("readingDate"),
                                     totalReading = item.getDouble("totalReading"),
-                                    unitsConsumed = item.getDouble("unitsConsumed"),
+                                    unitsConsumed = item.optDouble("unitsConsumed", -1.0),
                                     isPaid = item.optBoolean("isPaid", false)
                                 )
                             )
                         }
+                        val list = recomputeMeterUnitsConsumed(rawList)
                         meterDao.insertReadings(list)
                         totalCount += list.size
                     }
@@ -1113,7 +1223,8 @@ class DataTransferManager(private val db: AppDatabase) {
                         advancedPayment = hObj.optDouble("advancedPayment", 0.0),
                         phoneNumber = hObj.optString("phoneNumber", ""),
                         location = hObj.optString("location", ""),
-                        upiId = hObj.optString("upiId", "")
+                        upiId = hObj.optString("upiId", ""),
+                        qrCodeUri = hObj.optString("qrCodeUri", "")
                     )
                     val newHotelId = hotelDao.insertHotel(newHotel).toInt()
 
@@ -1160,6 +1271,27 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         transactionDao.insertTransactions(list)
                         txCount = list.size
+                    }
+
+                    if (root.has("hotelPayments")) {
+                        val payArr = root.getJSONArray("hotelPayments")
+                        val payList = mutableListOf<HotelPaymentEntity>()
+                        for (i in 0 until payArr.length()) {
+                            val item = payArr.getJSONObject(i)
+                            val payDate = item.optLong("paymentDate", item.optLong("timestamp", System.currentTimeMillis()))
+                            val cal = Calendar.getInstance().apply { timeInMillis = payDate }
+                            payList.add(
+                                HotelPaymentEntity(
+                                    hotelId = newHotelId,
+                                    year = item.optInt("year", cal.get(Calendar.YEAR)),
+                                    month = item.optInt("month", cal.get(Calendar.MONTH)),
+                                    amountPaid = item.optDouble("amountPaid", item.optDouble("amount", 0.0)),
+                                    paymentDate = payDate,
+                                    note = item.optString("note", "")
+                                )
+                            )
+                        }
+                        hotelPaymentDao.insertPayments(payList)
                     }
 
                     return@withContext ImportOutcome.Success(
@@ -1221,6 +1353,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 dataType == BackupDataType.WALLET_WHOLE.name || (root.has("bankAccounts") && root.has("expenses")) -> {
                     var totalCount = 0
                     val idMap = mutableMapOf<Int, Int>()
+                    val importedAccounts = mutableMapOf<Int, BankAccountEntity>()
                     if (root.has("bankAccounts")) {
                         val bArr = root.getJSONArray("bankAccounts")
                         for (i in 0 until bArr.length()) {
@@ -1230,7 +1363,7 @@ class DataTransferManager(private val db: AppDatabase) {
                             val initBal = item.optDouble("initialBalance", bal)
                             val newAccount = BankAccountEntity(
                                 name = item.getString("name"),
-                                balance = bal,
+                                balance = if (item.has("balance")) bal else initBal,
                                 initialBalance = initBal,
                                 details = item.optString("details", ""),
                                 qrCodeUri = item.optString("qrCodeUri", ""),
@@ -1241,6 +1374,7 @@ class DataTransferManager(private val db: AppDatabase) {
                             )
                             val newId = bankAccountDao.insertBankAccount(newAccount).toInt()
                             if (origId != -1) idMap[origId] = newId
+                            importedAccounts[newId] = newAccount.copy(id = newId)
                             totalCount++
                         }
                     }
@@ -1265,6 +1399,18 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         extraExpenseDao.insertExpenses(list)
                         totalCount += list.size
+
+                        for ((accId, accEntity) in importedAccounts) {
+                            val accTxs = list.filter { it.bankAccountId == accId }
+                            if (accTxs.isNotEmpty()) {
+                                val netChange = accTxs.sumOf {
+                                    if (it.type.equals("INCOME", ignoreCase = true)) it.amount else -it.amount
+                                }
+                                bankAccountDao.updateBankAccount(
+                                    accEntity.copy(balance = accEntity.initialBalance + netChange)
+                                )
+                            }
+                        }
                     }
                     return@withContext ImportOutcome.Success(
                         message = "Imported wallet data ($totalCount accounts & transactions)",
@@ -1278,7 +1424,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     val initBal = bObj.optDouble("initialBalance", bal)
                     val newAccount = BankAccountEntity(
                         name = bObj.getString("name"),
-                        balance = bal,
+                        balance = if (bObj.has("balance")) bal else initBal,
                         initialBalance = initBal,
                         details = bObj.optString("details", ""),
                         qrCodeUri = bObj.optString("qrCodeUri", ""),
@@ -1308,6 +1454,13 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         extraExpenseDao.insertExpenses(list)
                         txCount = list.size
+
+                        val netChange = list.sumOf {
+                            if (it.type.equals("INCOME", ignoreCase = true)) it.amount else -it.amount
+                        }
+                        bankAccountDao.updateBankAccount(
+                            newAccount.copy(id = newAccountId, balance = newAccount.initialBalance + netChange)
+                        )
                     }
                     return@withContext ImportOutcome.Success(
                         message = "Imported account '${newAccount.name}' with $txCount transactions",
@@ -1372,19 +1525,20 @@ class DataTransferManager(private val db: AppDatabase) {
                     var totalCount = 0
                     if (root.has("meterReadings")) {
                         val rArr = root.getJSONArray("meterReadings")
-                        val list = mutableListOf<MeterReading>()
+                        val rawList = mutableListOf<MeterReading>()
                         for (i in 0 until rArr.length()) {
                             val item = rArr.getJSONObject(i)
-                            list.add(
+                            rawList.add(
                                 MeterReading(
                                     id = item.optString("id", UUID.randomUUID().toString()),
                                     readingDate = item.getLong("readingDate"),
                                     totalReading = item.getDouble("totalReading"),
-                                    unitsConsumed = item.getDouble("unitsConsumed"),
+                                    unitsConsumed = item.optDouble("unitsConsumed", -1.0),
                                     isPaid = item.optBoolean("isPaid", false)
                                 )
                             )
                         }
+                        val list = recomputeMeterUnitsConsumed(rawList)
                         meterDao.insertReadings(list)
                         totalCount += list.size
                     }
@@ -1448,20 +1602,36 @@ class DataTransferManager(private val db: AppDatabase) {
 
                 dataType == BackupDataType.METER_READINGS.name || root.has("meterReadings") -> {
                     val rArr = root.getJSONArray("meterReadings")
-                    val list = mutableListOf<MeterReading>()
+                    val rawList = mutableListOf<MeterReading>()
                     for (i in 0 until rArr.length()) {
                         val item = rArr.getJSONObject(i)
-                        list.add(
+                        rawList.add(
                             MeterReading(
                                 id = item.optString("id", UUID.randomUUID().toString()),
                                 readingDate = item.getLong("readingDate"),
                                 totalReading = item.getDouble("totalReading"),
-                                unitsConsumed = item.getDouble("unitsConsumed"),
+                                unitsConsumed = item.optDouble("unitsConsumed", -1.0),
                                 isPaid = item.optBoolean("isPaid", false)
                             )
                         )
                     }
+                    val list = recomputeMeterUnitsConsumed(rawList)
                     meterDao.insertReadings(list)
+                    if (root.has("electricityRates")) {
+                        val rateArr = root.getJSONArray("electricityRates")
+                        for (i in 0 until rateArr.length()) {
+                            val item = rateArr.getJSONObject(i)
+                            val rVal = item.optDouble("ratePerUnit", 0.0)
+                            if (rVal > 0.0) {
+                                meterDao.insertElectricityRate(
+                                    ElectricityRate(
+                                        effectiveDate = item.optLong("effectiveDate", System.currentTimeMillis()),
+                                        ratePerUnit = rVal
+                                    )
+                                )
+                            }
+                        }
+                    }
                     return@withContext ImportOutcome.Success(
                         message = "Imported ${list.size} meter readings",
                         count = list.size
@@ -1487,8 +1657,23 @@ class DataTransferManager(private val db: AppDatabase) {
                         )
                     }
                     meterDao.insertUtilityBills(list)
+                    if (root.has("electricityRates")) {
+                        val rateArr = root.getJSONArray("electricityRates")
+                        for (i in 0 until rateArr.length()) {
+                            val item = rateArr.getJSONObject(i)
+                            val rVal = item.optDouble("ratePerUnit", 0.0)
+                            if (rVal > 0.0) {
+                                meterDao.insertElectricityRate(
+                                    ElectricityRate(
+                                        effectiveDate = item.optLong("effectiveDate", System.currentTimeMillis()),
+                                        ratePerUnit = rVal
+                                    )
+                                )
+                            }
+                        }
+                    }
                     return@withContext ImportOutcome.Success(
-                        message = "Imported ${list.size} paid electricity bills",
+                        message = "Imported ${list.size} electricity bills",
                         count = list.size
                     )
                 }
@@ -1501,6 +1686,25 @@ class DataTransferManager(private val db: AppDatabase) {
             e.printStackTrace()
             return@withContext ImportOutcome.Error(e.message ?: "Failed to parse JSON")
         }
+    }
+
+    private fun recomputeMeterUnitsConsumed(readings: List<MeterReading>): List<MeterReading> {
+        if (readings.isEmpty()) return readings
+        val sorted = readings.sortedBy { it.readingDate }
+        val result = ArrayList<MeterReading>(sorted.size)
+        for (i in sorted.indices) {
+            val current = sorted[i]
+            val derivedUnits = if (current.unitsConsumed >= 0.0) {
+                current.unitsConsumed
+            } else if (i == 0) {
+                0.0
+            } else {
+                val delta = (current.totalReading - sorted[i - 1].totalReading).coerceAtLeast(0.0)
+                Math.round(delta * 100.0) / 100.0
+            }
+            result.add(current.copy(unitsConsumed = derivedUnits))
+        }
+        return result
     }
 
     private fun extractSerializedItemsFromJson(itemObj: JSONObject): String {

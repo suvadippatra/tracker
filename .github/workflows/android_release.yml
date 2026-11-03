@@ -90,7 +90,7 @@ jobs:
             gradle :app:bundleDebug -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/bundle/debug -name "*.aab" -exec cp {} dist-outputs/traker-debug.aab \;
           else
-            gradle :app:bundleRelease -Dksp.useKSP2=true -x lint -x lintVitalRelease --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:bundleRelease -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/bundle/release -name "*.aab" -exec cp {} dist-outputs/traker-release.aab \;
           fi
 
@@ -101,7 +101,7 @@ jobs:
             gradle :app:assembleDebug -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/debug -name "*.apk" -exec cp {} dist-outputs/traker-universal-debug.apk \;
           else
-            gradle :app:assembleRelease -Dksp.useKSP2=true -x lint -x lintVitalRelease --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleRelease -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/release -name "*.apk" -exec cp {} dist-outputs/traker-universal-release.apk \;
           fi
 
@@ -112,7 +112,7 @@ jobs:
             gradle :app:assembleDebug -PabiTarget=arm64-v8a -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/debug -name "*.apk" -exec cp {} dist-outputs/traker-arm64-v8a-debug.apk \;
           else
-            gradle :app:assembleRelease -PabiTarget=arm64-v8a -Dksp.useKSP2=true -x lint -x lintVitalRelease --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleRelease -PabiTarget=arm64-v8a -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/release -name "*.apk" -exec cp {} dist-outputs/traker-arm64-v8a-release.apk \;
           fi
 

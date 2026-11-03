@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -135,27 +136,30 @@ fun QrExportStreamDialog(
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
+                    .dialogSystemBarsPadding(extraTop = 4.dp),
                 containerColor = surfaceBg,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(getGlassIconButtonBg(), androidx.compose.foundation.shape.CircleShape)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = androidx.compose.material.icons.Icons.Filled.ChevronLeft,
                                 contentDescription = "Back",
-                                tint = textColor
+                                tint = textColor,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(12.dp))
 
                         Text(
                             text = "QR Sync Stream",

@@ -1373,7 +1373,7 @@ private fun DataBackupItemCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = getCardBackground()),
-        border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder())
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isAppLightMode()) 2.dp else 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1546,7 +1546,7 @@ private fun ExportOptionRow(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = getCardBackground(),
-        border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder()),
+        shadowElevation = if (isAppLightMode()) 2.dp else 4.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
