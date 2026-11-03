@@ -16,30 +16,40 @@ class MainActivity : FragmentActivity() {
     private var isInitialIntentProcessed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val isInitialLight = com.example.ui.theme.ThemePreferences.isLightMode(this)
+        val initialBgColor = if (isInitialLight) {
+            android.graphics.Color.parseColor("#FCFCFD")
+        } else {
+            android.graphics.Color.parseColor("#0A1317")
+        }
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(initialBgColor))
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+        window.decorView.setBackgroundColor(initialBgColor)
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = isInitialLight
+            isAppearanceLightNavigationBars = isInitialLight
+        }
+
         val initialAction = intent?.action ?: intent?.getStringExtra("action")
-        
+
         setContent {
-            MyApplicationTheme {
-                val viewModel: FinancialViewModel = viewModel()
-                
-                SideEffect {
-                    sharedViewModel = viewModel
-                }
-                
-                if (!isInitialIntentProcessed) {
-                    isInitialIntentProcessed = true
-                    if (initialAction in listOf("ADD_EXPENSE", "ADD_MEAL_LOG", "ADD_HOTEL_TX", "ADD_HOTEL", "ADD_ACCOUNT")) {
-                        if (viewModel.quickActionTrigger.value == null) {
-                            viewModel.triggerQuickAction(initialAction!!)
-                        }
+            val viewModel: FinancialViewModel = viewModel()
+
+            SideEffect {
+                sharedViewModel = viewModel
+            }
+
+            if (!isInitialIntentProcessed) {
+                isInitialIntentProcessed = true
+                if (initialAction in listOf("ADD_EXPENSE", "ADD_MEAL_LOG", "ADD_HOTEL_TX", "ADD_HOTEL", "ADD_ACCOUNT")) {
+                    if (viewModel.quickActionTrigger.value == null) {
+                        viewModel.triggerQuickAction(initialAction!!)
                     }
                 }
-                
-                TrakerApp(viewModel = viewModel)
             }
+
+            TrakerApp(viewModel = viewModel)
         }
     }
 

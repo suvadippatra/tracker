@@ -124,7 +124,7 @@ fun SettingsScreen(
                                     "security" -> if (isBn) "নিরাপত্তা ও লক" else "Security & Privacy"
                                     "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
                                     "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
-                                    "about" -> if (isBn) "অ্যাপ সম্পর্কিত" else "About Traker"
+                                    "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
                                     else -> "Settings"
                                 },
                                 fontSize = 22.sp,
@@ -241,25 +241,11 @@ fun SettingsMainList(
         }
 
         item {
-            var showHelpGuide by remember { mutableStateOf(false) }
-            if (showHelpGuide) {
-                LegalInfoDialog(
-                    type = "info",
-                    prefLanguage = prefLanguage,
-                    onDismiss = { showHelpGuide = false }
-                )
-            }
-            PixelSettingsGroup(title = "Help & About App") {
-                PixelSettingsItem(
-                    icon = Icons.Default.HelpOutline,
-                    title = if (prefLanguage == "bn") "ব্যবহারবিধি ও গাইড (Help)" else "Help & User Guide",
-                    subtitle = if (prefLanguage == "bn") "সকল ২৫টি পেজ, Android 8 ফাস্ট মোড ও GitHub APK গাইড" else "Complete guide to all 25 pages, Android 8 fast mode & GitHub APK build",
-                    onClick = { showHelpGuide = true }
-                )
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help") {
                 PixelSettingsItem(
                     icon = Icons.Default.Info,
-                    title = "About & Legal",
-                    subtitle = "App version, licenses & developer info",
+                    title = if (prefLanguage == "bn") "অ্যাপ পরিচিতি, ব্যবহারবিধি (Help) ও আইনি তথ্য" else "About Traker, Help Guide & Legal",
+                    subtitle = if (prefLanguage == "bn") "সম্পূর্ণ ব্যবহারবিধি (Help), সংস্করণ, লাইসেন্স ও ডেভেলপার তথ্য" else "Built-in Help & User Guide, version info, licenses & privacy",
                     onClick = { onNavigate("about") }
                 )
             }
@@ -509,10 +495,10 @@ fun UnifiedAccountDialog(
                     )
 
                     // Add Image / QR Code Section
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                    Surface(
+                        color = getSettingsItemBg(),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, getGlassBorder()),
+                        shadowElevation = 3.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -531,26 +517,29 @@ fun UnifiedAccountDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(70.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color.White)
-                                            .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
-                                        contentAlignment = Alignment.Center
+                                    Surface(
+                                        modifier = Modifier.size(70.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White,
+                                        shadowElevation = 2.dp
                                     ) {
-                                        AsyncImage(
-                                            model = qrCodeUri,
-                                            contentDescription = "Account Image",
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            AsyncImage(
+                                                model = qrCodeUri,
+                                                contentDescription = "Account Image",
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
 
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        OutlinedButton(
+                                        FilledTonalButton(
                                             onClick = { imagePickerLauncher.launch("image/*") },
                                             shape = RoundedCornerShape(10.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                            colors = ButtonDefaults.filledTonalButtonColors(
+                                                containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                                contentColor = AppAccentColor()
+                                            )
                                         ) {
                                             Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -568,12 +557,14 @@ fun UnifiedAccountDialog(
                                     }
                                 }
                             } else {
-                                OutlinedButton(
+                                FilledTonalButton(
                                     onClick = { imagePickerLauncher.launch("image/*") },
                                     modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp),
                                     shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppAccentColor())
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = AppAccentColor().copy(alpha = 0.14f),
+                                        contentColor = AppAccentColor()
+                                    )
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -662,7 +653,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v0.0.1 (Pure Material 3 & Dual-Mode Speed Release)
+            Traker v0.0.1 (Pure Material 3, Native Shadows & Smart Bill Engine)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -670,90 +661,71 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 🎨 Pure Material 3 ডিজাইন (Android 8 থেকে সর্বশেষ সংস্করণ)
-            • লিকুইড গ্লাস সম্পূর্ণ অপসারণ: ধীরগতির ট্রান্সলুসেন্ট ব্লার ও ওভারড্র সরিয়ে সম্পূর্ণ অ্যাপটিকে খাঁটি Material Design 3 (M3) সারফেস, পরিষ্কার আইকন বাটন এবং উচ্চ-কনট্রাস্ট লাইট/ডার্ক থিমে রূপান্তর করা হয়েছে।
-            • লাইট মোড ও বাটন কনট্রাস্ট: লাইট মোডে খালি পেজ ও টেক্সট স্পষ্টভাবে পড়ার উপযোগী করা হয়েছে এবং নীল/সবুজ/লাল বাটনের লেখা সঠিকভাবে মাঝখানে সারিবদ্ধ করা হয়েছে।
-            • প্রোফাইল ও অ্যাকাউন্ট পেজ ফিক্স: Edit Profile, Owner Profile, Add Hotel, Add Account, এবং Recycle Bin পেজগুলো সম্পূর্ণ এজ-টু-এজ Material 3 ডায়ালগে সাজানো হয়েছে।
+            ১. 🎨 বর্ডারহীন নেটিভ শ্যাডো ও Plus Jakarta Sans টাইপোগ্রাফি
+            • বর্ডার অপসারণ ও নেটিভ শ্যাডো: অ্যাপের সকল বাটন, কার্ড, চিপ এবং নেভিগেশন বার থেকে পুরনো বর্ডার সরিয়ে অ্যান্ড্রয়েডের নেটিভ এলিভেশন শ্যাডো (Surface shadowElevation) যুক্ত করা হয়েছে।
+            • আধুনিক কাস্টম ফন্ট (Plus Jakarta Sans): সম্পূর্ণ অ্যাপে স্পষ্ট ও সুষম টাইপোগ্রাফির জন্য 'Plus Jakarta Sans' ফন্ট এবং সামঞ্জস্যপূর্ণ Material 3 ফন্ট স্কেল (Small 90%, Medium 100%, Large 110%) যুক্ত করা হয়েছে।
+            • ট্যাবলেট নেভিগেশন বার ফিক্স: ট্যাবলেট ও বড় স্ক্রিনে বাম দিকের সাইডবারের উপরের অতিরিক্ত হোটেল আইকন সরিয়ে স্ট্যান্ডার্ড ট্রিপল-লাইন (☰ Menu) বাটন যুক্ত করা হয়েছে।
+            • নতুন About ও Help পেজ: Help গাইডটি সরাসরি নতুন ডিজাইনের About পেজের ভেতরে যুক্ত করা হয়েছে।
 
-            ২. ⚡ "Disable Heavy Effects" টগল — ২টি মোড (Settings → Appearance)
+            ২. ⚡ নির্ভুল বিদ্যুৎ বিল ও মিটার রিডিং ক্যালকুলেটর (Fixed Zero-Rupee Bug)
+            • একাধিক মিটার রিডিং ও যেকোনো ২টি তারিখের বিল: অনেকগুলো মিটার রিডিং থাকলে যেকোনো দুটি তারিখ (সোজা বা উল্টো ক্রমে) নির্বাচন করলে সঠিক ব্যবহৃত ইউনিট ও টাকার পরিমাণ হিসাব হয়।
+            • রিডিং আপডেট বন্ধ থাকলেও সঠিক বিল: আপনি যদি কিছুদিন নতুন মিটার রিডিং দেওয়া বন্ধও রাখেন, তবে শেষ অপরিশোধিত (Unpaid) তারিখ থেকে বর্তমান বা পূর্ববর্তী তারিখ পর্যন্ত হিসাব করলে আগের অপরিশোধিত বিল + ০ টাকা (অতিরিক্ত দিনের জন্য) সঠিকভাবে দেখায়—কখনোই ভুলবশত শূন্য (০) দেখায় না।
+            • ডিফল্ট ইউনিট রেট ও ব্যাকআপ রিস্টোর: Utility Configuration পেজে ডিফল্ট ইউনিট রেট (যেমন ₹8/kWh) সংরক্ষিত থাকে এবং JSON/CSV ব্যাকআপ ইমপোর্ট করলে স্বয়ংক্রিয়ভাবে রেট ও পরিশোধিত স্ট্যাটাস পুনরুদ্ধার হয়।
+
+            ৩. 🌗 কালো স্ক্রিন ছাড়াই তাৎক্ষণিক লাইট/ডার্ক স্প্ল্যাশ অ্যানিমেশন
+            • অ্যানিমেশন শুরুর আগেই সিস্টেম ও অ্যাপের লাইট বা ডার্ক মোড শনাক্ত করা হয় (MainActivity ও values-night/themes.xml এর মাধ্যমে)। ফলে অ্যাপ খোলার সময় কোনো কালো স্ক্রিন দেখা যায় না; লাইট মোডে উষ্ণ অফ-হোয়াইট (#FCFCFD) এবং ডার্ক মোডে গভীর টিল-ব্ল্যাক (#0A1317) ব্যাকগ্রাউন্ডের ওপর সরাসরি লোগো অ্যানিমেশন শুরু হয়।
+
+            ৪. ⚡ "Disable Heavy Effects" টগল — ২টি মোড (Settings → Appearance)
             • যখন টগল চালু (ON - Fastest Native Mode):
               - ডেট ও টাইম পিকার সরাসরি অ্যান্ড্রয়েডের নেটিভ DatePickerDialog এবং TimePickerDialog ব্যবহার করে।
               - মিটার ডায়াল (Bill ট্যাব) তাৎক্ষণিক '+' / '-' ডিজিটাল স্টেপার এবং কিপ্যাড ইনপুট ব্যবহার করে।
-              - সমস্ত ভারী অ্যানিমেশন বন্ধ থাকে (Android 8 ডিভাইসের জন্য সর্বোচ্চ গতি)।
             • যখন টগল বন্ধ (OFF - Smooth Scrolling Cylinder Dial Mode):
-              - মিটার রিডিং (৬-চাকার ওডোমিটার) এবং ডেট/টাইম পিকারে স্মুথ স্ক্রলিং সিলিন্ডার ডায়াল (WheelPicker) এবং নেটিভ Material 3 অ্যানিমেশন সক্রিয় থাকে।
+              - মিটার রিডিং (৬-চাকার ওডোমিটার) এবং ডেট/টাইম পিকারে স্মুথ স্ক্রলিং সিলিন্ডার ডায়াল (WheelPicker) সক্রিয় থাকে।
 
-            ৩. 💾 ৪টি কার্যকর ব্যাকআপ ও রিস্টোর বিকল্প (Data & Backups)
-            • সম্পূর্ণ JSON ব্যাকআপ: সমস্ত হোটেল, হিসাব, খাবার অর্ডার, খরচ ও মিটার রিডিং একক ফাইলে এক্সপোর্ট ও ইমপোর্ট করুন।
-            • অফলাইন QR Sync Stream: ইন্টারনেট ছাড়াই ফাউন্টেন কোডের মাধ্যমে এক ফোন থেকে অন্য ফোনে ডাটা ট্রান্সফার করুন।
-            • সরাসরি SQLite ডাটাবেস ব্যাকআপ: সম্পূর্ণ 'traker_database' ডাটাবেস জিপ ফাইলে ব্যাকআপ নিন এবং তাৎক্ষণিক পুনরুদ্ধার করুন।
-            • CSV এক্সপোর্ট: এক্সেল বা স্প্রেডশিটে দেখার জন্য হোটেল ও খরচের তালিকা CSV আকারে নামিয়ে নিন।
+            ৫. 💾 ৪টি কার্যকর ব্যাকআপ ও রিস্টোর বিকল্প (Data & Backups)
+            • সম্পূর্ণ JSON ব্যাকআপ, অফলাইন QR Sync Stream, সরাসরি SQLite ডাটাবেস জিপ ব্যাকআপ এবং CSV এক্সপোর্ট/ইমপোর্ট।
 
-            ৪. 📱 ট্যাবলেট উইন্ডো মোড (Lenovo Smart Connect ও Poco/Xiaomi Tablet)
-            • ট্যাবলেট ও ডেস্কটপ মোডে অ্যাপটি পুরো স্ক্রিনে ছড়িয়ে না গিয়ে ডিফল্টভাবে ফোন-অনুপাতের ফ্লোটিং উইন্ডো আকারে (420dp × 820dp, পোর্ট্রেট রেশিও) খোলে। সাধারণ মোবাইলে এটি স্বাভাবিক ফুল-স্ক্রিনে চলে।
-
-            ৫. 🛠️ GitHub Actions থেকে ম্যানুয়ালি (ক্লিক করে) APK ও AAB তৈরি করার নিয়ম
-            • অটোমেটিক বিল্ড বন্ধ করা হয়েছে—শুধুমাত্র আপনি ক্লিক করলেই বিল্ড শুরু হবে (JDK 21 ও Gradle 9.3.1 দ্বারা ফিক্সড)।
-            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → বাম পাশ থেকে "Manual Android APK & AAB Builder" নির্বাচন করুন → "Run workflow" বাটনে ক্লিক করে আপনার পছন্দের আউটপুট বেছে নিন (ডিফল্ট ট্যাগ: v0.0.1):
-              - all (AAB + Universal APK + arm64-v8a APK)
-              - aab (Play Store রিলিজ বান্ডেল)
-              - universal-apk (সব ডিভাইসের জন্য APK)
-              - arm64-v8a-apk (আধুনিক 64-bit ফোনের জন্য হালকা ও অতি ক্ষুদ্র আকারের APK)
-
-            ৬. ✨ "Care Comes to Life" স্প্ল্যাশ অ্যানিমেশন ও লোগো প্রেজেন্টেশন
-            • পুরনো কালো ব্যাকগ্রাউন্ড এবং বৃত্তাকার লোডিং স্পিনার সম্পূর্ণরূপে অপসারিত।
-            • সিস্টেম লাইট ও ডার্ক মোডের সাথে সামঞ্জস্যপূর্ণ ব্যাকগ্রাউন্ড (উষ্ণ অফ-হোয়াইট বা গভীর টিল-ব্ল্যাক)।
-            • মূল PNG লোগোটি আলতোভাবে ভেসে উঠে স্বাভাবিক অবস্থানে স্থির হয় এবং মাঝখানের কমলা হার্টটিতে মৃদু কার্ডিয়াক পালস ও আভা জ্বলে ওঠে যা সেবা ও মানবিক সহায়তার বার্তা প্রকাশ করে।
-            • মোবাইল ও ট্যাবলেটে সুন্দরভাবে ফিট হয় এবং হোম স্ক্রিনে মসৃণভাবে ট্রানজিশন করে।
+            ৬. 🛠️ GitHub Actions (KSP2 ও Node 24 ফিক্সড) থেকে APK ও AAB তৈরি
+            • KSP কম্পাইলেশন ত্রুটি (ksp.useKSP2=true ও --max-workers=2) এবং GitHub Actions Node 24 ও Ubuntu 24.04 সতর্কবার্তা সম্পূর্ণ সমাধান করা হয়েছে।
+            • আপনার GitHub রিপোজিটরির "Actions" ট্যাবে যান → "Manual Android APK & AAB Builder" → "Run workflow" ক্লিক করে all, aab, universal-apk বা arm64-v8a-apk তৈরি করুন।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v0.0.1 (Pure Material 3 & Dual-Mode Speed Release)
+            Traker v0.0.1 (Pure Material 3, Native Shadows & Smart Bill Engine)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
             ───────────────────────────
-            📖 COMPLETE USER GUIDE & HOW TO USE
+            📖 COMPLETE USER GUIDE & RECENT UPDATES
             ───────────────────────────
 
-            1. 🎨 PURE MATERIAL 3 UI (ANDROID 8 TO LATEST ANDROID)
-            • Liquid Glass Removed Completely: Replaced all translucent glass layers and circular icon borders with clean, native Material Design 3 surfaces, standard icon buttons, and high-contrast typography across all 25 pages and popups.
-            • High-Contrast Light Mode & Centered Buttons: Fixed faint/invisible empty-state texts in Light Mode and centered text labels across all blue, green, and red action buttons.
-            • Fixed Profile, Hotel, Account & Bin Screens: Edit Profile, Owner Profile, Add Hotel, Add Account, Recycle Bin, and triple-dot (⋮) menus now render in crisp, non-overlapping Material 3 layouts with proper status bar padding.
+            1. 🎨 BORDERLESS NATIVE SHADOWS & PLUS JAKARTA SANS TYPOGRAPHY
+            • Native Android Shadows (Zero Harsh Borders): Removed artificial 1dp borders across all buttons, cards, chips, date pickers, and navigation bars throughout the app, replacing them with authentic Android elevation shadows.
+            • Plus Jakarta Sans Font & Harmonized Typography Scale: Installed Google Font 'Plus Jakarta Sans' across all 15 Material 3 text styles with unified font scaling (Small 90%, Medium 100%, Large 110%) to eliminate visual size mismatches.
+            • Tablet Side Navigation Menu Button: Replaced the duplicate top-left hotel icon on tablet layouts with the standard triple-line (☰ Menu) navigation drawer button.
+            • Redesigned About & Help Hub: Integrated the Help & User Guide directly inside the redesigned About page layout.
 
-            2. ⚡ "DISABLE HEAVY EFFECTS" TOGGLE — DUAL-MODE BEHAVIOR
+            2. ⚡ ACCURATE METER READING & UTILITY BILL ENGINE (FIXED ZERO-RUPEE BUG)
+            • Multi-Reading & Any Two-Date Selection: Selecting any two dates across many meter readings accurately computes consumed units and rupee totals regardless of date selection order or multiple same-day logs.
+            • Stopped-Updating-Readings Support: Even if you stop logging daily meter readings, calculating from the last unpaid reading date (or baseline date) to today/previous date preserves the unpaid bill + ₹0 for the unlogged days—never falsely dropping to ₹0.00.
+            • Persistent Default Unit Rate & Backup Restore: Added configurable Default Rate per Unit in Utility Configuration and full ElectricityRate + Paid/Unpaid status preservation across JSON and CSV backups.
+
+            3. 🌗 ZERO-BLACK-SCREEN LIGHT/DARK DETECTION BEFORE ANIMATION
+            • Synchronously detects Light Mode (#FCFCFD warm off-white) or Dark Mode (#0A1317 deep teal-black) via ThemePreferences and native values-night/themes.xml before frame 0 of MainActivity and SplashScreen, eliminating any initial black screen flash.
+
+            4. ⚡ "DISABLE HEAVY EFFECTS" TOGGLE — DUAL-MODE BEHAVIOR
             Go to Settings → Appearance & Visual Style → "Disable Heavy Effects & Use Native Controls":
-            • When ON (Fastest Native Mode — Default for Android 8):
-              - Uses instant Android OS native DatePickerDialog & TimePickerDialog.
-              - Uses the zero-lag '+' / '-' digital odometer stepper in the Bill Meter Reading dialog.
-              - Disables non-essential animations for maximum responsiveness.
-            • When OFF (Smooth Scrolling Cylinder Dial Mode):
-              - Restores the smooth scrollable cylindrical wheel dial (WheelPicker) in the 6-digit Bill Meter Odometer and Date/Time pickers along with smooth Material 3 animations.
+            • When ON (Fastest Native Mode): Uses Android OS native DatePickerDialog & TimePickerDialog and instant '+' / '-' digital odometer steppers.
+            • When OFF (Smooth Cylinder Dial Mode): Uses smooth scrollable cylindrical wheel dials (WheelPicker) for the 6-digit meter odometer and date/time pickers.
 
-            3. 💾 4 WORKING DATA BACKUP & RESTORE OPTIONS
-            • Full JSON Backup & Restore: Complete snapshot export and selective/full restore of hotels, daily meals, accounts, extra expenses, and utility bills.
-            • Offline QR Sync Stream: Offline device-to-device data migration via animated Fountain QR codes with unclipped display and configurable FPS.
-            • Direct SQLite Database Backup: Direct zipped snapshot of 'traker_database' for 100% exact local recovery.
-            • CSV Export: Export meals, expenditures, and bill histories for spreadsheet viewing.
+            5. 💾 4 WORKING DATA BACKUP & RESTORE OPTIONS
+            • Full JSON Backup & Restore, Offline QR Sync Stream, Direct SQLite Database ZIP Backup, and Multi-Section CSV Export & Import.
 
-            4. 📱 TABLET WINDOWED LAUNCH (LENOVO SMART CONNECT & POCO/XIAOMI TABLETS)
-            • Configured with portrait orientation lock, fixed resizeableActivity=false, and a 420dp × 820dp window layout manifest declaration so Lenovo ZUI Smart Connect and Xiaomi HyperOS/Poco tablets automatically launch the app in a phone-sized floating window while standard phones open normally.
-
-            5. 🛠️ MANUAL CLICK-TO-RUN GITHUB ACTIONS APK & AAB WORKFLOW
-            • Automatic push/PR builds are disabled—compilation starts ONLY when you manually click "Run workflow" (upgraded to JDK 21 + Gradle 9.3.1 with fixed YAML syntax, setup-java v5, and automatic debug keystore fallback).
-            • Open your GitHub repository → "Actions" tab → "Manual Android APK & AAB Builder" → click "Run workflow" and choose (default tag: v0.0.1):
-              - all (Play Store .aab + Universal .apk + arm64-v8a .apk)
-              - aab (Play Store Android App Bundle .aab)
-              - universal-apk (Universal APK for all CPU architectures)
-              - arm64-v8a-apk (Fast, ultra-compact 64-bit ARM APK)
-
-            6. ✨ "CARE COMES TO LIFE" SPLASH ANIMATION & LOGO PRESENTATION
-            • Replaced generic black background and circular rotating spinners with an intentional, premium native Jetpack Compose entrance animation.
-            • Adapts to Android Light Mode (warm off-white) and Dark Mode (deep teal-black) with zero rectangular white frames or color alterations to your PNG logo.
-            • The logo gently floats upward by 22dp, naturally settles, and illuminates its central orange heart with a gentle cardiac pulse and soft warm aura ("Care Comes to Life").
-            • Responsive on phone and tablet screens with safe drawing window insets and smooth dissolve into the home or lock screen.
+            6. 🛠️ FIXED GITHUB ACTIONS APK & AAB WORKFLOW (KSP2 & NODE 24 READY)
+            • Fixed the KSP ApplicationManager NPE crash by enabling KSP2 (ksp.useKSP2=true), disabling out-of-memory in-process compiler flags, and setting --max-workers=2.
+            • Upgraded GitHub Actions to ubuntu-24.04 and Node 24 (actions/checkout@v5, setup-gradle@v5, upload-artifact@v5) with zero deprecation warnings or notices.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
@@ -880,7 +852,7 @@ fun LegalInfoDialog(
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = getCardBackground(),
-                        border = BorderStroke(1.dp, getGlassBorder()),
+                        shadowElevation = if (isLight) 4.dp else 6.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -1115,80 +1087,80 @@ fun SecurityPinDialog(
                                 horizontalArrangement = Arrangement.spacedBy(18.dp)
                             ) {
                                 row.forEach { digit ->
-                                    Box(
+                                    Surface(
                                         modifier = Modifier
                                             .size(52.dp)
-                                            .clip(CircleShape)
-                                            .background(getGlassIconButtonBg())
-                                            .border(0.5.dp, getGlassBorder(), CircleShape)
-                                            .clickable {
-                                                errorMessage = null
-                                                when (digit) {
-                                                    "C" -> pinInput = ""
-                                                    "⌫" -> {
-                                                        if (pinInput.isNotEmpty()) {
-                                                            pinInput = pinInput.dropLast(1)
-                                                        }
+                                            .bounceClick(),
+                                        shape = CircleShape,
+                                        color = getGlassIconButtonBg(),
+                                        shadowElevation = 2.dp,
+                                        onClick = {
+                                            errorMessage = null
+                                            when (digit) {
+                                                "C" -> pinInput = ""
+                                                "⌫" -> {
+                                                    if (pinInput.isNotEmpty()) {
+                                                        pinInput = pinInput.dropLast(1)
                                                     }
-                                                    else -> {
-                                                        if (pinInput.length < 4) {
-                                                            pinInput += digit
-                                                            if (pinInput.length == 4) {
-                                                                val input = pinInput
-                                                                when (mode) {
-                                                                    SecurityPinMode.SET_NEW -> {
-                                                                        if (step == 1) {
+                                                }
+                                                else -> {
+                                                    if (pinInput.length < 4) {
+                                                        pinInput += digit
+                                                        if (pinInput.length == 4) {
+                                                            val input = pinInput
+                                                            when (mode) {
+                                                                SecurityPinMode.SET_NEW -> {
+                                                                    if (step == 1) {
+                                                                        enteredPin1 = input
+                                                                        pinInput = ""
+                                                                        step = 2
+                                                                    } else {
+                                                                        if (input == enteredPin1) {
+                                                                            confirmedPin = input
+                                                                            pinInput = ""
+                                                                            step = 3 // Move to recovery question step
+                                                                        } else {
+                                                                            errorMessage = if (prefLanguage == "bn") "পিন দুটি মেলেনি! অনুগ্রহ করে আবার চেষ্টা করুন।" else "PINs do not match! Please try again."
+                                                                            enteredPin1 = ""
+                                                                            pinInput = ""
+                                                                            step = 1
+                                                                        }
+                                                                    }
+                                                                }
+                                                                SecurityPinMode.DISABLE -> {
+                                                                    if (input == currentSavedPin) {
+                                                                        onSuccess(null, false, "", "")
+                                                                    } else {
+                                                                        errorMessage = if (prefLanguage == "bn") "ভুল পিন! অনুগ্রহ করে আবার চেষ্টা করুন।" else "Incorrect PIN! Please try again."
+                                                                        pinInput = ""
+                                                                    }
+                                                                }
+                                                                SecurityPinMode.CHANGE -> {
+                                                                    when (step) {
+                                                                        1 -> {
+                                                                            if (input == currentSavedPin) {
+                                                                                pinInput = ""
+                                                                                step = 2
+                                                                            } else {
+                                                                                errorMessage = if (prefLanguage == "bn") "ভুল পিন! অনুগ্রহ করে আবার চেষ্টা করুন।" else "Incorrect PIN! Please try again."
+                                                                                pinInput = ""
+                                                                            }
+                                                                        }
+                                                                        2 -> {
                                                                             enteredPin1 = input
                                                                             pinInput = ""
-                                                                            step = 2
-                                                                        } else {
+                                                                            step = 3
+                                                                        }
+                                                                        else -> {
                                                                             if (input == enteredPin1) {
                                                                                 confirmedPin = input
                                                                                 pinInput = ""
-                                                                                step = 3 // Move to recovery question step
+                                                                                step = 4 // Move to recovery update step
                                                                             } else {
                                                                                 errorMessage = if (prefLanguage == "bn") "পিন দুটি মেলেনি! অনুগ্রহ করে আবার চেষ্টা করুন।" else "PINs do not match! Please try again."
                                                                                 enteredPin1 = ""
                                                                                 pinInput = ""
-                                                                                step = 1
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    SecurityPinMode.DISABLE -> {
-                                                                        if (input == currentSavedPin) {
-                                                                            onSuccess(null, false, "", "")
-                                                                        } else {
-                                                                            errorMessage = if (prefLanguage == "bn") "ভুল পিন! অনুগ্রহ করে আবার চেষ্টা করুন।" else "Incorrect PIN! Please try again."
-                                                                            pinInput = ""
-                                                                        }
-                                                                    }
-                                                                    SecurityPinMode.CHANGE -> {
-                                                                        when (step) {
-                                                                            1 -> {
-                                                                                if (input == currentSavedPin) {
-                                                                                    pinInput = ""
-                                                                                    step = 2
-                                                                                } else {
-                                                                                    errorMessage = if (prefLanguage == "bn") "ভুল পিন! অনুগ্রহ করে আবার চেষ্টা করুন।" else "Incorrect PIN! Please try again."
-                                                                                    pinInput = ""
-                                                                                }
-                                                                            }
-                                                                            2 -> {
-                                                                                enteredPin1 = input
-                                                                                pinInput = ""
-                                                                                step = 3
-                                                                            }
-                                                                            else -> {
-                                                                                if (input == enteredPin1) {
-                                                                                    confirmedPin = input
-                                                                                    pinInput = ""
-                                                                                    step = 4 // Move to recovery update step
-                                                                                } else {
-                                                                                    errorMessage = if (prefLanguage == "bn") "পিন দুটি মেলেনি! অনুগ্রহ করে আবার চেষ্টা করুন।" else "PINs do not match! Please try again."
-                                                                                    enteredPin1 = ""
-                                                                                    pinInput = ""
-                                                                                    step = 2
-                                                                                }
+                                                                                step = 2
                                                                             }
                                                                         }
                                                                     }
@@ -1198,15 +1170,16 @@ fun SecurityPinDialog(
                                                     }
                                                 }
                                             }
-                                            .bounceClick(),
-                                        contentAlignment = Alignment.Center
+                                        }
                                     ) {
-                                        Text(
-                                            text = digit,
-                                            color = AppTextColor(),
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = digit,
+                                                color = AppTextColor(),
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }

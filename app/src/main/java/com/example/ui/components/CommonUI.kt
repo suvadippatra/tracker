@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -224,18 +225,7 @@ fun getSettingsItemBg(): Color {
 
 @Composable
 fun getSettingsItemBorder(): Color {
-    if (!isLiquidGlassEnabled()) {
-        return if (isAppLightMode()) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    }
-    val bgPreset = LocalAppBgPreset.current
-    return when (bgPreset) {
-        "Emerald Dark" -> Color(0xFF0F766E).copy(alpha = 0.50f)
-        "Midnight Blue" -> Color(0xFF0284C7).copy(alpha = 0.40f)
-        "Sunset Warm" -> Color(0xFF9A3412).copy(alpha = 0.40f)
-        "Purple Twilight" -> Color(0xFF7E22CE).copy(alpha = 0.40f)
-        "Soft Minimal Light" -> Color.Black.copy(alpha = 0.08f)
-        else -> if (isAppLightMode()) Color.Black.copy(alpha = 0.10f) else Color(0xFF2A364F).copy(alpha = 0.60f)
-    }
+    return Color.Transparent
 }
 
 @Composable
@@ -256,10 +246,7 @@ fun getCardBackground(): Color {
 
 @Composable
 fun getGlassBorder(): Color {
-    if (!isLiquidGlassEnabled()) {
-        return if (isAppLightMode()) Color(0x1F000000) else com.example.ui.theme.M3OutlineDark
-    }
-    return if (isAppLightMode()) Color.Black.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.20f)
+    return Color.Transparent
 }
 
 @Composable
@@ -277,62 +264,40 @@ fun GlassCard(
     content: @Composable () -> Unit
 ) {
     val isLight = isAppLightMode()
-    val isGlass = isLiquidGlassEnabled()
+    val shape = RoundedCornerShape(cornerRadius)
+    val cardBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    val shadowElev = if (isLight) 4.dp else 6.dp
+    val ambientShadow = if (isLight) Color(0x1F0F172A) else Color(0x66000000)
+    val spotShadow = if (isLight) Color(0x290F172A) else Color(0x88000000)
 
-    if (!isGlass) {
-        val shape = RoundedCornerShape(cornerRadius)
-        val cardBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-        val borderWidth = if (isLight) 1.5.dp else 1.dp
-        val cardBorder = border ?: BorderStroke(borderWidth, if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark)
-        Box(
-            modifier = modifier
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .background(cardBg, shape)
-                .border(cardBorder, shape)
-                .clip(shape)
-        ) {
-            content()
-        }
-    } else {
-        val shape = RoundedCornerShape(cornerRadius)
-        val bgColors = if (isLight) {
-            listOf(
-                Color.White.copy(alpha = (0.55f * containerAlpha).coerceIn(0.1f, 0.85f)),
-                Color.White.copy(alpha = (0.40f * containerAlpha).coerceIn(0.08f, 0.75f))
+    Box(
+        modifier = modifier
+            . UARTShadow(
+                elevation = shadowElev,
+                shape = shape,
+                ambientColor = ambientShadow,
+                spotColor = spotShadow
             )
-        } else {
-            listOf(
-                Color(0xFF1E2433).copy(alpha = (0.65f * containerAlpha).coerceIn(0.1f, 0.85f)),
-                Color(0xFF141824).copy(alpha = (0.55f * containerAlpha).coerceIn(0.08f, 0.75f))
-            )
-        }
-        val borderColors = if (isLight) {
-            listOf(Color.White.copy(alpha = 0.85f), Color.White.copy(alpha = 0.40f))
-        } else {
-            listOf(GlassBorderTop, GlassBorderBottom)
-        }
-
-        Box(
-            modifier = modifier
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .background(
-                    brush = Brush.verticalGradient(colors = bgColors),
-                    shape = shape
-                )
-                .then(
-                    if (border != null) Modifier.border(border, shape)
-                    else Modifier.border(
-                        width = 1.dp,
-                        brush = Brush.verticalGradient(colors = borderColors),
-                        shape = shape
-                    )
-                )
-                .clip(shape)
-        ) {
-            content()
-        }
+            .clip(shape)
+            .background(cardBg, shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+    ) {
+        content()
     }
 }
+
+fun Modifier.UARTShadow(
+    elevation: Dp,
+    shape: androidx.compose.ui.graphics.Shape,
+    ambientColor: Color,
+    spotColor: Color
+): Modifier = this.shadow(
+    elevation = elevation,
+    shape = shape,
+    clip = false,
+    ambientColor = ambientColor,
+    spotColor = spotColor
+)
 
 @Composable
 fun GlassButton(
@@ -346,19 +311,21 @@ fun GlassButton(
     val isLight = isAppLightMode()
     val shape = RoundedCornerShape(cornerRadius)
     val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    val buttonBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    val borderWidth = if (isLight) 1.5.dp else 1.dp
+    val ambientShadow = if (isLight) Color(0x180F172A) else Color(0x55000000)
+    val spotShadow = if (isLight) Color(0x220F172A) else Color(0x77000000)
 
     Row(
         modifier = modifier
             .defaultMinSize(minHeight = 42.dp)
             .bounceClick()
-            .background(buttonBg, shape)
-            .then(
-                if (borderBrush != null) Modifier.border(borderWidth, borderBrush, shape)
-                else Modifier.border(borderWidth, buttonBorder, shape)
+            .UARTShadow(
+                elevation = if (isLight) 2.5.dp else 4.dp,
+                shape = shape,
+                ambientColor = ambientShadow,
+                spotColor = spotShadow
             )
             .clip(shape)
+            .background(buttonBg, shape)
             .clickable(onClick = onClick)
             .padding(contentPadding),
         horizontalArrangement = Arrangement.Center,
@@ -376,12 +343,18 @@ fun AttachmentActionChip(
     color: Color,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(19.dp)
     Box(
         modifier = Modifier
             .height(38.dp)
-            .clip(RoundedCornerShape(19.dp))
-            .background(color.copy(alpha = 0.12f))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(19.dp))
+            .UARTShadow(
+                elevation = 2.dp,
+                shape = shape,
+                ambientColor = color.copy(alpha = 0.18f),
+                spotColor = color.copy(alpha = 0.25f)
+            )
+            .clip(shape)
+            .background(color.copy(alpha = 0.14f))
             .clickable { onClick() }
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
@@ -463,10 +436,10 @@ fun GlassTextField(
     } else if (isFocused) {
         SolidColor(AppAccentColor())
     } else {
-        SolidColor(if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineVariantDark)
+        SolidColor(Color.Transparent)
     }
     
-    val borderWidth = if (isError || isFocused || isLight) 1.5.dp else 1.dp
+    val borderWidth = if (isError || isFocused) 1.5.dp else 0.dp
     
     Column(modifier = modifier) {
         if (label != null) {
@@ -474,7 +447,7 @@ fun GlassTextField(
                 CompositionLocalProvider(
                     LocalTextStyle provides TextStyle(
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = AppSecondaryTextColor()
                     )
                 ) {
@@ -488,19 +461,30 @@ fun GlassTextField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .UARTShadow(
+                    elevation = if (isLight) 1.5.dp else 2.5.dp,
+                    shape = RoundedCornerShape(12.dp),
+                    ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
+                    spotColor = if (isLight) Color(0x1C0F172A) else Color(0x66000000)
+                )
                 .background(
                     color = bgColor,
                     shape = RoundedCornerShape(12.dp)
                 )
-                .border(
-                    width = borderWidth,
-                    brush = borderBrush,
-                    shape = RoundedCornerShape(12.dp)
+                .then(
+                    if (borderWidth > 0.dp) {
+                        Modifier.border(
+                            width = borderWidth,
+                            brush = borderBrush,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    } else Modifier
                 )
                 .onFocusChanged { isFocused = it.isFocused },
             textStyle = TextStyle(
                 color = AppTextColor(),
-                fontSize = 15.sp
+                fontSize = 15.sp,
+                fontFamily = com.example.ui.theme.AppFontFamily
             ),
             singleLine = singleLine,
             keyboardOptions = keyboardOptions,
@@ -803,6 +787,11 @@ fun M3Button(
         enabled = enabled,
         shape = shape,
         colors = colors,
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 3.dp,
+            pressedElevation = 1.dp,
+            disabledElevation = 0.dp
+        ),
         contentPadding = contentPadding
     ) {
         Row(
@@ -819,25 +808,23 @@ fun M3OutlinedButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(12.dp),
-    border: BorderStroke = BorderStroke(
-        width = 1.5.dp,
-        color = if (isAppLightMode()) com.example.ui.theme.M3OutlineLight else AppAccentColor()
-    ),
+    border: BorderStroke? = null,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     content: @Composable RowScope.() -> Unit
 ) {
-    OutlinedButton(
+    val isLight = isAppLightMode()
+    val bgColor = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
+    Surface(
         onClick = onClick,
         modifier = modifier.defaultMinSize(minHeight = 42.dp).bounceClick(),
         enabled = enabled,
         shape = shape,
-        border = border,
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = if (isAppLightMode()) Color(0xFF0F172A) else AppAccentColor()
-        ),
-        contentPadding = contentPadding
+        color = bgColor,
+        contentColor = if (isLight) Color(0xFF0F172A) else AppAccentColor(),
+        shadowElevation = if (isLight) 2.5.dp else 4.dp
     ) {
         Row(
+            modifier = Modifier.padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
             content = content
@@ -853,18 +840,10 @@ fun M3Card(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val isLight = isAppLightMode()
-    val isGlass = isLiquidGlassEnabled()
-    val effectiveBorder = border ?: if (!isGlass && isLight) {
-        BorderStroke(1.5.dp, com.example.ui.theme.M3OutlineLight)
-    } else if (!isGlass) {
-        BorderStroke(1.dp, com.example.ui.theme.M3OutlineDark)
-    } else null
-
     GlassCard(
         modifier = modifier,
         cornerRadius = 16.dp,
-        border = effectiveBorder,
+        border = null,
         onClick = onClick,
         content = content
     )
@@ -881,16 +860,20 @@ fun M3Chip(
     val isLight = isAppLightMode()
     val accent = AppAccentColor()
     val bgColor = if (selected) accent.copy(alpha = 0.18f) else if (isLight) Color(0xFFF1F5F9) else Color(0xFF252525)
-    val borderColor = if (selected) accent else if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-    val borderWidth = if (isLight || selected) 1.5.dp else 1.dp
     val textColor = if (selected) accent else AppTextColor()
+    val shape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = modifier
             .height(36.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .UARTShadow(
+                elevation = if (selected) 3.dp else 1.5.dp,
+                shape = shape,
+                ambientColor = if (isLight) Color(0x160F172A) else Color(0x44000000),
+                spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
+            )
+            .clip(shape)
             .background(bgColor)
-            .border(borderWidth, borderColor, RoundedCornerShape(18.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center

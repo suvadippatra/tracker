@@ -96,8 +96,7 @@ fun GlassSwitch(
             .width(100.dp)
             .height(34.dp)
             .clip(RoundedCornerShape(17.dp))
-            .background(if (isLight) Color(0x1A000000) else Color(0x1F000000))
-            .border(1.dp, if (isLight) Color(0xFFFFFFFF) else getGlassBorder(), RoundedCornerShape(17.dp))
+            .background(if (isLight) Color(0xFFE2E8F0) else Color(0xFF1E293B))
             .clickable { onCheckedChange(!checked) }
     ) {
         val thumbOffset = if (disableHeavy) {
@@ -135,14 +134,14 @@ fun GlassSwitch(
             Text(
                 text = inactiveText,
                 color = if (!checked) AppTextColor() else AppTextColor().copy(alpha = 0.5f),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = activeText,
                 color = if (checked) AppTextColor() else AppTextColor().copy(alpha = 0.5f),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -217,6 +216,9 @@ fun TrakerApp(viewModel: FinancialViewModel) {
             }
             if (context is android.app.Activity) {
                 val window = context.window
+                val bgColor = if (isLight) android.graphics.Color.parseColor("#F8FAFC") else android.graphics.Color.parseColor("#0A1317")
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(bgColor))
+                window.decorView.setBackgroundColor(bgColor)
                 window.statusBarColor = android.graphics.Color.TRANSPARENT
                 window.navigationBarColor = android.graphics.Color.TRANSPARENT
                 androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -244,8 +246,8 @@ fun TrakerApp(viewModel: FinancialViewModel) {
 
     val currentDensity = androidx.compose.ui.platform.LocalDensity.current
     val customFontScale = when (userProfile.textSize) {
-        "Small" -> 0.85f
-        "Large" -> 1.15f
+        "Small" -> 0.90f
+        "Large" -> 1.10f
         else -> 1.0f
     }
 
@@ -261,7 +263,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         )
     ) {
         MyApplicationTheme(
-            darkTheme = !isAppLightMode(),
+            darkTheme = !isLight,
             preset = userProfile.bgPreset,
             isLiquidGlass = false
         ) {
@@ -273,6 +275,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                 if (showSplashScreen) {
                     SplashScreen(
                         isInitialized = isInitialized,
+                        isDarkTheme = !isLight,
                         language = userProfile.language,
                         disableHeavyEffects = userProfile.disableHeavyEffects,
                         onFinish = { showSplashScreen = false }

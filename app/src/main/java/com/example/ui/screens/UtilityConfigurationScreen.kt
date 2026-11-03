@@ -49,8 +49,10 @@ fun UtilityConfigurationScreen(
 
     val allRates by viewModel.allElectricityRates.collectAsStateWithLifecycle()
     val currentFixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
+    val currentDefaultRate by viewModel.defaultElectricityRate.collectAsStateWithLifecycle()
 
     var chargeInput by remember(currentFixedCharge) { mutableStateOf(currentFixedCharge.toString()) }
+    var defaultRateInput by remember(currentDefaultRate) { mutableStateOf(currentDefaultRate.toString()) }
 
     var rateInput by remember { mutableStateOf("") }
     var rateDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -100,7 +102,7 @@ fun UtilityConfigurationScreen(
                                 onClick = onDismiss,
                                 modifier = Modifier
                                     .padding(8.dp)
-                                    .background(getGlassBorder().copy(alpha = 0.1f), CircleShape)
+                                    .background(AppTextColor().copy(alpha = 0.06f), CircleShape)
                                     .bounceClick()
                             ) {
                                 Icon(
@@ -153,6 +155,16 @@ fun UtilityConfigurationScreen(
                                 HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f))
 
                                 GlassTextField(
+                                    value = defaultRateInput,
+                                    onValueChange = { defaultRateInput = it },
+                                    label = { Text(if (language == "bn") "ডিফল্ট প্রতি ইউনিটের দাম ($currency/kWh)" else "Default Rate per Unit ($currency/kWh)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                                    leadingIcon = { Icon(Icons.Default.OfflineBolt, contentDescription = null, tint = AccentCyan) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                GlassTextField(
                                     value = chargeInput,
                                     onValueChange = { chargeInput = it },
                                     label = { Text(if (language == "bn") "স্থির সার্ভিস চার্জ ($currency)" else "Fixed Service Charge ($currency)") },
@@ -165,7 +177,13 @@ fun UtilityConfigurationScreen(
                                 Button(
                                     onClick = {
                                         val charge = chargeInput.toDoubleOrNull() ?: 0.0
-                                        viewModel.updateCalculationParameters(charge)
+                                        val defRate = defaultRateInput.toDoubleOrNull() ?: currentDefaultRate
+                                        viewModel.updateCalculationParameters(charge, defRate)
+                                        val pendingPolicyRate = rateInput.toDoubleOrNull()
+                                        if (pendingPolicyRate != null && pendingPolicyRate > 0.0) {
+                                            viewModel.insertElectricityRate(pendingPolicyRate, rateDateMillis)
+                                            rateInput = ""
+                                        }
                                         android.widget.Toast.makeText(
                                             financialViewModel.getApplication(),
                                             if (language == "bn") "প্যারামিটার সংরক্ষিত হয়েছে" else "Parameters saved successfully",
@@ -191,8 +209,7 @@ fun UtilityConfigurationScreen(
                     item {
                         GlassCard(
                             modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = 20.dp,
-                            border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.3f))
+                            cornerRadius = 20.dp
                         ) {
                             Column(
                                 modifier = Modifier.padding(18.dp),

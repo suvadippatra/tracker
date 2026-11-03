@@ -92,18 +92,18 @@ fun SlidingDatePickerModal(
 
     val isLight = isAppLightMode()
     val modalBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-    val modalBorder = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Box(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .padding(16.dp)
-                .background(modalBg, RoundedCornerShape(24.dp))
-                .border(1.dp, modalBorder, RoundedCornerShape(24.dp))
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = modalBg,
+            shadowElevation = if (isLight) 12.dp else 16.dp
         ) {
             Column(
                 modifier = Modifier
@@ -181,7 +181,6 @@ fun InlineDatePicker(
     val accent = AppAccentColor()
 
     val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    val borderCol = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
 
     Column(
         modifier = Modifier
@@ -196,96 +195,101 @@ fun InlineDatePicker(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(surfaceBg)
-                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                        .clickable {
-                            val cal = Calendar.getInstance().apply {
-                                timeInMillis = selectedMillis
-                                add(Calendar.DAY_OF_MONTH, -1)
-                            }
-                            selectedMillis = cal.timeInMillis
-                            onDateSelected(selectedMillis)
-                        },
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = surfaceBg,
+                    shadowElevation = 2.dp,
+                    onClick = {
+                        val cal = Calendar.getInstance().apply {
+                            timeInMillis = selectedMillis
+                            add(Calendar.DAY_OF_MONTH, -1)
+                        }
+                        selectedMillis = cal.timeInMillis
+                        onDateSelected(selectedMillis)
+                    }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = "Previous Day",
-                        tint = textColor
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "Previous Day",
+                            tint = textColor
+                        )
+                    }
                 }
 
-                Row(
+                Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(surfaceBg)
-                        .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                        .clickable {
-                            val cal = Calendar.getInstance().apply { timeInMillis = selectedMillis }
-                            DatePickerDialog(
-                                context,
-                                { _, y, m, d ->
-                                    val newCal = Calendar.getInstance().apply {
-                                        timeInMillis = selectedMillis
-                                        set(Calendar.YEAR, y)
-                                        set(Calendar.MONTH, m)
-                                        set(Calendar.DAY_OF_MONTH, d)
-                                    }
-                                    selectedMillis = newCal.timeInMillis
-                                    onDateSelected(selectedMillis)
-                                },
-                                cal.get(Calendar.YEAR),
-                                cal.get(Calendar.MONTH),
-                                cal.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        }
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = surfaceBg,
+                    shadowElevation = 2.dp,
+                    onClick = {
+                        val cal = Calendar.getInstance().apply { timeInMillis = selectedMillis }
+                        DatePickerDialog(
+                            context,
+                            { _, y, m, d ->
+                                val newCal = Calendar.getInstance().apply {
+                                    timeInMillis = selectedMillis
+                                    set(Calendar.YEAR, y)
+                                    set(Calendar.MONTH, m)
+                                    set(Calendar.DAY_OF_MONTH, d)
+                                }
+                                selectedMillis = newCal.timeInMillis
+                                onDateSelected(selectedMillis)
+                            },
+                            cal.get(Calendar.YEAR),
+                            cal.get(Calendar.MONTH),
+                            cal.get(Calendar.DAY_OF_MONTH)
+                        ).show()
+                    }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = "Open Calendar",
-                        tint = accent,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = formattedDate,
-                        color = textColor,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Open Calendar",
+                            tint = accent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = formattedDate,
+                            color = textColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(surfaceBg)
-                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                        .clickable {
-                            val cal = Calendar.getInstance().apply {
-                                timeInMillis = selectedMillis
-                                add(Calendar.DAY_OF_MONTH, 1)
-                            }
-                            selectedMillis = cal.timeInMillis
-                            onDateSelected(selectedMillis)
-                        },
-                    contentAlignment = Alignment.Center
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = surfaceBg,
+                    shadowElevation = 2.dp,
+                    onClick = {
+                        val cal = Calendar.getInstance().apply {
+                            timeInMillis = selectedMillis
+                            add(Calendar.DAY_OF_MONTH, 1)
+                        }
+                        selectedMillis = cal.timeInMillis
+                        onDateSelected(selectedMillis)
+                    }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Next Day",
-                        tint = textColor
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Next Day",
+                            tint = textColor
+                        )
+                    }
                 }
             }
         } else {
@@ -300,92 +304,96 @@ fun InlineDatePicker(
             val monthNames = remember { DateFormatSymbols.getInstance(Locale.US).shortMonths.take(12) }
             val years = remember { (2020..2035).toList() }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(surfaceBg)
-                    .border(1.dp, borderCol, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = surfaceBg,
+                shadowElevation = 2.dp
             ) {
-                // Day Wheel
-                WheelPicker(
-                    items = days,
-                    selectedItem = currentDay,
-                    onItemSelected = { d ->
-                        val newCal = Calendar.getInstance().apply {
-                            timeInMillis = selectedMillis
-                            set(Calendar.DAY_OF_MONTH, d.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
-                        }
-                        selectedMillis = newCal.timeInMillis
-                        onDateSelected(selectedMillis)
-                    },
-                    modifier = Modifier.weight(1f),
-                    itemHeight = 36.dp,
-                    visibleItemsCount = 3
-                ) { item, isSelected ->
-                    Text(
-                        text = String.format(Locale.US, "%02d", item),
-                        color = if (isSelected) textColor else AppSecondaryTextColor(),
-                        fontSize = if (isSelected) 16.sp else 13.sp,
-                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
-                    )
-                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Day Wheel
+                    WheelPicker(
+                        items = days,
+                        selectedItem = currentDay,
+                        onItemSelected = { d ->
+                            val newCal = Calendar.getInstance().apply {
+                                timeInMillis = selectedMillis
+                                set(Calendar.DAY_OF_MONTH, d.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                            }
+                            selectedMillis = newCal.timeInMillis
+                            onDateSelected(selectedMillis)
+                        },
+                        modifier = Modifier.weight(1f),
+                        itemHeight = 36.dp,
+                        visibleItemsCount = 3
+                    ) { item, isSelected ->
+                        Text(
+                            text = String.format(Locale.US, "%02d", item),
+                            color = if (isSelected) textColor else AppSecondaryTextColor(),
+                            fontSize = if (isSelected) 16.sp else 13.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                        )
+                    }
 
-                // Month Wheel
-                WheelPicker(
-                    items = (0..11).toList(),
-                    selectedItem = currentMonth,
-                    onItemSelected = { m ->
-                        val newCal = Calendar.getInstance().apply {
-                            timeInMillis = selectedMillis
-                            val prevDay = get(Calendar.DAY_OF_MONTH)
-                            set(Calendar.DAY_OF_MONTH, 1)
-                            set(Calendar.MONTH, m)
-                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
-                        }
-                        selectedMillis = newCal.timeInMillis
-                        onDateSelected(selectedMillis)
-                    },
-                    modifier = Modifier.weight(1.3f),
-                    itemHeight = 36.dp,
-                    visibleItemsCount = 3
-                ) { item, isSelected ->
-                    Text(
-                        text = monthNames.getOrElse(item) { "" },
-                        color = if (isSelected) accent else AppSecondaryTextColor(),
-                        fontSize = if (isSelected) 16.sp else 13.sp,
-                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
-                    )
-                }
+                    // Month Wheel
+                    WheelPicker(
+                        items = (0..11).toList(),
+                        selectedItem = currentMonth,
+                        onItemSelected = { m ->
+                            val newCal = Calendar.getInstance().apply {
+                                timeInMillis = selectedMillis
+                                val prevDay = get(Calendar.DAY_OF_MONTH)
+                                set(Calendar.DAY_OF_MONTH, 1)
+                                set(Calendar.MONTH, m)
+                                set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                            }
+                            selectedMillis = newCal.timeInMillis
+                            onDateSelected(selectedMillis)
+                        },
+                        modifier = Modifier.weight(1.3f),
+                        itemHeight = 36.dp,
+                        visibleItemsCount = 3
+                    ) { item, isSelected ->
+                        Text(
+                            text = monthNames.getOrElse(item) { "" },
+                            color = if (isSelected) accent else AppSecondaryTextColor(),
+                            fontSize = if (isSelected) 16.sp else 13.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                        )
+                    }
 
-                // Year Wheel
-                WheelPicker(
-                    items = years,
-                    selectedItem = currentYear.coerceIn(2020, 2035),
-                    onItemSelected = { y ->
-                        val newCal = Calendar.getInstance().apply {
-                            timeInMillis = selectedMillis
-                            val prevDay = get(Calendar.DAY_OF_MONTH)
-                            set(Calendar.DAY_OF_MONTH, 1)
-                            set(Calendar.YEAR, y)
-                            set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
-                        }
-                        selectedMillis = newCal.timeInMillis
-                        onDateSelected(selectedMillis)
-                    },
-                    modifier = Modifier.weight(1.2f),
-                    itemHeight = 36.dp,
-                    visibleItemsCount = 3
-                ) { item, isSelected ->
-                    Text(
-                        text = item.toString(),
-                        color = if (isSelected) textColor else AppSecondaryTextColor(),
-                        fontSize = if (isSelected) 16.sp else 13.sp,
-                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
-                    )
+                    // Year Wheel
+                    WheelPicker(
+                        items = years,
+                        selectedItem = currentYear.coerceIn(2020, 2035),
+                        onItemSelected = { y ->
+                            val newCal = Calendar.getInstance().apply {
+                                timeInMillis = selectedMillis
+                                val prevDay = get(Calendar.DAY_OF_MONTH)
+                                set(Calendar.DAY_OF_MONTH, 1)
+                                set(Calendar.YEAR, y)
+                                set(Calendar.DAY_OF_MONTH, prevDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH)))
+                            }
+                            selectedMillis = newCal.timeInMillis
+                            onDateSelected(selectedMillis)
+                        },
+                        modifier = Modifier.weight(1.2f),
+                        itemHeight = 36.dp,
+                        visibleItemsCount = 3
+                    ) { item, isSelected ->
+                        Text(
+                            text = item.toString(),
+                            color = if (isSelected) textColor else AppSecondaryTextColor(),
+                            fontSize = if (isSelected) 16.sp else 13.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
@@ -398,8 +406,7 @@ fun InlineDatePicker(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(accent.copy(alpha = 0.12f))
-                    .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+                    .background(accent.copy(alpha = 0.14f))
                     .clickable {
                         val now = System.currentTimeMillis()
                         selectedMillis = now
@@ -412,8 +419,7 @@ fun InlineDatePicker(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(accent.copy(alpha = 0.12f))
-                    .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+                    .background(accent.copy(alpha = 0.14f))
                     .clickable {
                         val cal = Calendar.getInstance().apply {
                             add(Calendar.DAY_OF_MONTH, -1)

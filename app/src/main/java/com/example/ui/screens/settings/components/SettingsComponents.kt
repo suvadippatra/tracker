@@ -26,6 +26,7 @@ fun PixelSettingsGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isLight = isAppLightMode()
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -42,11 +43,11 @@ fun PixelSettingsGroup(
             )
         }
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp)),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
             color = getCardBackground(),
-            border = BorderStroke(1.dp, getGlassBorder())
+            shadowElevation = if (isLight) 4.dp else 6.dp,
+            tonalElevation = if (isLight) 1.dp else 2.dp
         ) {
             Column(
                 modifier = Modifier
@@ -128,7 +129,7 @@ fun PixelSettingsItem(
         }
         if (showDivider) {
             HorizontalDivider(
-                color = getGlassBorder().copy(alpha = 0.35f),
+                color = AppSecondaryTextColor().copy(alpha = 0.10f),
                 modifier = Modifier.padding(start = if (icon != null) 68.dp else 16.dp, end = 16.dp)
             )
         }
@@ -200,13 +201,13 @@ fun PixelSettingsSwitchItem(
                     checkedBorderColor = Color.Transparent,
                     uncheckedThumbColor = if (isLight) Color(0xFF6B7280) else Color(0xFF9CA3AF),
                     uncheckedTrackColor = if (isLight) Color(0x18000000) else Color(0x22FFFFFF),
-                    uncheckedBorderColor = if (isLight) Color(0x28000000) else Color(0x33FFFFFF)
+                    uncheckedBorderColor = Color.Transparent
                 )
             )
         }
         if (showDivider) {
             HorizontalDivider(
-                color = getGlassBorder().copy(alpha = 0.35f),
+                color = AppSecondaryTextColor().copy(alpha = 0.10f),
                 modifier = Modifier.padding(start = if (icon != null) 68.dp else 16.dp, end = 16.dp)
             )
         }
@@ -272,7 +273,7 @@ fun PixelSettingsOptionItem(
         }
         if (showDivider) {
             HorizontalDivider(
-                color = getGlassBorder().copy(alpha = 0.35f),
+                color = AppSecondaryTextColor().copy(alpha = 0.10f),
                 modifier = Modifier.padding(start = 56.dp, end = 16.dp)
             )
         }

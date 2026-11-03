@@ -123,75 +123,89 @@ fun GlassSideNavigation(
     activeTab: String,
     onTabSelected: (String) -> Unit,
     language: String,
+    onMenuClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
+    var isRailExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    val railWidth by animateDpAsState(
+        targetValue = if (isRailExpanded) 96.dp else 72.dp,
+        animationSpec = tween(durationMillis = 200),
+        label = "rail_width"
+    )
+    val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
 
-    if (!isGlass) {
-        val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-        val outlineColor = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-
-        Box(
-            modifier = modifier
+    Surface(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(railWidth),
+        color = surfaceBg,
+        shadowElevation = if (isLight) 4.dp else 8.dp,
+        tonalElevation = if (isLight) 1.dp else 2.dp
+    ) {
+        Column(
+            modifier = Modifier
                 .fillMaxHeight()
-                .width(96.dp)
-                .background(surfaceBg)
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(vertical = 16.dp, horizontal = 8.dp)
+                .padding(vertical = 12.dp, horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
+            val appAccent = AppAccentColor()
+            IconButton(
+                onClick = {
+                    isRailExpanded = !isRailExpanded
+                    onMenuClick?.invoke()
+                },
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(appAccent.copy(alpha = 0.10f))
+                    .testTag("tablet_side_nav_menu_button")
             ) {
-                val appAccent = AppAccentColor()
                 Icon(
-                    imageVector = Icons.Default.Restaurant,
-                    contentDescription = null,
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Navigation Menu",
                     tint = appAccent,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .padding(bottom = 12.dp)
+                    modifier = Modifier.size(24.dp)
                 )
+            }
 
-                listOf("Hotels", "Extras", "Bill").forEach { tab ->
-                    val isSelected = activeTab == tab
-                    val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF334155) else Color(0xFF94A3B8))
-                    val activeBackground = if (isSelected) appAccent.copy(alpha = 0.16f) else Color.Transparent
+            Spacer(modifier = Modifier.height(4.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bounceClick()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(activeBackground)
-                            .then(
-                                if (isSelected) Modifier.border(1.dp, appAccent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                                else Modifier
-                            )
-                            .clickable { onTabSelected(tab) }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
+            listOf("Hotels", "Extras", "Bill").forEach { tab ->
+                val isSelected = activeTab == tab
+                val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF334155) else Color(0xFF94A3B8))
+                val activeBackground = if (isSelected) appAccent.copy(alpha = 0.16f) else Color.Transparent
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bounceClick()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(activeBackground)
+                        .clickable { onTabSelected(tab) }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = when (tab) {
-                                    "Hotels" -> Icons.Default.Restaurant
-                                    "Extras" -> Icons.Default.AccountBalance
-                                    "Bill" -> Icons.Default.Bolt
-                                    else -> Icons.Default.Settings
-                                },
-                                contentDescription = tab,
-                                tint = tabColor,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        Icon(
+                            imageVector = when (tab) {
+                                "Hotels" -> Icons.Default.Restaurant
+                                "Extras" -> Icons.Default.AccountBalance
+                                "Bill" -> Icons.Default.Bolt
+                                else -> Icons.Default.Settings
+                            },
+                            contentDescription = tab,
+                            tint = tabColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (isRailExpanded) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = if (language == "bn") {
@@ -210,101 +224,10 @@ fun GlassSideNavigation(
                                     }
                                 },
                                 color = tabColor,
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 textAlign = TextAlign.Center
                             )
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        Box(
-            modifier = modifier
-                .fillMaxHeight()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)
-        ) {
-            GlassCard(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(110.dp),
-                cornerRadius = 24.dp,
-                containerAlpha = 4.5f
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .padding(vertical = 16.dp, horizontal = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val appAccent = AppAccentColor()
-                    Icon(
-                        imageVector = Icons.Default.Restaurant,
-                        contentDescription = null,
-                        tint = appAccent,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .padding(bottom = 12.dp)
-                    )
-
-                    listOf("Hotels", "Extras", "Bill").forEach { tab ->
-                        val isSelected = activeTab == tab
-                        val tabColor = if (isSelected) appAccent else (if (isAppLightMode()) Color(0xFF000000) else Color(0xFFFFFFFF))
-                        val activeBackground = if (isSelected) appAccent.copy(alpha = 0.25f) else Color.Transparent
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .bounceClick()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(activeBackground)
-                                .then(if (isSelected) Modifier.border(1.dp, appAccent.copy(alpha = 0.5f), RoundedCornerShape(18.dp)) else Modifier)
-                                .clickable { onTabSelected(tab) }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = when (tab) {
-                                        "Hotels" -> Icons.Default.Restaurant
-                                        "Extras" -> Icons.Default.AccountBalance
-                                        "Bill" -> Icons.Default.Bolt
-                                        else -> Icons.Default.Settings
-                                    },
-                                    contentDescription = tab,
-                                    tint = tabColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = if (language == "bn") {
-                                        when (tab) {
-                                            "Hotels" -> "হোটেল"
-                                            "Extras" -> "খরচ"
-                                            "Bill" -> "বিল"
-                                            else -> "সেটিংস"
-                                        }
-                                    } else {
-                                        when (tab) {
-                                            "Bill" -> "Bill"
-                                            "Extras" -> "Extra"
-                                            "Hotels" -> "Hotel"
-                                            else -> "Util"
-                                        }
-                                    },
-                                    color = tabColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
                         }
                     }
                 }
@@ -687,187 +610,78 @@ fun GlassBottomNavigation(
     onTabSelected: (String) -> Unit,
     language: String
 ) {
-    val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
+    val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
 
-    if (!isGlass) {
-        // Material 3 Solid Docked Bottom Navigation Bar
-        val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-        val outlineColor = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(surfaceBg)
-                .navigationBarsPadding()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val appAccent = AppAccentColor()
-                listOf("Hotels", "Extras", "Bill").forEach { tab ->
-                    val isSelected = activeTab == tab
-                    val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF475569) else Color(0xFF94A3B8))
-                    val activeBackground = if (isSelected) appAccent.copy(alpha = 0.16f) else Color.Transparent
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .bounceClick()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(activeBackground)
-                            .then(
-                                if (isSelected) Modifier.border(1.dp, appAccent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                                else Modifier
-                            )
-                            .clickable { onTabSelected(tab) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = when (tab) {
-                                    "Hotels" -> Icons.Default.Restaurant
-                                    "Extras" -> Icons.Default.AccountBalanceWallet
-                                    "Bill" -> Icons.Default.Bolt
-                                    else -> Icons.Default.Settings
-                                },
-                                contentDescription = tab,
-                                tint = tabColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (language == "bn") {
-                                    when (tab) {
-                                        "Hotels" -> "হোটেল"
-                                        "Extras" -> "খরচ"
-                                        "Bill" -> "বিল"
-                                        else -> "সেটিংস"
-                                    }
-                                } else {
-                                    when (tab) {
-                                        "Bill" -> "Bill"
-                                        "Extras" -> "Extra"
-                                        "Hotels" -> "Hotel"
-                                        else -> "Util"
-                                    }
-                                },
-                                color = tabColor,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        // Liquid Glass Floating Pill Navigation Bar
-        Box(
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = surfaceBg,
+        shadowElevation = if (isLight) 8.dp else 12.dp,
+        tonalElevation = if (isLight) 2.dp else 3.dp
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             val appAccent = AppAccentColor()
-            val navBg = if (isLight) {
-                listOf(Color(0xF5FFFFFF), Color(0xEBFFFFFF))
-            } else {
-                listOf(Color(0xFA1E2638), Color(0xF5111827))
-            }
-            val navBorder = if (isLight) {
-                listOf(Color(0xFFFFFFFF), Color(0x33000000))
-            } else {
-                listOf(appAccent.copy(alpha = 0.5f), Color(0x33FFFFFF))
-            }
+            listOf("Hotels", "Extras", "Bill").forEach { tab ->
+                val isSelected = activeTab == tab
+                val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF475569) else Color(0xFF94A3B8))
+                val activeBackground = if (isSelected) appAccent.copy(alpha = 0.15f) else Color.Transparent
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.verticalGradient(navBg),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .border(
-                        width = 1.2.dp,
-                        brush = Brush.verticalGradient(navBorder),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .clip(RoundedCornerShape(24.dp))
-                    .padding(6.dp)
-            ) {
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .bounceClick()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(activeBackground)
+                        .clickable { onTabSelected(tab) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    listOf("Hotels", "Extras", "Bill").forEach { tab ->
-                        val isSelected = activeTab == tab
-                        val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF000000) else Color(0xFFFFFFFF))
-                        val activeBackground = if (isSelected) appAccent.copy(alpha = 0.22f) else Color.Transparent
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .bounceClick()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(activeBackground)
-                                .then(if (isSelected) Modifier.border(1.dp, appAccent.copy(alpha = 0.5f), RoundedCornerShape(18.dp)) else Modifier)
-                            .clickable { onTabSelected(tab) }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = when (tab) {
-                                    "Hotels" -> Icons.Default.Restaurant
-                                    "Extras" -> Icons.Default.AccountBalanceWallet
-                                    "Bill" -> Icons.Default.Bolt
-                                    else -> Icons.Default.Settings
-                                },
-                                contentDescription = tab,
-                                tint = tabColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (language == "bn") {
-                                    when (tab) {
-                                        "Hotels" -> "হোটেল"
-                                        "Extras" -> "খরচ"
-                                        "Bill" -> "বিল"
-                                        else -> "সেটিংস"
-                                    }
-                                } else {
-                                    when (tab) {
-                                        "Bill" -> "Bill"
-                                        "Extras" -> "Extra"
-                                        "Hotels" -> "Hotel"
-                                        else -> "Util"
-                                    }
-                                },
-                                color = tabColor,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
+                        Icon(
+                            imageVector = when (tab) {
+                                "Hotels" -> Icons.Default.Restaurant
+                                "Extras" -> Icons.Default.AccountBalanceWallet
+                                "Bill" -> Icons.Default.Bolt
+                                else -> Icons.Default.Settings
+                            },
+                            contentDescription = tab,
+                            tint = tabColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (language == "bn") {
+                                when (tab) {
+                                    "Hotels" -> "হোটেল"
+                                    "Extras" -> "খরচ"
+                                    "Bill" -> "বিল"
+                                    else -> "সেটিংস"
+                                }
+                            } else {
+                                when (tab) {
+                                    "Bill" -> "Bill"
+                                    "Extras" -> "Extra"
+                                    "Hotels" -> "Hotel"
+                                    else -> "Util"
+                                }
+                            },
+                            color = tabColor,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
                     }
                 }
             }
         }
     }
-}
 }

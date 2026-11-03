@@ -424,6 +424,7 @@ class DataTransferManager(private val db: AppDatabase) {
         val expenses = extraExpenseDao.getAllExpensesSync()
         val readings = meterDao.getAllReadingsSync()
         val bills = meterDao.getAllUtilityBillsSync()
+        val rates = meterDao.getAllElectricityRatesSync()
         val profile = userProfileDao.getUserProfileSync()
 
         val root = JSONObject().apply {
@@ -539,6 +540,15 @@ class DataTransferManager(private val db: AppDatabase) {
                 })
             }
             put("utilityBills", billArr)
+
+            val rateArr = JSONArray()
+            rates.forEach { r ->
+                rateArr.put(JSONObject().apply {
+                    put("ratePerUnit", r.ratePerUnit)
+                    put("effectiveDate", r.effectiveDate)
+                })
+            }
+            put("electricityRates", rateArr)
         }
         root.toString(2)
     }
@@ -1056,6 +1066,38 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         meterDao.insertUtilityBills(list)
                         totalCount += list.size
+
+                        if (!root.has("electricityRates") && meterDao.getAllElectricityRatesSync().isEmpty()) {
+                            val latestValidBill = list.filter { it.totalUnits > 0.0 && it.calculatedAmount > 0.0 }.maxByOrNull { it.endDate }
+                            if (latestValidBill != null) {
+                                val derivedRate = Math.round((latestValidBill.calculatedAmount / latestValidBill.totalUnits) * 100.0) / 100.0
+                                if (derivedRate > 0.0) {
+                                    meterDao.insertElectricityRate(
+                                        ElectricityRate(
+                                            effectiveDate = latestValidBill.startDate,
+                                            ratePerUnit = derivedRate
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (root.has("electricityRates")) {
+                        val rateArr = root.getJSONArray("electricityRates")
+                        for (i in 0 until rateArr.length()) {
+                            val item = rateArr.getJSONObject(i)
+                            val rVal = item.optDouble("ratePerUnit", 0.0)
+                            if (rVal > 0.0) {
+                                meterDao.insertElectricityRate(
+                                    ElectricityRate(
+                                        effectiveDate = item.optLong("effectiveDate", System.currentTimeMillis()),
+                                        ratePerUnit = rVal
+                                    )
+                                )
+                                totalCount++
+                            }
+                        }
                     }
 
                     return@withContext ImportOutcome.Success(
@@ -1366,6 +1408,37 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                         meterDao.insertUtilityBills(list)
                         totalCount += list.size
+
+                        if (!root.has("electricityRates") && meterDao.getAllElectricityRatesSync().isEmpty()) {
+                            val latestValidBill = list.filter { it.totalUnits > 0.0 && it.calculatedAmount > 0.0 }.maxByOrNull { it.endDate }
+                            if (latestValidBill != null) {
+                                val derivedRate = Math.round((latestValidBill.calculatedAmount / latestValidBill.totalUnits) * 100.0) / 100.0
+                                if (derivedRate > 0.0) {
+                                    meterDao.insertElectricityRate(
+                                        ElectricityRate(
+                                            effectiveDate = latestValidBill.startDate,
+                                            ratePerUnit = derivedRate
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (root.has("electricityRates")) {
+                        val rateArr = root.getJSONArray("electricityRates")
+                        for (i in 0 until rateArr.length()) {
+                            val item = rateArr.getJSONObject(i)
+                            val rVal = item.optDouble("ratePerUnit", 0.0)
+                            if (rVal > 0.0) {
+                                meterDao.insertElectricityRate(
+                                    ElectricityRate(
+                                        effectiveDate = item.optLong("effectiveDate", System.currentTimeMillis()),
+                                        ratePerUnit = rVal
+                                    )
+                                )
+                                totalCount++
+                            }
+                        }
                     }
                     return@withContext ImportOutcome.Success(
                         message = "Imported electricity data ($totalCount readings & bills)",
@@ -2065,6 +2138,20 @@ class DataTransferManager(private val db: AppDatabase) {
         }
         if (list.isNotEmpty()) {
             meterDao.insertUtilityBills(list)
+            if (meterDao.getAllElectricityRatesSync().isEmpty()) {
+                val latestValidBill = list.filter { it.totalUnits > 0.0 && it.calculatedAmount > 0.0 }.maxByOrNull { it.endDate }
+                if (latestValidBill != null) {
+                    val derivedRate = Math.round((latestValidBill.calculatedAmount / latestValidBill.totalUnits) * 100.0) / 100.0
+                    if (derivedRate > 0.0) {
+                        meterDao.insertElectricityRate(
+                            ElectricityRate(
+                                effectiveDate = latestValidBill.startDate,
+                                ratePerUnit = derivedRate
+                            )
+                        )
+                    }
+                }
+            }
         }
         list.size
     }
@@ -2414,8 +2501,8 @@ class DataTransferManager(private val db: AppDatabase) {
     private fun parseBoolean(value: String, default: Boolean): Boolean {
         val clean = value.lowercase().trim()
         return when (clean) {
-            "true", "1", "yes", "y", "t", "on" -> true
-            "false", "0", "no", "n", "f", "off" -> false
+            "true", "1", "yes", "y", "t", "on", "paid" -> true
+            "false", "0", "no", "n", "f", "off", "unpaid", "pending" -> false
             else -> default
         }
     }
@@ -2424,11 +2511,18 @@ class DataTransferManager(private val db: AppDatabase) {
         col1.toLongOrNull()?.let { if (it > 1000000000L) return it }
         col2.toLongOrNull()?.let { if (it > 1000000000L) return it }
 
-        // Try date formats
+        // Try date formats without returning 0L when dateFormat returns null
         for (str in listOf(col2, col1)) {
-            if (str.isNotBlank()) {
-                try { return dateFormat.parse(str)?.time ?: 0L } catch (_: Exception) {}
-                try { return dateOnlyFormat.parse(str)?.time ?: 0L } catch (_: Exception) {}
+            val trimmed = str.trim()
+            if (trimmed.isNotBlank()) {
+                try {
+                    val parsedDateTime = dateFormat.parse(trimmed)?.time
+                    if (parsedDateTime != null && parsedDateTime > 0L) return parsedDateTime
+                } catch (_: Exception) {}
+                try {
+                    val parsedDateOnly = dateOnlyFormat.parse(trimmed)?.time
+                    if (parsedDateOnly != null && parsedDateOnly > 0L) return parsedDateOnly
+                } catch (_: Exception) {}
             }
         }
         return System.currentTimeMillis()

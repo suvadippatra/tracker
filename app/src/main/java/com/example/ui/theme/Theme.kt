@@ -11,6 +11,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 import com.example.data.model.UserProfileEntity
 
 private val accentColorCache = java.util.concurrent.ConcurrentHashMap<Triple<String, Boolean, Boolean>, Color>()
@@ -366,7 +367,19 @@ fun MyApplicationTheme(
         }
     }
 
-    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography
+    ) {
+        androidx.compose.material3.ProvideTextStyle(
+            value = androidx.compose.ui.text.TextStyle(
+                fontFamily = AppFontFamily,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            ),
+            content = content
+        )
+    }
 }
 
 

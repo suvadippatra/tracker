@@ -41,11 +41,12 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(
     isInitialized: Boolean,
+    isDarkTheme: Boolean = isSystemInDarkTheme(),
     language: String = "en",
     disableHeavyEffects: Boolean = false,
     onFinish: () -> Unit
 ) {
-    val isSystemDark = isSystemInDarkTheme()
+    val isSystemDark = isDarkTheme
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isTablet = configuration.screenWidthDp >= 600
@@ -106,10 +107,10 @@ fun SplashScreen(
 
     // 2. Logo Fade & Gentle Float
     val logoAlpha by animateFloatAsState(
-        targetValue = if (startAnimation) 1f else 0f,
+        targetValue = if (startAnimation) 1f else 0.18f,
         animationSpec = tween(
-            durationMillis = if (disableHeavyEffects) 250 else 600,
-            delayMillis = if (disableHeavyEffects) 0 else 120,
+            durationMillis = if (disableHeavyEffects) 220 else 520,
+            delayMillis = 0,
             easing = FastOutSlowInEasing
         ),
         label = "logo_alpha"
@@ -254,7 +255,7 @@ fun SplashScreen(
                     fontWeight = FontWeight.Bold,
                     color = titleColor,
                     letterSpacing = 1.2.sp,
-                    fontFamily = FontFamily.SansSerif
+                    fontFamily = com.example.ui.theme.AppFontFamily
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -262,9 +263,10 @@ fun SplashScreen(
                 Text(
                     text = if (language == "bn") "সেবা, সহায়তা ও আর্থিক হিসাব" else "Care, Assistance & Daily Ledger",
                     fontSize = if (isTablet) 14.sp else 12.5.sp,
-                    fontWeight = FontWeight.Normal,
+                    fontWeight = FontWeight.Medium,
                     color = subtitleColor,
-                    letterSpacing = 0.6.sp
+                    letterSpacing = 0.6.sp,
+                    fontFamily = com.example.ui.theme.AppFontFamily
                 )
             }
         }

@@ -30,11 +30,28 @@ object ThemePreferences {
         } catch (_: Exception) {}
     }
 
+    fun isLightMode(context: Context): Boolean {
+        val themeMode = try {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_THEME_MODE, "Auto") ?: "Auto"
+        } catch (_: Exception) {
+            "Auto"
+        }
+        return when (themeMode) {
+            "Light" -> true
+            "Dark" -> false
+            else -> {
+                val nightMask = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                nightMask != android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+    }
+
     fun getInitialProfile(context: Context): UserProfileEntity {
         return try {
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            val bgPreset = prefs.getString(KEY_BG_PRESET, "Sunset Warm") ?: "Sunset Warm"
-            val themeMode = prefs.getString(KEY_THEME_MODE, "Dark") ?: "Dark"
+            val bgPreset = prefs.getString(KEY_BG_PRESET, "Default") ?: "Default"
+            val themeMode = prefs.getString(KEY_THEME_MODE, "Auto") ?: "Auto"
             val customBgUri = prefs.getString(KEY_CUSTOM_BG_URI, "") ?: ""
             val textSize = prefs.getString(KEY_TEXT_SIZE, "Medium") ?: "Medium"
             val enableStars = prefs.getBoolean(KEY_ENABLE_STARS, true)
@@ -53,7 +70,7 @@ object ThemePreferences {
                 disableHeavyEffects = disableHeavyEffects
             )
         } catch (_: Exception) {
-            UserProfileEntity(bgPreset = "Sunset Warm", themeMode = "Dark", enableLiquidGlassTheme = false, disableHeavyEffects = true)
+            UserProfileEntity(bgPreset = "Default", themeMode = "Auto", enableLiquidGlassTheme = false, disableHeavyEffects = true)
         }
     }
 }

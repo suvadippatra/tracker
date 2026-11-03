@@ -43,7 +43,8 @@ fun DialogEdgeToEdge() {
         }
         win.attributes = params
         win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        val solidBg = if (isLight) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
+        win.setBackgroundDrawable(ColorDrawable(solidBg))
         win.navigationBarColor = Color.TRANSPARENT
         win.statusBarColor = Color.TRANSPARENT
         
@@ -65,8 +66,7 @@ fun DialogEdgeToEdge() {
 
         win.addFlags(
             WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
         )
         win.clearFlags(
             WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or

@@ -137,7 +137,8 @@ fun BillTrackingTab(
                                 currency = currency,
                                 isLight = isLight,
                                 modifier = Modifier.fillMaxSize(),
-                                financialViewModel = financialViewModel
+                                financialViewModel = financialViewModel,
+                                onOpenUtilityConfig = onOpenUtilityConfig
                             )
                         }
                     }
@@ -162,26 +163,28 @@ fun BillTrackingTab(
                                 }
 
                                 val primaryCol = MaterialTheme.colorScheme.primary
-                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.16f) else Color.Transparent
-                                val borderCol = if (isSelected) primaryCol.copy(alpha = 0.55f) else AppTextColor().copy(alpha = 0.12f)
+                                val tabBg = if (isSelected) primaryCol.copy(alpha = 0.16f) else getCardBackground()
 
-                                Box(
+                                Surface(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .bounceClick()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(tabBg)
-                                        .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-                                        .clickable { subTab = tab }
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
+                                        .bounceClick(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = tabBg,
+                                    shadowElevation = if (isSelected) 3.dp else 1.dp,
+                                    onClick = { subTab = tab }
                                 ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) primaryCol else AppTextColor(),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) primaryCol else AppTextColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -705,28 +708,40 @@ fun BillSummaryScreen(
 ) {
     val formatter = remember { Formatters.getSimpleDateFormat("dd MMM, yyyy") }
     
-    // Logic: Default start date to the oldest unpaid reading
+    // Logic: Default start date to the last paid bill/reading or oldest reading, synced with ViewModel
     val defaultStart = remember(successState.readings, successState.bills) {
         val lastPaidBill = successState.bills.filter { it.isPaid }.maxByOrNull { it.endDate }
-        lastPaidBill?.endDate ?: successState.readings.minByOrNull { it.readingDate }?.readingDate ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
+        val lastPaidReading = successState.readings.filter { it.isPaid }.maxByOrNull { it.readingDate }
+        lastPaidBill?.endDate
+            ?: lastPaidReading?.readingDate
+            ?: successState.readings.minByOrNull { it.readingDate }?.readingDate
+            ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
     }
-    val defaultEnd = remember { System.currentTimeMillis() }
 
-    var startMillis by remember(successState.readings.size) { mutableStateOf(defaultStart) }
-    var endMillis by remember { mutableStateOf(defaultEnd) }
-    
+    val vmStart by viewModel.calculationStartDate.collectAsStateWithLifecycle()
+    val vmEnd by viewModel.calculationEndDate.collectAsStateWithLifecycle()
+
+    var startMillis by remember(vmStart, defaultStart) {
+        mutableStateOf(if (viewModel.isManualDateRangeSet) vmStart else defaultStart)
+    }
+    var endMillis by remember(vmEnd) {
+        mutableStateOf(vmEnd)
+    }
+
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
     val fixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
+    val defaultRate by viewModel.defaultElectricityRate.collectAsStateWithLifecycle()
 
-    val currentCalculation = remember(startMillis, endMillis, successState.readings, successState.rates, fixedCharge) {
+    val currentCalculation = remember(startMillis, endMillis, successState.readings, successState.rates, fixedCharge, defaultRate, successState.bills) {
         viewModel.calculateDetailedBill(
             start = startMillis,
             end = endMillis,
             sortedReadings = successState.readings.sortedBy { it.readingDate },
             rates = successState.rates,
-            fixedCharge = fixedCharge
+            fixedCharge = fixedCharge,
+            bills = successState.bills
         )
     }
 
@@ -859,15 +874,17 @@ fun BillSummaryScreen(
 
     // Check if range includes paid session
     val paidSessionsInRange = remember(successState.readings, startMillis, endMillis) {
+        val minTime = minOf(startMillis, endMillis)
+        val maxTime = maxOf(startMillis, endMillis)
         val cal = Calendar.getInstance()
-        cal.timeInMillis = startMillis
+        cal.timeInMillis = minTime
         cal.set(Calendar.HOUR_OF_DAY, 0)
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
         val calS = cal.timeInMillis
 
-        cal.timeInMillis = endMillis
+        cal.timeInMillis = maxTime
         cal.set(Calendar.HOUR_OF_DAY, 23)
         cal.set(Calendar.MINUTE, 59)
         cal.set(Calendar.SECOND, 59)
@@ -951,7 +968,6 @@ fun BillSummaryScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(AccentPink.copy(alpha = 0.12f))
-                                .border(1.dp, AccentPink.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.Top) {
@@ -1015,8 +1031,7 @@ fun BillSummaryScreen(
                                 .padding(top = 16.dp)
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(AppAccentColor().copy(alpha = 0.12f))
-                                .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .background(AppAccentColor().copy(alpha = 0.14f))
                                 .bounceClick()
                         ) {
                             Icon(
@@ -1196,8 +1211,8 @@ fun BillSummaryScreen(
 
                     Button(
                         onClick = { showGenerateBillDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor().copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, AppAccentColor()),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor().copy(alpha = 0.18f)),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 0.dp),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1259,14 +1274,12 @@ fun BillSummaryScreen(
                             }
 
                             val statusBg = AppPaidBgColor()
-                            val statusBorder = AppPaidBorderColor()
                             val statusTextColor = AppPaidTextColor()
 
                             Box(
                                 modifier = Modifier
                                     .bounceClick()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .border(1.dp, statusBorder, RoundedCornerShape(6.dp))
                                     .background(statusBg, RoundedCornerShape(6.dp))
                                     .clickable {
                                         billToEditStatus = bill
