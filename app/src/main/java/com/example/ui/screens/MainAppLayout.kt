@@ -115,6 +115,7 @@ fun TabContentArea(
                 )
             }
         }
+        "Sticky" -> StickyNotesTab(viewModel)
     }
 }
 
@@ -175,7 +176,7 @@ fun GlassSideNavigation(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            listOf("Hotels", "Extras", "Bill").forEach { tab ->
+            listOf("Hotels", "Extras", "Bill", "Sticky").forEach { tab ->
                 val isSelected = activeTab == tab
                 val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF334155) else Color(0xFF94A3B8))
                 val activeBackground = if (isSelected) appAccent.copy(alpha = 0.16f) else Color.Transparent
@@ -199,6 +200,7 @@ fun GlassSideNavigation(
                                 "Hotels" -> Icons.Default.Restaurant
                                 "Extras" -> Icons.Default.AccountBalance
                                 "Bill" -> Icons.Default.Bolt
+                                "Sticky" -> Icons.Default.StickyNote2
                                 else -> Icons.Default.Settings
                             },
                             contentDescription = tab,
@@ -213,6 +215,7 @@ fun GlassSideNavigation(
                                         "Hotels" -> "হোটেল"
                                         "Extras" -> "খরচ"
                                         "Bill" -> "বিল"
+                                        "Sticky" -> "স্টিকি"
                                         else -> "সেটিংস"
                                     }
                                 } else {
@@ -220,6 +223,7 @@ fun GlassSideNavigation(
                                         "Bill" -> "Bill"
                                         "Extras" -> "Extra"
                                         "Hotels" -> "Hotel"
+                                        "Sticky" -> "Sticky"
                                         else -> "Util"
                                     }
                                 },
@@ -287,6 +291,7 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                 if (isBottomBarVisible) {
                     GlassHeader(
                         userProfile = userProfile,
+                        showGreeting = activeTab != "Sticky",
                         onSettingsClicked = { showSettings = true },
                         onSearchClicked = { showSearch = true },
                         onProfileClicked = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile) },
@@ -316,6 +321,7 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
             topBar = {
                 GlassHeader(
                     userProfile = userProfile,
+                    showGreeting = activeTab != "Sticky",
                     onSettingsClicked = { showSettings = true },
                     onSearchClicked = { showSearch = true },
                     onProfileClicked = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile) },
@@ -417,6 +423,7 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
 @Composable
 fun GlassHeader(
     userProfile: UserProfileEntity,
+    showGreeting: Boolean = true,
     onSettingsClicked: () -> Unit,
     onSearchClicked: () -> Unit,
     onProfileClicked: () -> Unit,
@@ -437,57 +444,57 @@ fun GlassHeader(
     if (!isGlass) {
         // Material 3 Solid Docked App Bar
         val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-        val outlineColor = if (isLight) com.example.ui.theme.M3OutlineLight else com.example.ui.theme.M3OutlineDark
-        val iconBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(surfaceBg)
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = if (showGreeting) 10.dp else 4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = if (showGreeting) Arrangement.SpaceBetween else Arrangement.End
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = { onGreetingDoubleClicked() }
-                            )
-                        }
-                        .padding(vertical = 2.dp, horizontal = 4.dp)
-                ) {
-                    Column {
-                        val appAccent = AppAccentColor()
-                        if (userProfile.name.isNotBlank()) {
-                            Text(
-                                text = greeting,
-                                color = AppSecondaryTextColor(),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 0.3.sp
-                            )
-                            Text(
-                                text = userProfile.name,
-                                color = appAccent,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.3).sp
-                            )
-                        } else {
-                            Text(
-                                text = greeting,
-                                color = appAccent,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.3).sp
-                            )
+                if (showGreeting) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = { onGreetingDoubleClicked() }
+                                )
+                            }
+                            .padding(vertical = 2.dp, horizontal = 4.dp)
+                    ) {
+                        Column {
+                            val appAccent = AppAccentColor()
+                            if (userProfile.name.isNotBlank()) {
+                                Text(
+                                    text = greeting,
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.3.sp
+                                )
+                                Text(
+                                    text = userProfile.name,
+                                    color = appAccent,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.3).sp
+                                )
+                            } else {
+                                Text(
+                                    text = greeting,
+                                    color = appAccent,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.3).sp
+                                )
+                            }
                         }
                     }
                 }
@@ -524,48 +531,50 @@ fun GlassHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(horizontal = 20.dp, vertical = if (showGreeting) 12.dp else 4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = if (showGreeting) Arrangement.SpaceBetween else Arrangement.End
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = { onGreetingDoubleClicked() }
-                            )
-                        }
-                        .padding(4.dp)
-                ) {
-                    Column {
-                        if (userProfile.name.isNotBlank()) {
-                            Text(
-                                text = greeting,
-                                color = AppTextColor(),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = userProfile.name,
-                                color = AppAccentColor(),
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = (-0.5).sp
-                            )
-                        } else {
-                            Text(
-                                text = greeting,
-                                color = AppAccentColor(),
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = (-0.5).sp
-                            )
+                if (showGreeting) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onDoubleTap = { onGreetingDoubleClicked() }
+                                )
+                            }
+                            .padding(4.dp)
+                    ) {
+                        Column {
+                            if (userProfile.name.isNotBlank()) {
+                                Text(
+                                    text = greeting,
+                                    color = AppTextColor(),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    text = userProfile.name,
+                                    color = AppAccentColor(),
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = (-0.5).sp
+                                )
+                            } else {
+                                Text(
+                                    text = greeting,
+                                    color = AppAccentColor(),
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = (-0.5).sp
+                                )
+                            }
                         }
                     }
                 }
@@ -602,7 +611,7 @@ fun GlassHeader(
 
 
 // ==========================================
-// BOTTOM NAVIGATION BAR
+// BOTTOM NAVIGATION BAR (WhatsApp-style Icon above Text)
 // ==========================================
 @Composable
 fun GlassBottomNavigation(
@@ -623,63 +632,73 @@ fun GlassBottomNavigation(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             val appAccent = AppAccentColor()
-            listOf("Hotels", "Extras", "Bill").forEach { tab ->
+            listOf("Hotels", "Extras", "Bill", "Sticky").forEach { tab ->
                 val isSelected = activeTab == tab
                 val tabColor = if (isSelected) appAccent else (if (isLight) Color(0xFF475569) else Color(0xFF94A3B8))
                 val activeBackground = if (isSelected) appAccent.copy(alpha = 0.15f) else Color.Transparent
 
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .bounceClick()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(activeBackground)
                         .clickable { onTabSelected(tab) }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .height(30.dp)
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(activeBackground),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = when (tab) {
                                 "Hotels" -> Icons.Default.Restaurant
                                 "Extras" -> Icons.Default.AccountBalanceWallet
                                 "Bill" -> Icons.Default.Bolt
+                                "Sticky" -> Icons.Default.StickyNote2
                                 else -> Icons.Default.Settings
                             },
                             contentDescription = tab,
                             tint = tabColor,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (language == "bn") {
-                                when (tab) {
-                                    "Hotels" -> "হোটেল"
-                                    "Extras" -> "খরচ"
-                                    "Bill" -> "বিল"
-                                    else -> "সেটিংস"
-                                }
-                            } else {
-                                when (tab) {
-                                    "Bill" -> "Bill"
-                                    "Extras" -> "Extra"
-                                    "Hotels" -> "Hotel"
-                                    else -> "Util"
-                                }
-                            },
-                            color = tabColor,
-                            fontSize = 12.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
                     }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (language == "bn") {
+                            when (tab) {
+                                "Hotels" -> "হোটেল"
+                                "Extras" -> "খরচ"
+                                "Bill" -> "বিল"
+                                "Sticky" -> "স্টিকি"
+                                else -> "সেটিংস"
+                            }
+                        } else {
+                            when (tab) {
+                                "Bill" -> "Bill"
+                                "Extras" -> "Extra"
+                                "Hotels" -> "Hotel"
+                                "Sticky" -> "Sticky"
+                                else -> "Util"
+                            }
+                        },
+                        color = tabColor,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

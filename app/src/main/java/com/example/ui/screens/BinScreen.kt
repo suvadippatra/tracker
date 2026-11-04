@@ -52,6 +52,7 @@ fun BinScreen(
     val deletedExtraExpenses by viewModel.deletedExtraExpenses.collectAsStateWithLifecycle()
     val deletedMeterReadings by viewModel.deletedMeterReadings.collectAsStateWithLifecycle()
     val deletedUtilityBills by viewModel.deletedUtilityBills.collectAsStateWithLifecycle()
+    val deletedStickyNotes by viewModel.deletedStickyNotes.collectAsStateWithLifecycle()
 
     var activeSection by remember { mutableStateOf("Hotels") }
     var searchQuery by remember { mutableStateOf("") }
@@ -68,6 +69,7 @@ fun BinScreen(
         "Meals" -> if (isBn) "খাবার" else "Meals"
         "Expenses" -> if (isBn) "খরচ/আয়" else "Expenses"
         "Readings" -> if (isBn) "মিটার রিডিং" else "Readings"
+        "Sticky" -> if (isBn) "স্টিকি নোট" else "Sticky Notes"
         else -> activeSection
     }
 
@@ -110,6 +112,13 @@ fun BinScreen(
             it.totalReading.toString().contains(searchQuery)
         }
     }
+    val filteredStickyNotes = remember(deletedStickyNotes, searchQuery) {
+        deletedStickyNotes.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+            it.subtitle.contains(searchQuery, ignoreCase = true) ||
+            it.bodyText.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     val isCurrentSectionEmpty = when (activeSection) {
         "Hotels" -> deletedHotels.isEmpty()
@@ -119,6 +128,7 @@ fun BinScreen(
         "Expenses" -> deletedExtraExpenses.isEmpty()
         "Readings" -> deletedMeterReadings.isEmpty()
         "Bills" -> deletedUtilityBills.isEmpty()
+        "Sticky" -> deletedStickyNotes.isEmpty()
         else -> true
     }
 
@@ -154,7 +164,8 @@ fun BinScreen(
                         "Menu" to (if (isBn) "মেনু" else "Menu"),
                         "Meals" to (if (isBn) "খাবার" else "Meals"),
                         "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
-                        "Readings" to (if (isBn) "মিটার রিডিং" else "Readings")
+                        "Readings" to (if (isBn) "মিটার রিডিং" else "Readings"),
+                        "Sticky" to (if (isBn) "স্টিকি" else "Sticky")
                     )
                     tabs.forEach { (section, label) ->
                         val isSelected = activeSection == section
@@ -476,6 +487,33 @@ fun BinScreen(
                                     }
                                 }
                             }
+                            "Sticky" -> {
+                                if (filteredStickyNotes.isEmpty()) {
+                                    item {
+                                        EmptyBinState(
+                                            if (isBn) {
+                                                if (searchQuery.isEmpty()) "কোন মুছে ফেলা স্টিকি নোট নেই"
+                                                else "'$searchQuery'-এর সাথে মানানসই কোন স্টিকি নোট পাওয়া যায়নি"
+                                            } else {
+                                                if (searchQuery.isEmpty()) "No deleted sticky notes"
+                                                else "No deleted sticky notes matching '$searchQuery'"
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    items(filteredStickyNotes, key = { it.id }) { sn ->
+                                        val displayTitle = sn.title.ifBlank { sn.subtitle.ifBlank { sn.bodyText.lines().firstOrNull()?.take(36) ?: "Sticky Note #${sn.id}" } }
+                                        val displaySub = sn.subtitle.ifBlank { sn.bodyText.replace("\n", " ").take(60) }
+                                        BinItemCard(
+                                            title = displayTitle,
+                                            subtitle = displaySub.ifBlank { "Empty note" },
+                                            infoLabel = if (isBn) "স্টিকি নোট" else "Sticky Note",
+                                            onRestore = { viewModel.restoreStickyNote(sn) },
+                                            onDeletePermanently = { itemToDeletePermanently = sn }
+                                        )
+                                    }
+                                }
+                            }
                         }
             }
         }
@@ -590,6 +628,7 @@ fun BinScreen(
             is com.example.data.model.ExtraExpenseEntity -> "${item.name} (₹${item.amount})"
             is com.example.data.model.MeterReading -> if (isBn) "${item.unitsConsumed} ইউনিট ব্যবহৃত মিটার রিডিং" else "${item.unitsConsumed} Units Reading"
                     is com.example.data.model.UtilityBill -> if (isBn) "${item.totalUnits} ইউনিটের বিল" else "Bill for ${item.totalUnits} Units"
+            is com.example.data.model.StickyNoteEntity -> item.title.ifBlank { "Sticky Note #${item.id}" }
             else -> ""
         }
         var typedText by remember { mutableStateOf("") }
@@ -623,6 +662,7 @@ fun BinScreen(
                                 is com.example.data.model.ExtraExpenseEntity -> viewModel.deleteExtraExpensePermanently(item)
                                 is com.example.data.model.MeterReading -> viewModel.deleteReading(item)
                                 is com.example.data.model.UtilityBill -> viewModel.deleteUtilityBillPermanently(item)
+                                is com.example.data.model.StickyNoteEntity -> viewModel.deleteStickyNotePermanently(item)
                             }
                             itemToDeletePermanently = null
                         }
@@ -659,6 +699,7 @@ fun BinScreen(
                             "Expenses" -> viewModel.emptyDeletedExpensesPermanently()
                             "Readings" -> viewModel.emptyDeletedReadingsPermanently()
                             "Bills" -> viewModel.emptyDeletedUtilityBillsPermanently()
+                            "Sticky" -> viewModel.emptyDeletedStickyNotesPermanently()
                         }
                     }
                 ) {

@@ -12,6 +12,7 @@ import com.example.data.dao.TransactionDao
 import com.example.data.dao.UserProfileDao
 import com.example.data.dao.MeterDao
 import com.example.data.dao.TransactionCategoryDao
+import com.example.data.dao.StickyNoteDao
 import com.example.data.model.BankAccountEntity
 import com.example.data.model.ExtraExpenseEntity
 import com.example.data.model.HotelEntity
@@ -20,6 +21,7 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.MeterReading
 import com.example.data.model.UtilityBill
+import com.example.data.model.StickyNoteEntity
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -43,9 +45,10 @@ import com.example.data.dao.OwnerAccountDao
         AttachmentEntity::class,
         OwnerAccountEntity::class,
         com.example.data.model.HotelPaymentEntity::class,
-        com.example.data.model.ExpenseEntity::class
+        com.example.data.model.ExpenseEntity::class,
+        StickyNoteEntity::class
     ],
-    version = 34,
+    version = 35,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -61,8 +64,51 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attachmentDao(): AttachmentDao
     abstract fun ownerAccountDao(): OwnerAccountDao
     abstract fun hotelPaymentDao(): com.example.data.dao.HotelPaymentDao
+    abstract fun stickyNoteDao(): StickyNoteDao
     abstract fun syncDao(): com.example.data.dao.SyncDao
+
     companion object {
+
+        val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN isBoldTextEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN stickyCardWidthPercent INTEGER NOT NULL DEFAULT 80")
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN stickyPreviewLines INTEGER NOT NULL DEFAULT 10")
+
+                db.execSQL("ALTER TABLE hotels ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE hotels ADD COLUMN whatsappNumber TEXT NOT NULL DEFAULT ''")
+
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN phoneNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN whatsappNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE bank_accounts ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN whatsappNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE owner_accounts ADD COLUMN linkedBankAccountId INTEGER DEFAULT NULL")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `sticky_notes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL DEFAULT '',
+                        `subtitle` TEXT NOT NULL DEFAULT '',
+                        `content` TEXT NOT NULL DEFAULT '',
+                        `alignment` TEXT NOT NULL DEFAULT 'START',
+                        `colorIndex` INTEGER NOT NULL DEFAULT 0,
+                        `sortOrder` INTEGER NOT NULL DEFAULT 0,
+                        `attachmentsJson` TEXT NOT NULL DEFAULT '[]',
+                        `isDeleted` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL DEFAULT 0,
+                        `lastUpdatedMillis` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sticky_notes_isDeleted` ON `sticky_notes` (`isDeleted`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sticky_notes_sortOrder` ON `sticky_notes` (`sortOrder`)")
+            }
+        }
 
         val MIGRATION_33_34 = object : Migration(33, 34) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -251,7 +297,13 @@ abstract class AppDatabase : RoomDatabase() {
                     "traker_database"
                 )
                 .fallbackToDestructiveMigration(true)
-                .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)
+                .addMigrations(
+                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+                    MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
+                    MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
+                    MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31,
+                    MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35
+                )
                 .build()
                 INSTANCE = instance
                 instance

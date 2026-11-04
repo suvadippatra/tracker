@@ -380,3 +380,76 @@ public val Icons.Filled.Speed: ImageVector
     get() = _speed ?: buildCustomIcon("Filled.Speed", listOf("""m20.38 8.57-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z""")).also { _speed = it }
 private var _speed: ImageVector? = null
 
+public val Icons.Filled.StickyNote2: ImageVector
+    get() = _stickyNote2 ?: buildCustomIcon("Filled.StickyNote2", listOf("""M19 3H4.99C3.89 3 3 3.9 3 5l.01 14c0 1.1.89 2 1.99 2h10l6-6V5c0-1.1-.9-2-2-2zM7 8h10v2H7V8zm5 6H7v-2h5v2zm2 5.5V14h5.5L14 19.5z""")).also { _stickyNote2 = it }
+private var _stickyNote2: ImageVector? = null
+
+public val Icons.Filled.Chat: ImageVector
+    get() = _chat ?: buildCustomIcon("Filled.Chat", listOf("""M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z""")).also { _chat = it }
+private var _chat: ImageVector? = null
+
+public val Icons.Filled.Sms: ImageVector
+    get() = _sms ?: buildCustomIcon("Filled.Sms", listOf("""M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 11H7V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z""")).also { _sms = it }
+private var _sms: ImageVector? = null
+
+public val Icons.Filled.StopCircle: ImageVector
+    get() = _stopCircle ?: buildCustomIcon("Filled.StopCircle", listOf("""M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4 14H8V8h8v8z""")).also { _stopCircle = it }
+private var _stopCircle: ImageVector? = null
+
+public val Icons.Filled.FiberManualRecord: ImageVector
+    get() = _fiberManualRecord ?: buildCustomIcon("Filled.FiberManualRecord", listOf("""M12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8z""")).also { _fiberManualRecord = it }
+private var _fiberManualRecord: ImageVector? = null
+
+public val Icons.Filled.Notes: ImageVector
+    get() = _notes ?: buildCustomIcon("Filled.Notes", listOf("""M3 18h12v-2H3v2zM3 6v2h18V6H3zm0 7h18v-2H3v2z""")).also { _notes = it }
+private var _notes: ImageVector? = null
+
+public val Icons.Filled.DragIndicator: ImageVector
+    get() = _dragIndicator ?: buildCustomIcon("Filled.DragIndicator", listOf("""M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z""")).also { _dragIndicator = it }
+private var _dragIndicator: ImageVector? = null
+
+public val Icons.Filled.TableChart: ImageVector
+    get() = _tableChart ?: buildCustomIcon("Filled.TableChart", listOf("""M10 10.02h5V21h-5zM17 21h3c1.1 0 2-.9 2-2v-9h-5v11zm3-18H5c-1.1 0-2 .9-2 2v3h19V5c0-1.1-.9-2-2-2zM3 19c0 1.1.9 2 2 2h3V10H3v9z""")).also { _tableChart = it }
+private var _tableChart: ImageVector? = null
+
+public val Icons.Filled.FormatAlignLeft: ImageVector
+    get() = _formatAlignLeft ?: buildCustomIcon("Filled.FormatAlignLeft", listOf("""M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z""")).also { _formatAlignLeft = it }
+private var _formatAlignLeft: ImageVector? = null
+
+public val Icons.Filled.FormatAlignCenter: ImageVector
+    get() = _formatAlignCenter ?: buildCustomIcon("Filled.FormatAlignCenter", listOf("""M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z""")).also { _formatAlignCenter = it }
+private var _formatAlignCenter: ImageVector? = null
+
+public val Icons.Filled.FormatAlignRight: ImageVector
+    get() = _formatAlignRight ?: buildCustomIcon("Filled.FormatAlignRight", listOf("""M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z""")).also { _formatAlignRight = it }
+private var _formatAlignRight: ImageVector? = null
+
+public val Icons.Filled.FormatAlignJustify: ImageVector
+    get() = _formatAlignJustify ?: buildCustomIcon("Filled.FormatAlignJustify", listOf("""M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zm0-6v2h18V3H3z""")).also { _formatAlignJustify = it }
+private var _formatAlignJustify: ImageVector? = null
+
+public val Icons.Filled.Link: ImageVector
+    get() = _link ?: buildCustomIcon("Filled.Link", listOf("""M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z""")).also { _link = it }
+private var _link: ImageVector? = null
+
+public val Icons.Filled.LinkOff: ImageVector
+    get() = _linkOff ?: buildCustomIcon("Filled.LinkOff", listOf("""M17 7h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1 0 1.43-.98 2.63-2.31 2.98l1.46 1.46C20.88 15.61 22 13.95 22 12c0-2.76-2.24-5-5-5zm-1 4h-2.19l2 2H16zM2 4.27l3.11 3.11C3.29 8.12 2 9.91 2 12c0 2.76 2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1 0-1.59 1.21-2.9 2.76-3.07L8.73 11H8v2h2.73L13 15.27V17h1.73l4.01 4L20 19.74 3.27 3 2 4.27z""")).also { _linkOff = it }
+private var _linkOff: ImageVector? = null
+
+public val Icons.Filled.ImportExport: ImageVector
+    get() = _importExport ?: buildCustomIcon("Filled.ImportExport", listOf("""M9 3L5 6.99h3V14h2V6.99h3L9 3zm7 14.01V10h-2v7.01h-3L15 21l4-3.99h-3z""")).also { _importExport = it }
+private var _importExport: ImageVector? = null
+
+public val Icons.Filled.ContactPhone: ImageVector
+    get() = _contactPhone ?: buildCustomIcon("Filled.ContactPhone", listOf("""M22 3H2C.9 3 0 3.9 0 5v14c0 1.1.9 2 2 2h20c1.1 0 1.99-.9 1.99-2L24 5c0-1.1-.9-2-2-2zM8 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H2v-1c0-2 4-3.1 6-3.1s6 1.1 6 3.1v1zm3.85-4h1.64L21 16l-1.99 1.99c-1.31-.98-2.28-2.38-2.73-3.99-.18-.64-.28-1.31-.28-2s.1-1.36.28-2c.45-1.62 1.42-3.01 2.73-3.99L21 8l-1.51 2h-1.64c-.22.63-.35 1.3-.35 2s.13 1.37.35 2z""")).also { _contactPhone = it }
+private var _contactPhone: ImageVector? = null
+
+public val Icons.Filled.FormatSize: ImageVector
+    get() = _formatSize ?: buildCustomIcon("Filled.FormatSize", listOf("""M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z""")).also { _formatSize = it }
+private var _formatSize: ImageVector? = null
+
+public val Icons.Filled.FormatBold: ImageVector
+    get() = _formatBold ?: buildCustomIcon("Filled.FormatBold", listOf("""M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z""")).also { _formatBold = it }
+private var _formatBold: ImageVector? = null
+
+

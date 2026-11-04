@@ -1,26 +1,22 @@
 package com.example.ui.components
 
+import android.app.Activity
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
+import android.content.ContextWrapper
 import android.os.Build
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewParent
 import android.view.ViewTreeObserver
-import android.view.Window
 import android.view.WindowManager
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalContext
@@ -29,195 +25,332 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import kotlin.math.ceil
 
-@Suppress("DEPRECATION")
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
+ * Forces a Compose Dialog to span 100% of the physical screen (including over the status bar
+ * and navigation bar) on all Android versions from Android 8.0 (API 26) through Android 15+.
+ *
+ * Root cause on Android 8–10:
+ * 1. Compose's internal `DialogLayout.internalOnMeasure` checks `usePlatformDefaultWidth`. When false,
+ *    it clamps its child `AndroidComposeView` height to `configuration.screenHeightDp * density`, which
+ *    on Android 8 excludes the status bar (24dp) and navigation bar (48dp) = 72dp shorter than physical
+ *    screen height, leaving a 72dp gap at the bottom where the underlying screen leaks through.
+ * 2. Android 8's `PhoneWindow` content container (`FitWindowsLinearLayout` / `android.R.id.content`)
+ *    consumes window insets as top/bottom padding unless explicitly blocked.
+ */
 @Composable
-fun DialogEdgeToEdge(transparentBackground: Boolean = false) {
+fun DialogEdgeToEdge() {
     val view = LocalView.current
+    val context = LocalContext.current
     val isLight = isAppLightMode()
 
-    fun applyEdgeToEdge(win: Window) {
-        WindowCompat.setDecorFitsSystemWindows(win, false)
+    DisposableEffect(view, isLight) {
+        val dialogWindowProvider = view.parent as? DialogWindowProvider
+        val window = dialogWindowProvider?.window
 
-        val insetsController = WindowCompat.getInsetsController(win, win.decorView)
-        insetsController.isAppearanceLightStatusBars = isLight
-        insetsController.isAppearanceLightNavigationBars = isLight
+        if (window != null) {
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealMetrics(metrics)
+            val realWidth = metrics.widthPixels
+            val realHeight = metrics.heightPixels
+            val density = metrics.density.coerceAtLeast(1f)
+            val fullWidthDp = ceil(realWidth / density).toInt()
+            val fullHeightDp = ceil(realHeight / density).toInt()
 
-        val wm = win.context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-        val metrics = DisplayMetrics()
-        wm?.defaultDisplay?.getRealMetrics(metrics)
-        val realWidth = if (metrics.widthPixels > 0) metrics.widthPixels else ViewGroup.LayoutParams.MATCH_PARENT
-        val realHeight = if (metrics.heightPixels > 0) metrics.heightPixels else ViewGroup.LayoutParams.MATCH_PARENT
+            // Update configuration screenWidthDp / screenHeightDp / fontScale on the Dialog's context
+            // so Compose's DialogLayout.internalOnMeasure never clamps to usable height (realHeight - 72dp)
+            // and Dialog composition roots inherit the user's selected Text Size scale.
+            val targetFontScale = com.example.ui.theme.ThemePreferences.getFontScale(context)
+            try {
+                view.context.resources.configuration.screenWidthDp = fullWidthDp
+                view.context.resources.configuration.screenHeightDp = fullHeightDp
+                view.context.resources.configuration.fontScale = targetFontScale
+                (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
+                    cfg.screenWidthDp = fullWidthDp
+                    cfg.screenHeightDp = fullHeightDp
+                    cfg.fontScale = targetFontScale
+                }
+                window.context.resources.configuration.screenWidthDp = fullWidthDp
+                window.context.resources.configuration.screenHeightDp = fullHeightDp
+                window.context.resources.configuration.fontScale = targetFontScale
+            } catch (_: Exception) {}
 
-        win.clearFlags(
-            WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or
-            WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION or
-            WindowManager.LayoutParams.FLAG_DIM_BEHIND
-        )
-
-        var windowFlags = WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-            // Crucial on Android 8–10 (API 26–29) so secondary Dialog windows extend across status & navigation bars without top/bottom cropping
-            windowFlags = windowFlags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        }
-        win.addFlags(windowFlags)
-
-        val params = win.attributes
-        params.x = 0
-        params.y = 0
-        params.width = realWidth
-        params.height = realHeight
-        params.gravity = Gravity.TOP or Gravity.START
-        params.horizontalMargin = 0f
-        params.verticalMargin = 0f
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        win.attributes = params
-        win.setLayout(realWidth, realHeight)
-
-        val bgColor = if (transparentBackground) {
-            Color.TRANSPARENT
-        } else {
-            if (isLight) Color.parseColor("#FCFCFD") else Color.parseColor("#0A1317")
-        }
-        win.setBackgroundDrawable(ColorDrawable(bgColor))
-        win.navigationBarColor = Color.TRANSPARENT
-        win.statusBarColor = Color.TRANSPARENT
-        win.setDimAmount(0f)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            win.setDecorFitsSystemWindows(false)
-        }
-
-        win.decorView.setPadding(0, 0, 0, 0)
-        (win.decorView as? ViewGroup)?.clipToPadding = false
-        (win.decorView as? ViewGroup)?.clipChildren = false
-        win.decorView.fitsSystemWindows = false
-        win.decorView.layoutParams = win.decorView.layoutParams?.apply {
-            width = realWidth
-            height = realHeight
-        }
-
-        val contentView = win.decorView.findViewById<View>(android.R.id.content)
-        if (contentView != null) {
-            contentView.setPadding(0, 0, 0, 0)
-            (contentView as? ViewGroup)?.clipToPadding = false
-            (contentView as? ViewGroup)?.clipChildren = false
-            contentView.fitsSystemWindows = false
-
-            val lp = contentView.layoutParams ?: ViewGroup.LayoutParams(realWidth, realHeight)
-            lp.width = realWidth
-            lp.height = realHeight
-            contentView.layoutParams = lp
-        }
-
-        var parent: ViewParent? = view.parent
-        while (parent != null) {
-            if (parent is View) {
-                parent.fitsSystemWindows = false
-                parent.setPadding(0, 0, 0, 0)
-                (parent as? ViewGroup)?.clipToPadding = false
-                (parent as? ViewGroup)?.clipChildren = false
-                val plp = parent.layoutParams ?: ViewGroup.LayoutParams(realWidth, realHeight)
-                plp.width = realWidth
-                plp.height = realHeight
-                parent.layoutParams = plp
+            // Also flip DialogLayout's internal usePlatformDefaultWidth field to true via reflection
+            // after we set exact realWidth x realHeight LayoutParams, so DialogLayout delegates
+            // directly to super.internalOnMeasure(EXACTLY realWidth, EXACTLY realHeight).
+            val dialogLayoutView = view.parent as? View
+            val usePlatformDefaultWidthField = try {
+                dialogLayoutView?.javaClass?.getDeclaredField("usePlatformDefaultWidth")?.apply {
+                    isAccessible = true
+                }
+            } catch (_: Exception) {
+                null
             }
-            parent = parent.parent
-        }
-    }
 
-    fun findWindow(v: View): Window? {
-        var parent: ViewParent? = v.parent
-        while (parent != null) {
-            if (parent is DialogWindowProvider) {
-                return parent.window
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+            window.decorView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR)
+
+            @Suppress("DEPRECATION")
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
-            parent = parent.parent
-        }
-        return (v.parent as? DialogWindowProvider)?.window
-    }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+                window.isStatusBarContrastEnforced = false
+            }
 
-    DisposableEffect(view, isLight, transparentBackground) {
-        findWindow(view)?.let { applyEdgeToEdge(it) }
-        val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
-            findWindow(view)?.let { win ->
-                val wm = win.context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-                val metrics = DisplayMetrics()
-                wm?.defaultDisplay?.getRealMetrics(metrics)
-                if (metrics.heightPixels > 0 && (win.decorView.height < metrics.heightPixels || win.decorView.paddingTop != 0 || win.decorView.paddingBottom != 0)) {
-                    applyEdgeToEdge(win)
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.isAppearanceLightStatusBars = isLight
+            insetsController.isAppearanceLightNavigationBars = isLight
+
+            fun enforceFullScreenHierarchy() {
+                try {
+                    view.context.resources.configuration.screenWidthDp = fullWidthDp
+                    view.context.resources.configuration.screenHeightDp = fullHeightDp
+                    (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
+                        cfg.screenWidthDp = fullWidthDp
+                        cfg.screenHeightDp = fullHeightDp
+                    }
+                    usePlatformDefaultWidthField?.setBoolean(dialogLayoutView, true)
+                } catch (_: Exception) {}
+
+                val winParams = window.attributes
+                if (winParams.width != realWidth || winParams.height != realHeight ||
+                    winParams.gravity != (Gravity.TOP or Gravity.START) || winParams.dimAmount != 0f
+                ) {
+                    winParams.width = realWidth
+                    winParams.height = realHeight
+                    winParams.gravity = Gravity.TOP or Gravity.START
+                    winParams.x = 0
+                    winParams.y = 0
+                    winParams.dimAmount = 0f
+                    winParams.horizontalMargin = 0f
+                    winParams.verticalMargin = 0f
+                    window.attributes = winParams
+                    window.setLayout(realWidth, realHeight)
+                }
+
+                var curr: View? = view
+                while (curr != null) {
+                    if (curr !== view) {
+                        if (curr.paddingLeft != 0 || curr.paddingTop != 0 ||
+                            curr.paddingRight != 0 || curr.paddingBottom != 0
+                        ) {
+                            curr.setPadding(0, 0, 0, 0)
+                        }
+                        curr.fitsSystemWindows = false
+                        curr.background = null
+                        curr.outlineProvider = null
+                        curr.clipToOutline = false
+                        if (curr is ViewGroup) {
+                            curr.clipChildren = false
+                            curr.clipToPadding = false
+                        }
+                    }
+                    val lp = curr.layoutParams
+                    if (lp != null) {
+                        var changed = false
+                        if (lp.width != realWidth) {
+                            lp.width = realWidth
+                            changed = true
+                        }
+                        if (lp.height != realHeight) {
+                            lp.height = realHeight
+                            changed = true
+                        }
+                        if (lp is ViewGroup.MarginLayoutParams) {
+                            if (lp.leftMargin != 0 || lp.topMargin != 0 ||
+                                lp.rightMargin != 0 || lp.bottomMargin != 0
+                            ) {
+                                lp.setMargins(0, 0, 0, 0)
+                                changed = true
+                            }
+                        }
+                        if (changed) {
+                            curr.layoutParams = lp
+                        }
+                    }
+                    curr = curr.parent as? View
                 }
             }
-        }
-        view.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
-        val attachListener = object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) {
-                findWindow(v)?.let { applyEdgeToEdge(it) }
-            }
-            override fun onViewDetachedFromWindow(v: View) {}
-        }
-        view.addOnAttachStateChangeListener(attachListener)
-        onDispose {
-            if (view.viewTreeObserver.isAlive) {
-                view.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
-            }
-            view.removeOnAttachStateChangeListener(attachListener)
-        }
-    }
 
-    SideEffect {
-        findWindow(view)?.let { applyEdgeToEdge(it) }
+            // Block ancestor views (like Android 8's FitWindowsLinearLayout / android.R.id.content)
+            // from consuming window insets as padding, while letting the Compose view receive them.
+            var ancestor: View? = view.parent as? View
+            while (ancestor != null) {
+                ViewCompat.setOnApplyWindowInsetsListener(ancestor) { v, insets ->
+                    if (v.paddingTop != 0 || v.paddingBottom != 0 || v.paddingLeft != 0 || v.paddingRight != 0) {
+                        v.setPadding(0, 0, 0, 0)
+                    }
+                    insets
+                }
+                ancestor = ancestor.parent as? View
+            }
+
+            enforceFullScreenHierarchy()
+
+            val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+                val parentView = view.parent as? View
+                val needsFix = view.height < realHeight ||
+                    view.width < realWidth ||
+                    (parentView != null && (parentView.height < realHeight || parentView.paddingBottom != 0 || parentView.paddingTop != 0)) ||
+                    window.decorView.paddingBottom != 0 ||
+                    window.decorView.paddingTop != 0
+                if (needsFix) {
+                    enforceFullScreenHierarchy()
+                }
+            }
+            view.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+
+            onDispose {
+                if (view.viewTreeObserver.isAlive) {
+                    view.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                }
+            }
+        } else {
+            onDispose { }
+        }
     }
 }
 
 /**
- * Reliable top status bar + extra margin padding for full-screen Dialogs on Android 8–14+.
- * On Android 8–10 (API 26–29), secondary Dialog windows with FLAG_LAYOUT_NO_LIMITS may report
- * 0dp for WindowInsets.statusBars, causing top headers to appear lifted or cropped. This modifier
- * falls back to the physical status_bar_height dimen resource so headers always have proper top margin.
+ * Reliable top & bottom system bar padding for full-screen Dialogs across Android 8–15.
+ * On Android 8–10, secondary Dialog windows with FLAG_LAYOUT_NO_LIMITS often receive 0dp
+ * from Compose's WindowInsets.systemBars inside the Dialog window, causing headers to overlap
+ * the status bar and bottom buttons to sit behind the 3-button navigation bar.
+ * This modifier reads the Activity window's real system bar insets (with safe fallbacks).
  */
-fun Modifier.dialogSafeTopPadding(extraTop: Dp = 8.dp): Modifier = composed {
+fun Modifier.dialogSystemBarsPadding(
+    extraTop: Dp = 0.dp,
+    extraBottom: Dp = 0.dp
+): Modifier = composed {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val resourceStatusBarHeight = remember(context, density) {
-        val resId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-        if (resId > 0) {
-            with(density) { context.resources.getDimensionPixelSize(resId).toDp() }
-        } else {
-            24.dp
+    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+
+    val (fallbackTopDp, fallbackBottomDp) = androidx.compose.runtime.remember(context, density) {
+        val res = context.resources
+        val statusId = res.getIdentifier("status_bar_height", "dimen", "android")
+        val statusPx = if (statusId > 0) res.getDimensionPixelSize(statusId) else 0
+        val topDp = with(density) {
+            if (statusPx > 0) statusPx.toDp() else 24.dp
         }
+
+        val activity = context.findActivity()
+        val actDecor = activity?.window?.decorView
+        val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
+        var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        if (navBottomPx <= 0) {
+            try {
+                val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val realMetrics = DisplayMetrics()
+                val usableMetrics = DisplayMetrics()
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getRealMetrics(realMetrics)
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getMetrics(usableMetrics)
+                val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
+                if (diffH > 0) {
+                    val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
+                    val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
+                    navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                }
+            } catch (_: Exception) {}
+        }
+        val bottomDp = with(density) {
+            if (navBottomPx > 0) navBottomPx.toDp() else 0.dp
+        }
+        topDp to bottomDp
     }
-    val insetTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val effectiveTop = maxOf(insetTop, resourceStatusBarHeight) + extraTop
-    this.padding(top = effectiveTop)
+
+    val topPadding = maxOf(composeInsets.calculateTopPadding(), fallbackTopDp) + extraTop
+    val bottomPadding = maxOf(composeInsets.calculateBottomPadding(), fallbackBottomDp) + extraBottom
+
+    this.padding(
+        PaddingValues(
+            top = topPadding,
+            bottom = bottomPadding
+        )
+    )
 }
 
-/**
- * Reliable bottom navigation bar padding for full-screen Dialogs on Android 8–14+.
- */
+fun Modifier.dialogSafeTopPadding(extraTop: Dp = 0.dp): Modifier = composed {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+
+    val fallbackTopDp = androidx.compose.runtime.remember(context, density) {
+        val res = context.resources
+        val statusId = res.getIdentifier("status_bar_height", "dimen", "android")
+        val statusPx = if (statusId > 0) res.getDimensionPixelSize(statusId) else 0
+        with(density) {
+            if (statusPx > 0) statusPx.toDp() else 24.dp
+        }
+    }
+
+    val topPadding = maxOf(composeInsets.calculateTopPadding(), fallbackTopDp) + extraTop
+    this.padding(top = topPadding)
+}
+
 fun Modifier.dialogSafeBottomPadding(extraBottom: Dp = 0.dp): Modifier = composed {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val resourceNavBarHeight = remember(context, density) {
-        val resId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        val hasNavId = context.resources.getIdentifier("config_showNavigationBar", "bool", "android")
-        val hasNav = if (hasNavId > 0) context.resources.getBoolean(hasNavId) else true
-        if (resId > 0 && hasNav) {
-            with(density) { context.resources.getDimensionPixelSize(resId).toDp() }
-        } else {
-            0.dp
+    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+
+    val fallbackBottomDp = androidx.compose.runtime.remember(context, density) {
+        val res = context.resources
+        val activity = context.findActivity()
+        val actDecor = activity?.window?.decorView
+        val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
+        var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        if (navBottomPx <= 0) {
+            try {
+                val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val realMetrics = DisplayMetrics()
+                val usableMetrics = DisplayMetrics()
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getRealMetrics(realMetrics)
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getMetrics(usableMetrics)
+                val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
+                if (diffH > 0) {
+                    val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
+                    val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
+                    navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                }
+            } catch (_: Exception) {}
+        }
+        with(density) {
+            if (navBottomPx > 0) navBottomPx.toDp() else 0.dp
         }
     }
-    val insetBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val effectiveBottom = maxOf(insetBottom, resourceNavBarHeight) + extraBottom
-    this.padding(bottom = effectiveBottom)
-}
 
-fun Modifier.dialogSystemBarsPadding(extraTop: Dp = 8.dp, extraBottom: Dp = 0.dp): Modifier =
-    this.dialogSafeTopPadding(extraTop = extraTop).dialogSafeBottomPadding(extraBottom = extraBottom)
+    val bottomPadding = maxOf(composeInsets.calculateBottomPadding(), fallbackBottomDp) + extraBottom
+    this.padding(bottom = bottomPadding)
+}
 

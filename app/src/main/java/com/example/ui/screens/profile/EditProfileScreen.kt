@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.gestures.detectTapGestures
+import com.example.data.model.BankAccountEntity
 import com.example.data.model.OwnerAccountEntity
 import com.example.ui.components.GlassButton
 import com.example.ui.components.GlassCard
@@ -225,10 +226,11 @@ fun OwnerProfileScreen(
 
                     if (ownerAccounts.isNotEmpty()) {
                         items(ownerAccounts, key = { it.id }) { acc ->
-                            OwnerAccountCard(viewModel = viewModel,
+                            OwnerAccountCard(
+                                viewModel = viewModel,
                                 account = acc,
                                 isDefault = (acc.id == userProfile.defaultOwnerAccountId),
-                                isVisibleOnExtra = (acc.id in visibleOwnerAccountIds),
+                                isVisibleOnExtra = (acc.linkedBankAccountId != null || acc.id in visibleOwnerAccountIds),
                                 onSetDefault = {
                                     viewModel.saveUserProfile(userProfile.copy(defaultOwnerAccountId = acc.id))
                                 },
@@ -257,7 +259,7 @@ fun OwnerProfileScreen(
                         ) {
                             Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Add Daily Transaction Account", fontWeight = FontWeight.Bold)
+                            Text("Add Profile Account", fontWeight = FontWeight.Bold)
                         }
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -309,33 +311,45 @@ fun OwnerProfileScreen(
 
     if (showAddAccountDialog || accountToEdit != null) {
         val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+        val linkedBank = accountToEdit?.linkedBankAccountId?.let { linkedId ->
+            allBankAccounts.find { it.id == linkedId && !it.isDeleted }
+        }
         val targetBank = accountToEdit?.let { ownerAcc ->
-            allBankAccounts.find { it.name.equals(ownerAcc.accountName, ignoreCase = true) }
-                ?: com.example.data.model.BankAccountEntity(
-                    id = 0,
-                    name = ownerAcc.accountName,
-                    balance = 0.0,
-                    initialBalance = 0.0,
-                    accountNumber = ownerAcc.accountNumber,
-                    ifsc = ownerAcc.ifscCode,
-                    branchName = ownerAcc.branchName,
-                    upiId = ownerAcc.upiId,
-                    qrCodeUri = ownerAcc.qrCodeUri
-                )
+            BankAccountEntity(
+                id = linkedBank?.id ?: 0,
+                name = ownerAcc.accountName,
+                balance = linkedBank?.balance ?: 0.0,
+                initialBalance = linkedBank?.initialBalance ?: 0.0,
+                details = linkedBank?.details ?: ownerAcc.notes,
+                notes = ownerAcc.notes,
+                phoneNumber = ownerAcc.ownerMobile,
+                whatsappNumber = ownerAcc.whatsappNumber,
+                email = ownerAcc.email,
+                accountNumber = ownerAcc.accountNumber,
+                ifsc = ownerAcc.ifscCode,
+                branchName = ownerAcc.branchName,
+                upiId = ownerAcc.upiId,
+                qrCodeUri = ownerAcc.qrCodeUri
+            )
         }
 
-        UnifiedAccountDialog(viewModel = viewModel,
+        UnifiedAccountDialog(
+            viewModel = viewModel,
             account = targetBank,
-            prefLanguage = "en",
-            accountsCount = allBankAccounts.size,
+            prefLanguage = userProfile.language,
+            accountsCount = ownerAccounts.size,
             onDismiss = {
                 showAddAccountDialog = false
                 accountToEdit = null
             },
-            onSave = { accName, accBal, details, upi, qrUri, accNum, ifscCode, branch ->
+            onSaveExtended = { accName, accBal, details, upi, qrUri, accNum, ifscCode, branch, notes, phone, whatsapp, email ->
                 if (accountToEdit != null) {
                     val updated = accountToEdit!!.copy(
                         accountName = accName,
+                        ownerMobile = phone.ifBlank { accountToEdit!!.ownerMobile },
+                        whatsappNumber = whatsapp,
+                        email = email,
+                        notes = notes.ifBlank { details },
                         accountNumber = accNum,
                         ifscCode = ifscCode,
                         branchName = branch,
@@ -343,18 +357,17 @@ fun OwnerProfileScreen(
                         qrCodeUri = qrUri
                     )
                     viewModel.updateOwnerAccount(updated)
-
-                    val matchingBank = allBankAccounts.find {
-                        it.name.equals(accountToEdit!!.accountName, ignoreCase = true) ||
-                        it.name.equals(accName, ignoreCase = true)
-                    }
-                    if (matchingBank != null) {
+                    // If linked to an Extras BankAccount, also sync balance/details
+                    if (linkedBank != null) {
                         viewModel.editVirtualAccount(
-                            matchingBank.copy(
+                            linkedBank.copy(
                                 name = accName,
-                                balance = accBal,
                                 initialBalance = accBal,
                                 details = details,
+                                notes = notes,
+                                phoneNumber = phone,
+                                whatsappNumber = whatsapp,
+                                email = email,
                                 qrCodeUri = qrUri,
                                 upiId = upi,
                                 accountNumber = accNum,
@@ -362,47 +375,31 @@ fun OwnerProfileScreen(
                                 branchName = branch
                             )
                         )
-                    } else {
-                        viewModel.addVirtualAccount(
-                            name = accName,
-                            balance = accBal,
-                            details = details,
-                            qrCodeUri = qrUri,
-                            upiId = upi,
-                            accountNumber = accNum,
-                            ifsc = ifscCode,
-                            branchName = branch
-                        )
                     }
                 } else {
-                    val ownerNameVal = userProfile?.name?.ifBlank { accName } ?: accName
+                    // Sandboxed by default: creates OwnerAccountEntity in Profile ONLY unless user links it
+                    val ownerNameVal = userProfile.name.ifBlank { accName }
                     val newAcc = OwnerAccountEntity(
                         ownerName = ownerNameVal,
+                        ownerMobile = phone.ifBlank { userProfile.contact },
+                        whatsappNumber = whatsapp,
+                        email = email,
+                        notes = notes.ifBlank { details },
                         accountName = accName,
                         accountNumber = accNum,
                         ifscCode = ifscCode,
                         branchName = branch,
                         upiId = upi,
-                        qrCodeUri = qrUri
+                        qrCodeUri = qrUri,
+                        linkedBankAccountId = null
                     )
                     viewModel.addOwnerAccount(newAcc)
-                    viewModel.addVirtualAccount(
-                        name = accName,
-                        balance = accBal,
-                        details = details,
-                        qrCodeUri = qrUri,
-                        upiId = upi,
-                        accountNumber = accNum,
-                        ifsc = ifscCode,
-                        branchName = branch
-                    )
                 }
                 showAddAccountDialog = false
                 accountToEdit = null
             },
-            onDelete = if (targetBank != null && allBankAccounts.size > 1) {
+            onDelete = if (accountToEdit != null && ownerAccounts.size > 1) {
                 {
-                    viewModel.deleteVirtualAccount(targetBank)
                     accountToEdit?.let { viewModel.deleteOwnerAccount(it) }
                     showAddAccountDialog = false
                     accountToEdit = null
@@ -683,10 +680,60 @@ fun OwnerAccountCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     var showQRDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showViewDetailsModal by remember { mutableStateOf(false) }
+    var showDelinkDialog by remember { mutableStateOf(false) }
+    val isLinkedToExtras = account.linkedBankAccountId != null
+
+    val exportAccountCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null && account.linkedBankAccountId != null) {
+            viewModel.exportDataCsv(
+                type = com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT,
+                bankAccountId = account.linkedBankAccountId
+            ) { csv ->
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(csv.toByteArray(Charsets.UTF_8))
+                    }
+                    android.widget.Toast.makeText(context, "Transaction history downloaded! Account de-linked.", android.widget.Toast.LENGTH_SHORT).show()
+                    viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = true)
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    if (showDelinkDialog) {
+        DelinkAccountFromExtrasDialog(
+            accountName = account.accountName.ifBlank { account.ownerName },
+            onMoveToBin = {
+                showDelinkDialog = false
+                viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = true)
+                android.widget.Toast.makeText(context, "Extras account & history moved to Recycle Bin", android.widget.Toast.LENGTH_SHORT).show()
+            },
+            onDownloadHistory = {
+                showDelinkDialog = false
+                val safeName = account.accountName.ifBlank { "account" }.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                exportAccountCsvLauncher.launch("${safeName}_history.csv")
+            },
+            onOpenExportTool = {
+                showDelinkDialog = false
+                viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = false)
+                android.widget.Toast.makeText(
+                    context,
+                    "Account de-linked. Open Settings > Data & Backups to export (Note: only QR, JSON, CSV, or Copy-Paste exports exclude media attachments).",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            },
+            onDismiss = { showDelinkDialog = false }
+        )
+    }
 
     if (showViewDetailsModal) {
         ViewAccountDialog(viewModel = viewModel,
@@ -762,7 +809,7 @@ fun OwnerAccountCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = account.accountName.ifBlank { "Daily Transaction Account" },
+                            text = account.accountName.ifBlank { "Profile Account" },
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = AppTextColor(),
@@ -784,12 +831,35 @@ fun OwnerAccountCard(
                                 }
                             }
                         }
+                        Surface(
+                            color = if (isLinkedToExtras) AccentGreen.copy(alpha = 0.15f) else AppTextColor().copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isLinkedToExtras) Icons.Default.Link else Icons.Default.LinkOff,
+                                    contentDescription = null,
+                                    tint = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (isLinkedToExtras) "Linked to Extras" else "Profile Only",
+                                    color = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (account.upiId.isNotBlank()) account.upiId
                                else if (account.accountNumber.isNotBlank()) "A/C: •••• ${account.accountNumber.takeLast(4)}"
-                               else "Daily Transaction Account",
+                               else "Profile Payment Account",
                         fontSize = 12.sp,
                         color = AppSecondaryTextColor(),
                         maxLines = 1,
@@ -798,7 +868,7 @@ fun OwnerAccountCard(
                 }
             }
 
-            Box {
+            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                 IconButton(
                     onClick = { showOverflowMenu = true },
                     modifier = Modifier.size(32.dp)
@@ -814,6 +884,7 @@ fun OwnerAccountCard(
                 DropdownMenu(
                     expanded = showOverflowMenu,
                     onDismissRequest = { showOverflowMenu = false },
+                    offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
                     modifier = Modifier
                         .background(getDialogBackground())
                         .clip(RoundedCornerShape(14.dp))
@@ -827,10 +898,28 @@ fun OwnerAccountCard(
                     )
                     if (!isDefault) {
                         DropdownMenuItem(
-                            text = { Text("Set as Default", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                            text = { Text("Set as Default Profile Account", color = AccentGold, fontWeight = FontWeight.SemiBold) },
                             onClick = {
                                 showOverflowMenu = false
                                 onSetDefault()
+                            }
+                        )
+                    }
+                    if (isLinkedToExtras) {
+                        DropdownMenuItem(
+                            text = { Text("De-link from Extras Page", color = AccentPink, fontWeight = FontWeight.SemiBold) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showDelinkDialog = true
+                            }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Link to Extras Page (2-Way Sync)", color = AccentGreen, fontWeight = FontWeight.SemiBold) },
+                            onClick = {
+                                showOverflowMenu = false
+                                viewModel.linkOwnerAccountToExtras(account)
+                                android.widget.Toast.makeText(context, "Linked to Extras page with 2-way sync!", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -861,6 +950,104 @@ fun OwnerAccountCard(
             }
         }
     }
+}
+
+@Composable
+fun DelinkAccountFromExtrasDialog(
+    accountName: String,
+    onMoveToBin: () -> Unit,
+    onDownloadHistory: () -> Unit,
+    onOpenExportTool: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LinkOff, contentDescription = null, tint = AccentPink, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "De-link '$accountName' from Extras?",
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "This account remains in your Owner Profile, but what should happen to its Extras ledger and transaction history data?",
+                    color = AppSecondaryTextColor(),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = AppAccentColor().copy(alpha = 0.08f)
+                ) {
+                    Text(
+                        text = "ℹ️ Media Restriction Note: Only QR, JSON, CSV, or Copy-Paste exports exclude media attachments for compact size. Full ZIP backups include all media.",
+                        color = AppTextColor().copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+
+                Button(
+                    onClick = onMoveToBin,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentPink.copy(alpha = 0.16f),
+                        contentColor = AccentPink
+                    )
+                ) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Move Extras Data & History to Bin", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onDownloadHistory,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentGreen.copy(alpha = 0.16f),
+                        contentColor = AccentGreen
+                    )
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Download Transaction History (CSV)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onOpenExportTool,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppAccentColor().copy(alpha = 0.16f),
+                        contentColor = AppAccentColor()
+                    )
+                ) {
+                    Icon(Icons.Default.ImportExport, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("De-link & Use App Export Tool", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = AppSecondaryTextColor())
+            }
+        }
+    )
 }
 
 @Composable
@@ -1221,20 +1408,23 @@ fun OwnerQRViewerDialog(
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val ownerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle()
 
-    val ownerAccount = ownerAccounts.find { it.id == userProfile.defaultOwnerAccountId }
-        ?: ownerAccounts.firstOrNull { it.qrCodeUri.isNotBlank() }
-        ?: ownerAccounts.firstOrNull()
+    val ownerAccount = ownerAccounts.find { it.id == userProfile.defaultOwnerAccountId && !it.isDeleted }
+        ?: ownerAccounts.firstOrNull { !it.isDeleted && it.qrCodeUri.isNotBlank() }
+        ?: ownerAccounts.firstOrNull { !it.isDeleted }
 
     val qrUri = ownerAccount?.qrCodeUri.orEmpty()
     val upiId = ownerAccount?.upiId.orEmpty()
-    val ownerName = userProfile.name.ifBlank { ownerAccount?.ownerName.orEmpty().ifBlank { "Owner QR" } }
+    val bankLabel = ownerAccount?.accountName.orEmpty()
+    val accNumber = ownerAccount?.accountNumber.orEmpty()
+    val ifscCode = ownerAccount?.ifscCode.orEmpty()
+    val ownerName = userProfile.name.ifBlank { ownerAccount?.ownerName.orEmpty().ifBlank { "Owner Payment Details" } }
+    val hasAnyPaymentDetails = qrUri.isNotBlank() || upiId.isNotBlank() || accNumber.isNotBlank() || bankLabel.isNotBlank()
 
     androidx.activity.compose.BackHandler {
         onDismiss()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1249,11 +1439,12 @@ fun OwnerQRViewerDialog(
                     .navigationBarsPadding(),
                 contentAlignment = Alignment.Center
             ) {
-                if (qrUri.isBlank()) {
+                if (!hasAnyPaymentDetails) {
                     GlassCard(
                         modifier = Modifier
                             .padding(24.dp)
                             .fillMaxWidth()
+                            .widthIn(max = 460.dp)
                             .clickable(enabled = false) {},
                         cornerRadius = 24.dp
                     ) {
@@ -1269,14 +1460,14 @@ fun OwnerQRViewerDialog(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No Owner UPI QR Code Found",
+                                text = "No Default Profile Payment Account",
                                 color = AppTextColor(),
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Upload your personal UPI QR code in the Owner Profile to display it here on double-tapping your greeting.",
+                                text = "Add a payment account or UPI QR code in your Owner Profile and set it as Default to display it here when double-tapping the greeting.",
                                 color = AppSecondaryTextColor(),
                                 fontSize = 14.sp,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1287,7 +1478,7 @@ fun OwnerQRViewerDialog(
                                     onDismiss()
                                     onOpenOwnerProfile?.invoke()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = Color.Black),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Open Owner Profile", fontWeight = FontWeight.Bold)
@@ -1300,6 +1491,7 @@ fun OwnerQRViewerDialog(
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .padding(24.dp)
+                            .widthIn(max = 460.dp)
                             .clickable(enabled = false) {}
                     ) {
                         Text(
@@ -1310,30 +1502,55 @@ fun OwnerQRViewerDialog(
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
+                        if (bankLabel.isNotBlank()) {
+                            Text(
+                                text = "$bankLabel (Default Profile Account)",
+                                color = AccentGold,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
                         if (upiId.isNotBlank()) {
                             Text(
-                                text = upiId,
+                                text = "UPI: $upiId",
                                 color = AppAccentColor(),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(bottom = 16.dp)
+                                modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.White,
-                            shadowElevation = 12.dp,
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            AsyncImage(
-                                model = qrUri,
-                                contentDescription = "Owner QR Code",
-                                modifier = Modifier
-                                    .size(280.dp)
-                                    .padding(12.dp),
-                                contentScale = ContentScale.Fit
+                        if (accNumber.isNotBlank() || ifscCode.isNotBlank()) {
+                            Text(
+                                text = buildString {
+                                    if (accNumber.isNotBlank()) append("A/C: $accNumber")
+                                    if (accNumber.isNotBlank() && ifscCode.isNotBlank()) append(" • ")
+                                    if (ifscCode.isNotBlank()) append("IFSC: $ifscCode")
+                                },
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 13.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(bottom = 14.dp)
                             )
+                        }
+                        if (qrUri.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.White,
+                                shadowElevation = 12.dp,
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                AsyncImage(
+                                    model = qrUri,
+                                    contentDescription = "Owner QR Code",
+                                    modifier = Modifier
+                                        .size(280.dp)
+                                        .padding(12.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         }
                     }
                 }

@@ -40,10 +40,12 @@ fun FullScreenOverlay(
         )
     ) {
         DialogEdgeToEdge()
-        Box(
-            modifier = modifier.fillMaxSize().zIndex(1000f)
-        ) {
-            content()
+        AppThemeProvider(viewModel = viewModel) {
+            Box(
+                modifier = modifier.fillMaxSize().zIndex(1000f)
+            ) {
+                content()
+            }
         }
     }
 }

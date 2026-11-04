@@ -47,7 +47,8 @@ fun AppearanceSettingsScreen(
     val textSizes = listOf(
         Pair("Small", if (prefLanguage == "bn") "ছোট" else "Small"),
         Pair("Medium", if (prefLanguage == "bn") "সাধারণ" else "Medium"),
-        Pair("Large", if (prefLanguage == "bn") "বড়" else "Large")
+        Pair("Large", if (prefLanguage == "bn") "বড়" else "Large"),
+        Pair("Extra Large", if (prefLanguage == "bn") "অতি বড়" else "XL")
     )
 
     val isLightMode = isAppLightMode()
@@ -116,9 +117,23 @@ fun AppearanceSettingsScreen(
             }
         }
 
-        // 3. Text Scaling
+        // 3. Text Scaling & Bold Text
         item {
-            PixelSettingsGroup(title = if (prefLanguage == "bn") "টেক্সট সাইজ ও স্কেলিং" else "Typography & Text Scale") {
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "টেক্সট সাইজ ও বোল্ড ফন্ট" else "Typography, Bold Text & Scale") {
+                PixelSettingsSwitchItem(
+                    icon = Icons.Default.FormatBold,
+                    title = if (prefLanguage == "bn") "বোল্ড টেক্সট (Bold Text)" else "Bold Text",
+                    subtitle = if (prefLanguage == "bn") {
+                        "অ্যাপের সমস্ত লেখার ওজন ও স্পষ্টতা বাড়াতে বোল্ড ফন্ট ব্যবহার করুন"
+                    } else {
+                        "Render all text across the app with heavier, high-contrast bold font weights"
+                    },
+                    checked = userProfile.isBoldTextEnabled,
+                    onCheckedChange = { isChecked ->
+                        viewModel.toggleBoldText(isChecked)
+                    },
+                    showDivider = true
+                )
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Text(
                         text = if (prefLanguage == "bn") "অ্যাপের সামগ্রিক ফন্ট সাইজ সামঞ্জস্য করুন" else "Adjust system text size across all views",
@@ -158,6 +173,91 @@ fun AppearanceSettingsScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // 3b. Sticky Notes Customization
+        item {
+            val widthPercent = userProfile.stickyCardWidthPercent.coerceIn(50, 80)
+            val previewLines = userProfile.stickyPreviewLines.coerceIn(4, 10)
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "স্টিকি নোটস কার্ড ও প্রিভিউ" else "Sticky Notes Card & Preview") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (prefLanguage == "bn") "স্টিকি কার্ডের প্রস্থ (সর্বোচ্চ ৮০%)" else "Sticky Card Width (Max 80%)",
+                            color = AppTextColor(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "$widthPercent%",
+                            color = AppAccentColor(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = widthPercent.toFloat(),
+                        onValueChange = { newVal ->
+                            viewModel.updateStickyPreferences(newVal.toInt().coerceIn(50, 80), previewLines)
+                        },
+                        valueRange = 50f..80f,
+                        steps = 5,
+                        colors = SliderDefaults.colors(
+                            thumbColor = AppAccentColor(),
+                            activeTrackColor = AppAccentColor()
+                        )
+                    )
+
+                    HorizontalDivider(color = getGlassBorder().copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (prefLanguage == "bn") "প্রিভিউ লাইন সংখ্যা (৪ - ১০)" else "Preview Lines (4 to 10 lines)",
+                                color = AppTextColor(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (prefLanguage == "bn") "টেক্সট লাইন এবং টেবিল সারি উভয়ই গণনা করা হয়" else "Counts both text lines and table rows (Default: 10)",
+                                color = AppSecondaryTextColor(),
+                                fontSize = 12.sp
+                            )
+                        }
+                        Text(
+                            text = "$previewLines lines",
+                            color = AppAccentColor(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = previewLines.toFloat(),
+                        onValueChange = { newVal ->
+                            viewModel.updateStickyPreferences(widthPercent, newVal.toInt().coerceIn(4, 10))
+                        },
+                        valueRange = 4f..10f,
+                        steps = 5,
+                        colors = SliderDefaults.colors(
+                            thumbColor = AppAccentColor(),
+                            activeTrackColor = AppAccentColor()
+                        )
+                    )
                 }
             }
         }

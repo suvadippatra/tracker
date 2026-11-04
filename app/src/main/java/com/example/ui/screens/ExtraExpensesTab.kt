@@ -593,8 +593,21 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
                         var showAccountMenu by remember { mutableStateOf(false) }
                         var showQRDialog by remember { mutableStateOf(false) }
+                        var showContactDialog by remember { mutableStateOf(false) }
                         var showFullScreenQR by remember { mutableStateOf(false) }
                         var showDeleteDialog by remember { mutableStateOf(false) }
+
+                        if (showContactDialog) {
+                            AccountContactOptionsDialog(
+                                account = account,
+                                prefLanguage = prefLanguage,
+                                onDismiss = { showContactDialog = false },
+                                onEditAccount = {
+                                    showContactDialog = false
+                                    editingAccount = account
+                                }
+                            )
+                        }
 
                         if (showDeleteDialog) {
                             com.example.ui.components.Tier1DeleteDialog(
@@ -678,6 +691,16 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                         }
                                         
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = { showContactDialog = true },
+                                                modifier = Modifier.testTag("account_contact_btn_${account.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Phone,
+                                                    contentDescription = "Contact Options",
+                                                    tint = AccentGreen
+                                                )
+                                            }
                                             IconButton(onClick = { showQRDialog = true }) {
                                                 Icon(Icons.Default.Info, contentDescription = "Account Info", tint = AppAccentColor())
                                             }
@@ -688,6 +711,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                 DropdownMenu(
                                                     expanded = showAccountMenu,
                                                     onDismissRequest = { showAccountMenu = false },
+                                                    offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
                                                     modifier = Modifier.background(getDialogBackground())
                                                 ) {
                                                     DropdownMenuItem(
@@ -755,16 +779,17 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
                                             text = if (prefLanguage == "bn") "চলতি ব্যালেন্স" else "Current Balance",
-                                            color = AppTextColor().copy(alpha = 0.5f),
-                                            fontSize = 11.sp
+                                            color = AppTextColor().copy(alpha = 0.55f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
                                         )
                                         RollingNumberText(
                                             value = computedAccBalance,
                                             prefix = "₹",
                                             style = TextStyle(
                                                 color = AppTextColor(),
-                                                fontSize = 28.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontSize = 30.sp,
+                                                fontWeight = FontWeight.ExtraBold
                                             )
                                         )
 
@@ -1100,6 +1125,60 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                                 }
                                                             }
                                                         }
+
+                                                        if (account.phoneNumber.isNotBlank() || account.whatsappNumber.isNotBlank() || account.email.isNotBlank()) {
+                                                            HorizontalDivider(color = getGlassBorder())
+                                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                                Text(
+                                                                    text = if (isBengali) "যোগাযোগের মাধ্যম" else "Contact Channels",
+                                                                    color = AppTextColor().copy(alpha = 0.6f),
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                                if (account.phoneNumber.isNotBlank()) {
+                                                                    Text("Phone / SMS: ${account.phoneNumber}", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                                }
+                                                                if (account.whatsappNumber.isNotBlank()) {
+                                                                    Text("WhatsApp: ${account.whatsappNumber}", color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                                }
+                                                                if (account.email.isNotBlank()) {
+                                                                    Text("Email: ${account.email}", color = AppAccentColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                val combinedNotes = listOf(account.notes.trim(), account.details.trim())
+                                                    .filter { it.isNotBlank() }
+                                                    .distinct()
+                                                    .joinToString("\n\n")
+                                                if (combinedNotes.isNotBlank()) {
+                                                    Spacer(modifier = Modifier.height(16.dp))
+                                                    Card(
+                                                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
+                                                        shape = RoundedCornerShape(16.dp),
+                                                        border = BorderStroke(1.dp, getGlassBorder()),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(Icons.Default.StickyNote2, contentDescription = null, tint = AccentGold, modifier = Modifier.size(18.dp))
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text(
+                                                                    text = if (isBengali) "সংক্ষিপ্ত নোট" else "Short Notes",
+                                                                    color = AppTextColor(),
+                                                                    fontSize = 14.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = combinedNotes,
+                                                                color = AppTextColor().copy(alpha = 0.85f),
+                                                                fontSize = 13.sp,
+                                                                lineHeight = 19.sp
+                                                            )
+                                                        }
                                                     }
                                                 }
 
@@ -1199,6 +1278,17 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                         }
                     }
                     }
+            }
+
+            // Tablet Dedicated Account Information Panel so wide screens show full account info instead of empty space
+            val config = androidx.compose.ui.platform.LocalConfiguration.current
+            if (config.screenWidthDp >= 600 && selectedAccount != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                TabletAccountInfoPanel(
+                    account = selectedAccount,
+                    prefLanguage = prefLanguage,
+                    onEdit = { editingAccount = selectedAccount }
+                )
             }
         }
 
@@ -1513,11 +1603,15 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
             prefLanguage = prefLanguage,
             accountsCount = accounts.size,
             onDismiss = { showAddAccountDialog = false },
-            onSave = { name, initialBal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName ->
+            onSaveExtended = { name, initialBal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email ->
                 viewModel.addVirtualAccount(
                     name = name,
                     balance = initialBal,
                     details = details,
+                    notes = notes,
+                    phoneNumber = phoneNumber,
+                    whatsappNumber = whatsappNumber,
+                    email = email,
                     qrCodeUri = qrCodeUri,
                     upiId = upiId,
                     accountNumber = accountNumber,
@@ -1536,7 +1630,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
             prefLanguage = prefLanguage,
             accountsCount = accounts.size,
             onDismiss = { editingAccount = null },
-            onSave = { name, initialBal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName ->
+            onSaveExtended = { name, initialBal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email ->
                 val acc = editingAccount!!
                 val accInc = expenses.filter { it.bankAccountId == acc.id && !it.isDeleted && it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
                 val accExp = expenses.filter { it.bankAccountId == acc.id && !it.isDeleted && it.type.equals("EXPENSE", ignoreCase = true) }.sumOf { it.amount }
@@ -1547,6 +1641,10 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                         balance = newComputedBalance,
                         initialBalance = initialBal,
                         details = details,
+                        notes = notes,
+                        phoneNumber = phoneNumber,
+                        whatsappNumber = whatsappNumber,
+                        email = email,
                         upiId = upiId,
                         qrCodeUri = qrCodeUri,
                         accountNumber = accountNumber,
@@ -1561,6 +1659,282 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                 editingAccount = null
             }
         )
+    }
+}
+
+@Composable
+fun AccountContactOptionsDialog(
+    account: BankAccountEntity,
+    prefLanguage: String,
+    onDismiss: () -> Unit,
+    onEditAccount: () -> Unit
+) {
+    val context = LocalContext.current
+    val isBn = prefLanguage == "bn"
+    val emailAddr = account.email.trim()
+    val whatsappNum = account.whatsappNumber.ifBlank { account.phoneNumber }.trim()
+    val smsNum = account.phoneNumber.ifBlank { account.whatsappNumber }.trim()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isBn) "যোগাযোগের মাধ্যম" else "Contact Options",
+                        color = AppTextColor(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = account.name,
+                        color = AppAccentColor(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (emailAddr.isBlank() && whatsappNum.isBlank() && smsNum.isBlank()) {
+                    Text(
+                        text = if (isBn) "এই অ্যাকাউন্টে এখনো কোনো ফোন নম্বর বা ইমেইল যোগ করা হয়নি।" else "No Email, WhatsApp, or SMS number configured for this account yet.",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 13.sp
+                    )
+                }
+
+                // 1. Mail Option
+                Button(
+                    onClick = {
+                        if (emailAddr.isBlank()) {
+                            android.widget.Toast.makeText(context, if (isBn) "প্রথমে ইমেইল ঠিকানা যুক্ত করুন" else "Please set an Email address in Edit Account", android.widget.Toast.LENGTH_SHORT).show()
+                            onEditAccount()
+                        } else {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:$emailAddr")
+                                }
+                                context.startActivity(intent)
+                                onDismiss()
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Could not open Mail app", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppAccentColor().copy(alpha = 0.14f),
+                        contentColor = AppAccentColor()
+                    )
+                ) {
+                    Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (emailAddr.isNotBlank()) "Mail ($emailAddr)" else (if (isBn) "ইমেইল পাঠান (সেট করুন)" else "Send Email (Set Address)"),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 2. WhatsApp Option
+                Button(
+                    onClick = {
+                        if (whatsappNum.isBlank()) {
+                            android.widget.Toast.makeText(context, if (isBn) "প্রথমে হোয়াটসঅ্যাপ নম্বর যুক্ত করুন" else "Please set a WhatsApp number in Edit Account", android.widget.Toast.LENGTH_SHORT).show()
+                            onEditAccount()
+                        } else {
+                            try {
+                                val cleanDigits = whatsappNum.replace(Regex("[^0-9+]"), "").removePrefix("+")
+                                val normalized = if (cleanDigits.length == 10) "91$cleanDigits" else cleanDigits
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse("https://wa.me/$normalized")
+                                }
+                                context.startActivity(intent)
+                                onDismiss()
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Could not open WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentGreen.copy(alpha = 0.16f),
+                        contentColor = AccentGreen
+                    )
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (whatsappNum.isNotBlank()) "WhatsApp ($whatsappNum)" else (if (isBn) "হোয়াটসঅ্যাপ চ্যাট (সেট করুন)" else "WhatsApp Chat (Set Number)"),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 3. Text Message (SMS) Option
+                Button(
+                    onClick = {
+                        if (smsNum.isBlank()) {
+                            android.widget.Toast.makeText(context, if (isBn) "প্রথমে ফোন নম্বর যুক্ত করুন" else "Please set a Phone/SMS number in Edit Account", android.widget.Toast.LENGTH_SHORT).show()
+                            onEditAccount()
+                        } else {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("smsto:$smsNum")
+                                }
+                                context.startActivity(intent)
+                                onDismiss()
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Could not open SMS app", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentGold.copy(alpha = 0.16f),
+                        contentColor = AccentGold
+                    )
+                ) {
+                    Icon(Icons.Default.Sms, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (smsNum.isNotBlank()) "Text Message / SMS ($smsNum)" else (if (isBn) "টেক্সট মেসেজ / SMS (সেট করুন)" else "Text Message / SMS (Set Number)"),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onEditAccount) {
+                Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (isBn) "যোগাযোগের তথ্য সম্পাদনা" else "Edit Contact Info", color = AppAccentColor(), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isBn) "বন্ধ করুন" else "Close", color = AppSecondaryTextColor())
+            }
+        }
+    )
+}
+
+@Composable
+fun TabletAccountInfoPanel(
+    account: BankAccountEntity,
+    prefLanguage: String,
+    onEdit: () -> Unit
+) {
+    val isBn = prefLanguage == "bn"
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isBn) "অ্যাকাউন্ট তথ্য ও সংক্ষিপ্ত নোট" else "Account Overview & Notes",
+                        color = AppTextColor(),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                TextButton(onClick = onEdit) {
+                    Text(if (isBn) "সম্পাদনা" else "Edit", color = AppAccentColor(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (account.accountNumber.isNotBlank()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Account No.", color = AppSecondaryTextColor(), fontSize = 11.sp)
+                        Text(account.accountNumber, color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (account.ifsc.isNotBlank()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("IFSC", color = AppSecondaryTextColor(), fontSize = 11.sp)
+                        Text(account.ifsc, color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (account.upiId.isNotBlank()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("UPI ID", color = AppSecondaryTextColor(), fontSize = 11.sp)
+                        Text(account.upiId, color = AppAccentColor(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            if (account.phoneNumber.isNotBlank() || account.whatsappNumber.isNotBlank() || account.email.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (account.phoneNumber.isNotBlank()) {
+                        Text("Ph: ${account.phoneNumber}", color = AppSecondaryTextColor(), fontSize = 12.sp)
+                    }
+                    if (account.whatsappNumber.isNotBlank()) {
+                        Text("WA: ${account.whatsappNumber}", color = AccentGreen, fontSize = 12.sp)
+                    }
+                    if (account.email.isNotBlank()) {
+                        Text("Mail: ${account.email}", color = AppAccentColor(), fontSize = 12.sp)
+                    }
+                }
+            }
+
+            val combinedNotes = listOf(account.notes.trim(), account.details.trim())
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(" • ")
+            if (combinedNotes.isNotBlank()) {
+                HorizontalDivider(color = getGlassBorder().copy(alpha = 0.4f))
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Default.StickyNote2, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp).padding(top = 2.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = combinedNotes,
+                        color = AppTextColor().copy(alpha = 0.85f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
     }
 }
 

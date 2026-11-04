@@ -32,13 +32,17 @@ val HighContrastUnpaidTextDark = Color(0xFFFF8A80)
 // Material 3 Solid Theme Surface Tokens
 val M3BackgroundDark = Color(0xFF121212)
 val M3SurfaceDark = Color(0xFF1E1E1E)
+val M3SurfaceContainerDark = Color(0xFF1E222B)
 val M3SurfaceHighDark = Color(0xFF252525)
+val M3SurfaceContainerHighDark = Color(0xFF282D38)
 val M3OutlineDark = Color(0xFF262B36)
 val M3OutlineVariantDark = Color(0xFF2E3646)
 
 val M3BackgroundLight = Color(0xFFF8FAFC)
 val M3SurfaceLight = Color(0xFFFFFFFF)
+val M3SurfaceContainerLight = Color(0xFFFFFFFF)
 val M3SurfaceHighLight = Color(0xFFF1F5F9)
+val M3SurfaceContainerHighLight = Color(0xFFF1F5F9)
 val M3OutlineLight = Color(0xFFE2E8F0)
 val M3OutlineVariantLight = Color(0xFFCBD5E1)
 

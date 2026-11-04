@@ -1,182 +1,138 @@
-# Traker — Billing Interpolation, Material 3 Light Mode Polish, Android 8–10 Edge-to-Edge Fix, History Ledgers & Normalized QR/Data Export Plan
+# Implementation Plan: Android 8 Full-Screen Fix, Sticky Wall Tab, Profile Account Sync & UI Overhaul
 
-This plan details the architecture and UX upgrades to resolve inactive/interpolated electricity billing math (with unit tests), eliminate Light Mode shadow/border artifacts, fix Android 8–10 top/bottom cropping and visual bleed across overlays and dialogs, upgrade the Meal History ledger and introduce a matching Account History ledger (with left/right swipe and Summed vs. "Adding One by One" expression modes), refine all editor and triple-menu screens to a Google Material 3 standard with `<` back navigation, normalize the data & QR export engine, and fix the GitHub Actions release build.
-
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following product and design decisions have been confirmed from your answers and latest revision instructions:
-
-- **Confirmed Decision 1 — Inactive Meter Readings & Date Interpolation**:
-  When a selected date range includes dates not explicitly present in recorded meter readings, consumption between recorded dates is linearly interpolated (`r1 + fraction * (r2 - r1)`). When readings stop updating after the last unpaid reading/bill and the user selects up to a later date, the calculator carries over the previous unpaid balance plus `₹0` for the inactive days after the last reading (rather than resetting to zero).
-- **Confirmed Decision 2 — Light Mode Material 3 Surfaces, Shadows & Editor Screens**:
-  All cards, sub-tab pills (`Log Reading` / `Bill Summary`), meter dial steppers, and editor screens (`Edit Profile`, `Add/Edit Hotel`, `Account Manager`, `Menu Editor`, `Utility Configuration`) will use **clean, opaque Material 3 surface containers** with native Android hardware elevation shadows (preventing the dark inner box artifact caused by applying `shadowElevation` to translucent backgrounds in Light Mode), rounded text inputs, balanced top margins, and M3 primary blue/tonal buttons.
-- **Confirmed Decision 3 — Triple-Line Drawer Menus & `<` Back Navigation**:
-  All triple-line overflow/drawer menus (`Hotel`, `Extra/Wallet`, `Bill`) will use **text-only action rows** (no leading icons, no duplicate emojis or repeated labels) with smooth slide + fade reveal animations. Across all screens and dialogs, back buttons will use the `<` chevron (`ChevronLeft` / `ArrowBackIosNew`) inside a soft circular container.
-- **Confirmed Decision 4 — Android 8–10 Full-Screen Cropping & Visual Leak Fix**:
-  Eliminate top/bottom bar cropping and background page bleed on Android 8–10 across Add/Edit Hotel & Account pages, History pages, and Settings sub-pages by enforcing physical screen dimensions via `getRealMetrics()` + `FLAG_LAYOUT_NO_LIMITS` in `DialogEdgeToEdge.kt`, restoring missing `DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)` across all dialogs, and rendering full-screen overlays edge-to-edge without secondary OS window inset clipping.
-- **Confirmed Decision 5 — Dual-Mode Meal History & New Account History Ledgers**:
-  Upgrade the **Meal History** page (`HotelManagementTab`) and create a matching **Account History** page (`ExtraExpensesTab`) featuring smooth left/right swipe month navigation and a two-mode toggle:
-  1. **Summed View**: Clean transaction/meal cards showing itemized summaries, meal group subtotals, and summed totals.
-  2. **"Adding One by One" Expression View**: Day-wise and meal-group-aware additive math expressions (`120 + 45 + 30 = ₹195`) showing how individual meal groups, dishes, or account expenses add up step by step.
+## 1. Android 8 Full-Screen Bottom Crop Fix & Frame-Drop Optimization
+- **Root Cause of Android 8 Bottom Crop**:
+  - In Jetpack Compose's internal `DialogLayout.internalOnMeasure`, setting `usePlatformDefaultWidth = false` causes `DialogLayout` to ignore the window's `EXACTLY realHeight` measure spec and clamp its child `AndroidComposeView` to `configuration.screenHeightDp * density`. On Android 8 (API 26–27), `screenHeightDp` excludes the status bar and navigation bar (~72dp), causing the dialog surface to stop above the bottom of the screen and expose the underlying view with a white/rounded border.
+- **Solution in `DialogEdgeToEdge.kt`**:
+  - Keep `DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)` and `com.example.ui.components.DialogEdgeToEdge()` on full-screen overlays as required by project rules.
+  - Inside `DialogEdgeToEdge()`, after setting `window.setLayout(realWidth, realHeight)`, `window.setBackgroundDrawable(ColorDrawable(bgColor))`, and zeroing all padding/insets up the view tree (`decorView`, `android.R.id.content`, `DialogLayout`, `AndroidComposeView`), update the `DialogLayout` measurement behavior (synchronizing `configuration.screenHeightDp`/`screenWidthDp` to physical `realMetrics` dimensions and enabling exact measure pass-through on `DialogLayout`) so `AndroidComposeView` always measures and renders at `100%` of `realMetrics.heightPixels` on Android 8–10.
+- **Frame-Drop & Lag Optimization (All Android Versions)**:
+  - Eliminate per-frame `OnGlobalLayoutListener` re-layout loops in `DialogEdgeToEdge.kt` by only applying window layout changes when dimensions or paddings actually differ.
+  - Cache expensive date formatting, regex parsing, and list sorting using `remember` and `derivedStateOf` across inner screens (`HotelMealHistoryDialog`, `AddMealScreen`, `SettingsScreen`, `MenuEditorScreen`, `ExtraExpensesTab`).
+  - Optimize native shadow modifiers inside scrolling `LazyColumn`s to avoid redundant offscreen hardware layer allocations during scroll.
 
 ---
 
-## 1. Overview & Core Concept
-
-- **What It Does**:
-  1. **Accurate Multi-Date & Inactive Billing Engine**: Calculates electricity bills across any two dates using piecewise linear interpolation across rate policy boundaries, while preserving unpaid balances when readings stop being logged. Verified by a dedicated unit test suite.
-  2. **True Google Material 3 Light & Dark Mode Parity**: Fixes the translucent-surface shadow bleed shown in the `Log Reading` / `Bill Summary` toggle and removes remaining borders on `MeterDialPicker`, `EmptyStateCard`, and editor dialogs.
-  3. **Android 8–10 Full-Screen & Dialog Geometry Fix**: Ensures all full-screen overlays (`EditProfile`, `MenuEditor`, `UtilityConfiguration`, `MealHistory`, `AccountHistory`, `BinScreen`, `Settings` sub-screens) and padded modal dialogs (`EditHotel`, `AccountEditor`, `HotelMonthlyPaymentDialog`) stretch 100% edge-to-edge on Android 8–10 with zero top/bottom cropping or background page leakage.
-  4. **Interactive Meal & Account History Ledgers**: Provides responsive left/right swipe month navigation and two distinct calculation views (**Summed View** vs. **"Adding One by One" Expression View** with full meal-group support) in both the Hotel section and the Account/Extra section.
-  5. **Normalized Data & QR Fountain Export Engine**: Exports 100% of independent base entities (including `electricityRates`, utility parameters `fixedServiceCharge` & `defaultElectricityRate`, `ownerAccounts`, `customCategories`, and `userProfile` preferences) while stripping redundant derived fields so payloads are smaller and automatically recalculated on import. Enhances QR Fountain packet splitting with adaptive chunk sizing.
-  6. **CI/CD Release Pipeline Fix**: Removes `-x lintVitalRelease` from the GitHub Actions release workflow so Gradle 9.3.1 does not fail with `Task 'lintVitalRelease' not found`.
-- **Target Audience / Persona**: Users tracking daily hotel meal expenses, multi-account wallet transactions, and pro-rata electricity bills completely offline across Android 8–15 phones and tablets.
-- **Key Value**: Reliable billing math under every date-selection scenario, zero visual clipping on older Android 8–10 devices, transparent step-by-step expense math in both Hotel and Account ledgers, and native Google Material 3 visual polish.
-
----
-
-## 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. **Electricity Logging & Bill Summary (`BillTrackingTab`)**:
-     - Toggling between **Log Reading** and **Bill Summary** uses solid opaque Material 3 pill containers (`#D3E3FD` active / `#FFFFFF` inactive in Light Mode) without translucent shadow bleed.
-     - The 6-digit `MeterDialPicker` (`0000.00`) and `Type Reading` chip use clean borderless tonal surfaces with soft elevation.
-     - Selecting any two dates in **Billing Period Selection** dynamically computes interpolated units, rate-wise breakdown, and carried-over unpaid balances.
-  2. **Meal History & Account History Ledgers (`HotelManagementTab` & `ExtraExpensesTab`)**:
-     - Swiping left or right smoothly transitions between months (`AnimatedContent` horizontal slide + gesture tracking that cooperates with vertical list scrolling).
-     - Tapping the top-right **View Mode Toggle** switches between:
-       - **Mode A — Summed View**: Displays individual records with meal group breakdowns (`Group 1 + Group 2 = Total`) or categorized account transactions and summed totals.
-       - **Mode B — "Adding One by One" Expression View**: Groups entries by date and meal group, explicitly rendering the step-by-step addition expression (e.g., `03 Nov → (80 + 40) + 60 = ₹180` for multi-group meals, or `150 + 75 + 220 = ₹445` for daily account expenses) alongside the summed day total.
-  3. **Editor & Configuration Screens (`EditProfile`, `EditHotel`, `AccountManager`, `MenuEditor`, `UtilityConfiguration`)**:
-     - Consistent top bar with a circular `<` back button (`40.dp` tonal circle), balanced top spacing (`16.dp` below top bar), fully rounded `16.dp` borderless Material 3 text fields, elevated borderless section cards, and deep Material 3 primary blue action buttons (`#0B57D0`).
-     - On Android 8–10, full-screen pages cover 100% of physical screen height with no top/bottom crop, while Add/Edit Hotel and Account dialogs render with clean padded modal cards over a full-screen edge-to-edge scrim.
-  4. **Triple-Line Menus**:
-     - Tapping the triple-line menu button opens a cleanly animated popup/sheet featuring text-only rows (no leading icons, no duplicate emojis or redundant subtitles) with smooth vertical slide + fade transitions.
-- **Visual Identity & Theme**:
-  - *Aesthetic Direction*: Native Google Material 3 Expressive — crisp, borderless elevated surfaces in Light Mode (`#FCFCFD` background, `#FFFFFF` elevated cards, `#EFF4F9` tonal containers) and deep slate surfaces in Dark Mode (`#0A1317` background, `#141F26` elevated cards).
-  - *Color Palette & Mood*:
-    - `--background`: `#FCFCFD` (Light) / `#0A1317` (Dark)
-    - `--surface-card`: `#FFFFFF` (Light) / `#141F26` (Dark)
-    - `--primary`: `#0B57D0` (Light M3 Deep Primary Blue) / `#7FCFFF` (Dark M3 Primary)
-    - `--secondary-container`: `#D3E3FD` (Light Active Pill) / `#004A77` (Dark Active Pill)
-  - *Typography & Hierarchy*: **Plus Jakarta Sans** across all 15 Material 3 typography slots with unified scaling (`0.90x`, `1.0x`, `1.10x`).
-  - *Component Styling & Layout*: Zero `BorderStroke` on cards, buttons, steppers, and chips. Native Android `Surface(shadowElevation = ...)` used exclusively on opaque surface colors.
-- **Interactive Feedback & Motion**:
-  - Triple-line menus animate in/out with `slideInVertically + fadeIn` (`tween(180ms, FastOutSlowInEasing)`).
-  - Month transitions in Meal History and Account History animate smoothly with horizontal slide + fade when swiping left/right.
-  - All back navigation buttons render `<` (`Icons.Default.ChevronLeft`) inside a circular tonal button.
-  - Mandatory Help Section inside the About page is updated to document all new billing, history ledger, Android 8–10 compatibility, UI, and export enhancements.
+## 2. Call & Contact Popups, Short Notes, and Unified Hotel/Account Info UI
+- **Database Schema Updates (`AppDatabase` Migration 34 → 35)**:
+  - `HotelEntity`: Add `notes: String = ""`, `whatsappNumber: String = ""`.
+  - `BankAccountEntity` & `OwnerAccountEntity`: Add `notes: String = ""`, `phoneNumber: String = ""`, `whatsappNumber: String = ""`, `email: String = ""`.
+- **Hotel Call Icon Popup**:
+  - Clicking the Call icon on a Hotel opens a clean M3 popup offering **Phone Call** (`ACTION_DIAL`) and **WhatsApp Chat** (`https://wa.me/...`).
+  - Detect Wi-Fi-only tablets (`!context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)` or `TelephonyManager.PHONE_TYPE_NONE`) and automatically hide the Phone Call button, showing **WhatsApp Only**.
+- **Account Contact Icon Popup & Editor Fields**:
+  - Add editable **Phone / SMS Number**, **WhatsApp Number**, **Email Address**, and **Short Notes** fields to the Add/Edit Account screen (`AccountEditorScreen.kt`).
+  - Clicking the Contact action on an Account opens a popup with **Mail**, **WhatsApp**, and **Text Message (SMS)** options.
+- **Short Notes on Hotels & Accounts**:
+  - Add a **Short Notes** field in `EditHotelScreen.kt` and `AccountEditorScreen.kt`.
+  - Display the saved note inside both the Hotel Info popup/panel and Account Info popup/panel.
+- **Unify Hotel & Account Info Cards and Popups**:
+  - Redesign the **Account Info Card** in `ExtraExpensesTab.kt` to match the visual structure and styling of the **Hotel Info Card** in `HotelManagementTab.kt`.
+  - Redesign the **Hotel Info Popup** to match the clean layout and action structure of the **Account Info Popup**.
+  - Increase the font size of the ongoing month's Hotel bill amount on the Hotel Info Card for better prominence.
+  - Fix the right-edge clipping of the triple-dot (`⋮`) `DropdownMenu` ("Move to Trash") in `EditHotelScreen.kt` and across all screens by anchoring the `DropdownMenu`inside the action button's `Box` container.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1 — Opaque Tonal Surfaces for Elevated Components in Light Mode**:
-  - *Chosen Approach*: Always resolve active/selected card and pill colors (such as the `Log Reading` / `Bill Summary` switcher and button containers) to opaque composite colors (`#D3E3FD` for selected pill in Light Mode, `#FFFFFF` for unselected) before applying `shadowElevation`.
-  - *Why*: Android's hardware `RenderNode` shadow caster draws a dark ambient/spot shadow shape directly behind the view bounds. If the surface color has `alpha < 1.0f`, the dark gray shadow bleeds through the face of the button.
-- **Decision 2 — Fixing Android 8–10 Top/Bottom Cropping & Visual Bleed**:
-  - *Chosen Approach*:
-    1. Upgrade `DialogEdgeToEdge.kt` to query physical screen dimensions via `windowManager.defaultDisplay.getRealMetrics(DisplayMetrics())` (and `currentWindowMetrics` on API 30+), explicitly set `win.setLayout(realWidth, realHeight)`, apply `WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS` on API 26–29 (Android 8–10) so the OS dialog window never clips at the status bar or navigation bar, and enforce `realWidth`/`realHeight` up the `decorView` and parent view hierarchy.
-    2. Restore `DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)` + `DialogEdgeToEdge()` on every `Dialog` that was missing them (`UnifiedHotelDialog`, `EditHotelModal`, `UnifiedAccountDialog`, `EditProfileDialog`, `HotelMonthlyPaymentDialog`, `BinScreen`, etc.), while keeping Add/Edit Hotel and Account forms as properly padded Material 3 dialogs over a 100% edge-to-edge backdrop.
-  - *Why*: On Android 8–10 (API 26–29), `MATCH_PARENT` inside a secondary `Dialog` window is bounded by the non-inset dialog frame, cropping the top and bottom and letting the underlying screen leak through. Forcing `getRealMetrics()` dimensions with `FLAG_LAYOUT_NO_LIMITS` guarantees full physical coverage on every Android version.
-- **Decision 3 — Unpaid Balance Carry-Over & Piecewise Interpolation in `MeterReadingViewModel`**:
-  - *Chosen Approach*: Separate the calculation into:
-    1. **Carried-Over Unpaid Balance**: Sum of any unpaid `UtilityBill` records (or unpaid meter reading intervals prior to the selected window) that remain unsettled, plus
-    2. **Interpolated Window Usage**: Linearly interpolated meter readings between `startDate` and `endDate` clamped at the latest recorded reading (so inactive days after the last reading add `0.0` units and `₹0.00`), split pro-rata across any `ElectricityRate` effective dates in the window.
-- **Decision 4 — Unified Dual-Mode History Ledgers for Both Meals & Accounts**:
-  - *Chosen Approach*: Both **Meal History** (`HotelManagementTab`) and the new **Account History** (`ExtraExpensesTab`) share a cohesive ledger architecture:
-    - **Left/Right Swipe Navigation**: Uses horizontal drag detection that coexists cleanly with `LazyColumn` vertical scrolling, paired with `AnimatedContent` month transitions and `<` / `>` month header buttons.
-    - **Mode 1 (Summed View)**: Shows individual transactions with summed amounts, category/account badges (for accounts) or meal group summaries (for hotels).
-    - **Mode 2 ("Adding One by One" Expression View)**: Aggregates transactions day-by-day and group-by-group, displaying both the explicit step-by-step addition expression (e.g., `Group 1 (40 + 25) + Group 2 (50 + 20) = ₹135` and `Day Total: 135 + 90 = ₹225` for meals; `120 + 350 + 80 = ₹550` for account expenses) and expandable/scannable item details.
-- **Decision 5 — Normalized Independent-Only Export Schema & Adaptive QR Splitting**:
-  - *Chosen Approach*: Include all independent base entities (`electricityRates`, `fixedServiceCharge`, `defaultElectricityRate`, `ownerAccounts`, `customCategories`, `userProfile`) while omitting derived fields (`dateText`, `unitsConsumed`, `mealGroups` subtotals, derived bank `balance`) and recomputing them on import. Dynamically size QR fountain chunks (`420–550` bytes) for faster camera scanning.
+## 3. Typography: Bold Text Toggle & Text Size Control Fix
+- **Bundled Bold Font & Typography Scaling (`Type.kt`, `Theme.kt`, `TrakerApp.kt`)**:
+  - Use `font-util` to ensure complete font weight support and add `isBoldTextEnabled: Boolean = false` to `UserProfileEntity`.
+  - Add a **Bold Text** toggle switch in **Settings → Appearance & Visual Style**. When enabled, upgrade all `Typography` styles and `ProvideTextStyle` weights across the app (e.g., `Normal` → `SemiBold`/`Bold`, `Medium` → `Bold`, `Bold` → `ExtraBold`).
+  - Fix **Text Size Control** (`Small`, `Medium`, `Large`, `Extra Large`) by dynamically scaling both `MaterialTheme.typography` font sizes/line heights and `LocalDensity` `fontScale` so every text element (including hardcoded `sp` sizes and M3 typography tokens) scales proportionally.
 
 ---
 
-## 4. Technical Architecture & Data Strategy *(Technical Reference)*
+## 4. Tablet Layout Optimizations
+- **Homepage Tabs on Tablet (`HotelManagementTab.kt` & `ExtraExpensesTab.kt`)**:
+  - On tablet/expanded layouts (`screenWidthDp >= 600` or landscape split view), populate the left column of the **Hotel** tab with the full **Hotel Information & Quick Summary Panel** (including notes, contact actions, ongoing month total, advance balance, and UPI/QR access) instead of leaving blank space.
+  - Similarly, populate the left column of the **Extra** tab with the **Account Information & Summary Panel** (notes, contact actions, initial vs. current balance, bank/IFSC details, and QR code).
+- **Tablet Settings & Sidebar**:
+  - Optimize `SettingsScreen.kt` for tablets using a responsive two-pane or wide-card layout and ensure the top-left navigation rail uses the standard triple-line (`☰`) menu button consistently.
 
-### Architecture & Component Diagram
+---
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                         UI & Presentation Layer                            │
-│                                                                            │
-│  ┌──────────────────────────┐  ┌────────────────────────────────────────┐  │
-│  │   BillTrackingTab        │  │  Editor, Config & Sub-Screens          │  │
-│  │  • Solid M3 Sub-Tabs     │  │  • EditProfile / EditHotel (Padded M3) │  │
-│  │  • Borderless DialPicker │  │  • AccountManager / MenuEditor         │  │
-│  │  • Date Range Selector   │  │  • UtilityConfig / Settings Sub-Pages  │  │
-│  └────────────┬─────────────┘  │  • DialogEdgeToEdge (getRealMetrics)   │  │
-│               │                └───────────────────┬────────────────────┘  │
-│               ▼                                    ▼                       │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │  Dual-Mode History Ledgers (MealHistoryModal & AccountHistoryModal)  │  │
-│  │  • Left/Right Swipe Month Pager + '<' Back Button                    │  │
-│  │  • Mode 1: Summed View  |  Mode 2: "Adding One by One" Expression    │  │
-│  │  • Meal-Group-Aware Formulas: (a + b) + (c + d) = Day Total          │  │
-│  └─────────────────────────────────┬────────────────────────────────────┘  │
-│                                    ▼                                       │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │  Triple-Line Drawer Menus (Hotel / Extra / Bill)                     │  │
-│  │  • Text-only rows (no icons, no duplicate emojis) + Slide Animation  │  │
-│  └─────────────────────────────────┬────────────────────────────────────┘  │
-└────────────────────────────────────┼───────────────────────────────────────┘
-                                     │
-                                     ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                     ViewModel & Domain Calculation Layer                   │
-│                                                                            │
-│  ┌─────────────────────────────────┐  ┌─────────────────────────────────┐  │
-│  │     MeterReadingViewModel       │  │       FinancialViewModel        │  │
-│  │  • estimateReadingAt()          │  │  • Recalculate Bank Balances    │  │
-│  │  • calculateDetailedBill()      │  │  • Derive Meal Group Subtotals  │  │
-│  │  • Unpaid Carry-Over + 0 Idle   │  │  • Sync Independent Entities    │  │
-│  └────────────────┬────────────────┘  └────────────────┬────────────────┘  │
-└───────────────────┼────────────────────────────────────┼───────────────────┘
-                    │                                    │
-                    ▼                                    ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                 Persistence & Normalized Transfer Engine                   │
-│                                                                            │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │  DataTransferManager & QrExportManager / QrFountainEncoder           │  │
-│  │  • Independent Base Data: Hotels, Menus, Orders(raw), Banks(init),   │  │
-│  │    OwnerAccounts, Categories, Expenses, Readings(total), Bills,      │  │
-│  │    ElectricityRates, UtilityPrefs(fixedCharge, defaultRate), Profile │  │
-│  │  • Derived Data Stripped on Export & Recomputed on Import            │  │
-│  │  • Adaptive QR Fountain Chunking (420B–550B) + CRC32 Verification    │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+## 5. Meal Record Ledger Cleanup & Paid Status Bug Fixes
+- **Single "Adding One by One" Mode (`HotelMealHistoryDialog.kt`)**:
+  - Remove the mode toggle (`Summed View` vs. `Adding One by One`) and permanently use the **Adding One by One** expression view (`140 + 50 = ₹190`).
+  - Re-architect the top header and month navigation bar so the top-left `<` Back button and the `< Month >` selector are clearly separated with generous spacing, preventing accidental touches.
+  - Format meal group labels as `"1."`, `"2."`, etc. instead of `"Group 1"`, `"Group 2"`.
+- **Paid Status Popup Layout Fix**:
+  - Fix the `Payment Status & Date` dialog so the `"Save Status"` button has `minHeight = 48.dp`, `singleLine = true`, and balanced horizontal weight so the text never wraps or clips vertically.
+- **Paid Status Backup & Restore Fix (`SyncEngine.kt` & `FinancialViewModel.kt`)**:
+  - Include `hotelPayments` (`HotelPaymentEntity` records containing monthly Paid/Unpaid status and payment dates) in the JSON export payload, QR split chunks, and `SyncEngine` import/merge flow so monthly paid statuses are 100% preserved across backups and restores.
 
-### Key Implementation Specifications
+---
 
-1. **Android 8–10 Edge-to-Edge & Cropping Fix (`DialogEdgeToEdge.kt` & All Overlays)**:
-   - In `DialogEdgeToEdge.kt`:
-     - Obtain physical display dimensions using `windowManager.defaultDisplay.getRealMetrics(DisplayMetrics())` (`realWidth`, `realHeight`).
-     - Clear `FLAG_TRANSLUCENT_STATUS`, `FLAG_TRANSLUCENT_NAVIGATION`, and `FLAG_LAYOUT_INSET_DECOR`; add `FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS` and `FLAG_LAYOUT_NO_LIMITS` on Android 8–10 (`Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q`) so the dialog window spans the entire physical display without top/bottom clipping.
-     - Force `win.setLayout(realWidth, realHeight)` and set `layoutParams.width = realWidth`, `layoutParams.height = realHeight` on `decorView`, `android.R.id.content`, and the Compose `dialogView.parent` view chain.
-   - Ensure every full-screen overlay (`MealHistoryModal`, `AccountHistoryModal`, `EditProfileDialog`, `MenuEditorScreen`, `UtilityConfigurationScreen`, `BinScreen`, `Settings` sub-dialogs) and padded modal dialog (`EditHotelModal`, `UnifiedHotelDialog`, `UnifiedAccountDialog`, `HotelMonthlyPaymentDialog`) declares `DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)` and calls `DialogEdgeToEdge()`.
+## 6. New 4th Homepage Tab: "Sticky" (Floating Sticky Notes & Wall Layout)
+- **Navigation & Top Header (`MainAppLayout.kt`)**:
+  - Add **`Sticky`** as the 4th homepage tab alongside `Hotel`, `Extra`, and `Bill`.
+  - **Mobile Bottom Navigation**: Display the tab **Icon above the Text** (WhatsApp-style vertical tab layout) so all 4 tabs fit cleanly with zero text truncation.
+  - **Sticky Tab Top Header**: Display only the **Search** (`🔍`) and **Settings** (`⚙️`) action icons in the top right (hide the Greeting text on the Sticky tab).
+  - **Universal Search (`GlobalSearchScreen.kt`)**: Index and search all Sticky cards by title, subtitle, formatted body text, and table contents.
+- **Adaptive Layout & Settings Controls**:
+  - **Settings Sliders (`AppearanceSettingsScreen.kt`)**:
+    - **Sticky Card Width Slider**: Configurable up to **80%** of screen width (e.g., `50%` to `80%`).
+    - **Sticky Preview Lines Slider**: Configurable from **4 to 10 lines** (default **10 lines**). Both normal text lines and table rows count toward this line limit.
+  - **Portrait Mobile vs. Tablet / Landscape / Foldable Wall Layout**:
+    - On portrait mobile: Smooth vertically scrollable column of floating rounded Material 3 cards with width controlled by the Settings percentage slider (up to 80%).
+    - On tablet, foldable, or mobile landscape (where horizontal UI width ≥ vertical card height): Arrange cards across the rectangular canvas like **sticky notes on a wall** (multi-row/masonry wall grid) that is **horizontally and vertically scrollable**.
+  - **Simple Harmonic Oscillator (SHO) Floating Motion**:
+    - Apply a lightweight, phase-offset sinusoidal `graphicsLayer { translationY = ...; rotationZ = ... }` animation (Simple Harmonic Oscillator) to each card so cards gently bob like floating notes on water with zero layout recomposition or frame drops.
+  - **3-Second Long-Press Drag-to-Rearrange**:
+    - Holding a card for **3 seconds** activates single-card drag-and-drop mode with haptic/visual elevation feedback, allowing the user to rearrange its position on the wall/list and persisting `sortOrder` in Room.
+- **Card Content, Rich Text & Interactive Tables (`StickyNoteEntity` & `StickyNoteScreen.kt`)**:
+  - **Structure**: Larger **Title**, smaller **Subtitle**, **horizontal divider line**, and body text (normal app font size).
+  - **Preview Visibility Rule**: If Title or Subtitle is blank, omit them (and any redundant divider) in Preview mode, but always show their input fields in Edit mode.Preview mode displays text and tables only (up to the 4–10 line limit) and hides attachments.
+  - **Rich Text Formatting**:
+    - Inline `*bold*` and `-italic-` parser & toolbar buttons.
+    - Paragraph alignment controls: **Left**, **Center**, **Right**, and **Justify**.
+    - **Interactive Table Builder + Pipe Syntax**: Support both an interactive row/column grid builder dialog/toolbar AND markdown pipe syntax (`| Col 1 | Col 2 |`) rendered as clean Material 3 bordered table cells.
+- **Full-Screen Sticky Viewer / Editor & File Attachments**:
+  - Clicking a card opens its full-screen rich viewer; clicking the `+` FAB opens the editor for a new card.
+  - **Top-Right Triple-Dot (`⋮`) Menu**: Provides **Edit**, **Remove** (moves to Recycle Bin/Trash with full restore & permanent delete support in `BinScreen.kt`), and **Attach File**.
+  - **Attachment Rules & Storage**:
+    - **Images**: Stored in internal app storage. If ≤ 1 MB, store directly; if > 1 MB and ≤ 10 MB, automatically downscale/compress JPEG quality to fit under **1 MB**; if > 10 MB, block import and display a clear `"File exceeds 10 MB limit"` message without crashing.
+    - **PDFs**: Strictly enforce a **1 MB** maximum size (show clear error if > 1 MB; no PDF compression).
+  - **Attachment Grid & Actions**:
+    - Displayed at the bottom of the full-screen card view as compact rounded-corner boxes (`2 columns` on mobile, `3–4 columns` on tablet) with the file name up to **2 lines**.
+    - **Single Click**: Open file in viewer (`FileProvider` `Intent.ACTION_VIEW` / in-app image preview).
+    - **Long Press**: Open action menu with **Rename**, **Remove**, **Download** (save to device `Downloads`), and **Share** (`Intent.ACTION_SEND`).
 
-2. **Meal History Improvements & New Account History Viewing Page**:
-   - **Meal History (`HotelManagementTab.kt`)**:
-     - Enhance left/right swipe across the entire body (including over the `LazyColumn` via horizontal drag gesture detection + `AnimatedContent` month transition).
-     - Segmented/pill toggle in the header switching between **Summed View** (`Σ Summed`) and **Expression View** (`a + b = c`).
-     - In **Expression View**, each day card shows:
-       - Individual meal groups and their dish-level additive expression (e.g., `Group 1: 40 + 20 = ₹60`, `Group 2: 50 + 30 = ₹80`).
-       - The combined day-wise "adding one by one" expression across all meal groups and sessions on that day (`03.11.2026 → (40 + 20) + (50 + 30) = ₹140` or `60 + 80 = ₹140`).
-   - **Account History (`ExtraExpensesTab.kt`)**:
-     - Add a **"View Account History"** button and full-screen `AccountHistoryModal` matching the Meal History UX.
-     - Supports filtering by active/all accounts, left/right swipe month navigation, and the two view modes:
-       - **Summed View**: Chronological transaction cards with category, bank/owner account badge, and summed monthly inflow/outflow/net total.
-       - **Expression View**: Day-by-day "adding one by one" mathematical expression (`03.11.2026 → 150 + 80 + 45 = ₹275`) with itemized labels below each day's formula and monthly summary footer.
+---
 
-3. **Included Independent Base Entities & Derived-Data Normalization**:
-   - Export all independent base data (`userProfile`, `utilityConfig` [`fixedServiceCharge`, `defaultElectricityRate`], `electricityRates`, `meterReadings` [`id`, `readingDate`, `totalReading`, `isPaid`], `utilityBills`, `ownerAccounts`, `categories`, `hotels`, `menus`, `transactions` [`timestamp`, `isNight`, `itemsSerialized`], `bankAccounts` [`initialBalance`], `expenses`).
-   - Strip derived fields on export and automatically recompute `unitsConsumed`, `totalAmount`, `mealGroups` subtotals, and current bank `balance` on import.
+## 7. Add Transaction Page: Image, PDF & 2-Minute Voice Recording (`AddTransactionScreen.kt`)
+- **Image Attachment**: Automatically compress images up to **2 MB** (with a >10 MB safety guard).
+- **PDF Attachment**: Allow attaching PDF documents with **no file size limit** (copied safely via streamed I/O into app storage).
+- **Voice Message Recorder (Up to 2 Minutes)**:
+  - Add `RECORD_AUDIO` permission to `AndroidManifest.xml` and request it at runtime via `rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission())`.
+  - Implement a built-in voice recorder using `MediaRecorder` (`MPEG_4` / `AAC` low-bitrate high-compression `.m4a` audio) with a live elapsed timer, **2:00 auto-stop limit**, and built-in `MediaPlayer` playback/delete controls inside the transaction details & attachment list.
 
-4. **Unit Testing Strategy (`MeterReadingBillingTest`)**:
-   - Verify multi-reading linear interpolation across non-listed dates, pro-rata rate splitting across `ElectricityRate` changes, and inactive reading unpaid balance carry-over (`previous unpaid bill + ₹0`).
+---
+
+## 8. Owner Profile Overhaul & Linked vs. Sandboxed Accounts (`OwnerProfileScreen.kt`)
+- **Personal Information Card Cleanup**:
+  - Remove the `Currency: ₹` badge and remove the top-right Edit pencil icon from the Personal Information card (as highlighted in the user's screenshot).
+- **Profile Accounts vs. Extras Accounts Architecture**:
+  - Update `OwnerAccountEntity` with `linkedBankAccountId: Int? = null`.
+  - When adding an account in the Profile screen, offer two choices:
+    1. **Link an Existing Account from Extras**: Creates a two-way synced link with the selected `BankAccountEntity` on the Extras tab (edits to name, UPI ID, QR code, account number, IFSC, branch, contact info, or notes in either place automatically sync to the other).
+    2. **Create a Sandboxed Profile Account**: Creates an independent personal account stored only in Profile (`linkedBankAccountId = null`). Users can later link a sandboxed account to the Extras page or de-link an already linked account.
+  - **De-Linking Flow**:
+    - When de-linking an account that is linked to an Extras account with transaction history, prompt the user with a dialog offering:
+      1. **Move Extras Account & History to Recycle Bin**
+      2. **Download Transaction History (CSV/JSON)**
+      3. **Export via App Export Tool** (noting that media attachments are excluded for compact export size)
+      - Keep the personal account details intact in Profile while handling the Extras account + transaction history according to the user's choice.
+- **Double-Tap Greeting UPI QR Code**:
+  - Ensure double-tapping the Greeting header on the home screen opens `OwnerQRViewerDialog` bound specifically to the **Default Account set on the Profile page** (`userProfile.defaultOwnerAccountId`).
+
+---
+
+## 9. Built-In Help & User Guide Update (`AboutSettingsScreen.kt`)
+- Update the Help & User Guide inside the **About & Help** page to thoroughly document:
+  - The new **Sticky** tab, wall layout on tablets/landscape, SHO floating animation, 3-second long-press drag reordering, `*bold*` / `-italic-` / alignment / table formatting, and 1 MB image/PDF attachment rules.
+  - Transaction attachments (2 MB auto-compressed images, unlimited PDFs, and 2-minute compressed voice notes).
+  - Profile linked vs. sandboxed accounts and de-link history options.
+  - Hotel & Account call/WhatsApp/SMS/email contact popups and short notes.
+  - Single-mode Meal Record Ledger (`Adding One by One`) and Paid Status backup support.
+  - Bold Text mode and dynamic Text Size scaling.

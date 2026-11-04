@@ -40,6 +40,7 @@ class DataTransferManager(private val db: AppDatabase) {
     private val ownerAccountDao = db.ownerAccountDao()
     private val transactionCategoryDao = db.transactionCategoryDao()
     private val hotelPaymentDao = db.hotelPaymentDao()
+    private val stickyNoteDao = db.stickyNoteDao()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     private val dateOnlyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -71,6 +72,8 @@ class DataTransferManager(private val db: AppDatabase) {
                 put("location", hotel.location)
                 put("upiId", hotel.upiId)
                 put("qrCodeUri", hotel.qrCodeUri)
+                put("notes", hotel.notes)
+                put("whatsappNumber", hotel.whatsappNumber)
             })
 
             val menuArray = JSONArray()
@@ -139,8 +142,9 @@ class DataTransferManager(private val db: AppDatabase) {
 
     suspend fun exportHotelHistoryJson(hotelId: Int): String = withContext(Dispatchers.IO) {
         val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
+        val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
         val root = JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("dataType", BackupDataType.HOTEL_HISTORY.name)
             put("hotelId", hotelId)
             put("exportDate", System.currentTimeMillis())
@@ -149,6 +153,20 @@ class DataTransferManager(private val db: AppDatabase) {
                 arr.put(formatTransactionToJson(t))
             }
             put("transactions", arr)
+            if (payments.isNotEmpty()) {
+                val payArray = JSONArray()
+                payments.forEach { p ->
+                    payArray.put(JSONObject().apply {
+                        put("hotelId", p.hotelId)
+                        put("year", p.year)
+                        put("month", p.month)
+                        put("amountPaid", p.amountPaid)
+                        put("paymentDate", p.paymentDate)
+                        put("note", p.note)
+                    })
+                }
+                put("hotelPayments", payArray)
+            }
         }
         root.toString(2)
     }
@@ -188,6 +206,10 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("accountNumber", b.accountNumber)
                     put("ifsc", b.ifsc)
                     put("branchName", b.branchName)
+                    put("notes", b.notes)
+                    put("phoneNumber", b.phoneNumber)
+                    put("whatsappNumber", b.whatsappNumber)
+                    put("email", b.email)
                 })
             }
             put("bankAccounts", bankArr)
@@ -231,6 +253,10 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("accountNumber", a.accountNumber)
                     put("ifsc", a.ifsc)
                     put("branchName", a.branchName)
+                    put("notes", a.notes)
+                    put("phoneNumber", a.phoneNumber)
+                    put("whatsappNumber", a.whatsappNumber)
+                    put("email", a.email)
                 })
             }
             put("bankAccounts", arr)
@@ -255,6 +281,10 @@ class DataTransferManager(private val db: AppDatabase) {
                 put("accountNumber", account.accountNumber)
                 put("ifsc", account.ifsc)
                 put("branchName", account.branchName)
+                put("notes", account.notes)
+                put("phoneNumber", account.phoneNumber)
+                put("whatsappNumber", account.whatsappNumber)
+                put("email", account.email)
             })
             val arr = JSONArray()
             expenses.forEach { e ->
@@ -421,6 +451,7 @@ class DataTransferManager(private val db: AppDatabase) {
         val readings = meterDao.getAllReadingsSync()
         val bills = meterDao.getAllUtilityBillsSync()
         val rates = meterDao.getAllElectricityRatesSync()
+        val stickyNotes = stickyNoteDao.getAllStickyNotesSync()
         val profile = userProfileDao.getUserProfileSync()
 
         val root = JSONObject().apply {
@@ -440,6 +471,10 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("enableLiquidGlassTheme", profile.enableLiquidGlassTheme)
                     put("disableHeavyEffects", profile.disableHeavyEffects)
                     put("mealGroupPosition", profile.mealGroupPosition)
+                    put("textSize", profile.textSize)
+                    put("isBoldTextEnabled", profile.isBoldTextEnabled)
+                    put("stickyCardWidthPercent", profile.stickyCardWidthPercent)
+                    put("stickyPreviewLines", profile.stickyPreviewLines)
                 })
             }
 
@@ -453,6 +488,8 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("location", h.location)
                     put("upiId", h.upiId)
                     put("qrCodeUri", h.qrCodeUri)
+                    put("notes", h.notes)
+                    put("whatsappNumber", h.whatsappNumber)
                 })
             }
             put("hotels", hotelsArr)
@@ -506,6 +543,10 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("accountNumber", b.accountNumber)
                     put("ifsc", b.ifsc)
                     put("branchName", b.branchName)
+                    put("notes", b.notes)
+                    put("phoneNumber", b.phoneNumber)
+                    put("whatsappNumber", b.whatsappNumber)
+                    put("email", b.email)
                 })
             }
             put("bankAccounts", bankArr)
@@ -537,9 +578,31 @@ class DataTransferManager(private val db: AppDatabase) {
                         put("upiId", oa.upiId)
                         put("qrCodeUri", oa.qrCodeUri)
                         put("details", oa.details)
+                        put("notes", oa.notes)
+                        put("whatsappNumber", oa.whatsappNumber)
+                        put("email", oa.email)
+                        if (oa.linkedBankAccountId != null) {
+                            put("linkedBankAccountId", oa.linkedBankAccountId)
+                        }
                     })
                 }
                 put("ownerAccounts", ownerArr)
+            }
+
+            if (stickyNotes.isNotEmpty()) {
+                val stickyArr = JSONArray()
+                stickyNotes.forEach { sn ->
+                    stickyArr.put(JSONObject().apply {
+                        put("title", sn.title)
+                        put("subtitle", sn.subtitle)
+                        put("bodyText", sn.bodyText)
+                        put("textAlignment", sn.textAlignment)
+                        put("sortOrder", sn.sortOrder)
+                        put("createdAt", sn.createdAt)
+                        put("updatedAt", sn.updatedAt)
+                    })
+                }
+                put("stickyNotes", stickyArr)
             }
 
             val readArr = JSONArray()
@@ -590,7 +653,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 }
                 val subtotal = group.items.sumOf { it.quantity * it.price }
                 val subtotalStr = if (subtotal % 1.0 == 0.0) subtotal.toInt().toString() else String.format(Locale.US, "%.2f", subtotal)
-                "Group ${idx + 1}: ${groupItems.ifBlank { "-" }} [Subtotal: $subtotalStr]"
+                "${idx + 1}. ${groupItems.ifBlank { "-" }} [Subtotal: $subtotalStr]"
             }.joinToString(" | ")
         }
         val items = TransactionSerializer.deserialize(itemsSerialized)
@@ -599,7 +662,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 val priceStr = if (item.price % 1.0 == 0.0) item.price.toInt().toString() else item.price.toString()
                 "${item.name} (${item.quantity}x$priceStr)"
             }
-            return "Group 1: $itemStr"
+            return "1. $itemStr"
         }
         return "-"
     }
@@ -690,6 +753,16 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.append(exportHotelHistoryCsv(null))
         sb.append("\n")
 
+        val allHotelPayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
+        if (allHotelPayments.isNotEmpty()) {
+            sb.append("# HOTEL MONTHLY PAYMENTS\n")
+            sb.append("Hotel ID,Year,Month,Amount Paid,Payment Date,Note\n")
+            allHotelPayments.forEach { p ->
+                sb.append("${p.hotelId},${p.year},${p.month},${p.amountPaid},${p.paymentDate},\"${escapeCsv(p.note)}\"\n")
+            }
+            sb.append("\n")
+        }
+
         sb.append("# BANK ACCOUNTS\n")
         sb.append(exportBankAccountsCsv(null))
         sb.append("\n")
@@ -756,6 +829,14 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.append(exportMenusCsv(hotelId))
         sb.append("\n# ORDER HISTORY (GROUP-WISE COMPACT)\n")
         sb.append(exportHotelHistoryCsv(hotelId))
+        val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
+        if (payments.isNotEmpty()) {
+            sb.append("\n# HOTEL MONTHLY PAYMENTS\n")
+            sb.append("Hotel ID,Year,Month,Amount Paid,Payment Date,Note\n")
+            payments.forEach { p ->
+                sb.append("${p.hotelId},${p.year},${p.month},${p.amountPaid},${p.paymentDate},\"${escapeCsv(p.note)}\"\n")
+            }
+        }
         sb.toString()
     }
 
@@ -938,7 +1019,11 @@ class DataTransferManager(private val db: AppDatabase) {
                             bgPreset = pObj.optString("bgPreset", existing.bgPreset),
                             enableLiquidGlassTheme = pObj.optBoolean("enableLiquidGlassTheme", existing.enableLiquidGlassTheme),
                             disableHeavyEffects = pObj.optBoolean("disableHeavyEffects", existing.disableHeavyEffects),
-                            mealGroupPosition = pObj.optString("mealGroupPosition", existing.mealGroupPosition)
+                            mealGroupPosition = pObj.optString("mealGroupPosition", existing.mealGroupPosition),
+                            textSize = pObj.optString("textSize", existing.textSize),
+                            isBoldTextEnabled = pObj.optBoolean("isBoldTextEnabled", existing.isBoldTextEnabled),
+                            stickyCardWidthPercent = pObj.optInt("stickyCardWidthPercent", existing.stickyCardWidthPercent),
+                            stickyPreviewLines = pObj.optInt("stickyPreviewLines", existing.stickyPreviewLines)
                         )
                         userProfileDao.insertOrUpdateProfile(profile)
                     }
@@ -956,7 +1041,9 @@ class DataTransferManager(private val db: AppDatabase) {
                                     phoneNumber = hObj.optString("phoneNumber", ""),
                                     location = hObj.optString("location", ""),
                                     upiId = hObj.optString("upiId", ""),
-                                    qrCodeUri = hObj.optString("qrCodeUri", "")
+                                    qrCodeUri = hObj.optString("qrCodeUri", ""),
+                                    notes = hObj.optString("notes", ""),
+                                    whatsappNumber = hObj.optString("whatsappNumber", "")
                                 )
                             ).toInt()
                             if (origId != -1) hotelIdMap[origId] = newId
@@ -1053,7 +1140,11 @@ class DataTransferManager(private val db: AppDatabase) {
                                 upiId = item.optString("upiId", ""),
                                 accountNumber = item.optString("accountNumber", ""),
                                 ifsc = item.optString("ifsc", ""),
-                                branchName = item.optString("branchName", "")
+                                branchName = item.optString("branchName", ""),
+                                notes = item.optString("notes", ""),
+                                phoneNumber = item.optString("phoneNumber", ""),
+                                whatsappNumber = item.optString("whatsappNumber", ""),
+                                email = item.optString("email", "")
                             )
                             val newId = bankAccountDao.insertBankAccount(entity).toInt()
                             if (origId != -1) bankIdMap[origId] = newId
@@ -1112,11 +1203,39 @@ class DataTransferManager(private val db: AppDatabase) {
                                     branchName = item.optString("branchName", ""),
                                     upiId = item.optString("upiId", ""),
                                     qrCodeUri = item.optString("qrCodeUri", ""),
-                                    details = item.optString("details", item.optString("notes", ""))
+                                    details = item.optString("details", item.optString("notes", "")),
+                                    notes = item.optString("notes", ""),
+                                    whatsappNumber = item.optString("whatsappNumber", ""),
+                                    email = item.optString("email", ""),
+                                    linkedBankAccountId = if (item.has("linkedBankAccountId")) {
+                                        val origLinked = item.optInt("linkedBankAccountId", -1)
+                                        if (origLinked != -1) (bankIdMap[origLinked] ?: origLinked) else null
+                                    } else null
                                 )
                             )
                             totalCount++
                         }
+                    }
+
+                    if (root.has("stickyNotes")) {
+                        val sArr = root.getJSONArray("stickyNotes")
+                        val stickyList = mutableListOf<StickyNoteEntity>()
+                        for (i in 0 until sArr.length()) {
+                            val item = sArr.getJSONObject(i)
+                            stickyList.add(
+                                StickyNoteEntity(
+                                    title = item.optString("title", ""),
+                                    subtitle = item.optString("subtitle", ""),
+                                    bodyText = item.optString("bodyText", ""),
+                                    textAlignment = item.optString("textAlignment", "START"),
+                                    sortOrder = item.optInt("sortOrder", i),
+                                    createdAt = item.optLong("createdAt", System.currentTimeMillis()),
+                                    updatedAt = item.optLong("updatedAt", System.currentTimeMillis())
+                                )
+                            )
+                        }
+                        stickyNoteDao.insertStickyNotes(stickyList)
+                        totalCount += stickyList.size
                     }
 
                     if (root.has("customCategories")) {
@@ -1224,7 +1343,9 @@ class DataTransferManager(private val db: AppDatabase) {
                         phoneNumber = hObj.optString("phoneNumber", ""),
                         location = hObj.optString("location", ""),
                         upiId = hObj.optString("upiId", ""),
-                        qrCodeUri = hObj.optString("qrCodeUri", "")
+                        qrCodeUri = hObj.optString("qrCodeUri", ""),
+                        notes = hObj.optString("notes", ""),
+                        whatsappNumber = hObj.optString("whatsappNumber", "")
                     )
                     val newHotelId = hotelDao.insertHotel(newHotel).toInt()
 
@@ -1344,9 +1465,31 @@ class DataTransferManager(private val db: AppDatabase) {
                         )
                     }
                     transactionDao.insertTransactions(list)
+                    var payCount = 0
+                    if (root.has("hotelPayments")) {
+                        val payArr = root.getJSONArray("hotelPayments")
+                        val payList = mutableListOf<HotelPaymentEntity>()
+                        for (i in 0 until payArr.length()) {
+                            val item = payArr.getJSONObject(i)
+                            val payDate = item.optLong("paymentDate", item.optLong("timestamp", System.currentTimeMillis()))
+                            val cal = Calendar.getInstance().apply { timeInMillis = payDate }
+                            payList.add(
+                                HotelPaymentEntity(
+                                    hotelId = targetHotelId,
+                                    year = item.optInt("year", cal.get(Calendar.YEAR)),
+                                    month = item.optInt("month", cal.get(Calendar.MONTH)),
+                                    amountPaid = item.optDouble("amountPaid", item.optDouble("amount", 0.0)),
+                                    paymentDate = payDate,
+                                    note = item.optString("note", "")
+                                )
+                            )
+                        }
+                        hotelPaymentDao.insertPayments(payList)
+                        payCount = payList.size
+                    }
                     return@withContext ImportOutcome.Success(
-                        message = "Imported ${list.size} order transactions into Hotel #$targetHotelId",
-                        count = list.size
+                        message = "Imported ${list.size} order transactions" + (if (payCount > 0) " & $payCount payment statuses" else "") + " into Hotel #$targetHotelId",
+                        count = list.size + payCount
                     )
                 }
 
@@ -1753,8 +1896,10 @@ class DataTransferManager(private val db: AppDatabase) {
         val mealGroups = mutableListOf<MealGroup>()
 
         for (groupText in groupRawList) {
-            // Strip "Group X:" or "[Group X:" prefix
-            var cleanGroup = groupText.replace(Regex("^\\[?Group\\s*\\d*\\s*:\\s*", RegexOption.IGNORE_CASE), "")
+            // Strip "Group X:" or "[Group X:" or "1." prefix
+            var cleanGroup = groupText
+                .replace(Regex("^\\[?Group\\s*\\d*\\s*:\\s*", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("^\\d+\\.\\s+"), "")
             // Strip trailing brackets like "[Subtotal: 100]" or "]"
             cleanGroup = cleanGroup.replace(Regex("\\[Subtotal[^\\]]*\\]", RegexOption.IGNORE_CASE), "")
             cleanGroup = cleanGroup.replace(Regex("\\(Subtotal[^\\)]*\\)", RegexOption.IGNORE_CASE), "")
@@ -2109,6 +2254,35 @@ class DataTransferManager(private val db: AppDatabase) {
         if (lines.any { it.startsWith("# ORDER HISTORY", ignoreCase = true) }) {
             val historySection = lines.dropWhile { !it.startsWith("# ORDER HISTORY", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
             txCount = importHotelHistoryCsv(historySection, resolvedHotelId)
+        }
+
+        // 4. Monthly Payments
+        if (lines.any { it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }) {
+            val payLines = lines.dropWhile { !it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }.drop(1).takeWhile { !it.startsWith("#") }.filter { it.isNotBlank() && !it.startsWith("Hotel ID", ignoreCase = true) }
+            val payList = mutableListOf<HotelPaymentEntity>()
+            for (line in payLines) {
+                val cols = splitCsvRow(line)
+                if (cols.size >= 4) {
+                    val yr = cols.getOrElse(1) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+                    val mo = cols.getOrElse(2) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.MONTH)
+                    val amt = cols.getOrElse(3) { "0" }.toDoubleOrNull() ?: 0.0
+                    val pDate = cols.getOrElse(4) { "0" }.toLongOrNull() ?: System.currentTimeMillis()
+                    val note = cols.getOrElse(5) { "" }
+                    payList.add(
+                        HotelPaymentEntity(
+                            hotelId = resolvedHotelId,
+                            year = yr,
+                            month = mo,
+                            amountPaid = amt,
+                            paymentDate = pDate,
+                            note = note
+                        )
+                    )
+                }
+            }
+            if (payList.isNotEmpty()) {
+                hotelPaymentDao.insertPayments(payList)
+            }
         }
 
         ImportOutcome.Success(
@@ -2469,6 +2643,41 @@ class DataTransferManager(private val db: AppDatabase) {
                 .drop(1).takeWhile { !it.startsWith("#") }.joinToString("\n")
             val targetHId = hotelIdMap.values.firstOrNull() ?: 1
             totalCount += importHotelHistoryCsv(histSection, targetHId)
+        }
+
+        // 4b. Hotel Monthly Payments Section
+        if (lines.any { it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }) {
+            val payLines = lines.dropWhile { !it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }
+                .drop(1).takeWhile { !it.startsWith("#") }
+                .filter { it.isNotBlank() && !it.startsWith("Hotel ID", ignoreCase = true) }
+            val payList = mutableListOf<HotelPaymentEntity>()
+            val fallbackHId = hotelIdMap.values.firstOrNull() ?: 1
+            for (line in payLines) {
+                val cols = splitCsvRow(line)
+                if (cols.size >= 4) {
+                    val origHId = cols[0].toIntOrNull() ?: fallbackHId
+                    val mappedHId = hotelIdMap[origHId] ?: fallbackHId
+                    val yr = cols.getOrElse(1) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+                    val mo = cols.getOrElse(2) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.MONTH)
+                    val amt = cols.getOrElse(3) { "0" }.toDoubleOrNull() ?: 0.0
+                    val pDate = cols.getOrElse(4) { "0" }.toLongOrNull() ?: System.currentTimeMillis()
+                    val note = cols.getOrElse(5) { "" }
+                    payList.add(
+                        HotelPaymentEntity(
+                            hotelId = mappedHId,
+                            year = yr,
+                            month = mo,
+                            amountPaid = amt,
+                            paymentDate = pDate,
+                            note = note
+                        )
+                    )
+                }
+            }
+            if (payList.isNotEmpty()) {
+                hotelPaymentDao.insertPayments(payList)
+                totalCount += payList.size
+            }
         }
 
         // 5. Bank Accounts Section

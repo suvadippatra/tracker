@@ -64,7 +64,7 @@ fun GlobalSearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val categories = remember {
-        listOf("All", "Expenses", "Meals & Menus", "Hotels", "Accounts", "Bills")
+        listOf("All", "Sticky", "Expenses", "Meals & Menus", "Hotels", "Accounts", "Bills")
     }
 
     val quickSuggestions = remember(hotels, expenses, bankAccounts, menuItems, isBengali) {
@@ -438,6 +438,9 @@ fun GlobalSearchScreen(
                                     "Meter" -> {
                                         viewModel.activeTab.value = "Bill"
                                     }
+                                    "Sticky" -> {
+                                        viewModel.activeTab.value = "Sticky"
+                                    }
                                 }
                                 onDismiss()
                             }
@@ -509,6 +512,7 @@ fun SearchItemCard(
         "Menu" -> Icons.Default.Fastfood to Color(0xFFFFD700)
         "Account" -> Icons.Default.AccountBalance to Color(0xFF26A69A)
         "Meter" -> Icons.Default.ElectricBolt to Color(0xFFB388FF)
+        "Sticky" -> Icons.Default.StickyNote2 to Color(0xFFFFB300)
         else -> Icons.Default.Info to Color.Gray
     }
 

@@ -48,6 +48,9 @@ val LocalAppBgPreset = compositionLocalOf { "Default" }
 val LocalAppCustomBgUri = compositionLocalOf { "" }
 val LocalAppLiquidGlassTheme = compositionLocalOf { false }
 val LocalDisableHeavyEffects = compositionLocalOf { true }
+val LocalBoldTextEnabled = compositionLocalOf { false }
+val LocalStickyCardWidthPercent = compositionLocalOf { 80 }
+val LocalStickyPreviewLines = compositionLocalOf { 10 }
 
 @Composable
 fun isHeavyEffectsDisabled(): Boolean = LocalDisableHeavyEffects.current
@@ -264,22 +267,23 @@ fun GlassCard(
     content: @Composable () -> Unit
 ) {
     val isLight = isAppLightMode()
+    val fastMode = isHeavyEffectsDisabled()
     val shape = RoundedCornerShape(cornerRadius)
     val cardBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-    val shadowElev = if (isLight) 4.dp else 6.dp
+    val shadowElev = if (fastMode) (if (isLight) 2.dp else 3.dp) else (if (isLight) 4.dp else 6.dp)
     val ambientShadow = if (isLight) Color(0x1F0F172A) else Color(0x66000000)
     val spotShadow = if (isLight) Color(0x290F172A) else Color(0x88000000)
 
     Box(
         modifier = modifier
-            .UARTShadow(
+            .shadow(
                 elevation = shadowElev,
                 shape = shape,
+                clip = true,
                 ambientColor = ambientShadow,
                 spotColor = spotShadow
             )
-            .clip(shape)
-            .background(cardBg, shape)
+            .background(cardBg)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         content()
@@ -309,6 +313,7 @@ fun GlassButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val isLight = isAppLightMode()
+    val fastMode = isHeavyEffectsDisabled()
     val shape = RoundedCornerShape(cornerRadius)
     val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
     val ambientShadow = if (isLight) Color(0x180F172A) else Color(0x55000000)
@@ -317,15 +322,14 @@ fun GlassButton(
     Row(
         modifier = modifier
             .defaultMinSize(minHeight = 44.dp)
-            .bounceClick()
-            .UARTShadow(
-                elevation = if (isLight) 2.5.dp else 4.dp,
+            .shadow(
+                elevation = if (fastMode) 1.5.dp else (if (isLight) 2.5.dp else 4.dp),
                 shape = shape,
+                clip = true,
                 ambientColor = ambientShadow,
                 spotColor = spotShadow
             )
-            .clip(shape)
-            .background(buttonBg, shape)
+            .background(buttonBg)
             .clickable(onClick = onClick)
             .padding(contentPadding),
         horizontalArrangement = Arrangement.Center,
@@ -349,13 +353,13 @@ fun AttachmentActionChip(
     Box(
         modifier = Modifier
             .height(38.dp)
-            .UARTShadow(
-                elevation = 2.dp,
+            .shadow(
+                elevation = 1.5.dp,
                 shape = shape,
+                clip = true,
                 ambientColor = if (isLight) Color(0x180F172A) else Color(0x44000000),
                 spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
             )
-            .clip(shape)
             .background(opaqueBg)
             .clickable { onClick() }
             .padding(horizontal = 12.dp),
@@ -430,6 +434,8 @@ fun GlassTextField(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLight = isAppLightMode()
+    val isBold = LocalBoldTextEnabled.current
+    val activeFontFamily = if (isBold) com.example.ui.theme.AppBoldFontFamily else com.example.ui.theme.AppFontFamily
     val fieldShape = RoundedCornerShape(16.dp)
 
     val bgColor = if (isLight) {
@@ -454,7 +460,8 @@ fun GlassTextField(
                 CompositionLocalProvider(
                     LocalTextStyle provides TextStyle(
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (isBold) FontWeight.Bold else FontWeight.SemiBold,
+                        fontFamily = activeFontFamily,
                         color = AppSecondaryTextColor()
                     )
                 ) {
@@ -468,17 +475,14 @@ fun GlassTextField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .UARTShadow(
-                    elevation = if (isFocused) 3.dp else (if (isLight) 1.5.dp else 2.5.dp),
+                .shadow(
+                    elevation = if (isFocused) 2.5.dp else (if (isLight) 1.dp else 2.dp),
                     shape = fieldShape,
+                    clip = true,
                     ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
                     spotColor = if (isLight) Color(0x1C0F172A) else Color(0x66000000)
                 )
-                .clip(fieldShape)
-                .background(
-                    color = bgColor,
-                    shape = fieldShape
-                )
+                .background(color = bgColor)
                 .then(
                     if (borderWidth > 0.dp) {
                         Modifier.border(
@@ -492,7 +496,8 @@ fun GlassTextField(
             textStyle = TextStyle(
                 color = AppTextColor(),
                 fontSize = 15.sp,
-                fontFamily = com.example.ui.theme.AppFontFamily
+                fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+                fontFamily = activeFontFamily
             ),
             singleLine = singleLine,
             keyboardOptions = keyboardOptions,
@@ -878,13 +883,13 @@ fun M3Chip(
     Box(
         modifier = modifier
             .height(36.dp)
-            .UARTShadow(
-                elevation = if (selected) 3.dp else 1.5.dp,
+            .shadow(
+                elevation = if (selected) 2.5.dp else 1.dp,
                 shape = shape,
+                clip = true,
                 ambientColor = if (isLight) Color(0x160F172A) else Color(0x44000000),
                 spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
             )
-            .clip(shape)
             .background(bgColor)
             .clickable { onClick() }
             .padding(horizontal = 14.dp),

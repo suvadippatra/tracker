@@ -26,6 +26,8 @@ import com.example.data.repository.FinancialRepository
 import com.example.data.model.SearchResult
 import com.example.data.model.MeterReading
 import com.example.data.model.UtilityBill
+import com.example.data.model.StickyNoteEntity
+import com.example.data.model.OwnerAccountEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -240,20 +242,165 @@ class FinancialViewModel(
     val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = repository.allOwnerAccounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.allStickyNotes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val deletedStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.deletedStickyNotes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> {
         return repository.getAttachmentsForExpense(expenseId)
     }
 
-    fun addOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
-        viewModelScope.launch { repository.insertOwnerAccount(account) }
+    fun addOwnerAccount(account: com.example.data.model.OwnerAccountEntity, linkToExtras: Boolean = false) {
+        viewModelScope.launch {
+            if (linkToExtras) {
+                val bankEntity = BankAccountEntity(
+                    name = account.accountName.ifBlank { account.ownerName },
+                    balance = 0.0,
+                    initialBalance = 0.0,
+                    details = account.details,
+                    qrCodeUri = account.qrCodeUri,
+                    upiId = account.upiId,
+                    accountNumber = account.accountNumber,
+                    ifsc = account.ifscCode,
+                    branchName = account.branchName,
+                    notes = account.notes,
+                    phoneNumber = account.ownerMobile,
+                    whatsappNumber = account.whatsappNumber,
+                    email = account.email
+                )
+                val newBankId = repository.insertBankAccount(bankEntity).toInt()
+                repository.insertOwnerAccount(account.copy(linkedBankAccountId = newBankId))
+            } else {
+                repository.insertOwnerAccount(account)
+            }
+        }
     }
 
     fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
-        viewModelScope.launch { repository.updateOwnerAccount(account) }
+        viewModelScope.launch {
+            repository.updateOwnerAccount(account)
+            val linkedBankId = account.linkedBankAccountId
+            if (linkedBankId != null) {
+                val existingBank = allBankAccounts.value.find { it.id == linkedBankId }
+                if (existingBank != null) {
+                    repository.updateBankAccount(
+                        existingBank.copy(
+                            name = account.accountName.ifBlank { existingBank.name },
+                            details = account.details,
+                            qrCodeUri = account.qrCodeUri,
+                            upiId = account.upiId,
+                            accountNumber = account.accountNumber,
+                            ifsc = account.ifscCode,
+                            branchName = account.branchName,
+                            notes = account.notes,
+                            phoneNumber = account.ownerMobile,
+                            whatsappNumber = account.whatsappNumber,
+                            email = account.email
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun linkOwnerAccountToExtras(account: com.example.data.model.OwnerAccountEntity) {
+        viewModelScope.launch {
+            if (account.linkedBankAccountId != null) return@launch
+            val bankEntity = BankAccountEntity(
+                name = account.accountName.ifBlank { account.ownerName },
+                balance = 0.0,
+                initialBalance = 0.0,
+                details = account.details,
+                qrCodeUri = account.qrCodeUri,
+                upiId = account.upiId,
+                accountNumber = account.accountNumber,
+                ifsc = account.ifscCode,
+                branchName = account.branchName,
+                notes = account.notes,
+                phoneNumber = account.ownerMobile,
+                whatsappNumber = account.whatsappNumber,
+                email = account.email
+            )
+            val newBankId = repository.insertBankAccount(bankEntity).toInt()
+            repository.updateOwnerAccount(account.copy(linkedBankAccountId = newBankId))
+        }
+    }
+
+    fun delinkOwnerAccountFromExtras(
+        account: com.example.data.model.OwnerAccountEntity,
+        moveExtrasAccountToBin: Boolean
+    ) {
+        viewModelScope.launch {
+            val linkedBankId = account.linkedBankAccountId
+            repository.updateOwnerAccount(account.copy(linkedBankAccountId = null))
+            if (moveExtrasAccountToBin && linkedBankId != null) {
+                val existingBank = allBankAccounts.value.find { it.id == linkedBankId }
+                if (existingBank != null) {
+                    repository.updateBankAccount(existingBank.copy(isDeleted = true))
+                }
+                allExtraExpenses.value.filter { it.bankAccountId == linkedBankId && !it.isDeleted }.forEach { exp ->
+                    repository.softDeleteExpenseAndRevert(exp, allBankAccounts.value)
+                }
+            }
+        }
     }
 
     fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
         viewModelScope.launch { repository.deleteOwnerAccount(account) }
+    }
+
+    // Sticky Notes CRUD
+    fun saveStickyNote(note: StickyNoteEntity, onSaved: ((Int) -> Unit)? = null) {
+        viewModelScope.launch {
+            if (note.id == 0) {
+                val maxOrder = allStickyNotes.value.maxOfOrNull { it.sortOrder } ?: -1
+                val newId = repository.insertStickyNote(
+                    note.copy(
+                        sortOrder = maxOrder + 1,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                ).toInt()
+                onSaved?.invoke(newId)
+            } else {
+                repository.updateStickyNote(note.copy(updatedAt = System.currentTimeMillis()))
+                onSaved?.invoke(note.id)
+            }
+        }
+    }
+
+    fun softDeleteStickyNote(note: StickyNoteEntity) {
+        viewModelScope.launch {
+            repository.softDeleteStickyNote(note.id)
+        }
+    }
+
+    fun restoreStickyNote(note: StickyNoteEntity) {
+        viewModelScope.launch {
+            repository.restoreStickyNote(note.id)
+        }
+    }
+
+    fun deleteStickyNotePermanently(note: StickyNoteEntity) {
+        viewModelScope.launch {
+            repository.deleteStickyNotePermanently(note)
+        }
+    }
+
+    fun emptyDeletedStickyNotesPermanently() {
+        viewModelScope.launch {
+            repository.emptyDeletedStickyNotesPermanently()
+        }
+    }
+
+    fun reorderStickyNotes(orderedNotes: List<StickyNoteEntity>) {
+        viewModelScope.launch {
+            val updated = orderedNotes.mapIndexed { index, note ->
+                note.copy(sortOrder = index)
+            }
+            repository.insertStickyNotes(updated)
+        }
     }
 
     // Active Hotel Stream
@@ -572,7 +719,7 @@ class FinancialViewModel(
                 val extension = when(type) {
                     "IMAGE" -> "jpg"
                     "PDF" -> "pdf"
-                    "VOICE" -> "amr"
+                    "VOICE" -> if (uriString.endsWith(".m4a", ignoreCase = true)) "m4a" else "amr"
                     else -> "dat"
                 }
                 val fileName = "secure_${System.currentTimeMillis()}_${(0..1000).random()}.$extension"
@@ -950,14 +1097,13 @@ class FinancialViewModel(
         viewModelScope.launch {
             try {
                 _importUiFlowState.value = ImportUiFlowState.Merging
-                val db = com.example.data.AppDatabase.getDatabase(getApplication())
-                val dtm = com.example.data.DataTransferManager(db)
-                // Execute fallback raw or merge plan
+                syncEngine.executeMergePlan(plan)
                 _importUiFlowState.value = ImportUiFlowState.Idle
                 clearSyncAnalysis()
-                val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size
+                val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.hotelPaymentsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size + plan.stickyNotesToInsert.size
                 val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
-                onResult(com.example.data.ImportOutcome.Success("Data synchronized successfully! ($totalInserted new records added, $totalUpdated records updated)"))
+                updateWidgets()
+                onResult(com.example.data.ImportOutcome.Success("Data synchronized successfully! ($totalInserted new records added, $totalUpdated records updated)", count = totalInserted + totalUpdated))
             } catch (e: Exception) {
                 _importUiFlowState.value = ImportUiFlowState.Idle
                 e.printStackTrace()
@@ -1037,7 +1183,8 @@ class FinancialViewModel(
         allHotels,
         allExtraExpenses,
         allBankAccounts,
-        allTransactions
+        allTransactions,
+        allStickyNotes
     ) { args: Array<Any?> ->
         val query = args[0] as String
         val filter = args[1] as String
@@ -1045,6 +1192,7 @@ class FinancialViewModel(
         val expenses = args[3] as List<ExtraExpenseEntity>
         val accounts = args[4] as List<BankAccountEntity>
         val txs = args[5] as List<HotelTransactionEntity>
+        val stickies = args[6] as List<StickyNoteEntity>
         if (query.isBlank()) return@combine emptyList()
         val q = query.trim().lowercase()
 
@@ -1053,13 +1201,13 @@ class FinancialViewModel(
         if (filter == "All" || filter == "Hotels") {
             for (i in hotels.indices) {
                 val h = hotels[i]
-                if (!h.isDeleted && (h.name.lowercase().contains(q) || h.location.lowercase().contains(q) || h.phoneNumber.contains(q))) {
+                if (!h.isDeleted && (h.name.lowercase().contains(q) || h.location.lowercase().contains(q) || h.phoneNumber.contains(q) || h.notes.lowercase().contains(q))) {
                     results.add(
                         com.example.data.model.SearchResult(
                             id = h.id,
                             title = h.name,
                             type = "Hotel",
-                            subtitle = if (h.location.isNotBlank()) h.location else h.phoneNumber,
+                            subtitle = if (h.location.isNotBlank()) h.location else h.phoneNumber.ifBlank { h.notes },
                             hotelId = h.id
                         )
                     )
@@ -1088,13 +1236,13 @@ class FinancialViewModel(
         if (filter == "All" || filter == "Accounts") {
             for (i in accounts.indices) {
                 val a = accounts[i]
-                if (!a.isDeleted && (a.name.lowercase().contains(q) || a.accountNumber.contains(q) || a.branchName.lowercase().contains(q))) {
+                if (!a.isDeleted && (a.name.lowercase().contains(q) || a.accountNumber.contains(q) || a.branchName.lowercase().contains(q) || a.notes.lowercase().contains(q))) {
                     results.add(
                         com.example.data.model.SearchResult(
                             id = a.id,
                             title = a.name,
                             type = "Account",
-                            subtitle = if (a.accountNumber.isNotBlank()) "Acc: ${a.accountNumber}" else "Bank Account",
+                            subtitle = if (a.accountNumber.isNotBlank()) "Acc: ${a.accountNumber}" else a.notes.ifBlank { "Bank Account" },
                             amount = a.balance
                         )
                     )
@@ -1120,6 +1268,24 @@ class FinancialViewModel(
                             )
                         )
                     }
+                }
+            }
+        }
+
+        if (filter == "All" || filter == "Sticky") {
+            for (i in stickies.indices) {
+                val sn = stickies[i]
+                if (!sn.isDeleted && (sn.title.lowercase().contains(q) || sn.subtitle.lowercase().contains(q) || sn.bodyText.lowercase().contains(q))) {
+                    val displayTitle = sn.title.ifBlank { sn.subtitle.ifBlank { sn.bodyText.lines().firstOrNull()?.take(40) ?: "Sticky Note" } }
+                    val displaySub = sn.subtitle.ifBlank { sn.bodyText.replace("\n", " ").take(60) }
+                    results.add(
+                        com.example.data.model.SearchResult(
+                            id = sn.id,
+                            title = displayTitle,
+                            type = "Sticky",
+                            subtitle = displaySub
+                        )
+                    )
                 }
             }
         }
@@ -1150,11 +1316,84 @@ class FinancialViewModel(
 
 
     // Standard CRUD
-    fun addHotel(name: String, advancedPayment: Double, phoneNumber: String, location: String, upiId: String, qrCodeUri: String) = viewModelScope.launch { repository.insertHotel(com.example.data.model.HotelEntity(name = name, advancedPayment = advancedPayment, phoneNumber = phoneNumber, location = location, upiId = upiId, qrCodeUri = qrCodeUri)) }
+    fun addHotel(
+        name: String,
+        advancedPayment: Double,
+        phoneNumber: String,
+        location: String,
+        upiId: String,
+        qrCodeUri: String,
+        notes: String = "",
+        whatsappNumber: String = ""
+    ) = viewModelScope.launch {
+        repository.insertHotel(
+            com.example.data.model.HotelEntity(
+                name = name,
+                advancedPayment = advancedPayment,
+                phoneNumber = phoneNumber,
+                location = location,
+                upiId = upiId,
+                qrCodeUri = qrCodeUri,
+                notes = notes,
+                whatsappNumber = whatsappNumber
+            )
+        )
+    }
     fun editHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.updateHotel(hotel) }
     fun deleteHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.deleteHotel(hotel) }
-    fun addVirtualAccount(name: String, balance: Double, details: String = "", qrCodeUri: String = "", upiId: String = "", accountNumber: String = "", ifsc: String = "", branchName: String = "") = viewModelScope.launch { repository.insertBankAccount(com.example.data.model.BankAccountEntity(name = name, balance = balance, initialBalance = balance, details = details, upiId = upiId, qrCodeUri = qrCodeUri, accountNumber = accountNumber, ifsc = ifsc, branchName = branchName)) }
-    fun editVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account) }
+    fun addVirtualAccount(
+        name: String,
+        balance: Double,
+        details: String = "",
+        qrCodeUri: String = "",
+        upiId: String = "",
+        accountNumber: String = "",
+        ifsc: String = "",
+        branchName: String = "",
+        notes: String = "",
+        phoneNumber: String = "",
+        whatsappNumber: String = "",
+        email: String = ""
+    ) = viewModelScope.launch {
+        repository.insertBankAccount(
+            com.example.data.model.BankAccountEntity(
+                name = name,
+                balance = balance,
+                initialBalance = balance,
+                details = details,
+                upiId = upiId,
+                qrCodeUri = qrCodeUri,
+                accountNumber = accountNumber,
+                ifsc = ifsc,
+                branchName = branchName,
+                notes = notes,
+                phoneNumber = phoneNumber,
+                whatsappNumber = whatsappNumber,
+                email = email
+            )
+        )
+    }
+    fun editVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch {
+        repository.updateBankAccount(account)
+        val linkedOwner = allOwnerAccounts.value.find { it.linkedBankAccountId == account.id && !it.isDeleted }
+        if (linkedOwner != null) {
+            repository.updateOwnerAccount(
+                linkedOwner.copy(
+                    accountName = account.name,
+                    details = account.details,
+                    qrCodeUri = account.qrCodeUri,
+                    upiId = account.upiId,
+                    accountNumber = account.accountNumber,
+                    ifscCode = account.ifsc,
+                    branchName = account.branchName,
+                    notes = account.notes,
+                    ownerMobile = account.phoneNumber.ifBlank { linkedOwner.ownerMobile },
+                    whatsappNumber = account.whatsappNumber,
+                    email = account.email
+                )
+            )
+        }
+    }
     fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account.copy(isDeleted = true)) }
     fun addMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.insertMenu(menu) }
     fun updateMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.updateMenu(menu) }
@@ -1297,6 +1536,23 @@ class FinancialViewModel(
             disableHeavyEffects = disabled,
             enableLiquidGlassTheme = if (disabled) false else current.enableLiquidGlassTheme,
             enableStarAnimation = if (disabled) false else current.enableStarAnimation
+        )
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
+    }
+
+    fun toggleBoldText(enabled: Boolean) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        val updated = current.copy(isBoldTextEnabled = enabled)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
+    }
+
+    fun updateStickyPreferences(widthPercent: Int, previewLines: Int) = viewModelScope.launch {
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        val updated = current.copy(
+            stickyCardWidthPercent = widthPercent.coerceIn(50, 80),
+            stickyPreviewLines = previewLines.coerceIn(4, 10)
         )
         com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
         repository.saveUserProfile(updated)

@@ -49,8 +49,10 @@ fun EditHotelModal(
     var editHotelName by remember(hotel) { mutableStateOf(hotel?.name ?: "") }
     var editHotelAdvanced by remember(hotel) { mutableStateOf(hotel?.advancedPayment?.toString() ?: "") }
     var editPhone by remember(hotel) { mutableStateOf(hotel?.phoneNumber ?: "") }
+    var editWhatsapp by remember(hotel) { mutableStateOf(hotel?.whatsappNumber ?: "") }
     var editLocation by remember(hotel) { mutableStateOf(hotel?.location ?: "") }
     var editUpiId by remember(hotel) { mutableStateOf(hotel?.upiId ?: "") }
+    var editNotes by remember(hotel) { mutableStateOf(hotel?.notes ?: "") }
     var editQrCodeUris by remember(hotel) { mutableStateOf(hotel?.qrCodeUri?.split(",")?.filter { it.isNotBlank() } ?: emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -171,7 +173,9 @@ fun EditHotelModal(
                                                         phoneNumber = editPhone,
                                                         location = editLocation,
                                                         upiId = editUpiId,
-                                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                                        qrCodeUri = editQrCodeUris.joinToString(","),
+                                                        notes = editNotes,
+                                                        whatsappNumber = editWhatsapp
                                                     )
                                                 } else {
                                                     viewModel.editHotel(hotel.copy(
@@ -180,7 +184,9 @@ fun EditHotelModal(
                                                         phoneNumber = editPhone,
                                                         location = editLocation,
                                                         upiId = editUpiId,
-                                                        qrCodeUri = editQrCodeUris.joinToString(",")
+                                                        qrCodeUri = editQrCodeUris.joinToString(","),
+                                                        notes = editNotes,
+                                                        whatsappNumber = editWhatsapp
                                                     ))
                                                 }
                                                 onDismiss()
@@ -203,7 +209,7 @@ fun EditHotelModal(
                             if (hotel != null) {
                                 Spacer(modifier = Modifier.width(4.dp))
                                 var showMenu by remember { mutableStateOf(false) }
-                                Box {
+                                Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                                     IconButton(
                                         onClick = { showMenu = true },
                                         modifier = Modifier.size(44.dp)
@@ -217,7 +223,8 @@ fun EditHotelModal(
                                     DropdownMenu(
                                         expanded = showMenu,
                                         onDismissRequest = { showMenu = false },
-                                        modifier = Modifier.background(getDialogBackground())
+                                        offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
+                                        modifier = Modifier.widthIn(min = 190.dp).background(getDialogBackground())
                                     ) {
                                         DropdownMenuItem(
                                             text = { Text(if (isBengali) "ট্র্যাশ বিনে সরান" else "Move to Trash Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
@@ -280,7 +287,16 @@ fun EditHotelModal(
                             GlassTextField(
                                 value = editPhone,
                                 onValueChange = { editPhone = it },
-                                label = { Text(if (isBengali) "মোবাইল নম্বর" else "Mobile Number", color = AppTextColor().copy(alpha = 0.6f)) },
+                                label = { Text(if (isBengali) "মোবাইল নম্বর (কল করার জন্য)" else "Mobile Number (Phone Call)", color = AppTextColor().copy(alpha = 0.6f)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            GlassTextField(
+                                value = editWhatsapp,
+                                onValueChange = { editWhatsapp = it },
+                                label = { Text(if (isBengali) "হোয়াটসঅ্যাপ নম্বর" else "WhatsApp Number (if different or for chat)", color = AppTextColor().copy(alpha = 0.6f)) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
                                 modifier = Modifier.fillMaxWidth()
@@ -320,8 +336,16 @@ fun EditHotelModal(
                                 onValueChange = { editUpiId = it },
                                 label = { Text(if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID", color = AppTextColor().copy(alpha = 0.6f)) },
                                 singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                 modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            GlassTextField(
+                                value = editNotes,
+                                onValueChange = { editNotes = it },
+                                label = { Text(if (isBengali) "সংক্ষিপ্ত নোট / মন্তব্য" else "Short Notes / Remarks", color = AppTextColor().copy(alpha = 0.6f)) },
+                                singleLine = false,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp)
                             )
                             Spacer(modifier = Modifier.height(24.dp))
                             Text(

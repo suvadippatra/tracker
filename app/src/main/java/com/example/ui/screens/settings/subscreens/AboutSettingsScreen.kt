@@ -70,32 +70,39 @@ fun AboutSettingsScreen(
     val quickHelpItems = remember {
         listOf(
             HelpGuideQuickItem(
+                icon = Icons.Default.StickyNote2,
+                titleEn = "Sticky Notes Tab, Wall Grid, Tables & Media",
+                titleBn = "স্টিকি নোটস ট্যাব, ওয়াল গ্রিড, টেবিল ও মিডিয়া",
+                descEn = "Floating pinned sticky cards with subtle bobbing animation, double-tap full-screen view, rich text (bold/highlight/bullets), interactive table builder with pipe '|' support, unlimited PDFs, 2MB auto-compressed images, and 2-min voice notes. On tablets/landscape, notes arrange on a horizontally scrollable wall.",
+                descBn = "মৃদু ভাসমান স্টিকি কার্ড, ডাবল-ট্যাপ ফুল-স্ক্রিন ভিউ, বোল্ড/হাইলাইট, ইন্টারেক্টিভ টেবিল বিল্ডার, পিডিএফ, ২ এমবি ছবি এবং ২ মিনিটের ভয়েস নোট। ট্যাবলেটে ওয়াল গ্রিড লেআউট।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.ContactPhone,
+                titleEn = "Call/WhatsApp & Account Contact Popups + Short Notes",
+                titleBn = "কল/হোয়াটসঅ্যাপ ও অ্যাকাউন্ট কন্টাক্ট পপআপ এবং সংক্ষিপ্ত নোট",
+                descEn = "Tap the call icon on any hotel for Phone Call or WhatsApp Chat (Wi-Fi tablets automatically show WhatsApp only). Tap the contact icon on accounts for Mail, WhatsApp, or SMS. Add Short Notes to hotels & accounts and view them in the unified Info Popup or tablet left column.",
+                descBn = "হোটেলে কল বা হোয়াটসঅ্যাপ চ্যাট (ওয়াই-ফাই ট্যাবলেটে শুধু হোয়াটসঅ্যাপ) এবং অ্যাকাউন্টে ইমেইল, হোয়াটসঅ্যাপ বা SMS অপশন। হোটেল ও অ্যাকাউন্টে সংক্ষিপ্ত নোট যোগ করার সুবিধা।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.AccountBox,
+                titleEn = "Owner Profile: Sandboxed vs. Linked Extras Accounts",
+                titleBn = "ওনার প্রোফাইল: স্যান্ডবক্সড ও লিংকড অ্যাকাউন্ট",
+                descEn = "Profile accounts are sandboxed by default. Link any account to the Extras tab for 2-way sync, or de-link with options to move history to Bin, download CSV, or use the Export Tool (only QR, JSON, CSV, or Copy-Paste exports exclude media attachments). Double-tap Greeting to view your Default Profile Account QR.",
+                descBn = "প্রোফাইল অ্যাকাউন্ট ডিফল্টভাবে স্যান্ডবক্সড থাকে। প্রয়োজনে Extras পেজের সাথে লিংক বা ডি-লিংক করুন (বিন, CSV ডাউনলোড বা এক্সপোর্ট অপশনসহ)। অভিবাদনে ডাবল-ট্যাপ করে ডিফল্ট প্রোফাইল QR দেখুন।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.FormatSize,
+                titleEn = "Bold Font Toggle, Text Scaling & Single-Mode Meal Ledger",
+                titleBn = "বোল্ড ফন্ট টগল, টেক্সট স্কেলিং ও একক মিল লেজার",
+                descEn = "Enable system-wide Bold Text (Roboto-Bold) and scale text from Small to Extra Large (XL) in Appearance Settings. Meal Record Ledger now uses the clear 'Adding One by One' mode with '1.', '2.' group numbering and full Paid/Unpaid status backup.",
+                descBn = "সেটিংস থেকে সম্পূর্ণ অ্যাপে বোল্ড টেক্সট ও টেক্সট সাইজ স্কেলিং নিয়ন্ত্রণ করুন। মিল রেকর্ড লেজারে 'Adding One by One' ভিউ, '1.' গ্রুপ নম্বর এবং পেইড স্ট্যাটাস ব্যাকআপ।"
+            ),
+            HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "Smart Bill Interpolation & Inactive Unpaid Carry-Over",
-                titleBn = "স্মার্ট বিল ইন্টারপোলেশন ও বকেয়া জের",
-                descEn = "Linearly interpolates unlisted dates between meter readings and splits rate changes pro-rata. If readings stop updating after the last unpaid bill, selecting a later date carries over your unpaid balance + ₹0 new usage.",
-                descBn = "মিটার রিডিংয়ে না থাকা তারিখের মাঝামাঝি রিডিং ইন্টারপোলেট করে এবং রেট পরিবর্তন আনুপাতিক হারে ভাগ করে। রিডিং বন্ধ থাকলেও পূর্বের বকেয়া বিলের সাথে ₹০ নতুন চার্জ যোগ করে সঠিক হিসাব দেখায়।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.ReceiptLong,
-                titleEn = "Dual-Mode Meal & Account History ('Adding One by One')",
-                titleBn = "ডুয়াল-মোড খাবার ও অ্যাকাউন্ট হিস্ট্রি",
-                descEn = "Swipe left or right to browse months in both Hotel Meal History and Wallet Account History. Toggle between Summed View and 'Adding One by One' Expression View (e.g. (60 + 80) + 50 = ₹190) with full Meal Group support.",
-                descBn = "হোটেল ও অ্যাকাউন্ট হিস্ট্রিতে ডানে-বামে সোয়াইপ করে মাস পরিবর্তন করুন এবং সামড ভিউ ও 'একের পর এক যোগ' এক্সপ্রেশন ভিউয়ের মধ্যে পরিবর্তন করুন।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.AutoAwesome,
-                titleEn = "Borderless Material 3 Light Mode & Android 8–10 Full-Screen",
-                titleBn = "বর্ডারলেস মেটেরিয়াল ৩ ও অ্যান্ড্রয়েড ৮-১০ ফুল-স্ক্রিন",
-                descEn = "Clean borderless Material 3 surfaces with native elevation shadows, deep M3 primary blue buttons, rounded 16dp inputs, circular '<' back navigation, text-only menus, and zero top/bottom cropping on Android 8–10.",
-                descBn = "লাইট ও ডার্ক মোডে বর্ডারলেস মেটেরিয়াল ৩ শ্যাডো, গাঢ় নীল বাটন, ১৬ ডিপি রাউন্ডেড টেক্সট বক্স, '<' ব্যাক বাটন এবং অ্যান্ড্রয়েড ৮-১০ এ পূর্ণ-স্ক্রিন সাপোর্ট।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.QrCode,
-                titleEn = "Normalized Data Export & Adaptive QR Streaming",
-                titleBn = "নরমালাইজড ডেটা এক্সপোর্ট ও অ্যাডাপ্টিভ কিউআর স্ট্রিমিং",
-                descEn = "Exports all independent base data (including Electricity Bill Rates, Owner Accounts & Hotel Payments) while omitting derived fields that the app recalculates automatically, paired with adaptive QR packet splitting.",
-                descBn = "বিদ্যুৎ বিলের রেট, ওনার অ্যাকাউন্ট ও হোটেল পেমেন্টসহ সকল মৌলিক ডেটা এক্সপোর্ট করে এবং অপ্রয়োজনীয় ডিরাইভড ডেটা বাদ দিয়ে দ্রুত কিউআর স্ট্রিমিং নিশ্চিত করে।"
+                titleEn = "Smart Bill Interpolation & Android 8–10 Full-Screen Fix",
+                titleBn = "স্মার্ট বিল ইন্টারপোলেশন ও অ্যান্ড্রয়েড ৮–১০ ফুল-স্ক্রিন ফিক্স",
+                descEn = "Carries over unpaid balances when meter readings pause and linearly interpolates unlisted dates. All dialogs and sub-pages stretch 100% edge-to-edge on Android 8–10 with zero bottom cropping and single-layer hardware shadows for 60fps scrolling.",
+                descBn = "মিটার রিডিং বন্ধ থাকলেও বকেয়া বিল ক্যারি-ওভার ও ইন্টারপোলেশন করে এবং অ্যান্ড্রয়েড ৮–১০ এ নিচের অংশ কেটে যাওয়া বা সাদা বর্ডার সমস্যা সম্পূর্ণ সমাধান করে।"
             )
         )
     }

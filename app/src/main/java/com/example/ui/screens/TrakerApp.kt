@@ -245,11 +245,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     val showLockScreen = isInitialized && userProfile.appLockEnabled && (!isUnlocked || isLockedManual)
 
     val currentDensity = androidx.compose.ui.platform.LocalDensity.current
-    val customFontScale = when (userProfile.textSize) {
-        "Small" -> 0.90f
-        "Large" -> 1.10f
-        else -> 1.0f
-    }
+    val customFontScale = com.example.ui.theme.ThemePreferences.getFontScale(userProfile.textSize)
 
     CompositionLocalProvider(
         LocalAppTheme provides userProfile.themeMode,
@@ -257,6 +253,9 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         LocalAppCustomBgUri provides userProfile.customBgUri,
         LocalAppLiquidGlassTheme provides false,
         LocalDisableHeavyEffects provides userProfile.disableHeavyEffects,
+        LocalBoldTextEnabled provides userProfile.isBoldTextEnabled,
+        LocalStickyCardWidthPercent provides userProfile.stickyCardWidthPercent.coerceIn(50, 80),
+        LocalStickyPreviewLines provides userProfile.stickyPreviewLines.coerceIn(4, 10),
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
             density = currentDensity.density,
             fontScale = customFontScale
@@ -265,7 +264,9 @@ fun TrakerApp(viewModel: FinancialViewModel) {
         MyApplicationTheme(
             darkTheme = !isLight,
             preset = userProfile.bgPreset,
-            isLiquidGlass = false
+            isLiquidGlass = false,
+            textSize = userProfile.textSize,
+            isBoldTextEnabled = userProfile.isBoldTextEnabled
         ) {
             Box(
                 modifier = Modifier
@@ -352,7 +353,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                         account = state.account,
                                         prefLanguage = userProfile.language,
                                         onDismiss = { viewModel.closeRootOverlay() },
-                                        onSave = { name, bal, details, upi, qr, accNum, ifsc, branch ->
+                                        onSave = { name, bal, details, upi, qr, accNum, ifsc, branch, notes, phone, whatsapp, email ->
                                             if (state.account != null) {
                                                 viewModel.editVirtualAccount(
                                                     state.account.copy(
@@ -364,7 +365,11 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                                         qrCodeUri = qr,
                                                         accountNumber = accNum,
                                                         ifsc = ifsc,
-                                                        branchName = branch
+                                                        branchName = branch,
+                                                        notes = notes,
+                                                        phoneNumber = phone,
+                                                        whatsappNumber = whatsapp,
+                                                        email = email
                                                     )
                                                 )
                                             } else {
@@ -376,7 +381,11 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                                     upiId = upi,
                                                     accountNumber = accNum,
                                                     ifsc = ifsc,
-                                                    branchName = branch
+                                                    branchName = branch,
+                                                    notes = notes,
+                                                    phoneNumber = phone,
+                                                    whatsappNumber = whatsapp,
+                                                    email = email
                                                 )
                                             }
                                             viewModel.closeRootOverlay()

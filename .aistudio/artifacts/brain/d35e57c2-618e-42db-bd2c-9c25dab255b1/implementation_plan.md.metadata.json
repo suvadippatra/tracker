@@ -1,6 +1,6 @@
 {
-  "summary": "Revised implementation plan adding: (1) Android 8–10 full-screen visual leak and top/bottom cropping fixes across DialogEdgeToEdge, RootOverlay screens, Add/Edit Hotel & Account pages, History pages, and Settings sub-pages; and (2) upgraded Meal History page (left/right swipe + Summed vs. Adding-One-by-One Expression view modes with meal groups) plus a new matching Account History viewing page in the Extra/Account section.",
-  "updatedAt": "2026-11-03T09:50:41.984187676Z",
+  "summary": "Comprehensive implementation plan for fixing Android 8 full-screen Dialog bottom cropping and frame drops, adding the new 4th 'Sticky' tab with adaptive wall layout and rich formatting/tables/attachments, adding voice/PDF/image attachments to transactions, overhauling Profile vs. Extras linked/sandboxed accounts with de-link data handling, adding Hotel/Account call/contact popups and short notes, adding Bold Text and fixing Text Size scaling, unifying Hotel/Account info cards & popups, optimizing tablet layouts, and fixing Meal Ledger and Paid Status backup/UI bugs.",
+  "updatedAt": "2026-11-03T19:45:06.686737747Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -109,10 +109,31 @@ fun AddTransactionScreen(
     var recordingTimer by remember { mutableStateOf(0) }
     val mediaRecorder = remember { mutableStateOf<MediaRecorder?>(null) }
     var currentVoiceUri by remember { mutableStateOf<Uri?>(null) }
+    var playingVoiceUri by remember { mutableStateOf<Uri?>(null) }
+    val mediaPlayerRef = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     
     val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaPlayerRef.value?.apply { stop(); release() }
+            } catch (_: Exception) {}
+            mediaPlayerRef.value = null
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            startRecording(context, mediaRecorder, { isRecording = it }, { currentVoiceUri = it })
+        } else {
+            android.widget.Toast.makeText(context, "Microphone permission denied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -634,14 +655,80 @@ fun AddTransactionScreen(
                                         AttachmentActionChip(icon = Icons.Default.CameraAlt, label = if (isBengali) "ক্যামেরা" else "Camera", color = AppAccentColor()) {
                                             cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                         }
-                                        AttachmentActionChip(icon = Icons.Default.Image, label = if (isBengali) "গ্যালারি" else "Gallery", color = AppAccentColor()) {
+                                        AttachmentActionChip(icon = Icons.Default.Image, label = if (isBengali) "গ্যালারি (≤2MB)" else "Image (≤2MB)", color = AppAccentColor()) {
                                             imagePicker.launch("image/*")
                                         }
-                                        AttachmentActionChip(icon = Icons.Default.PictureAsPdf, label = "PDF", color = AccentGold) {
+                                        AttachmentActionChip(icon = Icons.Default.PictureAsPdf, label = if (isBengali) "পিডিএফ" else "PDF (Unlimited)", color = AccentGold) {
                                             pdfPicker.launch("application/pdf")
+                                        }
+                                        AttachmentActionChip(
+                                            icon = if (isRecording) Icons.Default.StopCircle else Icons.Default.Mic,
+                                            label = if (isRecording) {
+                                                val mm = recordingTimer / 60
+                                                val ss = recordingTimer % 60
+                                                String.format(Locale.US, "Stop (%02d:%02d/02:00)", mm, ss)
+                                            } else {
+                                                if (isBengali) "ভয়েস (২ মি.)" else "Voice (Max 2m)"
+                                            },
+                                            color = if (isRecording) AccentPink else AccentGreen
+                                        ) {
+                                            if (isRecording) {
+                                                stopRecording(
+                                                    context = context,
+                                                    recorder = mediaRecorder,
+                                                    setRecording = { isRecording = it },
+                                                    currentUri = { currentVoiceUri },
+                                                    onComplete = { recordedUri ->
+                                                        attachments = attachments + (recordedUri to "VOICE")
+                                                    }
+                                                )
+                                            } else {
+                                                audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                            }
                                         }
                                         AttachmentActionChip(icon = Icons.Default.AttachFile, label = if (isBengali) "ফাইল" else "File", color = AccentGold) {
                                             filePicker.launch("*/*")
+                                        }
+                                    }
+
+                                    if (isRecording) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = AccentPink.copy(alpha = 0.14f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = AccentPink, modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = if (isBengali) "ভয়েস মেসেজ রেকর্ড হচ্ছে... (${recordingTimer}s / 120s)" else "Recording compressed voice note... (${recordingTimer}s / 120s)",
+                                                        color = AppTextColor(),
+                                                        fontSize = 12.5.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        stopRecording(
+                                                            context = context,
+                                                            recorder = mediaRecorder,
+                                                            setRecording = { isRecording = it },
+                                                            currentUri = { currentVoiceUri },
+                                                            onComplete = { recordedUri ->
+                                                                attachments = attachments + (recordedUri to "VOICE")
+                                                            }
+                                                        )
+                                                    }
+                                                ) {
+                                                    Text(if (isBengali) "থামান" else "Stop", color = AccentPink, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
                                         }
                                     }
 
@@ -681,11 +768,59 @@ fun AddTransactionScreen(
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                     }
-                                                    IconButton(
-                                                        onClick = { attachments = attachments.filter { it.first != uri } },
-                                                        modifier = Modifier.size(24.dp)
-                                                    ) {
-                                                        Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(14.dp))
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        if (fileType == "VOICE") {
+                                                            val isPlayingThis = playingVoiceUri == uri
+                                                            IconButton(
+                                                                onClick = {
+                                                                    try {
+                                                                        if (isPlayingThis) {
+                                                                            mediaPlayerRef.value?.apply { stop(); release() }
+                                                                            mediaPlayerRef.value = null
+                                                                            playingVoiceUri = null
+                                                                        } else {
+                                                                            mediaPlayerRef.value?.apply { stop(); release() }
+                                                                            val mp = android.media.MediaPlayer().apply {
+                                                                                setDataSource(context, uri)
+                                                                                prepare()
+                                                                                setOnCompletionListener {
+                                                                                    playingVoiceUri = null
+                                                                                    it.release()
+                                                                                    mediaPlayerRef.value = null
+                                                                                }
+                                                                                start()
+                                                                            }
+                                                                            mediaPlayerRef.value = mp
+                                                                            playingVoiceUri = uri
+                                                                        }
+                                                                    } catch (e: Exception) {
+                                                                        e.printStackTrace()
+                                                                        playingVoiceUri = null
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(28.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = if (isPlayingThis) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                                                    contentDescription = "Play Voice",
+                                                                    tint = AppAccentColor(),
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                        IconButton(
+                                                            onClick = {
+                                                                if (playingVoiceUri == uri) {
+                                                                    try { mediaPlayerRef.value?.apply { stop(); release() } } catch (_: Exception) {}
+                                                                    mediaPlayerRef.value = null
+                                                                    playingVoiceUri = null
+                                                                }
+                                                                attachments = attachments.filter { it.first != uri }
+                                                            },
+                                                            modifier = Modifier.size(24.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(14.dp))
+                                                        }
                                                     }
                                                 }
                                             }
@@ -738,7 +873,7 @@ fun AddTransactionScreen(
 
 private fun startRecording(context: Context, recorder: MutableState<MediaRecorder?>, setRecording: (Boolean) -> Unit, setUri: (Uri?) -> Unit) {
     try {
-        val fileName = "VOICE_${System.currentTimeMillis()}.amr"
+        val fileName = "VOICE_${System.currentTimeMillis()}.m4a"
         val file = File(context.cacheDir, fileName)
         val uri = Uri.fromFile(file)
         setUri(uri)
@@ -746,8 +881,11 @@ private fun startRecording(context: Context, recorder: MutableState<MediaRecorde
         val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
         r.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.AMR_NB)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setAudioEncodingBitRate(64000)
+            setAudioSamplingRate(22050)
+            setMaxDuration(120_000)
             setOutputFile(file.absolutePath)
             prepare()
             start()
@@ -770,5 +908,7 @@ private fun stopRecording(context: Context, recorder: MutableState<MediaRecorder
         currentUri()?.let { onComplete(it) }
     } catch (e: Exception) {
         Log.e("AddTransaction", "Record stop failed", e)
+        recorder.value = null
+        setRecording(false)
     }
 }

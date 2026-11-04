@@ -3,6 +3,8 @@ package com.example.data.model
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Entity(tableName = "user_profile")
 data class UserProfileEntity(
@@ -20,7 +22,7 @@ data class UserProfileEntity(
     val defaultBankAccountId: Int = 1,
     val defaultOwnerAccountId: Int = 1,
     val enableStarAnimation: Boolean = true,
-    val textSize: String = "Medium", // "Small", "Medium", "Large"
+    val textSize: String = "Medium", // "Small", "Medium", "Large", "Extra Large"
     val biometricEnabled: Boolean = false,
     val securityQuestion: String = "",
     val securityAnswer: String = "",
@@ -30,7 +32,10 @@ data class UserProfileEntity(
     val enableSupplementaryAddons: Boolean = true,
     val visibleBankAccountsOnExtra: String = "",
     val enableLiquidGlassTheme: Boolean = false,
-    val disableHeavyEffects: Boolean = true
+    val disableHeavyEffects: Boolean = true,
+    val isBoldTextEnabled: Boolean = false,
+    val stickyCardWidthPercent: Int = 80,
+    val stickyPreviewLines: Int = 10
 )
 
 @Entity(tableName = "hotels", indices = [Index("isDeleted")])
@@ -44,7 +49,9 @@ data class HotelEntity(
     val qrCodeUri: String = "",
     val isDeleted: Boolean = false,
     val lastUpdatedMillis: Long = System.currentTimeMillis(),
-    val importedFrom: String? = null
+    val importedFrom: String? = null,
+    val notes: String = "",
+    val whatsappNumber: String = ""
 )
 
 @Entity(
@@ -101,7 +108,11 @@ data class BankAccountEntity(
     val branchName: String = "",
     val isDeleted: Boolean = false,
     val lastUpdatedMillis: Long = System.currentTimeMillis(),
-    val importedFrom: String? = null
+    val importedFrom: String? = null,
+    val notes: String = "",
+    val phoneNumber: String = "",
+    val whatsappNumber: String = "",
+    val email: String = ""
 )
 
 @Entity(tableName = "transaction_categories", indices = [Index("isDeleted")])
@@ -164,8 +175,87 @@ data class OwnerAccountEntity(
     val details: String = "",
     val isDeleted: Boolean = false,
     val lastUpdatedMillis: Long = System.currentTimeMillis(),
-    val importedFrom: String? = null
+    val importedFrom: String? = null,
+    val notes: String = "",
+    val whatsappNumber: String = "",
+    val email: String = "",
+    val linkedBankAccountId: Int? = null
 )
+
+@Entity(
+    tableName = "sticky_notes",
+    indices = [
+        Index("isDeleted"),
+        Index("sortOrder")
+    ]
+)
+data class StickyNoteEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String = "",
+    val subtitle: String = "",
+    @androidx.room.ColumnInfo(name = "content") val bodyText: String = "",
+    @androidx.room.ColumnInfo(name = "alignment") val textAlignment: String = "START", // "START", "CENTER", "END", "JUSTIFY"
+    val colorIndex: Int = 0,
+    val sortOrder: Int = 0,
+    val attachmentsJson: String = "[]",
+    val isDeleted: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    @androidx.room.ColumnInfo(name = "lastUpdatedMillis") val updatedAt: Long = System.currentTimeMillis()
+) {
+    val content: String get() = bodyText
+    val alignment: String get() = textAlignment
+    val lastUpdatedMillis: Long get() = updatedAt
+}
+
+data class StickyAttachment(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val uri: String,
+    val type: String, // "IMAGE" or "PDF"
+    val sizeBytes: Long = 0L,
+    val addedAt: Long = System.currentTimeMillis()
+)
+
+object StickyAttachmentSerializer {
+    fun serialize(list: List<StickyAttachment>): String {
+        val arr = JSONArray()
+        list.forEach { item ->
+            arr.put(JSONObject().apply {
+                put("id", item.id)
+                put("name", item.name)
+                put("uri", item.uri)
+                put("type", item.type)
+                put("sizeBytes", item.sizeBytes)
+                put("addedAt", item.addedAt)
+            })
+        }
+        return arr.toString()
+    }
+
+    fun deserialize(json: String): List<StickyAttachment> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            val result = mutableListOf<StickyAttachment>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                result.add(
+                    StickyAttachment(
+                        id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                        name = obj.optString("name", "Attachment"),
+                        uri = obj.optString("uri", ""),
+                        type = obj.optString("type", "IMAGE"),
+                        sizeBytes = obj.optLong("sizeBytes", 0L),
+                        addedAt = obj.optLong("addedAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+}
 
 // Inline simple model for ordered items in a transaction
 data class OrderedItem(
@@ -186,7 +276,7 @@ data class MealGroup(
 data class SearchResult(
     val id: Int,
     val title: String,
-    val type: String, // "Hotel", "Expense", "Income", "Meal", "Menu", "Account", "Meter"
+    val type: String, // "Hotel", "Expense", "Income", "Meal", "Menu", "Account", "Meter", "Sticky"
     val subtitle: String,
     val dateOrExtra: String = "",
     val amount: Double? = null,

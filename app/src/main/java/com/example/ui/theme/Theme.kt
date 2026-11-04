@@ -316,6 +316,8 @@ fun MyApplicationTheme(
     isLiquidGlass: Boolean = false,
     accentColor: Color? = null,
     dynamicColor: Boolean = false,
+    textSize: String = "Medium",
+    isBoldTextEnabled: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -369,18 +371,34 @@ fun MyApplicationTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography
-    ) {
-        androidx.compose.material3.ProvideTextStyle(
-            value = androidx.compose.ui.text.TextStyle(
-                fontFamily = AppFontFamily,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            ),
-            content = content
+    val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+    val targetFontScale = ThemePreferences.getFontScale(textSize)
+    val activeFontFamily = if (isBoldTextEnabled) AppBoldFontFamily else AppFontFamily
+    val activeTypography = androidx.compose.runtime.remember(textSize, isBoldTextEnabled) {
+        getAppTypography(textSize, isBoldTextEnabled)
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.ui.components.LocalBoldTextEnabled provides isBoldTextEnabled,
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = targetFontScale
         )
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = activeTypography
+        ) {
+            androidx.compose.material3.ProvideTextStyle(
+                value = androidx.compose.ui.text.TextStyle(
+                    fontFamily = activeFontFamily,
+                    fontWeight = if (isBoldTextEnabled) androidx.compose.ui.text.font.FontWeight.Bold else null,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                ),
+                content = content
+            )
+        }
     }
 }
 

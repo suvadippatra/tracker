@@ -14,6 +14,7 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.MeterReading
 import com.example.data.model.HotelPaymentEntity
+import com.example.data.model.StickyNoteEntity
 import com.example.data.model.TransactionCategoryEntity
 import com.example.data.model.UtilityBill
 import kotlinx.coroutines.flow.Flow
@@ -331,6 +332,42 @@ interface ExpenseDao {
 }
 
 @Dao
+interface StickyNoteDao {
+    @Query("SELECT * FROM sticky_notes WHERE isDeleted = 0 ORDER BY sortOrder ASC, createdAt DESC")
+    fun getAllStickyNotes(): Flow<List<StickyNoteEntity>>
+
+    @Query("SELECT * FROM sticky_notes WHERE isDeleted = 0 ORDER BY sortOrder ASC, createdAt DESC")
+    suspend fun getAllStickyNotesSync(): List<StickyNoteEntity>
+
+    @Query("SELECT * FROM sticky_notes WHERE isDeleted = 1 ORDER BY lastUpdatedMillis DESC")
+    fun getDeletedStickyNotes(): Flow<List<StickyNoteEntity>>
+
+    @Query("DELETE FROM sticky_notes WHERE isDeleted = 1")
+    suspend fun emptyDeletedStickyNotesPermanently()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStickyNote(note: StickyNoteEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStickyNotes(notes: List<StickyNoteEntity>)
+
+    @Update
+    suspend fun updateStickyNote(note: StickyNoteEntity)
+
+    @Update
+    suspend fun updateStickyNotes(notes: List<StickyNoteEntity>)
+
+    @Query("UPDATE sticky_notes SET isDeleted = 1, lastUpdatedMillis = :timestamp WHERE id = :id")
+    suspend fun softDeleteStickyNote(id: Int, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE sticky_notes SET isDeleted = 0, lastUpdatedMillis = :timestamp WHERE id = :id")
+    suspend fun restoreStickyNote(id: Int, timestamp: Long = System.currentTimeMillis())
+
+    @Delete
+    suspend fun deleteStickyNote(note: StickyNoteEntity)
+}
+
+@Dao
 abstract class SyncDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertHotel(hotel: HotelEntity): Long
@@ -396,6 +433,12 @@ abstract class SyncDao {
     abstract suspend fun updateUtilityBills(bills: List<UtilityBill>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertHotelPayments(payments: List<HotelPaymentEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertStickyNotes(notes: List<StickyNoteEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertUserProfile(profile: UserProfileEntity)
 
     @androidx.room.Transaction
@@ -422,6 +465,9 @@ abstract class SyncDao {
 
         if (plan.billsToInsert.isNotEmpty()) insertUtilityBills(plan.billsToInsert)
         if (plan.billsToUpdate.isNotEmpty()) updateUtilityBills(plan.billsToUpdate)
+
+        if (plan.hotelPaymentsToInsert.isNotEmpty()) insertHotelPayments(plan.hotelPaymentsToInsert)
+        if (plan.stickyNotesToInsert.isNotEmpty()) insertStickyNotes(plan.stickyNotesToInsert)
 
         if (plan.userProfileToUpdate != null) insertUserProfile(plan.userProfileToUpdate)
     }

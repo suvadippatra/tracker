@@ -408,7 +408,7 @@ fun AccountManagerScreen(
                     isAddingBankAccount = false
                     editingBankAccount = null
                 },
-                onSave = { name, balance, details, upi, qr, accNum, ifsc, branch ->
+                onSave = { name, balance, details, upi, qr, accNum, ifsc, branch, notes, phone, whatsapp, email ->
                     if (editingBankAccount != null) {
                         viewModel.editVirtualAccount(
                             editingBankAccount!!.copy(
@@ -416,6 +416,10 @@ fun AccountManagerScreen(
                                 initialBalance = balance,
                                 balance = balance,
                                 details = details,
+                                notes = notes,
+                                phoneNumber = phone,
+                                whatsappNumber = whatsapp,
+                                email = email,
                                 upiId = upi,
                                 qrCodeUri = qr,
                                 accountNumber = accNum,
@@ -428,6 +432,10 @@ fun AccountManagerScreen(
                             name = name,
                             balance = balance,
                             details = details,
+                            notes = notes,
+                            phoneNumber = phone,
+                            whatsappNumber = whatsapp,
+                            email = email,
                             qrCodeUri = qr,
                             upiId = upi,
                             accountNumber = accNum,
@@ -459,7 +467,7 @@ fun AccountEditorScreen(
     account: BankAccountEntity?,
     prefLanguage: String,
     onDismiss: () -> Unit,
-    onSave: (name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) -> Unit,
+    onSave: (name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String, notes: String, phoneNumber: String, whatsappNumber: String, email: String) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onDismiss() }
@@ -468,6 +476,10 @@ fun AccountEditorScreen(
     var accName by remember(account) { mutableStateOf(account?.name ?: "") }
     var accBal by remember(account) { mutableStateOf(account?.let { if (it.initialBalance != 0.0) it.initialBalance.toString() else it.balance.toString() } ?: "") }
     var details by remember(account) { mutableStateOf(account?.details ?: "") }
+    var notes by remember(account) { mutableStateOf(account?.notes ?: "") }
+    var phoneNumber by remember(account) { mutableStateOf(account?.phoneNumber ?: "") }
+    var whatsappNumber by remember(account) { mutableStateOf(account?.whatsappNumber ?: "") }
+    var email by remember(account) { mutableStateOf(account?.email ?: "") }
     var qrCodeUri by remember(account) { mutableStateOf(account?.qrCodeUri ?: "") }
     var upiId by remember(account) { mutableStateOf(account?.upiId ?: "") }
     var accountNumber by remember(account) { mutableStateOf(account?.accountNumber ?: "") }
@@ -565,7 +577,7 @@ fun AccountEditorScreen(
                             onClick = {
                                 if (accName.isNotBlank()) {
                                     val bal = accBal.toDoubleOrNull() ?: 0.0
-                                    onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                                    onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email)
                                 } else {
                                     Toast.makeText(
                                         context,
@@ -742,8 +754,52 @@ fun AccountEditorScreen(
                     label = { Text("UPI ID (e.g. user@okhdfc)") },
                     leadingIcon = { Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        GlassTextField(
+                            value = phoneNumber,
+                            onValueChange = { phoneNumber = it },
+                            label = { Text("Phone / SMS Number") },
+                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        GlassTextField(
+                            value = whatsappNumber,
+                            onValueChange = { whatsappNumber = it },
+                            label = { Text("WhatsApp Number") },
+                            leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                GlassTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email Address") },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                GlassTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Short Notes") },
+                    leadingIcon = { Icon(Icons.Default.StickyNote2, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)
                 )
 
                 if (account != null && onDelete != null) {

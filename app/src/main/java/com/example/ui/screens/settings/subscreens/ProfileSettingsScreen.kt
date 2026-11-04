@@ -370,35 +370,47 @@ fun ProfileSettingsScreen(
         )
     }
 
-    // Add or Edit Owner Bank Account Page
+    // Add or Edit Owner Bank Account Page (Sandboxed by default unless linked to Extras)
     if (showAddAccountDialog || accountToEdit != null) {
+        val linkedBank = accountToEdit?.linkedBankAccountId?.let { linkedId ->
+            bankAccounts.find { it.id == linkedId && !it.isDeleted }
+        }
         val targetBank = accountToEdit?.let { ownerAcc ->
-            bankAccounts.find { it.name.equals(ownerAcc.accountName, ignoreCase = true) }
-                ?: BankAccountEntity(
-                    id = 0,
-                    name = ownerAcc.accountName,
-                    balance = 0.0,
-                    initialBalance = 0.0,
-                    accountNumber = ownerAcc.accountNumber,
-                    ifsc = ownerAcc.ifscCode,
-                    branchName = ownerAcc.branchName,
-                    upiId = ownerAcc.upiId,
-                    qrCodeUri = ownerAcc.qrCodeUri
-                )
+            BankAccountEntity(
+                id = linkedBank?.id ?: 0,
+                name = ownerAcc.accountName,
+                balance = linkedBank?.balance ?: 0.0,
+                initialBalance = linkedBank?.initialBalance ?: 0.0,
+                details = linkedBank?.details ?: ownerAcc.notes,
+                notes = ownerAcc.notes,
+                phoneNumber = ownerAcc.ownerMobile,
+                whatsappNumber = ownerAcc.whatsappNumber,
+                email = ownerAcc.email,
+                accountNumber = ownerAcc.accountNumber,
+                ifsc = ownerAcc.ifscCode,
+                branchName = ownerAcc.branchName,
+                upiId = ownerAcc.upiId,
+                qrCodeUri = ownerAcc.qrCodeUri
+            )
         }
 
-        com.example.ui.screens.UnifiedAccountDialog(viewModel = viewModel,
+        com.example.ui.screens.UnifiedAccountDialog(
+            viewModel = viewModel,
             account = targetBank,
             prefLanguage = prefLanguage,
-            accountsCount = bankAccounts.size,
+            accountsCount = ownerAccounts.size,
             onDismiss = {
                 showAddAccountDialog = false
                 accountToEdit = null
             },
-            onSave = { accName, accBal, details, upi, qrUri, accNum, ifscCode, branch ->
+            onSaveExtended = { accName, accBal, details, upi, qrUri, accNum, ifscCode, branch, notes, phone, whatsapp, email ->
                 if (accountToEdit != null) {
                     val updated = accountToEdit!!.copy(
                         accountName = accName,
+                        ownerMobile = phone.ifBlank { accountToEdit!!.ownerMobile },
+                        whatsappNumber = whatsapp,
+                        email = email,
+                        notes = notes.ifBlank { details },
                         accountNumber = accNum,
                         ifscCode = ifscCode,
                         branchName = branch,
@@ -407,17 +419,16 @@ fun ProfileSettingsScreen(
                     )
                     viewModel.updateOwnerAccount(updated)
 
-                    val matchingBank = bankAccounts.find {
-                        it.name.equals(accountToEdit!!.accountName, ignoreCase = true) ||
-                        it.name.equals(accName, ignoreCase = true)
-                    }
-                    if (matchingBank != null) {
+                    if (linkedBank != null) {
                         viewModel.editVirtualAccount(
-                            matchingBank.copy(
+                            linkedBank.copy(
                                 name = accName,
-                                balance = accBal,
                                 initialBalance = accBal,
                                 details = details,
+                                notes = notes,
+                                phoneNumber = phone,
+                                whatsappNumber = whatsapp,
+                                email = email,
                                 qrCodeUri = qrUri,
                                 upiId = upi,
                                 accountNumber = accNum,
@@ -425,49 +436,33 @@ fun ProfileSettingsScreen(
                                 branchName = branch
                             )
                         )
-                    } else {
-                        viewModel.addVirtualAccount(
-                            name = accName,
-                            balance = accBal,
-                            details = details,
-                            qrCodeUri = qrUri,
-                            upiId = upi,
-                            accountNumber = accNum,
-                            ifsc = ifscCode,
-                            branchName = branch
-                        )
                     }
                     Toast.makeText(context, if (prefLanguage == "bn") "অ্যাকাউন্ট আপডেট হয়েছে" else "Account updated", Toast.LENGTH_SHORT).show()
                 } else {
-                    val ownerNameVal = userProfile?.name?.ifBlank { accName } ?: accName
+                    // Sandboxed by default in Profile
+                    val ownerNameVal = userProfile.name.ifBlank { accName }
                     val newAcc = OwnerAccountEntity(
                         ownerName = ownerNameVal,
+                        ownerMobile = phone.ifBlank { userProfile.contact },
+                        whatsappNumber = whatsapp,
+                        email = email,
+                        notes = notes.ifBlank { details },
                         accountName = accName,
                         accountNumber = accNum,
                         ifscCode = ifscCode,
                         branchName = branch,
                         upiId = upi,
-                        qrCodeUri = qrUri
+                        qrCodeUri = qrUri,
+                        linkedBankAccountId = null
                     )
                     viewModel.addOwnerAccount(newAcc)
-                    viewModel.addVirtualAccount(
-                        name = accName,
-                        balance = accBal,
-                        details = details,
-                        qrCodeUri = qrUri,
-                        upiId = upi,
-                        accountNumber = accNum,
-                        ifsc = ifscCode,
-                        branchName = branch
-                    )
-                    Toast.makeText(context, if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট তৈরি হয়েছে" else "New account created", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (prefLanguage == "bn") "নতুন প্রোফাইল অ্যাকাউন্ট তৈরি হয়েছে" else "New profile account created", Toast.LENGTH_SHORT).show()
                 }
                 showAddAccountDialog = false
                 accountToEdit = null
             },
-            onDelete = if (targetBank != null && bankAccounts.size > 1) {
+            onDelete = if (accountToEdit != null && ownerAccounts.size > 1) {
                 {
-                    viewModel.deleteVirtualAccount(targetBank)
                     accountToEdit?.let { viewModel.deleteOwnerAccount(it) }
                     showAddAccountDialog = false
                     accountToEdit = null
@@ -496,7 +491,7 @@ fun ProfileSettingsScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Personal Profile Card (Interactive)
+        // 1. Personal Profile Card (Interactive - without Currency badge or Edit pencil button)
         item {
             PixelSettingsGroup(title = if (prefLanguage == "bn") "ব্যক্তিগত তথ্য" else "Personal Information") {
                 val appAccent = AppAccentColor()
@@ -505,7 +500,7 @@ fun ProfileSettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpenOwnerProfile() }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Avatar Badge
@@ -540,43 +535,14 @@ fun ProfileSettingsScreen(
                             color = AppSecondaryTextColor(),
                             fontSize = 13.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val currencyBg = if (isLight) Color(0xFFFFF3E0) else Color(0x40D84315)
-                            val currencyBorder = if (isLight) Color(0xFFFFB74D) else Color(0xFFFF8A65)
-                            val currencyTextColor = if (isLight) Color(0xFFBF360C) else Color(0xFFFFCC80)
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(currencyBg)
-                                    .border(1.dp, currencyBorder, RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = "Currency: ${userProfile.currencySymbol}",
-                                    color = currencyTextColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    FilledTonalIconButton(
-                        onClick = { showEditProfileDialog = true },
-                        modifier = Modifier.size(40.dp),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = appAccent.copy(alpha = if (isLight) 0.12f else 0.18f),
-                            contentColor = appAccent
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit Profile",
-                            tint = appAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Open Profile",
+                        tint = AppSecondaryTextColor(),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
@@ -721,9 +687,10 @@ fun ProfileSettingsScreen(
                     val nonDeletedAccounts = ownerAccounts.filter { !it.isDeleted }
                     nonDeletedAccounts.forEach { acc ->
                         AccountCardItem(
+                            viewModel = viewModel,
                             account = acc,
                             isDefault = (acc.id == userProfile.defaultOwnerAccountId),
-                            isVisibleOnExtra = (acc.id in visibleOwnerAccountIds),
+                            isVisibleOnExtra = (acc.linkedBankAccountId != null || acc.id in visibleOwnerAccountIds),
                             prefLanguage = prefLanguage,
                             onEdit = { accountToEdit = acc },
                             onDelete = { accountToDelete = acc },
@@ -757,6 +724,7 @@ fun ProfileSettingsScreen(
 
 @Composable
 fun AccountCardItem(
+    viewModel: FinancialViewModel,
     account: OwnerAccountEntity,
     isDefault: Boolean = false,
     isVisibleOnExtra: Boolean = false,
@@ -765,6 +733,57 @@ fun AccountCardItem(
     onDelete: () -> Unit,
     onShowDetails: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isLinkedToExtras = account.linkedBankAccountId != null
+    var showDelinkDialog by remember { mutableStateOf(false) }
+
+    val exportAccountCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null && account.linkedBankAccountId != null) {
+            viewModel.exportDataCsv(
+                type = com.example.data.BackupDataType.SINGLE_BANK_ACCOUNT,
+                bankAccountId = account.linkedBankAccountId
+            ) { csv ->
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(csv.toByteArray(Charsets.UTF_8))
+                    }
+                    Toast.makeText(context, "Transaction history downloaded! Account de-linked.", Toast.LENGTH_SHORT).show()
+                    viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = true)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    if (showDelinkDialog) {
+        com.example.ui.screens.DelinkAccountFromExtrasDialog(
+            accountName = account.accountName.ifBlank { account.ownerName },
+            onMoveToBin = {
+                showDelinkDialog = false
+                viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = true)
+                Toast.makeText(context, "Extras account & history moved to Recycle Bin", Toast.LENGTH_SHORT).show()
+            },
+            onDownloadHistory = {
+                showDelinkDialog = false
+                val safeName = account.accountName.ifBlank { "account" }.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                exportAccountCsvLauncher.launch("${safeName}_history.csv")
+            },
+            onOpenExportTool = {
+                showDelinkDialog = false
+                viewModel.delinkOwnerAccountFromExtras(account, moveExtrasAccountToBin = false)
+                Toast.makeText(
+                    context,
+                    "Account de-linked. Open Settings > Data & Backups to export (Note: only QR, JSON, CSV, or Copy-Paste exports exclude media attachments).",
+                    Toast.LENGTH_LONG
+                ).show()
+            },
+            onDismiss = { showDelinkDialog = false }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -809,7 +828,7 @@ fun AccountCardItem(
                                 Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (prefLanguage == "bn") "ডিফল্ট রিসিভিং" else "Default Acc",
+                                    text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
                                     color = AccentGold,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -819,29 +838,37 @@ fun AccountCardItem(
                     }
 
                     Surface(
-                        color = if (isVisibleOnExtra) AppAccentColor().copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
+                        color = if (isLinkedToExtras) AccentGreen.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isVisibleOnExtra) AppAccentColor().copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.4f)),
-                        modifier = Modifier.padding(end = 6.dp)
+                        border = BorderStroke(1.dp, if (isLinkedToExtras) AccentGreen.copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clickable {
+                                if (isLinkedToExtras) showDelinkDialog = true
+                                else {
+                                    viewModel.linkOwnerAccountToExtras(account)
+                                    Toast.makeText(context, "Linked to Extras page!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                if (isVisibleOnExtra) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                if (isLinkedToExtras) Icons.Default.Link else Icons.Default.LinkOff,
                                 contentDescription = null,
-                                tint = if (isVisibleOnExtra) AppAccentColor() else Color.Gray,
+                                tint = if (isLinkedToExtras) AccentGreen else Color.Gray,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isVisibleOnExtra) {
-                                    if (prefLanguage == "bn") "এক্সট্রা পেজে দৃশ্যমান" else "Shown on Extra"
+                                text = if (isLinkedToExtras) {
+                                    if (prefLanguage == "bn") "লিংকড (Extras)" else "Linked to Extras"
                                 } else {
-                                    if (prefLanguage == "bn") "এক্সট্রা পেজে হাইড" else "Hidden from Extra"
+                                    if (prefLanguage == "bn") "প্রোফাইল ওনলি" else "Profile Only"
                                 },
-                                color = if (isVisibleOnExtra) AppAccentColor() else AppSecondaryTextColor(),
+                                color = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -851,15 +878,35 @@ fun AccountCardItem(
                     var showMenu by remember { mutableStateOf(false) }
                     var showDeleteConfirm by remember { mutableStateOf(false) }
                     
-                    Box {
+                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                         IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor().copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
                         }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, modifier = Modifier.background(getDialogBackground())) {
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
+                            modifier = Modifier.background(getDialogBackground())
+                        ) {
                             DropdownMenuItem(
                                 text = { Text(if (prefLanguage == "bn") "সম্পাদনা করুন" else "Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                 onClick = { showMenu = false; onEdit() }
                             )
+                            if (isLinkedToExtras) {
+                                DropdownMenuItem(
+                                    text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজ থেকে ডি-লিংক করুন" else "De-link from Extras Page", color = AccentPink, fontWeight = FontWeight.SemiBold) },
+                                    onClick = { showMenu = false; showDelinkDialog = true }
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজে লিংক করুন" else "Link to Extras Page", color = AccentGreen, fontWeight = FontWeight.SemiBold) },
+                                    onClick = {
+                                        showMenu = false
+                                        viewModel.linkOwnerAccountToExtras(account)
+                                        Toast.makeText(context, "Linked to Extras page!", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(if (prefLanguage == "bn") "বিনে সরান" else "Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                                 onClick = { showMenu = false; showDeleteConfirm = true }

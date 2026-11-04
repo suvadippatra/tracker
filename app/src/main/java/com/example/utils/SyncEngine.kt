@@ -121,6 +121,8 @@ data class ParsedImportPayload(
     val hotels: List<HotelEntity> = emptyList(),
     val menus: List<MenuEntity> = emptyList(),
     val transactions: List<HotelTransactionEntity> = emptyList(),
+    val hotelPayments: List<HotelPaymentEntity> = emptyList(),
+    val stickyNotes: List<StickyNoteEntity> = emptyList(),
     val bankAccounts: List<BankAccountEntity> = emptyList(),
     val expenses: List<ExtraExpenseEntity> = emptyList(),
     val ownerAccounts: List<OwnerAccountEntity> = emptyList(),
@@ -146,6 +148,8 @@ data class SyncAnalysisResult(
     val directNewExpenses: List<ExtraExpenseEntity> = emptyList(),
     val directNewReadings: List<MeterReading> = emptyList(),
     val directNewBills: List<UtilityBill> = emptyList(),
+    val directNewHotelPayments: List<HotelPaymentEntity> = emptyList(),
+    val directNewStickyNotes: List<StickyNoteEntity> = emptyList(),
     val hasUnresolvedParents: Boolean = unmappedParents.isNotEmpty(),
     val hasPendingMenuItems: Boolean = pendingNewMenuItems.isNotEmpty(),
     val hasConflicts: Boolean = conflicts.isNotEmpty()
@@ -168,6 +172,8 @@ data class MergePlan(
     val readingsToUpdate: List<MeterReading> = emptyList(),
     val billsToInsert: List<UtilityBill> = emptyList(),
     val billsToUpdate: List<UtilityBill> = emptyList(),
+    val hotelPaymentsToInsert: List<HotelPaymentEntity> = emptyList(),
+    val stickyNotesToInsert: List<StickyNoteEntity> = emptyList(),
     val userProfileToUpdate: UserProfileEntity? = null,
     val totalAffectedCount: Int = 0
 )
@@ -217,6 +223,8 @@ class SyncEngine(private val db: AppDatabase) {
         val hotels = mutableListOf<HotelEntity>()
         val menus = mutableListOf<MenuEntity>()
         val transactions = mutableListOf<HotelTransactionEntity>()
+        val hotelPayments = mutableListOf<HotelPaymentEntity>()
+        val stickyNotes = mutableListOf<StickyNoteEntity>()
         val bankAccounts = mutableListOf<BankAccountEntity>()
         val expenses = mutableListOf<ExtraExpenseEntity>()
         val ownerAccounts = mutableListOf<OwnerAccountEntity>()
@@ -499,11 +507,54 @@ class SyncEngine(private val db: AppDatabase) {
             }
         }
 
+        // 13. Hotel Payments ("hotelPayments")
+        if (root.has("hotelPayments")) {
+            val payArr = root.getJSONArray("hotelPayments")
+            val defaultHotelId = root.optInt("hotelId", hotels.firstOrNull()?.id ?: 1)
+            for (i in 0 until payArr.length()) {
+                val pObj = payArr.getJSONObject(i)
+                val payDate = pObj.optLong("paymentDate", pObj.optLong("timestamp", System.currentTimeMillis()))
+                val cal = Calendar.getInstance().apply { timeInMillis = payDate }
+                hotelPayments.add(
+                    HotelPaymentEntity(
+                        hotelId = pObj.optInt("hotelId", defaultHotelId),
+                        year = pObj.optInt("year", cal.get(Calendar.YEAR)),
+                        month = pObj.optInt("month", cal.get(Calendar.MONTH)),
+                        amountPaid = pObj.optDouble("amountPaid", pObj.optDouble("amount", 0.0)),
+                        paymentDate = payDate,
+                        note = pObj.optString("note", "")
+                    )
+                )
+            }
+        }
+
+        // 14. Sticky Notes ("stickyNotes")
+        if (root.has("stickyNotes")) {
+            val sArr = root.getJSONArray("stickyNotes")
+            for (i in 0 until sArr.length()) {
+                val sObj = sArr.getJSONObject(i)
+                stickyNotes.add(
+                    StickyNoteEntity(
+                        title = sObj.optString("title", ""),
+                        subtitle = sObj.optString("subtitle", ""),
+                        bodyText = sObj.optString("bodyText", sObj.optString("content", "")),
+                        textAlignment = sObj.optString("textAlignment", sObj.optString("alignment", "START")),
+                        colorIndex = sObj.optInt("colorIndex", 0),
+                        sortOrder = sObj.optInt("sortOrder", i),
+                        createdAt = sObj.optLong("createdAt", System.currentTimeMillis()),
+                        updatedAt = sObj.optLong("updatedAt", sObj.optLong("lastUpdatedMillis", System.currentTimeMillis()))
+                    )
+                )
+            }
+        }
+
         return ParsedImportPayload(
             senderName = senderName,
             hotels = hotels,
             menus = menus,
             transactions = transactions,
+            hotelPayments = hotelPayments,
+            stickyNotes = stickyNotes,
             bankAccounts = bankAccounts,
             expenses = expenses,
             ownerAccounts = ownerAccounts,
@@ -855,6 +906,14 @@ class SyncEngine(private val db: AppDatabase) {
             }
         }
 
+        val directNewHotelPayments = payload.hotelPayments.map { pay ->
+            val mappedHotelId = autoLinkedHotelIds[pay.hotelId] ?: pay.hotelId
+            pay.copy(id = 0, hotelId = mappedHotelId)
+        }
+        val directNewStickyNotes = payload.stickyNotes.map { note ->
+            note.copy(id = 0, attachmentsJson = "[]")
+        }
+
         val allConflicts = (menuConflicts + mealConflicts + expenseConflicts + readingConflicts + billConflicts)
             .sortedByDescending { it.timestamp }
 
@@ -873,7 +932,9 @@ class SyncEngine(private val db: AppDatabase) {
             directNewMeals = directNewMeals,
             directNewExpenses = directNewExpenses,
             directNewReadings = directNewReadings,
-            directNewBills = directNewBills
+            directNewBills = directNewBills,
+            directNewHotelPayments = directNewHotelPayments,
+            directNewStickyNotes = directNewStickyNotes
         )
     }
 
@@ -1206,12 +1267,16 @@ class SyncEngine(private val db: AppDatabase) {
             }
         }
 
+        val hotelPaymentsToInsert = analysis.directNewHotelPayments
+        val stickyNotesToInsert = analysis.directNewStickyNotes
+
         val totalCount = hotelsToInsert.size + bankAccountsToInsert.size + ownerAccountsToInsert.size +
                 menusToInsert.size + menusToUpdate.size +
                 mealsToInsert.size + mealsToUpdate.size +
                 expensesToInsert.size + expensesToUpdate.size +
                 readingsToInsert.size + readingsToUpdate.size +
-                billsToInsert.size + billsToUpdate.size
+                billsToInsert.size + billsToUpdate.size +
+                hotelPaymentsToInsert.size + stickyNotesToInsert.size
 
         return MergePlan(
             senderName = analysis.senderName,
@@ -1228,6 +1293,8 @@ class SyncEngine(private val db: AppDatabase) {
             readingsToUpdate = readingsToUpdate,
             billsToInsert = billsToInsert,
             billsToUpdate = billsToUpdate,
+            hotelPaymentsToInsert = hotelPaymentsToInsert,
+            stickyNotesToInsert = stickyNotesToInsert,
             userProfileToUpdate = analysis.payload.userProfile,
             totalAffectedCount = totalCount
         )

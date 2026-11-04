@@ -143,21 +143,29 @@ fun SettingsScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    when (currentScreen) {
-                        "main" -> SettingsMainList(
-                            prefLanguage = userProfile?.language ?: "en",
-                            onNavigate = { currentScreen = it },
-                            onOpenBin = { currentScreen = "bin" },
-                            onOpenOwnerProfile = onOpenOwnerProfile
-                        )
-                        "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
-                        "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
-                        "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                        "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                        "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
-                        "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = 840.dp)
+                            .fillMaxWidth()
+                    ) {
+                        when (currentScreen) {
+                            "main" -> SettingsMainList(
+                                prefLanguage = userProfile?.language ?: "en",
+                                onNavigate = { currentScreen = it },
+                                onOpenBin = { currentScreen = "bin" },
+                                onOpenOwnerProfile = onOpenOwnerProfile
+                            )
+                            "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
+                            "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
+                            "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                            "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                            "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
+                            "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                        }
                     }
                 }
             }
@@ -274,7 +282,8 @@ fun UnifiedAccountDialog(
     accountsCount: Int,
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit,
-    onSave: (name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) -> Unit,
+    onSave: (name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onSaveExtended: ((name: String, balance: Double, details: String, upiId: String, qrCodeUri: String, accountNumber: String, ifsc: String, branchName: String, notes: String, phoneNumber: String, whatsappNumber: String, email: String) -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     androidx.activity.compose.BackHandler { onDismiss() }
@@ -283,6 +292,10 @@ fun UnifiedAccountDialog(
     var accName by remember(account) { mutableStateOf(account?.name ?: "") }
     var accBal by remember(account) { mutableStateOf(account?.let { if (it.initialBalance != 0.0) it.initialBalance.toString() else it.balance.toString() } ?: "") }
     var details by remember(account) { mutableStateOf(account?.details ?: "") }
+    var notes by remember(account) { mutableStateOf(account?.notes ?: "") }
+    var phoneNumber by remember(account) { mutableStateOf(account?.phoneNumber ?: "") }
+    var whatsappNumber by remember(account) { mutableStateOf(account?.whatsappNumber ?: "") }
+    var email by remember(account) { mutableStateOf(account?.email ?: "") }
     var qrCodeUri by remember(account) { mutableStateOf(account?.qrCodeUri ?: "") }
     var upiId by remember(account) { mutableStateOf(account?.upiId ?: "") }
     var accountNumber by remember(account) { mutableStateOf(account?.accountNumber ?: "") }
@@ -384,7 +397,11 @@ fun UnifiedAccountDialog(
                             onClick = {
                                 if (accName.isNotBlank()) {
                                     val bal = accBal.toDoubleOrNull() ?: 0.0
-                                    onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                                    if (onSaveExtended != null) {
+                                        onSaveExtended(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email)
+                                    } else {
+                                        onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
+                                    }
                                 } else {
                                     android.widget.Toast.makeText(
                                         context,
@@ -411,7 +428,7 @@ fun UnifiedAccountDialog(
                         if (account != null && accountsCount > 1 && onDelete != null) {
                             Spacer(modifier = Modifier.width(4.dp))
                             var showTopMenu by remember { mutableStateOf(false) }
-                            Box {
+                            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                                 IconButton(
                                     onClick = { showTopMenu = true },
                                     modifier = Modifier.size(44.dp)
@@ -425,6 +442,7 @@ fun UnifiedAccountDialog(
                                 DropdownMenu(
                                     expanded = showTopMenu,
                                     onDismissRequest = { showTopMenu = false },
+                                    offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
@@ -630,8 +648,60 @@ fun UnifiedAccountDialog(
                         label = { Text("UPI ID") },
                         leadingIcon = { Icon(Icons.Default.Payment, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = if (prefLanguage == "bn") "যোগাযোগ ও সংক্ষিপ্ত নোট (ঐচ্ছিক):" else "Contact Options & Short Notes (Optional):",
+                        color = AppTextColor().copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            GlassTextField(
+                                value = phoneNumber,
+                                onValueChange = { phoneNumber = it },
+                                label = { Text(if (prefLanguage == "bn") "ফোন / SMS নম্বর" else "Phone / SMS Number") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            GlassTextField(
+                                value = whatsappNumber,
+                                onValueChange = { whatsappNumber = it },
+                                label = { Text(if (prefLanguage == "bn") "হোয়াটসঅ্যাপ নম্বর" else "WhatsApp Number") },
+                                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    GlassTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text(if (prefLanguage == "bn") "ইমেইল ঠিকানা" else "Email Address") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    GlassTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text(if (prefLanguage == "bn") "সংক্ষিপ্ত নোট (অ্যাকাউন্ট ইনফোতে দেখাবে)" else "Short Notes (Displayed on Account Info)") },
+                        leadingIcon = { Icon(Icons.Default.StickyNote2, contentDescription = null, tint = AppTextColor().copy(alpha = 0.5f), modifier = Modifier.size(18.dp)) },
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp)
                     )
                     
                     Spacer(modifier = Modifier.height(48.dp))
@@ -661,7 +731,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v0.0.1 (Pure Material 3, Smart Bill Interpolation & Dual-Mode History)
+            Traker v0.0.1 (Sticky Notes Wall, Smart Bill Calc, Contact Popups & Material 3)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -669,29 +739,36 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. ⚡ স্মার্ট বিদ্যুৎ বিল ক্যালকুলেটর (অপরিশোধিত বিল ক্যারি-ওভার ও লিনিয়ার ইন্টারপোলেশন)
-            • নিষ্ক্রিয় মিটার রিডিং ও অপরিশোধিত বিল ক্যারি-ওভার: মিটার রিডিং আপডেট বন্ধ রাখলেও আগের অপরিশোধিত রিডিং ও পূর্ববর্তী Unpaid বিল স্বয়ংক্রিয়ভাবে যোগ হয় (+ অতিরিক্ত দিনের জন্য ₹০)—কখনোই ভুলবশত ₹০ দেখায় না।
-            • তালিকাভুক্ত নয় এমন তারিখের লিনিয়ার ইন্টারপোলেশন: নির্বাচিত তারিখে সরাসরি রিডিং না থাকলে পূর্ববর্তী ও পরবর্তী রিডিংয়ের সময়ের অনুপাতে (r1 + fraction × (r2 - r1)) স্বয়ংক্রিয়ভাবে ইউনিট ও প্রো-রাটা রেট হিসাব করা হয়।
+            ১. 📌 নতুন ৪র্থ ট্যাব: "Sticky" (ফ্লোটিং স্টিকি নোটস ও ওয়াল লেআউট)
+            • ভাসমান স্টিকি কার্ড: স্টিকি পেজে প্রতিটি নোট মৃদুভাবে দুলতে থাকে (Bobbing animation) এবং উপরে পিন আইকন থাকে। ট্যাবলেট ও ল্যান্ডস্কেপে নোটগুলো ওয়ালে স্টিকি নোটের মতো আনুভূমিকভাবে স্ক্রলযোগ্য গ্রিডে সাজানো থাকে।
+            • রিচ টেক্সট, টেবিল ও মিডিয়া: প্রতিটি স্টিকি নোটে বোল্ড টেক্সট, হাইলাইট, বুলেট, ইন্টারেক্টিভ টেবিল বিল্ডার (পাইপ `|` সিনট্যাক্সসহ), আনলিমিটেড পিডিএফ, ২ এমবি অটো-কমপ্রেসড ছবি এবং ২ মিনিট ভয়েস রেকর্ডিং যুক্ত করা যায়।
+            • ফুল-স্ক্রিন ভিউ ও কাস্টমাইজেশন: ডাবল-ট্যাপ করলে নোট ফুল-স্ক্রিন পপআপে খোলে। সেটিংস থেকে স্টিকি কার্ডের প্রস্থ (৫০%–৮০%) এবং প্রিভিউ লাইন সংখ্যা (৪–১০) নিয়ন্ত্রণ করা যায়।
 
-            ২. 🎨 লাইট ও ডার্ক মোড Material 3 শ্যাডো এবং বর্ডারহীন UI
-            • বর্ডারহীন Material 3 সারফেস: মিটার ডায়াল (MeterDialPicker), বিল সামারি সাব-ট্যাব, হোটেল/অ্যাকাউন্ট/প্রোফাইল এডিটর এবং ইউটিলিটি কনফিগারেশন পেজ থেকে সমস্ত বর্ডার সরিয়ে অ্যান্ড্রয়েডের নেটিভ শ্যাডো ও গভীর নীল (#0B57D0) বাটন যুক্ত করা হয়েছে।
-            • সার্বজনীন '<' ব্যাক বাটন ও ক্লিন মেনু: সমস্ত পেজে গোলাকার টোনাল কন্টেইনারের ভেতরে '<' ব্যাক বাটন এবং আইকন ও ডুপ্লিকেট ইমোজি ছাড়া স্মুথ ড্রয়ার মেনু যুক্ত করা হয়েছে।
+            ২. 📞 কল ও কন্টাক্ট পপআপ, সংক্ষিপ্ত নোট এবং ইউনিফাইড ইনফো কার্ড
+            • হোটেল কল ও হোয়াটসঅ্যাপ পপআপ: হোটেলের কল আইকনে ট্যাপ করলে Phone Call এবং WhatsApp Chat-এর অপশন আসে (Wi-Fi ট্যাবলেটে স্বয়ংক্রিয়ভাবে শুধু WhatsApp দেখায়)।
+            • অ্যাকাউন্ট কন্টাক্ট পপআপ: অ্যাকাউন্ট কার্ডের কন্টাক্ট আইকনে ট্যাপ করলে সরাসরি Email, WhatsApp বা SMS পাঠানো যায়।
+            • সংক্ষিপ্ত নোট (Short Notes): প্রতিটি হোটেল ও অ্যাকাউন্টে সংক্ষিপ্ত নোট লেখা যায় যা তাদের ইনফো পপআপে এবং ট্যাবলেটের বাম কলামে প্রদর্শিত হয়।
 
-            ৩. 📱 Android 8–10 ফুল-স্ক্রিন ওভারলে ফিক্স
-            • পুরনো অ্যান্ড্রয়েড ফোনে (Android 8–10) হোটেল/অ্যাকাউন্ট/প্রোফাইল এডিটর ও হিস্ট্রি পেজের ওপরে বা নিচে কেটে যাওয়া (Cropping) এবং নিচের পেজ দেখা যাওয়ার সমস্যা সম্পূর্ণ সমাধান করা হয়েছে।
+            ৩. 👤 ওনার প্রোফাইল ও লিংকড বনাম স্যান্ডবক্সড অ্যাকাউন্ট
+            • প্রোফাইল অ্যাকাউন্ট ডিফল্টভাবে স্যান্ডবক্সড থাকে। আপনি চাইলে যেকোনো প্রোফাইল অ্যাকাউন্টকে Extras পেজের সাথে Link বা De-link করতে পারেন (২-মুখী সিঙ্কসহ)।
+            • De-link করার সময় ট্রানজ্যাকশন হিস্ট্রি রিসাইকেল বিনে পাঠানো, CSV হিসেবে ডাউনলোড করা অথবা অ্যাপের এক্সপোর্ট টুল ব্যবহার করার অপশন পাওয়া যায় (শুধুমাত্র QR, JSON, CSV বা Copy-Paste এক্সপোর্টে মিডিয়া সংযুক্তি বাদ থাকে; সম্পূর্ণ ZIP ব্যাকআপে মিডিয়া থাকে)।
+            • হোমপেজের অভিবাদন (Greeting) হেডারে ডাবল-ট্যাপ করলে প্রোফাইলের ডিফল্ট অ্যাকাউন্টের পেমেন্ট তথ্য ও QR কোড দেখা যায়।
 
-            ৪. 📊 খাবার ও অ্যাকাউন্ট হিস্ট্রি — ২টি ভিউ মোড ও সোয়াইপ নেভিগেশন
-            • ডানে-বামে সোয়াইপ করে মাস পরিবর্তন করুন।
-            • Summed View (মোট যোগফল) এবং "Adding One by One" Expression View (যেমন: 40 + 20 + 50 = ₹110, মিল গ্রুপসহ) — খাবার এবং Extra (Account) উভয় বিভাগেই যুক্ত করা হয়েছে।
+            ৪. 🔤 বোল্ড ফন্ট টগল ও টেক্সট সাইজ স্কেলিং
+            • সেটিংস > Appearance-এ নতুন Bold Text সুইচ এবং Small থেকে Extra Large (XL) পর্যন্ত নিখুঁত ফন্ট স্কেলিং যুক্ত করা হয়েছে।
 
-            ৫. 💾 উন্নত ডাটা এক্সপোর্ট ও QR Sync ইঞ্জিন
-            • বিদ্যুৎ বিলের রেট (ElectricityRate), ইউটিলিটি ফিক্সড চার্জ ও ডিফল্ট রেটসহ সকল মৌলিক ডাটা এক্সপোর্ট হয় এবং হিসাবযোগ্য ডাটা (Derived fields) ইমপোর্টের সময় স্বয়ংক্রিয়ভাবে পুনর্গণনা হয়।
+            ৫. 🧾 খাবার ও অ্যাকাউন্ট হিস্ট্রি এবং পেইড স্ট্যাটাস ব্যাকআপ
+            • মিল রেকর্ড লেজারে একক "Adding One by One" এক্সপ্রেশন ভিউ এবং সংক্ষিপ্ত গ্রুপ নম্বর ("1.", "2.") যুক্ত করা হয়েছে।
+            • হোটেলের মাসিক Paid/Unpaid স্ট্যাটাস এখন সব ব্যাকআপ ও এক্সপোর্টে সংরক্ষিত থাকে।
+
+            ৬. 📱 Android 8–10 ফুল-স্ক্রিন ফিক্স ও স্মুথ পারফরম্যান্স
+            • পুরনো ও নতুন সকল অ্যান্ড্রয়েডে সব ডায়ালগ ও সাব-পেজ ১০০% এজ-টু-এজ ফুল-স্ক্রিনে চলে এবং ফ্রেম-ড্রপ রোধে সিঙ্গেল-লেয়ার শ্যাডো ব্যবহার করা হয়েছে।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v0.0.1 (Pure Material 3, Smart Bill Interpolation & Dual-Mode History)
+            Traker v0.0.1 (Sticky Notes Wall, Smart Bill Calc, Contact Popups & Material 3)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -699,23 +776,31 @@ fun LegalInfoDialog(
             📖 COMPLETE USER GUIDE & RECENT UPDATES
             ───────────────────────────
 
-            1. ⚡ SMART UTILITY BILL ENGINE (UNPAID CARRY-OVER & INTERPOLATION)
-            • Inactive Meter Reading Carry-Over: When meter readings are paused/inactive, selecting up to a later date carries over all unpaid reading intervals and unpaid recorded bills (+ ₹0 for inactive days after the last reading) instead of defaulting to zero.
-            • Linear Interpolation for Unlisted Dates: Selecting start/end dates not explicitly listed in meter readings interpolates meter values proportionally between bounding readings and splits rate changes pro-rata.
+            1. 📌 NEW 4TH HOMEPAGE TAB: "STICKY" (FLOATING STICKY NOTES & WALL LAYOUT)
+            • Floating Pinned Cards: Smoothly scrollable rounded Material 3 cards with a subtle bobbing animation and top pin badge. On tablets, foldables, and landscape screens, cards arrange across the wall in a horizontally scrollable multi-row grid.
+            • Rich Text, Interactive Tables & Media: Create notes with bold text, color highlights, bullet lists, an interactive table grid builder (with pipe `| Col 1 | Col 2 |` support), unlimited PDFs, auto-compressed 2MB images, and 2-minute `.m4a` voice recordings.
+            • Double-Tap Full-Screen & Settings: Double-tap any sticky card to view or edit it full-screen. Customize Sticky card width (50%–80%) and collapsed preview lines (4–10 lines) in Settings > Appearance.
 
-            2. 🎨 LIGHT & DARK MATERIAL 3 BORDERLESS SHADOWS & '<' NAVIGATION
-            • Borderless M3 Surfaces: Removed borders from MeterDialPicker digits, Type Reading chips, sub-tabs, and editor cards, replacing them with opaque Material 3 tonal surfaces, native elevation shadows, and Google Blue (#0B57D0) primary actions.
-            • Universal '<' Back Button & Clean Menus: Standardized all back buttons to '<' inside a circular tonal container and updated all triple-line menus to smooth text-only rows without icons or duplicate emojis.
+            2. 📞 CALL & CONTACT POPUPS, SHORT NOTES & UNIFIED INFO UI
+            • Hotel Call / WhatsApp Popup: Tapping the call icon on a hotel opens a choice between Phone Call and WhatsApp Chat (automatically showing only WhatsApp on Wi-Fi-only tablets without telephony).
+            • Account Contact Options: Tapping the contact icon on an account card offers Mail (Email), WhatsApp Chat, and Text Message (SMS).
+            • Short Notes & Unified Info Cards: Add short notes to any hotel or account and view them inside the unified Info Popup or the tablet left-column information panel.
 
-            3. 📱 ANDROID 8–10 FULL-SCREEN OVERLAY & SAFE INSETS FIX
-            • Resolved top/bottom cropping and background page bleed on Android 8–10 across Profile, Hotel, Account, History, and Settings sub-pages using physical display metrics and resource-backed status/navigation bar safe padding.
+            3. 👤 OWNER PROFILE & LINKED VS. SANDBOXED ACCOUNTS
+            • Sandboxed by Default: Accounts created in Owner Profile remain private to your profile unless explicitly linked to the Extras page, with 2-way sync when linked.
+            • Smart De-link Options: When de-linking an account from Extras, choose to move its transaction history to the Recycle Bin, download the history as CSV, or open the App Export Tool (note: only QR, JSON, CSV, or Copy-Paste exports exclude media attachments for compact size; full ZIP backup includes all media).
+            • Greeting Double-Tap QR: Double-tap the Greeting header on the homepage to display the payment details and UPI QR of your Default Profile Account.
 
-            4. 📊 DUAL-MODE MEAL & ACCOUNT HISTORY (SWIPE + EXPRESSION VIEW)
-            • Swipe left/right to switch months smoothly in both Meal History and the new Account History page.
-            • Toggle between "Summed View" and "Adding One by One Expression View" (e.g., 40 + 20 + 50 = ₹110 with Meal Group breakdowns).
+            4. 🔤 BOLD TEXT TOGGLE & FONT SIZE CONTROL
+            • Enable system-wide Bold Text (`Roboto-Bold.ttf`) and scale text smoothly from Small (85%) to Extra Large (130%) in Settings > Appearance.
 
-            5. 💾 NORMALIZED DATA EXPORT & ADAPTIVE QR STREAMING
-            • Exports all independent base records (including Electricity Bill Rates, Fixed Service Charge, Default Rate, Owner Accounts, and Categories) while recomputing derived fields automatically on import, paired with adaptive QR packet splitting.
+            5. 🧾 MEAL RECORD LEDGER, ATTACHMENTS & PAID STATUS BACKUP
+            • Streamlined Meal Record Ledger to the single "Adding One by One" expression mode with well-spaced header navigation and compact group numbering ("1.", "2.").
+            • Added 2-minute compressed `.m4a` voice recording, 2MB image compression, and unlimited PDF attachments to Add Transaction.
+            • Monthly Hotel Paid/Unpaid status is now preserved across all JSON, ZIP, and QR backups.
+
+            6. 📱 ANDROID 8–10 FULL-SCREEN FIX & FRAME-DROP OPTIMIZATION
+            • Eliminated bottom cropping and white bars across all dialogs and subpages on Android 8–10 using full real-display metrics and single-layer hardware shadows for 60fps scrolling.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)

@@ -13,6 +13,37 @@ object ThemePreferences {
     private const val KEY_LANGUAGE = "language"
     private const val KEY_ENABLE_LIQUID_GLASS = "enable_liquid_glass"
     private const val KEY_DISABLE_HEAVY_EFFECTS = "disable_heavy_effects"
+    private const val KEY_BOLD_TEXT = "is_bold_text_enabled"
+    private const val KEY_STICKY_WIDTH_PERCENT = "sticky_card_width_percent"
+    private const val KEY_STICKY_PREVIEW_LINES = "sticky_preview_lines"
+
+    fun getFontScale(textSize: String?): Float {
+        return when (textSize) {
+            "Small" -> 0.88f
+            "Large" -> 1.14f
+            "Extra Large" -> 1.26f
+            else -> 1.0f
+        }
+    }
+
+    fun getFontScale(context: Context): Float {
+        val textSize = try {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_TEXT_SIZE, "Medium") ?: "Medium"
+        } catch (_: Exception) {
+            "Medium"
+        }
+        return getFontScale(textSize)
+    }
+
+    fun isBoldText(context: Context): Boolean {
+        return try {
+            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_BOLD_TEXT, false)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     fun save(context: Context, profile: UserProfileEntity) {
         try {
@@ -26,6 +57,9 @@ object ThemePreferences {
                 .putString(KEY_LANGUAGE, profile.language)
                 .putBoolean(KEY_ENABLE_LIQUID_GLASS, profile.enableLiquidGlassTheme)
                 .putBoolean(KEY_DISABLE_HEAVY_EFFECTS, profile.disableHeavyEffects)
+                .putBoolean(KEY_BOLD_TEXT, profile.isBoldTextEnabled)
+                .putInt(KEY_STICKY_WIDTH_PERCENT, profile.stickyCardWidthPercent.coerceIn(50, 80))
+                .putInt(KEY_STICKY_PREVIEW_LINES, profile.stickyPreviewLines.coerceIn(4, 10))
                 .apply()
         } catch (_: Exception) {}
     }
@@ -58,6 +92,9 @@ object ThemePreferences {
             val language = prefs.getString(KEY_LANGUAGE, "en") ?: "en"
             val enableLiquidGlass = prefs.getBoolean(KEY_ENABLE_LIQUID_GLASS, false)
             val disableHeavyEffects = prefs.getBoolean(KEY_DISABLE_HEAVY_EFFECTS, true)
+            val isBoldText = prefs.getBoolean(KEY_BOLD_TEXT, false)
+            val stickyWidth = prefs.getInt(KEY_STICKY_WIDTH_PERCENT, 80).coerceIn(50, 80)
+            val stickyLines = prefs.getInt(KEY_STICKY_PREVIEW_LINES, 10).coerceIn(4, 10)
 
             UserProfileEntity(
                 bgPreset = bgPreset,
@@ -67,10 +104,18 @@ object ThemePreferences {
                 enableStarAnimation = enableStars,
                 language = language,
                 enableLiquidGlassTheme = enableLiquidGlass,
-                disableHeavyEffects = disableHeavyEffects
+                disableHeavyEffects = disableHeavyEffects,
+                isBoldTextEnabled = isBoldText,
+                stickyCardWidthPercent = stickyWidth,
+                stickyPreviewLines = stickyLines
             )
         } catch (_: Exception) {
-            UserProfileEntity(bgPreset = "Default", themeMode = "Auto", enableLiquidGlassTheme = false, disableHeavyEffects = true)
+            UserProfileEntity(
+                bgPreset = "Default",
+                themeMode = "Auto",
+                enableLiquidGlassTheme = false,
+                disableHeavyEffects = true
+            )
         }
     }
 }

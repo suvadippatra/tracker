@@ -11,13 +11,11 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.HotelPaymentEntity
 import com.example.data.model.MeterReading
+import com.example.data.model.StickyNoteEntity
 import com.example.data.model.UtilityBill
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 class FinancialRepository(private val db: AppDatabase) {
 
@@ -32,6 +30,7 @@ class FinancialRepository(private val db: AppDatabase) {
     private val attachmentDao = db.attachmentDao()
     private val ownerAccountDao = db.ownerAccountDao()
     private val hotelPaymentDao = db.hotelPaymentDao()
+    private val stickyNoteDao = db.stickyNoteDao()
 
     val userProfile: Flow<UserProfileEntity?> = userProfileDao.getUserProfile()
     val allHotels: Flow<List<HotelEntity>> = hotelDao.getAllHotels()
@@ -44,17 +43,28 @@ class FinancialRepository(private val db: AppDatabase) {
     val allCategories: Flow<List<com.example.data.model.TransactionCategoryEntity>> = categoryDao.getAllCategories()
     val allOwnerAccounts: Flow<List<com.example.data.model.OwnerAccountEntity>> = ownerAccountDao.getAllOwnerAccounts()
     val allHotelPayments: Flow<List<HotelPaymentEntity>> = hotelPaymentDao.getAllPayments()
+    val allStickyNotes: Flow<List<StickyNoteEntity>> = stickyNoteDao.getAllStickyNotes()
 
     val deletedTransactions: Flow<List<HotelTransactionEntity>> = transactionDao.getDeletedTransactions()
     val deletedExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getDeletedExpenses()
     val deletedMeterReadings: Flow<List<MeterReading>> = meterDao.getDeletedReadings()
     val deletedUtilityBills: Flow<List<UtilityBill>> = meterDao.getDeletedUtilityBills()
+    val deletedStickyNotes: Flow<List<StickyNoteEntity>> = stickyNoteDao.getDeletedStickyNotes()
 
     suspend fun emptyDeletedTransactionsPermanently() = transactionDao.emptyDeletedTransactionsPermanently()
     suspend fun emptyDeletedExpensesPermanently() = extraExpenseDao.emptyDeletedExpensesPermanently()
     suspend fun emptyDeletedReadingsPermanently() = meterDao.emptyDeletedReadingsPermanently()
     suspend fun emptyDeletedUtilityBillsPermanently() = meterDao.emptyDeletedUtilityBillsPermanently()
+    suspend fun emptyDeletedStickyNotesPermanently() = stickyNoteDao.emptyDeletedStickyNotesPermanently()
     suspend fun restoreReading(id: String) = meterDao.restoreReading(id)
+
+    suspend fun insertStickyNote(note: StickyNoteEntity): Long = stickyNoteDao.insertStickyNote(note)
+    suspend fun insertStickyNotes(notes: List<StickyNoteEntity>) = stickyNoteDao.insertStickyNotes(notes)
+    suspend fun updateStickyNote(note: StickyNoteEntity) = stickyNoteDao.updateStickyNote(note)
+    suspend fun updateStickyNotes(notes: List<StickyNoteEntity>) = stickyNoteDao.updateStickyNotes(notes)
+    suspend fun softDeleteStickyNote(id: Int) = stickyNoteDao.softDeleteStickyNote(id)
+    suspend fun restoreStickyNote(id: Int) = stickyNoteDao.restoreStickyNote(id)
+    suspend fun deleteStickyNotePermanently(note: StickyNoteEntity) = stickyNoteDao.deleteStickyNote(note)
 
     fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>> = attachmentDao.getAttachmentsForExpense(expenseId)
 
@@ -66,9 +76,12 @@ class FinancialRepository(private val db: AppDatabase) {
     suspend fun insertHotelPayment(payment: com.example.data.model.HotelPaymentEntity) = hotelPaymentDao.insertPayment(payment)
     suspend fun deleteHotelPayment(payment: com.example.data.model.HotelPaymentEntity) = hotelPaymentDao.deletePayment(payment)
 
-    suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.insertOwnerAccount(account)
+    suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity): Long = ownerAccountDao.insertOwnerAccount(account)
     suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.updateOwnerAccount(account)
     suspend fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) = ownerAccountDao.deleteOwnerAccount(account)
+    suspend fun getAllOwnerAccountsSync(): List<com.example.data.model.OwnerAccountEntity> = ownerAccountDao.getAllOwnerAccountsSync()
+    suspend fun getAllBankAccountsSync(): List<BankAccountEntity> = bankAccountDao.getAllBankAccountsSync()
+    suspend fun getBankAccountByIdSync(id: Int): BankAccountEntity? = bankAccountDao.getBankAccountByIdSync(id)
 
     val allMeterReadings: Flow<List<MeterReading>> = meterDao.getAllReadings()
     val allMeterReadingsSorted: Flow<List<MeterReading>> = meterDao.getAllReadingsSorted()
@@ -111,7 +124,6 @@ class FinancialRepository(private val db: AppDatabase) {
         userProfileDao.insertOrUpdateProfile(profile)
     }
 
-    
     suspend fun insertMenu(menu: MenuEntity) {
         withContext(Dispatchers.IO) {
             menuDao.insertMenu(menu)
@@ -200,7 +212,6 @@ class FinancialRepository(private val db: AppDatabase) {
 
     suspend fun initializeDatabaseIfNeeded(context: Context) = withContext(Dispatchers.IO) {
         try {
-            // 1. Verify User Profile
             val profile = userProfileDao.getUserProfileSync()
             if (profile == null) {
                 userProfileDao.insertOrUpdateProfile(UserProfileEntity())
@@ -208,65 +219,5 @@ class FinancialRepository(private val db: AppDatabase) {
         } catch (e: Exception) {
             Log.e("FinancialRepository", "Error initializing database", e)
         }
-    }
-
-    private fun normalizeName(name: String): String {
-        val lower = name.lowercase().trim()
-        if (lower.startsWith("thali rice & veg")) return "thali rice & veg"
-        return lower
-    }
-
-    private fun extractEnglishName(text: String): String {
-        val openParen = text.indexOf('(')
-        val closeParen = text.indexOf(')')
-        if (openParen != -1 && closeParen != -1 && closeParen > openParen) {
-            return text.substring(openParen + 1, closeParen).trim()
-        }
-        return text.trim()
-    }
-
-    private fun getEmojiAndTypeForName(englishName: String): Pair<String, String> {
-        val lower = englishName.lowercase()
-        return when {
-            lower.contains("plain rice") || lower.contains("only rice") -> Pair("🍚", "Rice")
-            lower.contains("chicken") -> Pair("🍗", "Chicken")
-            lower.contains("fish") -> Pair("🐟", "Fish")
-            lower.contains("egg") || lower.contains("omelette") -> Pair("🍳", "Egg")
-            lower.contains("thali") || lower.contains("veg thali") -> Pair("🍛", "Thali")
-            lower.contains("veg") -> Pair("🥗", "Veg")
-            lower.contains("curd") -> Pair("🥛", "Curd")
-            lower.contains("khichuri") -> Pair("🥣", "Khichuri")
-            lower.contains("pulao") -> Pair("🍚", "Pulao")
-            lower.contains("roti") || lower.contains("luchi") || lower.contains("paratha") -> Pair("🫓", "Breads")
-            else -> Pair("🍽️", "Common")
-        }
-    }
-
-
-
-
-
-
-    private fun getFallbackMenu(): List<MenuEntity> {
-        return listOf(
-            MenuEntity(banglaName = "নর্মাল ভাত", englishName = "Plain Rice", price = 35.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
-            MenuEntity(banglaName = "চিকেন পিস", englishName = "Chicken Piece", price = 20.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
-            MenuEntity(banglaName = "মাছ পিস", englishName = "Fish Piece", price = 20.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
-            MenuEntity(banglaName = "ডিম কারি", englishName = "Egg Curry", price = 15.0, isDayMenu = true, isNightMenu = true, isAddOn = true),
-            MenuEntity(banglaName = "ওমলেট", englishName = "Omelette", price = 15.0, isDayMenu = false, isNightMenu = true, isAddOn = true),
-            MenuEntity(banglaName = "নর্মাল ভাত + থালি ডাল-সবজি", englishName = "Rice + Thali Vegs", price = 50.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
-            MenuEntity(banglaName = "থালি ভাত + থালি ডাল-সবজি", englishName = "Thali Rice & Veg", price = 60.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
-            MenuEntity(banglaName = "ভেজ থালি", englishName = "Veg Thali", price = 70.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
-            MenuEntity(banglaName = "থালির ভাজাভুজি", englishName = "Thali Extras", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
-            MenuEntity(banglaName = "থালি সবজি", englishName = "Thali Vegs", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
-            MenuEntity(banglaName = "নর্মাল সবজি", englishName = "Normal Vegs", price = 10.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
-            MenuEntity(banglaName = "দই", englishName = "Curd", price = 20.0, isDayMenu = true, isNightMenu = false, isAddOn = true),
-            MenuEntity(banglaName = "খিচুড়ি", englishName = "Khichuri", price = 40.0, isDayMenu = true, isNightMenu = false, isAddOn = false),
-            MenuEntity(banglaName = "পোলাউ", englishName = "Pulao", price = 60.0, isDayMenu = true, isNightMenu = true, isAddOn = false),
-            MenuEntity(banglaName = "ফ্রাইড রাইস + চিকেন", englishName = "Fried Rice + Chicken", price = 80.0, isDayMenu = true, isNightMenu = true, isAddOn = false),
-            MenuEntity(banglaName = "রুটি", englishName = "Roti", price = 5.0, isDayMenu = false, isNightMenu = true, isAddOn = false),
-            MenuEntity(banglaName = "নুচি", englishName = "Luchi", price = 5.0, isDayMenu = false, isNightMenu = true, isAddOn = false),
-            MenuEntity(banglaName = "আলু পরোটা", englishName = "Aloo Paratha", price = 15.0, isDayMenu = false, isNightMenu = true, isAddOn = false)
-        )
     }
 }
