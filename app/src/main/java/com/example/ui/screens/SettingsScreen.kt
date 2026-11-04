@@ -740,7 +740,7 @@ fun LegalInfoDialog(
             ───────────────────────────
 
             ১. 📌 নতুন ৪র্থ ট্যাব: "Sticky" (ফ্লোটিং স্টিকি নোটস ও ওয়াল লেআউট)
-            • ভাসমান স্টিকি কার্ড: স্টিকি পেজে প্রতিটি নোট মৃদুভাবে দুলতে থাকে (Bobbing animation) এবং উপরে পিন আইকন থাকে। ট্যাবলেট ও ল্যান্ডস্কেপে নোটগুলো ওয়ালে স্টিকি নোটের মতো আনুভূমিকভাবে স্ক্রলযোগ্য গ্রিডে সাজানো থাকে।
+            • ভাসমান স্টিকি কার্ড ও সুরক্ষিত ড্রাফট: স্টিকি পেজে প্রতিটি নোট মৃদুভাবে দুলতে থাকে (Bobbing animation)। নতুন নোট তৈরি করার সময় ইন-মেমোরি ড্রাফট নিরাপদ থাকে এবং টাইপ করার সময় অনাকাঙ্ক্ষিতভাবে বন্ধ হয় না।
             • রিচ টেক্সট, টেবিল ও মিডিয়া: প্রতিটি স্টিকি নোটে বোল্ড টেক্সট, হাইলাইট, বুলেট, ইন্টারেক্টিভ টেবিল বিল্ডার (পাইপ `|` সিনট্যাক্সসহ), আনলিমিটেড পিডিএফ, ২ এমবি অটো-কমপ্রেসড ছবি এবং ২ মিনিট ভয়েস রেকর্ডিং যুক্ত করা যায়।
             • ফুল-স্ক্রিন ভিউ ও কাস্টমাইজেশন: ডাবল-ট্যাপ করলে নোট ফুল-স্ক্রিন পপআপে খোলে। সেটিংস থেকে স্টিকি কার্ডের প্রস্থ (৫০%–৮০%) এবং প্রিভিউ লাইন সংখ্যা (৪–১০) নিয়ন্ত্রণ করা যায়।
 
@@ -754,21 +754,22 @@ fun LegalInfoDialog(
             • De-link করার সময় ট্রানজ্যাকশন হিস্ট্রি রিসাইকেল বিনে পাঠানো, CSV হিসেবে ডাউনলোড করা অথবা অ্যাপের এক্সপোর্ট টুল ব্যবহার করার অপশন পাওয়া যায় (শুধুমাত্র QR, JSON, CSV বা Copy-Paste এক্সপোর্টে মিডিয়া সংযুক্তি বাদ থাকে; সম্পূর্ণ ZIP ব্যাকআপে মিডিয়া থাকে)।
             • হোমপেজের অভিবাদন (Greeting) হেডারে ডাবল-ট্যাপ করলে প্রোফাইলের ডিফল্ট অ্যাকাউন্টের পেমেন্ট তথ্য ও QR কোড দেখা যায়।
 
-            ৪. 🔤 বোল্ড ফন্ট টগল ও টেক্সট সাইজ স্কেলিং
-            • সেটিংস > Appearance-এ নতুন Bold Text সুইচ এবং Small থেকে Extra Large (XL) পর্যন্ত নিখুঁত ফন্ট স্কেলিং যুক্ত করা হয়েছে।
+            ৪. 🔤 স্বতন্ত্র Montserrat বোল্ড ফন্ট ও হাই-কনট্রাস্ট বাটন
+            • সেটিংস > Appearance-এ বোল্ড টেক্সট চালু করলে অ্যাপে স্বতন্ত্র Google Font Montserrat Bold কার্যকর হয় এবং টেক্সট সাইজ স্কেলিং নিখুঁত থাকে।
+            • সমস্ত রঙিন বাটনে (যেমন প্রথম হোটেল বা সেভ বাটন) স্বয়ংক্রিয় ব্যাকগ্রাউন্ড লুমিন্যান্স অনুসারে স্পষ্ট সাদা/গাঢ় কনট্রাস্ট টেক্সট প্রদর্শিত হয়।
 
             ৫. 🧾 খাবার ও অ্যাকাউন্ট হিস্ট্রি এবং পেইড স্ট্যাটাস ব্যাকআপ
             • মিল রেকর্ড লেজারে একক "Adding One by One" এক্সপ্রেশন ভিউ এবং সংক্ষিপ্ত গ্রুপ নম্বর ("1.", "2.") যুক্ত করা হয়েছে।
             • হোটেলের মাসিক Paid/Unpaid স্ট্যাটাস এখন সব ব্যাকআপ ও এক্সপোর্টে সংরক্ষিত থাকে।
 
-            ৬. 📱 Android 8–10 ফুল-স্ক্রিন ফিক্স ও স্মুথ পারফরম্যান্স
-            • পুরনো ও নতুন সকল অ্যান্ড্রয়েডে সব ডায়ালগ ও সাব-পেজ ১০০% এজ-টু-এজ ফুল-স্ক্রিনে চলে এবং ফ্রেম-ড্রপ রোধে সিঙ্গেল-লেয়ার শ্যাডো ব্যবহার করা হয়েছে।
+            ৬. 📱 ডায়নামিক উইন্ডো রিসাইজিং ও মাল্টি-উইন্ডো সুরক্ষা
+            • স্প্লিট-স্ক্রিন, উইন্ডো রিসাইজ, কিবোর্ড খোলা বা স্ক্রিন রোটেশনে সমস্ত ডায়ালগ ও সেটিংস সাবপেজ স্বয়ংক্রিয়ভাবে সঠিক মাপে মানিয়ে নেয় এবং নিচের কোনো অংশ কেটে যায় না।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v0.0.1 (Sticky Notes Wall, Smart Bill Calc, Contact Popups & Material 3)
+            Traker v0.0.1 (Sticky Notes Wall, Montserrat Bold, Resize Stability & Material 3)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -777,12 +778,12 @@ fun LegalInfoDialog(
             ───────────────────────────
 
             1. 📌 NEW 4TH HOMEPAGE TAB: "STICKY" (FLOATING STICKY NOTES & WALL LAYOUT)
-            • Floating Pinned Cards: Smoothly scrollable rounded Material 3 cards with a subtle bobbing animation and top pin badge. On tablets, foldables, and landscape screens, cards arrange across the wall in a horizontally scrollable multi-row grid.
-            • Rich Text, Interactive Tables & Media: Create notes with bold text, color highlights, bullet lists, an interactive table grid builder (with pipe `| Col 1 | Col 2 |` support), unlimited PDFs, auto-compressed 2MB images, and 2-minute `.m4a` voice recordings.
-            • Double-Tap Full-Screen & Settings: Double-tap any sticky card to view or edit it full-screen. Customize Sticky card width (50%–80%) and collapsed preview lines (4–10 lines) in Settings > Appearance.
+            • Floating Pinned Cards & In-Memory Drafts: Smoothly scrollable rounded Material 3 cards with harmonic bobbing. In-memory drafts stay open reliably while typing and never dismiss prematurely or crash during edits.
+            • Rich Text, Interactive Tables & Media: Create notes with bold/italic text, interactive table grid builder (with pipe `| Col 1 | Col 2 |` support), unlimited PDFs, auto-compressed 2MB images, and 2-minute voice recordings.
+            • Double-Tap Full-Screen & Settings: View or edit notes full-screen. Customize Sticky card width (50%–80%) and preview lines (4–10 lines) in Settings > Appearance.
 
             2. 📞 CALL & CONTACT POPUPS, SHORT NOTES & UNIFIED INFO UI
-            • Hotel Call / WhatsApp Popup: Tapping the call icon on a hotel opens a choice between Phone Call and WhatsApp Chat (automatically showing only WhatsApp on Wi-Fi-only tablets without telephony).
+            • Hotel Call / WhatsApp Popup: Tapping the call icon on a hotel opens Phone Call or WhatsApp Chat (automatically showing only WhatsApp on Wi-Fi-only tablets without telephony).
             • Account Contact Options: Tapping the contact icon on an account card offers Mail (Email), WhatsApp Chat, and Text Message (SMS).
             • Short Notes & Unified Info Cards: Add short notes to any hotel or account and view them inside the unified Info Popup or the tablet left-column information panel.
 
@@ -791,16 +792,17 @@ fun LegalInfoDialog(
             • Smart De-link Options: When de-linking an account from Extras, choose to move its transaction history to the Recycle Bin, download the history as CSV, or open the App Export Tool (note: only QR, JSON, CSV, or Copy-Paste exports exclude media attachments for compact size; full ZIP backup includes all media).
             • Greeting Double-Tap QR: Double-tap the Greeting header on the homepage to display the payment details and UPI QR of your Default Profile Account.
 
-            4. 🔤 BOLD TEXT TOGGLE & FONT SIZE CONTROL
-            • Enable system-wide Bold Text (`Roboto-Bold.ttf`) and scale text smoothly from Small (85%) to Extra Large (130%) in Settings > Appearance.
+            4. 🔤 DEDICATED MONTSERRAT BOLD FONT & HIGH-CONTRAST BUTTONS
+            • Dedicated Montserrat Bold: Enabling 'Bold Text' in Appearance Settings applies the Google Font Montserrat Bold across all UI elements for crisp, readable typography.
+            • Auto High-Contrast Buttons: All colored action buttons (Add First Hotel, Save Hotel, Backup buttons) dynamically calculate background luminance to ensure razor-sharp text and icon readability.
 
             5. 🧾 MEAL RECORD LEDGER, ATTACHMENTS & PAID STATUS BACKUP
             • Streamlined Meal Record Ledger to the single "Adding One by One" expression mode with well-spaced header navigation and compact group numbering ("1.", "2.").
             • Added 2-minute compressed `.m4a` voice recording, 2MB image compression, and unlimited PDF attachments to Add Transaction.
             • Monthly Hotel Paid/Unpaid status is now preserved across all JSON, ZIP, and QR backups.
 
-            6. 📱 ANDROID 8–10 FULL-SCREEN FIX & FRAME-DROP OPTIMIZATION
-            • Eliminated bottom cropping and white bars across all dialogs and subpages on Android 8–10 using full real-display metrics and single-layer hardware shadows for 60fps scrolling.
+            6. 📱 DYNAMIC WINDOW RESIZING & MULTI-WINDOW STABILITY
+            • Split-screen multi-window mode, freeform resizing, and keyboard IME transitions dynamically update window dimensions with zero bottom cropping or visual leaking.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)

@@ -71,10 +71,24 @@ fun AboutSettingsScreen(
         listOf(
             HelpGuideQuickItem(
                 icon = Icons.Default.StickyNote2,
-                titleEn = "Sticky Notes Tab, Wall Grid, Tables & Media",
-                titleBn = "স্টিকি নোটস ট্যাব, ওয়াল গ্রিড, টেবিল ও মিডিয়া",
-                descEn = "Floating pinned sticky cards with subtle bobbing animation, double-tap full-screen view, rich text (bold/highlight/bullets), interactive table builder with pipe '|' support, unlimited PDFs, 2MB auto-compressed images, and 2-min voice notes. On tablets/landscape, notes arrange on a horizontally scrollable wall.",
-                descBn = "মৃদু ভাসমান স্টিকি কার্ড, ডাবল-ট্যাপ ফুল-স্ক্রিন ভিউ, বোল্ড/হাইলাইট, ইন্টারেক্টিভ টেবিল বিল্ডার, পিডিএফ, ২ এমবি ছবি এবং ২ মিনিটের ভয়েস নোট। ট্যাবলেটে ওয়াল গ্রিড লেআউট।"
+                titleEn = "Sticky Notes Tab, In-Memory Drafts & Wall Grid",
+                titleBn = "স্টিকি নোটস ট্যাব, সুরক্ষিত ড্রাফট ও ওয়াল গ্রিড",
+                descEn = "Floating pinned sticky cards with smooth harmonic bobbing. In-memory drafts stay open reliably while typing and never dismiss prematurely. Supports rich text (bold/italic), interactive table builder with pipe '|' support, unlimited PDFs, auto-compressed images, and wall mode on tablets/landscape.",
+                descBn = "মৃদু ভাসমান স্টিকি কার্ড ও সুরক্ষিত ড্রাফট এডিটর। টাইপ করার সময় কোনো অনাকাঙ্ক্ষিত ক্লোজ বা ক্র্যাশ হবে না। বোল্ড/ইটালিক, টেবিল বিল্ডার ও মিডিয়া সংলগ্ন করার সুবিধা।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.Dashboard,
+                titleEn = "Dynamic Window Resizing & Multi-Window Stability",
+                titleBn = "ডায়নামিক উইন্ডো রিসাইজিং ও মাল্টি-উইন্ডো সুরক্ষা",
+                descEn = "All full-screen overlays, settings subpages, and editor dialogs dynamically adapt to screen resize events, split-screen multi-window mode, keyboard transitions, and device rotations with zero bottom cropping or visual leaking.",
+                descBn = "স্প্লিট-স্ক্রিন, উইন্ডো রিসাইজ, কিবোর্ড খোলা বা স্ক্রিন রোটেশনে সমস্ত ডায়ালগ ও সেটিংস সাবপেজ স্বয়ংক্রিয়ভাবে সঠিক মাপে মানিয়ে নেয় এবং নিচের কোনো অংশ কেটে যায় না।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.FormatBold,
+                titleEn = "Dedicated Montserrat Bold Font & High-Contrast Buttons",
+                titleBn = "স্বতন্ত্র Montserrat বোল্ড ফন্ট ও হাই-কনট্রাস্ট বাটন",
+                descEn = "When 'Bold Text' is enabled in Appearance Settings, the app applies the dedicated Google Font Montserrat Bold for crisp typography. All colored action buttons dynamically calculate background luminance to ensure razor-sharp text and icon readability.",
+                descBn = "বোল্ড টেক্সট চালু থাকলে সম্পূর্ণ অ্যাপে Montserrat বোল্ড ফন্ট কার্যকর হয়। সমস্ত রঙিন বাটনে স্বয়ংক্রিয় লুমিন্যান্স অনুসারে স্পষ্ট সাদা/গাঢ় টেক্সট ও আইকন প্রদর্শিত হয়।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.ContactPhone,
@@ -91,18 +105,11 @@ fun AboutSettingsScreen(
                 descBn = "প্রোফাইল অ্যাকাউন্ট ডিফল্টভাবে স্যান্ডবক্সড থাকে। প্রয়োজনে Extras পেজের সাথে লিংক বা ডি-লিংক করুন (বিন, CSV ডাউনলোড বা এক্সপোর্ট অপশনসহ)। অভিবাদনে ডাবল-ট্যাপ করে ডিফল্ট প্রোফাইল QR দেখুন।"
             ),
             HelpGuideQuickItem(
-                icon = Icons.Default.FormatSize,
-                titleEn = "Bold Font Toggle, Text Scaling & Single-Mode Meal Ledger",
-                titleBn = "বোল্ড ফন্ট টগল, টেক্সট স্কেলিং ও একক মিল লেজার",
-                descEn = "Enable system-wide Bold Text (Roboto-Bold) and scale text from Small to Extra Large (XL) in Appearance Settings. Meal Record Ledger now uses the clear 'Adding One by One' mode with '1.', '2.' group numbering and full Paid/Unpaid status backup.",
-                descBn = "সেটিংস থেকে সম্পূর্ণ অ্যাপে বোল্ড টেক্সট ও টেক্সট সাইজ স্কেলিং নিয়ন্ত্রণ করুন। মিল রেকর্ড লেজারে 'Adding One by One' ভিউ, '1.' গ্রুপ নম্বর এবং পেইড স্ট্যাটাস ব্যাকআপ।"
-            ),
-            HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "Smart Bill Interpolation & Android 8–10 Full-Screen Fix",
-                titleBn = "স্মার্ট বিল ইন্টারপোলেশন ও অ্যান্ড্রয়েড ৮–১০ ফুল-স্ক্রিন ফিক্স",
-                descEn = "Carries over unpaid balances when meter readings pause and linearly interpolates unlisted dates. All dialogs and sub-pages stretch 100% edge-to-edge on Android 8–10 with zero bottom cropping and single-layer hardware shadows for 60fps scrolling.",
-                descBn = "মিটার রিডিং বন্ধ থাকলেও বকেয়া বিল ক্যারি-ওভার ও ইন্টারপোলেশন করে এবং অ্যান্ড্রয়েড ৮–১০ এ নিচের অংশ কেটে যাওয়া বা সাদা বর্ডার সমস্যা সম্পূর্ণ সমাধান করে।"
+                titleEn = "Smart Bill Interpolation & Inactive Unpaid Carry-Over",
+                titleBn = "স্মার্ট বিল ইন্টারপোলেশন ও বকেয়া বিল ক্যারি-ওভার",
+                descEn = "Carries over unpaid balances when meter readings pause and linearly interpolates unlisted dates. Single-mode meal ledger ('Adding One by One') with '1.', '2.' group numbering and full Paid/Unpaid status backup.",
+                descBn = "মিটার রিডিং বন্ধ থাকলেও বকেয়া বিল ক্যারি-ওভার ও ইন্টারপোলেশন করে। মিল লেজারে 'Adding One by One' ভিউ, '1.' গ্রুপ নম্বর এবং পেইড স্ট্যাটাস ব্যাকআপ।"
             )
         )
     }

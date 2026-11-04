@@ -17,15 +17,17 @@ val AppFontFamily = FontFamily(
 )
 
 /**
- * Dedicated bold font family where even Normal/Medium requests render using SemiBold/Bold font weights.
+ * Dedicated bold font family using Montserrat Bold for high-contrast bold typography.
  */
-val AppBoldFontFamily = FontFamily(
-    Font(R.font.plus_jakarta_sans, FontWeight.Normal),
-    Font(R.font.plus_jakarta_sans, FontWeight.Medium),
-    Font(R.font.plus_jakarta_sans, FontWeight.SemiBold),
-    Font(R.font.plus_jakarta_sans, FontWeight.Bold),
-    Font(R.font.plus_jakarta_sans, FontWeight.ExtraBold)
+val MontserratBoldFontFamily = FontFamily(
+    Font(R.font.montserrat, FontWeight.Normal),
+    Font(R.font.montserrat, FontWeight.Medium),
+    Font(R.font.montserrat, FontWeight.SemiBold),
+    Font(R.font.montserrat, FontWeight.Bold),
+    Font(R.font.montserrat, FontWeight.ExtraBold)
 )
+
+val AppBoldFontFamily = MontserratBoldFontFamily
 
 fun getAppTypography(textSize: String = "Medium", isBold: Boolean = false): Typography {
     val family = if (isBold) AppBoldFontFamily else AppFontFamily

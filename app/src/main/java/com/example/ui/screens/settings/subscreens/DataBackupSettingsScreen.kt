@@ -282,18 +282,21 @@ fun DataBackupSettingsScreen(
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentCyan,
+                                contentColor = AppOnAccentColor(AccentCyan)
+                            )
                         ) {
                             Icon(
                                 Icons.Default.QrCode,
                                 contentDescription = null,
-                                tint = Color.Black,
+                                tint = AppOnAccentColor(AccentCyan),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 "QR Send",
-                                color = Color.Black,
+                                color = AppOnAccentColor(AccentCyan),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )

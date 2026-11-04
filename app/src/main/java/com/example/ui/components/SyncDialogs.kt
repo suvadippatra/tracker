@@ -213,18 +213,21 @@ fun ParentMappingDialog(
                             onClick = onConfirm,
                             modifier = Modifier.weight(1.3f),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentCyan,
+                                contentColor = AppOnAccentColor(AccentCyan)
+                            )
                         ) {
                             Text(
                                 "Continue",
-                                color = Color.Black,
+                                color = AppOnAccentColor(AccentCyan),
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(Modifier.width(6.dp))
                             Icon(
                                 Icons.Default.ArrowForward,
                                 contentDescription = null,
-                                tint = Color.Black,
+                                tint = AppOnAccentColor(AccentCyan),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -762,18 +765,21 @@ fun MenuConfirmationDialog(
                             onClick = onConfirm,
                             modifier = Modifier.weight(1.3f),
                             shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentCyan)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentCyan,
+                                contentColor = AppOnAccentColor(AccentCyan)
+                            )
                         ) {
                             Text(
                                 "Confirm (${acceptedKeys.size})",
-                                color = Color.Black,
+                                color = AppOnAccentColor(AccentCyan),
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(Modifier.width(6.dp))
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = null,
-                                tint = Color.Black,
+                                tint = AppOnAccentColor(AccentCyan),
                                 modifier = Modifier.size(16.dp)
                             )
                         }

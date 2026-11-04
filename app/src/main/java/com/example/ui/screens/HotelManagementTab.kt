@@ -251,7 +251,10 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
 
                     Button(
                         onClick = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(null)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppAccentColor(),
+                            contentColor = AppOnAccentColor()
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -259,11 +262,11 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                             .bounceClick()
                             .testTag("add_first_hotel_btn")
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = AppOnAccentColor())
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isBengali) "+ নতুন হোটেল যোগ করুন" else "+ Add New Hotel",
-                            color = Color.Black,
+                            color = AppOnAccentColor(),
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -2742,10 +2745,13 @@ fun UnifiedHotelDialog(
                                             onSave(hotelName, adv, hotelPhone, hotelLoc, hotelUpi, hotelQr)
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AppAccentColor(),
+                                        contentColor = AppOnAccentColor()
+                                    ),
                                     modifier = Modifier.weight(1f).testTag("save_hotel_btn")
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = if (hotel == null) {
@@ -2753,7 +2759,7 @@ fun UnifiedHotelDialog(
                                         } else {
                                             if (prefLanguage == "bn") "সংরক্ষণ" else "Save"
                                         },
-                                        color = Color.Black,
+                                        color = AppOnAccentColor(),
                                         fontWeight = FontWeight.Bold
                                     )
                                 }

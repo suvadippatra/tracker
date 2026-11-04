@@ -177,14 +177,14 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     var isCreatingNewNote by remember { mutableStateOf(false) }
     var reorderingNoteId by remember { mutableStateOf<Int?>(null) }
 
-    // Keep selectedNoteForViewer synced with latest DB updates
+    // Keep selectedNoteForViewer synced with latest DB updates for existing saved notes only
     LaunchedEffect(stickyNotes, selectedNoteForViewer?.id) {
         val currentId = selectedNoteForViewer?.id ?: return@LaunchedEffect
+        // If it's a new draft being written (id == 0 or isCreatingNewNote), never close it
+        if (currentId <= 0 || isCreatingNewNote) return@LaunchedEffect
         val updated = stickyNotes.find { it.id == currentId }
         if (updated != null) {
             selectedNoteForViewer = updated
-        } else {
-            selectedNoteForViewer = null
         }
     }
 
@@ -463,7 +463,7 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 selectedNoteForViewer = StickyNoteEntity()
             },
             containerColor = AppAccentColor(),
-            contentColor = Color.White,
+            contentColor = AppOnAccentColor(),
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -475,12 +475,13 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Add, contentDescription = "New Sticky Note")
+                Icon(Icons.Default.Add, contentDescription = "New Sticky Note", tint = AppOnAccentColor())
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (isBn) "নতুন স্টিকি" else "New Sticky",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = AppOnAccentColor()
                 )
             }
         }
@@ -779,12 +780,12 @@ fun StickyNoteFullScreenDialog(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600 || configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    var isEditing by remember(initialEditMode) { mutableStateOf(initialEditMode) }
-    var title by remember(note.id, note.title) { mutableStateOf(note.title) }
-    var subtitle by remember(note.id, note.subtitle) { mutableStateOf(note.subtitle) }
-    var bodyText by remember(note.id, note.bodyText) { mutableStateOf(note.bodyText) }
-    var textAlignment by remember(note.id, note.textAlignment) { mutableStateOf(note.textAlignment) }
-    var attachments by remember(note.id, note.attachmentsJson) {
+    var isEditing by remember { mutableStateOf(initialEditMode) }
+    var title by remember(note.id) { mutableStateOf(note.title) }
+    var subtitle by remember(note.id) { mutableStateOf(note.subtitle) }
+    var bodyText by remember(note.id) { mutableStateOf(note.bodyText) }
+    var textAlignment by remember(note.id) { mutableStateOf(note.textAlignment) }
+    var attachments by remember(note.id) {
         mutableStateOf(StickyAttachmentSerializer.deserialize(note.attachmentsJson))
     }
 
@@ -972,13 +973,16 @@ fun StickyNoteFullScreenDialog(
                                     )
                                     isEditing = false
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AppAccentColor(),
+                                    contentColor = AppOnAccentColor()
+                                ),
                                 shape = RoundedCornerShape(14.dp),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isBn) "সেভ" else "Save", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(if (isBn) "সেভ" else "Save", color = AppOnAccentColor(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
 

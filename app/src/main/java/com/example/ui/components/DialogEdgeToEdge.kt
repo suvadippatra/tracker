@@ -59,36 +59,26 @@ fun DialogEdgeToEdge() {
 
         if (window != null) {
             val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val metrics = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(metrics)
-            val realWidth = metrics.widthPixels
-            val realHeight = metrics.heightPixels
-            val density = metrics.density.coerceAtLeast(1f)
-            val fullWidthDp = ceil(realWidth / density).toInt()
-            val fullHeightDp = ceil(realHeight / density).toInt()
 
-            // Update configuration screenWidthDp / screenHeightDp / fontScale on the Dialog's context
-            // so Compose's DialogLayout.internalOnMeasure never clamps to usable height (realHeight - 72dp)
-            // and Dialog composition roots inherit the user's selected Text Size scale.
-            val targetFontScale = com.example.ui.theme.ThemePreferences.getFontScale(context)
-            try {
-                view.context.resources.configuration.screenWidthDp = fullWidthDp
-                view.context.resources.configuration.screenHeightDp = fullHeightDp
-                view.context.resources.configuration.fontScale = targetFontScale
-                (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
-                    cfg.screenWidthDp = fullWidthDp
-                    cfg.screenHeightDp = fullHeightDp
-                    cfg.fontScale = targetFontScale
+            fun getTargetDimensions(): Pair<Int, Int> {
+                val activity = context.findActivity()
+                if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity.isInMultiWindowMode) {
+                    val decor = activity.window?.decorView
+                    if (decor != null && decor.width > 0 && decor.height > 0) {
+                        return decor.width to decor.height
+                    }
+                    val dm = context.resources.displayMetrics
+                    return dm.widthPixels to dm.heightPixels
                 }
-                window.context.resources.configuration.screenWidthDp = fullWidthDp
-                window.context.resources.configuration.screenHeightDp = fullHeightDp
-                window.context.resources.configuration.fontScale = targetFontScale
-            } catch (_: Exception) {}
+                val metrics = DisplayMetrics()
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.getRealMetrics(metrics)
+                return metrics.widthPixels to metrics.heightPixels
+            }
 
             // Also flip DialogLayout's internal usePlatformDefaultWidth field to true via reflection
-            // after we set exact realWidth x realHeight LayoutParams, so DialogLayout delegates
-            // directly to super.internalOnMeasure(EXACTLY realWidth, EXACTLY realHeight).
+            // after we set exact targetWidth x targetHeight LayoutParams, so DialogLayout delegates
+            // directly to super.internalOnMeasure(EXACTLY targetWidth, EXACTLY targetHeight).
             val dialogLayoutView = view.parent as? View
             val usePlatformDefaultWidthField = try {
                 dialogLayoutView?.javaClass?.getDeclaredField("usePlatformDefaultWidth")?.apply {
@@ -129,22 +119,35 @@ fun DialogEdgeToEdge() {
             insetsController.isAppearanceLightNavigationBars = isLight
 
             fun enforceFullScreenHierarchy() {
+                val (targetWidth, targetHeight) = getTargetDimensions()
+                if (targetWidth <= 0 || targetHeight <= 0) return
+
+                val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
+                val fullWidthDp = ceil(targetWidth / density).toInt()
+                val fullHeightDp = ceil(targetHeight / density).toInt()
+                val targetFontScale = com.example.ui.theme.ThemePreferences.getFontScale(context)
+
                 try {
                     view.context.resources.configuration.screenWidthDp = fullWidthDp
                     view.context.resources.configuration.screenHeightDp = fullHeightDp
+                    view.context.resources.configuration.fontScale = targetFontScale
                     (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
                         cfg.screenWidthDp = fullWidthDp
                         cfg.screenHeightDp = fullHeightDp
+                        cfg.fontScale = targetFontScale
                     }
+                    window.context.resources.configuration.screenWidthDp = fullWidthDp
+                    window.context.resources.configuration.screenHeightDp = fullHeightDp
+                    window.context.resources.configuration.fontScale = targetFontScale
                     usePlatformDefaultWidthField?.setBoolean(dialogLayoutView, true)
                 } catch (_: Exception) {}
 
                 val winParams = window.attributes
-                if (winParams.width != realWidth || winParams.height != realHeight ||
+                if (winParams.width != targetWidth || winParams.height != targetHeight ||
                     winParams.gravity != (Gravity.TOP or Gravity.START) || winParams.dimAmount != 0f
                 ) {
-                    winParams.width = realWidth
-                    winParams.height = realHeight
+                    winParams.width = targetWidth
+                    winParams.height = targetHeight
                     winParams.gravity = Gravity.TOP or Gravity.START
                     winParams.x = 0
                     winParams.y = 0
@@ -152,7 +155,7 @@ fun DialogEdgeToEdge() {
                     winParams.horizontalMargin = 0f
                     winParams.verticalMargin = 0f
                     window.attributes = winParams
-                    window.setLayout(realWidth, realHeight)
+                    window.setLayout(targetWidth, targetHeight)
                 }
 
                 var curr: View? = view
@@ -175,12 +178,12 @@ fun DialogEdgeToEdge() {
                     val lp = curr.layoutParams
                     if (lp != null) {
                         var changed = false
-                        if (lp.width != realWidth) {
-                            lp.width = realWidth
+                        if (lp.width != targetWidth) {
+                            lp.width = targetWidth
                             changed = true
                         }
-                        if (lp.height != realHeight) {
-                            lp.height = realHeight
+                        if (lp.height != targetHeight) {
+                            lp.height = targetHeight
                             changed = true
                         }
                         if (lp is ViewGroup.MarginLayoutParams) {
@@ -215,12 +218,14 @@ fun DialogEdgeToEdge() {
             enforceFullScreenHierarchy()
 
             val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+                val (tW, tH) = getTargetDimensions()
+                val decor = window.decorView
                 val parentView = view.parent as? View
-                val needsFix = view.height < realHeight ||
-                    view.width < realWidth ||
-                    (parentView != null && (parentView.height < realHeight || parentView.paddingBottom != 0 || parentView.paddingTop != 0)) ||
-                    window.decorView.paddingBottom != 0 ||
-                    window.decorView.paddingTop != 0
+                val needsFix = decor.width != tW ||
+                    decor.height != tH ||
+                    decor.paddingBottom != 0 ||
+                    decor.paddingTop != 0 ||
+                    (parentView != null && (parentView.paddingBottom != 0 || parentView.paddingTop != 0))
                 if (needsFix) {
                     enforceFullScreenHierarchy()
                 }
@@ -265,7 +270,8 @@ fun Modifier.dialogSystemBarsPadding(
         val actDecor = activity?.window?.decorView
         val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
         var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-        if (navBottomPx <= 0) {
+        val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity?.isInMultiWindowMode == true
+        if (navBottomPx <= 0 && !isMultiWindow) {
             try {
                 val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 val realMetrics = DisplayMetrics()
@@ -328,7 +334,8 @@ fun Modifier.dialogSafeBottomPadding(extraBottom: Dp = 0.dp): Modifier = compose
         val actDecor = activity?.window?.decorView
         val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
         var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-        if (navBottomPx <= 0) {
+        val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity?.isInMultiWindowMode == true
+        if (navBottomPx <= 0 && !isMultiWindow) {
             try {
                 val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                 val realMetrics = DisplayMetrics()
