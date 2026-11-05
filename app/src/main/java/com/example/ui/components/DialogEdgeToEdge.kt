@@ -62,17 +62,22 @@ fun DialogEdgeToEdge() {
 
             fun getTargetDimensions(): Pair<Int, Int> {
                 val activity = context.findActivity()
-                if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity.isInMultiWindowMode) {
-                    val decor = activity.window?.decorView
-                    if (decor != null && decor.width > 0 && decor.height > 0) {
-                        return decor.width to decor.height
-                    }
-                    val dm = context.resources.displayMetrics
-                    return dm.widthPixels to dm.heightPixels
-                }
+                val actDecor = activity?.window?.decorView
                 val metrics = DisplayMetrics()
                 @Suppress("DEPRECATION")
                 wm.defaultDisplay.getRealMetrics(metrics)
+
+                if (actDecor != null && actDecor.width > 0 && actDecor.height > 0) {
+                    val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity.isInMultiWindowMode
+                    val isLetterboxedOrConstrained = isMultiWindow ||
+                        kotlin.math.abs(actDecor.width - metrics.widthPixels) > 4 ||
+                        kotlin.math.abs(actDecor.height - metrics.heightPixels) > 180
+                    return if (isLetterboxedOrConstrained) {
+                        actDecor.width to actDecor.height
+                    } else {
+                        maxOf(actDecor.width, metrics.widthPixels) to maxOf(actDecor.height, metrics.heightPixels)
+                    }
+                }
                 return metrics.widthPixels to metrics.heightPixels
             }
 
@@ -280,11 +285,16 @@ fun Modifier.dialogSystemBarsPadding(
                 wm.defaultDisplay.getRealMetrics(realMetrics)
                 @Suppress("DEPRECATION")
                 wm.defaultDisplay.getMetrics(usableMetrics)
-                val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
-                if (diffH > 0) {
-                    val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
-                    val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
-                    navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                val isLetterboxed = actDecor != null && actDecor.width > 0 &&
+                    (kotlin.math.abs(actDecor.width - realMetrics.widthPixels) > 4 ||
+                     kotlin.math.abs(actDecor.height - realMetrics.heightPixels) > 180)
+                if (!isLetterboxed) {
+                    val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
+                    if (diffH in 1..220) {
+                        val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
+                        val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
+                        navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -344,11 +354,16 @@ fun Modifier.dialogSafeBottomPadding(extraBottom: Dp = 0.dp): Modifier = compose
                 wm.defaultDisplay.getRealMetrics(realMetrics)
                 @Suppress("DEPRECATION")
                 wm.defaultDisplay.getMetrics(usableMetrics)
-                val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
-                if (diffH > 0) {
-                    val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
-                    val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
-                    navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                val isLetterboxed = actDecor != null && actDecor.width > 0 &&
+                    (kotlin.math.abs(actDecor.width - realMetrics.widthPixels) > 4 ||
+                     kotlin.math.abs(actDecor.height - realMetrics.heightPixels) > 180)
+                if (!isLetterboxed) {
+                    val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
+                    if (diffH in 1..220) {
+                        val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
+                        val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
+                        navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                    }
                 }
             } catch (_: Exception) {}
         }

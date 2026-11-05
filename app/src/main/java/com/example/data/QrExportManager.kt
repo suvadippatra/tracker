@@ -127,6 +127,36 @@ class QrExportManager(
         }
     }
 
+    suspend fun exportHotelInfo(hotelId: Int): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportHotelInfoJson(hotelId)
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export hotel info via QR")
+        }
+    }
+
+    suspend fun exportElectricityRates(): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportElectricityRatesJson()
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export electricity rates via QR")
+        }
+    }
+
+    suspend fun exportSettings(): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
+            val json = dtm.exportSettingsJson()
+            packageJsonToExportResult(json)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export settings via QR")
+        }
+    }
+
     suspend fun exportFullBackup(): ExportResult = withContext(Dispatchers.IO) {
         try {
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")

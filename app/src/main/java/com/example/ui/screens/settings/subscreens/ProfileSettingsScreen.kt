@@ -166,6 +166,8 @@ fun ProfileSettingsScreen(
         )
     }
 
+    var hotelToEdit by remember { mutableStateOf<com.example.data.model.HotelEntity?>(null) }
+
     // Default Hotel Selection Dialog
     if (showDefaultHotelDialog) {
         AlertDialog(
@@ -181,32 +183,52 @@ fun ProfileSettingsScreen(
                 )
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    allHotels.filter { !it.isDeleted }.forEach { hotel ->
-                        val isSelected = userProfile.defaultHotelId == hotel.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) AppAccentColor().copy(alpha = 0.2f) else getCardBackground())
-                                .border(1.dp, if (isSelected) AppAccentColor() else getGlassBorder(), RoundedCornerShape(12.dp))
-                                .clickable {
-                                    viewModel.saveUserProfile(userProfile.copy(defaultHotelId = hotel.id))
-                                    showDefaultHotelDialog = false
+                val nonDeletedHotels = allHotels.filter { !it.isDeleted }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (nonDeletedHotels.isEmpty()) {
+                        Text(
+                            text = if (prefLanguage == "bn") "কোনো হোটেল পাওয়া যায়নি" else "No hotels found",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 14.sp
+                        )
+                    } else {
+                        nonDeletedHotels.forEach { hotel ->
+                            val isSelected = userProfile.defaultHotelId == hotel.id || (userProfile.defaultHotelId == -1 && nonDeletedHotels.firstOrNull()?.id == hotel.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) AppAccentColor().copy(alpha = 0.2f) else getCardBackground())
+                                    .border(1.dp, if (isSelected) AppAccentColor() else getGlassBorder(), RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        viewModel.setDefaultHotel(hotel.id)
+                                        showDefaultHotelDialog = false
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = {
+                                        viewModel.setDefaultHotel(hotel.id)
+                                        showDefaultHotelDialog = false
+                                    },
+                                    colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = hotel.name, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                    if (hotel.location.isNotBlank()) {
+                                        Text(text = hotel.location, color = AppSecondaryTextColor(), fontSize = 12.sp)
+                                    }
                                 }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = {
-                                    viewModel.saveUserProfile(userProfile.copy(defaultHotelId = hotel.id))
-                                    showDefaultHotelDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = hotel.name, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
                 }
@@ -219,13 +241,19 @@ fun ProfileSettingsScreen(
         )
     }
 
-    // Create Hotel Modal
-    if (showCreateHotelModal) {
+    // Create or Edit Hotel Modal
+    if (showCreateHotelModal || hotelToEdit != null) {
         com.example.ui.screens.EditHotelModal(
-            hotel = null,
+            hotel = hotelToEdit,
             viewModel = viewModel,
-            onDismiss = { showCreateHotelModal = false },
-            onManageMenu = { showCreateHotelModal = false }
+            onDismiss = {
+                showCreateHotelModal = false
+                hotelToEdit = null
+            },
+            onManageMenu = {
+                showCreateHotelModal = false
+                hotelToEdit = null
+            }
         )
     }
 
@@ -244,7 +272,13 @@ fun ProfileSettingsScreen(
                 )
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     val nonDeletedOwnerAccounts = ownerAccounts.filter { !it.isDeleted }
                     if (nonDeletedOwnerAccounts.isEmpty()) {
                         Text(
@@ -254,7 +288,7 @@ fun ProfileSettingsScreen(
                         )
                     } else {
                         nonDeletedOwnerAccounts.forEach { acc ->
-                            val isSelected = userProfile.defaultOwnerAccountId == acc.id
+                            val isSelected = userProfile.defaultOwnerAccountId == acc.id || (userProfile.defaultOwnerAccountId == -1 && nonDeletedOwnerAccounts.firstOrNull()?.id == acc.id)
                             val displayName = acc.accountName.ifBlank { acc.ownerName.ifBlank { "Account #${acc.id}" } }
                             Row(
                                 modifier = Modifier
@@ -314,7 +348,13 @@ fun ProfileSettingsScreen(
                 )
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     val nonDeletedBankAccounts = bankAccounts.filter { !it.isDeleted }
                     if (nonDeletedBankAccounts.isEmpty()) {
                         Text(
@@ -324,7 +364,7 @@ fun ProfileSettingsScreen(
                         )
                     } else {
                         nonDeletedBankAccounts.forEach { acc ->
-                            val isSelected = userProfile.defaultBankAccountId == acc.id
+                            val isSelected = userProfile.defaultBankAccountId == acc.id || (userProfile.defaultBankAccountId == -1 && nonDeletedBankAccounts.firstOrNull()?.id == acc.id)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -347,7 +387,10 @@ fun ProfileSettingsScreen(
                                     colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = acc.name, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = acc.name, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Balance: ₹${acc.balance}", color = AppSecondaryTextColor(), fontSize = 12.sp)
+                                }
                             }
                         }
                     }
@@ -550,6 +593,12 @@ fun ProfileSettingsScreen(
         item {
             PixelSettingsGroup(title = if (prefLanguage == "bn") "হোটেল ও ডিফল্ট নির্বাচন" else "Hotels & Default Selection") {
                 val appAccent = AppAccentColor()
+                val nonDeletedHotels = allHotels.filter { !it.isDeleted }
+                val effectiveDefaultHotelId = if (userProfile.defaultHotelId != -1 && nonDeletedHotels.any { it.id == userProfile.defaultHotelId }) {
+                    userProfile.defaultHotelId
+                } else {
+                    nonDeletedHotels.firstOrNull()?.id ?: -1
+                }
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -583,7 +632,7 @@ fun ProfileSettingsScreen(
                         }
 
                         // Choose Default Hotel Button
-                        val defaultHotelName = allHotels.find { it.id == userProfile.defaultHotelId }?.name ?: (if (prefLanguage == "bn") "ডিফল্ট হোটেল" else "Default Hotel")
+                        val defaultHotelName = nonDeletedHotels.find { it.id == effectiveDefaultHotelId }?.name ?: (if (prefLanguage == "bn") "ডিফল্ট হোটেল" else "Default Hotel")
                         OutlinedButton(
                             onClick = { showDefaultHotelDialog = true },
                             border = BorderStroke(1.dp, appAccent.copy(alpha = 0.5f)),
@@ -607,6 +656,67 @@ fun ProfileSettingsScreen(
                             )
                         }
                     }
+
+                    // Show all hotels so user can view & pick default directly from the list
+                    if (nonDeletedHotels.isNotEmpty()) {
+                        Text(
+                            text = if (prefLanguage == "bn") "সকল হোটেল (${nonDeletedHotels.size}) — ডিফল্ট হোটেলটি প্রথমে দেখানো হবে:" else "All Hotels (${nonDeletedHotels.size}) — Default hotel appears first on launch:",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 12.sp
+                        )
+                        nonDeletedHotels.forEach { hotel ->
+                            val isDefaultHotel = hotel.id == effectiveDefaultHotelId
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isDefaultHotel) AccentGold.copy(alpha = 0.1f) else getCardBackground())
+                                    .border(1.dp, if (isDefaultHotel) AccentGold.copy(alpha = 0.6f) else getGlassBorder(), RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.setDefaultHotel(hotel.id) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    RadioButton(
+                                        selected = isDefaultHotel,
+                                        onClick = { viewModel.setDefaultHotel(hotel.id) },
+                                        colors = RadioButtonDefaults.colors(selectedColor = AccentGold)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(text = hotel.name, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            if (isDefaultHotel) {
+                                                Surface(
+                                                    color = AccentGold.copy(alpha = 0.18f),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f))
+                                                ) {
+                                                    Text(
+                                                        text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
+                                                        color = AccentGold,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (hotel.location.isNotBlank()) {
+                                            Text(text = hotel.location, color = AppSecondaryTextColor(), fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { hotelToEdit = hotel },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Hotel", tint = AppSecondaryTextColor(), modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -620,7 +730,7 @@ fun ProfileSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = if (prefLanguage == "bn") "ইনকাম ও ব্যয়ের হিসাব এবং পেমেন্ট রিসিভিং অ্যাকাউন্টস:" else "Accounts for tracking income, outcome status, and receiving payments:",
+                        text = if (prefLanguage == "bn") "ইনকাম ও ব্যয়ের হিসাব এবং পেমেন্ট রিসিভিং অ্যাকাউন্টস (ডিফল্ট অ্যাকাউন্টটি প্রথমে দেখানো হবে):" else "Accounts for tracking income, outcome status, and receiving payments (Default account appears first on launch):",
                         color = AppSecondaryTextColor(),
                         fontSize = 12.sp
                     )
@@ -657,8 +767,9 @@ fun ProfileSettingsScreen(
                         }
 
                         // Choose Default Receiving Account Button
-                        val defaultOwnerAcc = ownerAccounts.find { it.id == userProfile.defaultOwnerAccountId }
-                        val defaultOwnerAccName = defaultOwnerAcc?.accountName?.ifBlank { defaultOwnerAcc?.ownerName } ?: (if (prefLanguage == "bn") "ডিফল্ট রিসিভিং" else "Default Acc")
+                        val nonDeletedOwnerAccounts = ownerAccounts.filter { !it.isDeleted }
+                        val defaultOwnerAcc = nonDeletedOwnerAccounts.find { it.id == userProfile.defaultOwnerAccountId } ?: nonDeletedOwnerAccounts.firstOrNull()
+                        val defaultOwnerAccName = defaultOwnerAcc?.accountName?.ifBlank { defaultOwnerAcc?.ownerName } ?: (if (prefLanguage == "bn") "ডিফল্ট রিসিভিং" else "Default Profile Acc")
                         OutlinedButton(
                             onClick = { showDefaultOwnerAccountDialog = true },
                             border = BorderStroke(1.dp, appAccent.copy(alpha = 0.5f)),
@@ -683,13 +794,38 @@ fun ProfileSettingsScreen(
                         }
                     }
 
+                    // Default Extra / Ledger Account Selector Row
+                    val nonDeletedLedgerAccounts = bankAccounts.filter { !it.isDeleted }
+                    if (nonDeletedLedgerAccounts.isNotEmpty()) {
+                        val defaultLedgerAcc = nonDeletedLedgerAccounts.find { it.id == userProfile.defaultBankAccountId } ?: nonDeletedLedgerAccounts.firstOrNull()
+                        OutlinedButton(
+                            onClick = { showDefaultLedgerAccountDialog = true },
+                            border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .defaultMinSize(minHeight = 46.dp)
+                                .bounceClick()
+                        ) {
+                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (prefLanguage == "bn") "ডিফল্ট এক্সট্রা অ্যাকাউন্ট: ${defaultLedgerAcc?.name ?: "-"}" else "Default Extras Account: ${defaultLedgerAcc?.name ?: "-"}",
+                                color = AppTextColor(),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
                     // Existing accounts list
                     val nonDeletedAccounts = ownerAccounts.filter { !it.isDeleted }
                     nonDeletedAccounts.forEach { acc ->
                         AccountCardItem(
                             viewModel = viewModel,
                             account = acc,
-                            isDefault = (acc.id == userProfile.defaultOwnerAccountId),
+                            isDefault = (acc.id == userProfile.defaultOwnerAccountId || (userProfile.defaultOwnerAccountId == -1 && nonDeletedAccounts.firstOrNull()?.id == acc.id)),
                             isVisibleOnExtra = (acc.linkedBankAccountId != null || acc.id in visibleOwnerAccountIds),
                             prefLanguage = prefLanguage,
                             onEdit = { accountToEdit = acc },

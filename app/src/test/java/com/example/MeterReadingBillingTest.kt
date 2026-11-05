@@ -176,4 +176,40 @@ class MeterReadingBillingTest {
         assertEquals(480.0, res.totalCost, 0.01)
         assertEquals(2, res.breakdown.size)
     }
+
+    @Test
+    fun `test strict start and end date with prior paid reading and incomplete range interpolation`() {
+        val readings = listOf(
+            MeterReading(id = "r0", readingDate = dateMillis(2026, 7, 27), totalReading = 934.5, unitsConsumed = 0.0, isPaid = true),
+            MeterReading(id = "r1", readingDate = dateMillis(2026, 8, 15), totalReading = 971.0, unitsConsumed = 36.5, isPaid = false),
+            MeterReading(id = "r2", readingDate = dateMillis(2026, 10, 17), totalReading = 1091.0, unitsConsumed = 120.0, isPaid = false),
+            MeterReading(id = "r3", readingDate = dateMillis(2026, 10, 20), totalReading = 1094.0, unitsConsumed = 3.0, isPaid = false)
+        )
+        val rates = listOf(
+            ElectricityRate(id = "rate1", effectiveDate = dateMillis(2025, 9, 5), ratePerUnit = 8.0),
+            ElectricityRate(id = "rate2", effectiveDate = dateMillis(2026, 6, 7), ratePerUnit = 9.0)
+        )
+
+        // 15 Aug (971.0) to 17 Oct (1091.0) -> strictly 1091.0 - 971.0 = 120.0 kWh @ ₹9.0 = ₹1080.0
+        val resExact = viewModel.calculateDetailedBill(
+            start = dateMillis(2026, 8, 15),
+            end = dateMillis(2026, 10, 17),
+            sortedReadings = readings,
+            rates = rates,
+            fixedCharge = 0.0
+        )
+        assertEquals(120.0, resExact.totalUnits, 0.01)
+        assertEquals(1080.0, resExact.totalCost, 0.01)
+
+        // 15 Aug (971.0) to 18 Oct (interpolated 1091.0 + ((1094-1091)/3)*(18-17) = 1092.0) -> 121.0 kWh @ ₹9.0 = ₹1089.0
+        val resInterp = viewModel.calculateDetailedBill(
+            start = dateMillis(2026, 8, 15),
+            end = dateMillis(2026, 10, 18),
+            sortedReadings = readings,
+            rates = rates,
+            fixedCharge = 0.0
+        )
+        assertEquals(121.0, resInterp.totalUnits, 0.01)
+        assertEquals(1089.0, resInterp.totalCost, 0.01)
+    }
 }

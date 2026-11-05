@@ -2230,7 +2230,7 @@ fun ExtraExpenseDetailedHistoryScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Dual View Mode Toggle (Summed View vs Adding One by One Expression View)
+                            // Dual View Mode Toggle (Keep Each Apart vs Merge Daily Transactions)
                             val isLight = isAppLightMode()
                             val activePillBg = if (isLight) Color(0xFFD3E3FD) else Color(0xFF004A77)
                             val activePillText = if (isLight) Color(0xFF041E49) else Color(0xFFC2E7FF)
@@ -2252,9 +2252,9 @@ fun ExtraExpenseDetailedHistoryScreen(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = "Summed View",
+                                            text = "Keep Each Apart",
                                             color = if (!isExpressionView) activePillText else AppSecondaryTextColor(),
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (!isExpressionView) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }
@@ -2268,9 +2268,9 @@ fun ExtraExpenseDetailedHistoryScreen(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = "Adding One by One",
+                                            text = "Merge Daily Transactions",
                                             color = if (isExpressionView) activePillText else AppSecondaryTextColor(),
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = if (isExpressionView) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }

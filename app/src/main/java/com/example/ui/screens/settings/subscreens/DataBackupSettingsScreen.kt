@@ -104,6 +104,7 @@ fun DataBackupSettingsScreen(
     var activeQrItemName by remember { mutableStateOf("Full Application Backup") }
     var qrSessionId by remember { mutableStateOf("") }
     var showQrScanner by remember { mutableStateOf(false) }
+    var showKhataScanner by remember { mutableStateOf(false) }
 
     // Smart Import Flow State
     val importUiFlowState by viewModel.importUiFlowState.collectAsStateWithLifecycle()
@@ -195,7 +196,7 @@ fun DataBackupSettingsScreen(
 
     // Helper function to copy data to clipboard
     fun copyDataToClipboard(type: BackupDataType) {
-        if (type == BackupDataType.FULL_BACKUP || type == BackupDataType.SINGLE_BANK_ACCOUNT || type == BackupDataType.HOTEL_WHOLE || type == BackupDataType.WALLET_WHOLE || type == BackupDataType.ELECTRICITY_WHOLE) {
+        if (type == BackupDataType.FULL_BACKUP || type == BackupDataType.SETTINGS || type == BackupDataType.HOTEL_INFO || type == BackupDataType.SINGLE_BANK_ACCOUNT || type == BackupDataType.HOTEL_WHOLE || type == BackupDataType.WALLET_WHOLE || type == BackupDataType.ELECTRICITY_WHOLE) {
             viewModel.exportDataJson(type, selectedHotelId, selectedAccountScopeId) { json ->
                 clipboardManager.setText(AnnotatedString(json))
                 Toast.makeText(context, "${type.displayName} JSON copied to clipboard!", Toast.LENGTH_SHORT).show()
@@ -384,6 +385,65 @@ fun DataBackupSettingsScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Row 3: Export Full Backup File, Import File & Scan Khata to Import
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { activeDataTypeForExport = BackupDataType.FULL_BACKUP },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTextColor()),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder())
+                        ) {
+                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Export All", color = AppTextColor(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = { activeDataTypeForImport = BackupDataType.FULL_BACKUP },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTextColor()),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder())
+                        ) {
+                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Import All", color = AppTextColor(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Scan Khata to Import Featured Button
+                    Button(
+                        onClick = { showKhataScanner = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentGold,
+                            contentColor = AppOnAccentColor(AccentGold)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = AppOnAccentColor(AccentGold),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Scan Khata to Import (Camera / Photo)",
+                            color = AppOnAccentColor(AccentGold),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
@@ -510,6 +570,29 @@ fun DataBackupSettingsScreen(
                     showPasteDialog = true
                 },
                 onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.HOTEL_HISTORY }
+            )
+        }
+
+        // 3b. Hotel Profile Info Only
+        item {
+            val currentHotel = allHotels.find { it.id == selectedHotelId }
+            DataBackupItemCard(
+                title = "Hotel Profile Info (${currentHotel?.name ?: "Selected"})",
+                subtitle = "Hotel name, contact numbers, location, advance & UPI details",
+                countLabel = "1 Hotel Info",
+                icon = Icons.Default.Hotel,
+                accentColor = AccentPurple,
+                onCopyClick = { copyDataToClipboard(BackupDataType.HOTEL_INFO) },
+                onQrSendClick = { startQrSend(BackupDataType.HOTEL_INFO) },
+                onQrScanClick = { showQrScanner = true },
+                onExportClick = { activeDataTypeForExport = BackupDataType.HOTEL_INFO },
+                onImportClick = { activeDataTypeForImport = BackupDataType.HOTEL_INFO },
+                onPasteClick = {
+                    pasteDataType = BackupDataType.HOTEL_INFO
+                    pasteInputText = ""
+                    showPasteDialog = true
+                },
+                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.HOTEL_INFO }
             )
         }
 
@@ -754,37 +837,59 @@ fun DataBackupSettingsScreen(
             )
         }
 
+        // 9b. Electricity Rate Policies Only (Individual)
+        item {
+            DataBackupItemCard(
+                title = "Electricity Rate Policies",
+                subtitle = "Date-effective unit tariff rates & policy schedule",
+                countLabel = "Tariff Policies",
+                icon = Icons.Default.FlashOn,
+                accentColor = AccentPurple,
+                onCopyClick = { copyDataToClipboard(BackupDataType.ELECTRICITY_RATES) },
+                onQrSendClick = { startQrSend(BackupDataType.ELECTRICITY_RATES) },
+                onQrScanClick = { showQrScanner = true },
+                onExportClick = { activeDataTypeForExport = BackupDataType.ELECTRICITY_RATES },
+                onImportClick = { activeDataTypeForImport = BackupDataType.ELECTRICITY_RATES },
+                onPasteClick = {
+                    pasteDataType = BackupDataType.ELECTRICITY_RATES
+                    pasteInputText = ""
+                    showPasteDialog = true
+                },
+                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.ELECTRICITY_RATES }
+            )
+        }
+
         // ==========================================
-        // SECTION 4: FULL BACKUP
+        // SECTION 4: SETTINGS & PREFERENCES ONLY
         // ==========================================
         item {
             Spacer(modifier = Modifier.height(8.dp))
             SectionHeader(
-                title = "Full Application Backup",
-                icon = Icons.Default.Storage,
+                title = "App Settings & Preferences",
+                icon = Icons.Default.Settings,
                 color = AccentCyan,
-                badge = "All Tables"
+                badge = "Settings Only"
             )
         }
 
         item {
             DataBackupItemCard(
-                title = "Full App Snapshot (All Data)",
-                subtitle = "All hotels, menus, transactions, accounts, expenses, readings & bills",
-                countLabel = "Complete System Backup",
-                icon = Icons.Default.Storage,
+                title = "Settings & Appearance Preferences",
+                subtitle = "Export or restore theme, font scale, bold mode, sticky note layout & default selections separately",
+                countLabel = "Preferences Snapshot",
+                icon = Icons.Default.Settings,
                 accentColor = AccentCyan,
-                onCopyClick = { copyDataToClipboard(BackupDataType.FULL_BACKUP) },
-                onQrSendClick = { startQrSend(BackupDataType.FULL_BACKUP) },
+                onCopyClick = { copyDataToClipboard(BackupDataType.SETTINGS) },
+                onQrSendClick = { startQrSend(BackupDataType.SETTINGS) },
                 onQrScanClick = { showQrScanner = true },
-                onExportClick = { activeDataTypeForExport = BackupDataType.FULL_BACKUP },
-                onImportClick = { activeDataTypeForImport = BackupDataType.FULL_BACKUP },
+                onExportClick = { activeDataTypeForExport = BackupDataType.SETTINGS },
+                onImportClick = { activeDataTypeForImport = BackupDataType.SETTINGS },
                 onPasteClick = {
-                    pasteDataType = BackupDataType.FULL_BACKUP
+                    pasteDataType = BackupDataType.SETTINGS
                     pasteInputText = ""
                     showPasteDialog = true
                 },
-                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.FULL_BACKUP }
+                onFormatInfoClick = { showCsvFormatDialogFor = BackupDataType.SETTINGS }
             )
         }
 
@@ -1303,6 +1408,22 @@ fun DataBackupSettingsScreen(
             }
         )
     }
+
+    // ==========================================
+    // KHATA SCANNER DIALOG
+    // ==========================================
+    if (showKhataScanner) {
+        com.example.ui.screens.settings.components.KhataScannerDialog(
+            hotels = allHotels,
+            initialHotelId = selectedHotelId,
+            allMenus = allMenuItems,
+            allTransactions = allTransactions,
+            onImportTransactions = { txs, onDone ->
+                viewModel.importKhataTransactions(txs, onDone)
+            },
+            onDismiss = { showKhataScanner = false }
+        )
+    }
 }
 
 // ==========================================
@@ -1601,6 +1722,7 @@ private fun ExportOptionRow(
 private fun getCsvHeaderFor(type: BackupDataType): String {
     return when (type) {
         BackupDataType.HOTEL_MENUS, BackupDataType.HOTEL_WHOLE -> "Bangla Name,English Name,Price,Day Menu,Night Menu,Add On,Category"
+        BackupDataType.HOTEL_INFO -> "Hotel Name,Advance Payment,Phone Number,Location,UPI ID,Notes"
         BackupDataType.HOTEL_HISTORY -> "Timestamp,Date,Is Night,Total Amount,Items"
         BackupDataType.SINGLE_BANK_ACCOUNT, BackupDataType.BANK_ACCOUNTS -> "Account Name,Balance,UPI ID,Account Number,IFSC Code,Branch Name"
         BackupDataType.WALLET_WHOLE -> "# BANK ACCOUNTS\nAccount Name,Balance,UPI ID...\n# TRANSACTION HISTORY\nTimestamp,Date,Type..."
@@ -1608,6 +1730,8 @@ private fun getCsvHeaderFor(type: BackupDataType): String {
         BackupDataType.ELECTRICITY_WHOLE -> "# METER READINGS\nTimestamp,Date,Total Reading...\n# UTILITY BILLS\nBill ID,Start Date,End Date..."
         BackupDataType.METER_READINGS -> "Reading Timestamp,Date,Total Reading,Units Consumed,Is Paid"
         BackupDataType.UTILITY_BILLS -> "Start Date,End Date,Start Date Text,End Date Text,Total Units,Calculated Amount,Due Date,Is Paid,Transaction ID"
+        BackupDataType.ELECTRICITY_RATES -> "Effective Timestamp,Effective Date,Rate Per Unit (₹/kWh)"
+        BackupDataType.SETTINGS -> "Name,Contact,Currency,Language,Theme Mode,Text Size,Bold Text,Sticky Card Width %,Sticky Preview Lines,App Version"
         BackupDataType.FULL_BACKUP -> "JSON format containing userProfile, hotels, menus, transactions, bankAccounts, expenses, meterReadings, utilityBills"
     }
 }
@@ -1621,6 +1745,11 @@ private fun getSampleTemplateFor(type: BackupDataType): String {
 "মাছ পিস","Fish Piece",20.0,true,true,true,"Non-Veg"
 "ডিম কারি","Egg Curry",15.0,true,true,true,"Non-Veg"
 "রুটি","Roti",5.0,false,true,false,"Bread""""
+
+        BackupDataType.HOTEL_INFO ->
+            """# HOTEL DETAILS
+Hotel Name,Advance Payment,Phone Number,Location,UPI ID,Notes
+"Grand Bengal Hotel",500.0,"9876543210","College Street","hotel@upi","Daily Mess""""
 
         BackupDataType.HOTEL_HISTORY ->
             """Timestamp,Date,Is Night,Total Amount,Items
@@ -1663,6 +1792,18 @@ Bill ID,Billing Start Date,Billing End Date,Total Units,Effective Rate (₹/unit
         BackupDataType.UTILITY_BILLS ->
             """Start Date,End Date,Start Date Text,End Date Text,Total Units,Calculated Amount,Due Date,Is Paid,Transaction ID
 1720800000000,1723400000000,"2024-07-13","2024-08-12",340.0,2380.0,"2024-08-25",true,"WBSEDCL-847291""""
+
+        BackupDataType.ELECTRICITY_RATES ->
+            """Effective Timestamp,Effective Date,Rate Per Unit (₹/kWh)
+1749254400000,"2026-06-07",9.0
+1725494400000,"2025-09-05",8.0"""
+
+        BackupDataType.SETTINGS ->
+            """{
+  "dataType": "SETTINGS",
+  "version": 3,
+  "userProfile": {"language": "en", "themeMode": "Dark", "isBoldTextEnabled": true, "appVersion": "0.0.2"}
+}"""
 
         BackupDataType.FULL_BACKUP ->
             """{

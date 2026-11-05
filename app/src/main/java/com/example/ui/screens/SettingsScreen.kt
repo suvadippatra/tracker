@@ -718,6 +718,7 @@ fun UnifiedAccountDialog(
 fun LegalInfoDialog(
     type: String,
     prefLanguage: String,
+    appVersion: String = "0.0.1",
     onDismiss: () -> Unit
 ) {
     androidx.activity.compose.BackHandler { onDismiss() }
@@ -731,7 +732,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v0.0.1 (Sticky Notes Wall, Smart Bill Calc, Contact Popups & Material 3)
+            Traker v$appVersion (Khata Scanner, Keep-Style Sticky Notes, Archivo Black Bold & Smart Bill Math)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -739,70 +740,67 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 📌 নতুন ৪র্থ ট্যাব: "Sticky" (ফ্লোটিং স্টিকি নোটস ও ওয়াল লেআউট)
-            • ভাসমান স্টিকি কার্ড ও সুরক্ষিত ড্রাফট: স্টিকি পেজে প্রতিটি নোট মৃদুভাবে দুলতে থাকে (Bobbing animation)। নতুন নোট তৈরি করার সময় ইন-মেমোরি ড্রাফট নিরাপদ থাকে এবং টাইপ করার সময় অনাকাঙ্ক্ষিতভাবে বন্ধ হয় না।
-            • রিচ টেক্সট, টেবিল ও মিডিয়া: প্রতিটি স্টিকি নোটে বোল্ড টেক্সট, হাইলাইট, বুলেট, ইন্টারেক্টিভ টেবিল বিল্ডার (পাইপ `|` সিনট্যাক্সসহ), আনলিমিটেড পিডিএফ, ২ এমবি অটো-কমপ্রেসড ছবি এবং ২ মিনিট ভয়েস রেকর্ডিং যুক্ত করা যায়।
-            • ফুল-স্ক্রিন ভিউ ও কাস্টমাইজেশন: ডাবল-ট্যাপ করলে নোট ফুল-স্ক্রিন পপআপে খোলে। সেটিংস থেকে স্টিকি কার্ডের প্রস্থ (৫০%–৮০%) এবং প্রিভিউ লাইন সংখ্যা (৪–১০) নিয়ন্ত্রণ করা যায়।
+            ১. 📌 "Sticky" ট্যাব: গুগল কিপ ধাঁচের নোট, ট্যাগ ফিল্টার ও ৮-আইকন টুলবার
+            • স্ক্রল-বান্ধব জেসচার ও ওবলিং কার্ড: পেজ স্ক্রল করার সময় লং-প্রেস সিলেকশন কখনোই বাধা দেবে না (আঙুল সরলেই লং-প্রেস বাতিল হয়)। মোবাইলে স্টিকি কার্ডগুলো কার্ডের প্রস্থ অনুযায়ী পর্যায়ক্রমে বাম ও ডান দিকে ঝুঁকে দুলতে থাকে (Wobbling), এবং ট্যাবলেট বা ল্যান্ডস্কেপ মোডে প্রতিটি কলাম অসম উচ্চতা থেকে শুরু হয় যাতে দেয়ালে লাগানো স্টিকি নোটের মতো স্বাভাবিক দেখায়।
+            • প্লেইন এডিটর ও কাস্টম ট্যাগ: এডিটরে আলাদা কার্ডের পরিবর্তে গুগল কিপ নোটের মতো শুধু Title ও Body প্লেইন মেটেরিয়াল সারফেসে থাকে। প্রতিটি নোটে কাস্টম ট্যাগ (#tag) যুক্ত করা যায় এবং উপরে সার্চ ও সেটিংস আইকন ফিক্সড রেখে বাম দিকে আনুভূমিকভাবে স্ক্রলযোগ্য ট্যাগ ফিল্টার ("All", "#tag1"...) ব্যবহার করা যায়।
+            • নিচে এক লাইনে ৮-আইকন ফরম্যাটিং বার: এডিটরের নিচে এক লাইনে ৮টি আইকন-ওনলি টুল রয়েছে—Bold, Italic, Align Left, Center, Right, Justify, Insert Table এবং Attach File। টেক্সট সিলেক্ট করে ট্যাপ করলেই ফরম্যাটিং প্রযোজ্য হয়।
 
-            ২. 📞 কল ও কন্টাক্ট পপআপ, সংক্ষিপ্ত নোট এবং ইউনিফাইড ইনফো কার্ড
-            • হোটেল কল ও হোয়াটসঅ্যাপ পপআপ: হোটেলের কল আইকনে ট্যাপ করলে Phone Call এবং WhatsApp Chat-এর অপশন আসে (Wi-Fi ট্যাবলেটে স্বয়ংক্রিয়ভাবে শুধু WhatsApp দেখায়)।
-            • অ্যাকাউন্ট কন্টাক্ট পপআপ: অ্যাকাউন্ট কার্ডের কন্টাক্ট আইকনে ট্যাপ করলে সরাসরি Email, WhatsApp বা SMS পাঠানো যায়।
-            • সংক্ষিপ্ত নোট (Short Notes): প্রতিটি হোটেল ও অ্যাকাউন্টে সংক্ষিপ্ত নোট লেখা যায় যা তাদের ইনফো পপআপে এবং ট্যাবলেটের বাম কলামে প্রদর্শিত হয়।
+            ২. ⚡ বিদ্যুৎ বিল ক্যালকুলেটর ও রেট পলিসি (ডিফল্ট রেট ছাড়া)
+            • নির্দিষ্ট তারিখ সীমার হিসাব: নির্বাচিত Start Date এবং End Date-এর মধ্যকার রিডিং অনুযায়ী নিখুঁতভাবে ইউনিট হিসাব করা হয় (যেমন ১৫ আগস্ট: ৯৭১.০ থেকে ১৭ অক্টোবর: ১০৯১.০ = ১২০.০ ইউনিট)।
+            • গ্রুপ-ভিত্তিক রেট ও ইন্টারপোলেশন: রেট পলিসি পরিবর্তনের তারিখ অনুযায়ী গ্রুপ ভাগ করে এবং অমিল তারিখের ক্ষেত্রে লিনিয়ার ইন্টারপোলেশন ব্যবহার করে (যেমন ২০ অক্টোবর ১০৯৪ হলে ১৫ আগস্ট থেকে ১৮ অক্টোবরের বিল = (১০৯১-৯৭১) + [((১০৯৪-১০৯১)/৩)×(১৮-১৭)] = ১২১ ইউনিট)। কনফিগারেশন পেজ থেকে ডিফল্ট রেট সরিয়ে শুধুমাত্র রেট পলিসি রাখা হয়েছে।
 
-            ৩. 👤 ওনার প্রোফাইল ও লিংকড বনাম স্যান্ডবক্সড অ্যাকাউন্ট
-            • প্রোফাইল অ্যাকাউন্ট ডিফল্টভাবে স্যান্ডবক্সড থাকে। আপনি চাইলে যেকোনো প্রোফাইল অ্যাকাউন্টকে Extras পেজের সাথে Link বা De-link করতে পারেন (২-মুখী সিঙ্কসহ)।
-            • De-link করার সময় ট্রানজ্যাকশন হিস্ট্রি রিসাইকেল বিনে পাঠানো, CSV হিসেবে ডাউনলোড করা অথবা অ্যাপের এক্সপোর্ট টুল ব্যবহার করার অপশন পাওয়া যায় (শুধুমাত্র QR, JSON, CSV বা Copy-Paste এক্সপোর্টে মিডিয়া সংযুক্তি বাদ থাকে; সম্পূর্ণ ZIP ব্যাকআপে মিডিয়া থাকে)।
-            • হোমপেজের অভিবাদন (Greeting) হেডারে ডাবল-ট্যাপ করলে প্রোফাইলের ডিফল্ট অ্যাকাউন্টের পেমেন্ট তথ্য ও QR কোড দেখা যায়।
+            ৩. 📷 "Scan Khata to Import" ও মেনু পরিবর্তনের ইতিহাস (Menu History)
+            • খাতা স্ক্যান করে ইমপোর্ট: সেটিংস > Data & Backups-এ "Scan Khata to Import" বাটনে ট্যাপ করে হাতে লেখা হোটেল খাতার ছবি তুলুন বা গ্যালারি থেকে নিন (বড় ছবি স্বয়ংক্রিয়ভাবে রিসাইজ হয় যাতে অ্যাপ কখনো ফ্রিজ না হয়)।
+            • ২-ধাপে ডিশ ম্যাচিং: ১ম ধাপে ছবির পাশাপাশি তারিখ ও দামের লাইন (যেমন `24 - 60+40`) যাচাই করুন। ২য় ধাপে যেসব তারিখে আগে থেকেই ডাটা আছে তা চিহ্নিত হয় এবং `+` দিয়ে লেখা প্রতিটি দাম (যেমন `60` এবং পরে `40`) আলাদা ডিশ হিসেবে হোটেলের মেনুর সাথে মেলানো হয় (১টি মিললে অটো-সিলেক্ট, ২–৪টি মিললে সাজেশন চিপ, আর ৪টির বেশি হলে ম্যানুয়াল সিলেকশন)।
+            • মেনু পরিবর্তনের ইতিহাস: সময়ের সাথে মেনুর দাম বা নাম পরিবর্তন করলে তার সম্পূর্ণ ইতিহাস (Menu Modification History) সংরক্ষিত থাকে এবং নতুন দাম কখনোই আগের মাসের মিলের হিসাব পরিবর্তন করে না।
 
-            ৪. 🔤 স্বতন্ত্র Montserrat বোল্ড ফন্ট ও হাই-কনট্রাস্ট বাটন
-            • সেটিংস > Appearance-এ বোল্ড টেক্সট চালু করলে অ্যাপে স্বতন্ত্র Google Font Montserrat Bold কার্যকর হয় এবং টেক্সট সাইজ স্কেলিং নিখুঁত থাকে।
-            • সমস্ত রঙিন বাটনে (যেমন প্রথম হোটেল বা সেভ বাটন) স্বয়ংক্রিয় ব্যাকগ্রাউন্ড লুমিন্যান্স অনুসারে স্পষ্ট সাদা/গাঢ় কনট্রাস্ট টেক্সট প্রদর্শিত হয়।
+            ৪. 🔤 স্বতন্ত্র Archivo Black বোল্ড ফন্ট ও বোল্ড-ইন-বোল্ড
+            • সেটিংস > Appearance-এ Bold Text চালু করলে সম্পূর্ণ অ্যাপে Google Font 'Archivo Black' কার্যকর হয়। স্টিকি নোটে বোল্ড মোড চালু থাকলেও সাধারণ টেক্সটের চেয়ে `*bold*` করা অংশ আরও মোটা ও আন্ডারলাইনসহ আলাদাভাবে ফুটে ওঠে।
 
-            ৫. 🧾 খাবার ও অ্যাকাউন্ট হিস্ট্রি এবং পেইড স্ট্যাটাস ব্যাকআপ
-            • মিল রেকর্ড লেজারে একক "Adding One by One" এক্সপ্রেশন ভিউ এবং সংক্ষিপ্ত গ্রুপ নম্বর ("1.", "2.") যুক্ত করা হয়েছে।
-            • হোটেলের মাসিক Paid/Unpaid স্ট্যাটাস এখন সব ব্যাকআপ ও এক্সপোর্টে সংরক্ষিত থাকে।
+            ৫. 🗄️ দৈনন্দিন এক্সপোর্ট, আলাদা সেটিংস এক্সপোর্ট ও সম্পূর্ণ রিসাইকেল বিন
+            • সেটিংস আলাদাভাবে এক্সপোর্ট করা যায় এবং হোটেল (Whole, Orders, Menus, Hotel Info), অ্যাকাউন্ট বা বিদ্যুৎ ডাটার যেকোনো নির্দিষ্ট অংশ এক্সপোর্ট করা যায়। ডুপ্লিকেট ফুল ব্যাকআপ অপশন সরানো হয়েছে।
+            • রিসাইকেল বিনে সার্চ বার যুক্ত করা হয়েছে এবং ডিলিট করা হোটেল, মেনু, অ্যাকাউন্ট, মিল, ট্রানজ্যাকশন, রিডিং, বিদ্যুৎ বিল ও রেট পলিসি—সবকিছুই বিনে জমা থাকে ও পুনরুদ্ধার করা যায়।
 
-            ৬. 📱 ডায়নামিক উইন্ডো রিসাইজিং ও মাল্টি-উইন্ডো সুরক্ষা
-            • স্প্লিট-স্ক্রিন, উইন্ডো রিসাইজ, কিবোর্ড খোলা বা স্ক্রিন রোটেশনে সমস্ত ডায়ালগ ও সেটিংস সাবপেজ স্বয়ংক্রিয়ভাবে সঠিক মাপে মানিয়ে নেয় এবং নিচের কোনো অংশ কেটে যায় না।
+            ৬. ☀️ মিল লেজার আইকন, ট্রানজ্যাকশন হিস্ট্রি ২-মোড ও ডিফল্ট নির্বাচন
+            • মিল লেজারে "Day •"/"Night •" লেখার বদলে সূর্য ও চাঁদ আইকন দেওয়া হয়েছে। ট্রানজ্যাকশন হিস্ট্রিতে "Keep Each Apart" এবং "Merge Daily Transactions" নামের দুটি স্পষ্ট মোড রয়েছে।
+            • প্রোফাইল পেজে সব হোটেল ও অ্যাকাউন্ট থেকে ডিফল্ট নির্বাচন করা যায় এবং অ্যাপ চালু করলে ডিফল্ট হোটেল ও ডিফল্ট অ্যাকাউন্ট সবসময় প্রথম ট্যাবে দেখায়।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v0.0.1 (Sticky Notes Wall, Montserrat Bold, Resize Stability & Material 3)
+            Traker v$appVersion (Khata Scanner, Keep-Style Sticky Notes, Archivo Black Bold & Smart Bill Math)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
             ───────────────────────────
-            📖 COMPLETE USER GUIDE & RECENT UPDATES
+            📖 COMPLETE USER GUIDE & LATEST FEATURES
             ───────────────────────────
 
-            1. 📌 NEW 4TH HOMEPAGE TAB: "STICKY" (FLOATING STICKY NOTES & WALL LAYOUT)
-            • Floating Pinned Cards & In-Memory Drafts: Smoothly scrollable rounded Material 3 cards with harmonic bobbing. In-memory drafts stay open reliably while typing and never dismiss prematurely or crash during edits.
-            • Rich Text, Interactive Tables & Media: Create notes with bold/italic text, interactive table grid builder (with pipe `| Col 1 | Col 2 |` support), unlimited PDFs, auto-compressed 2MB images, and 2-minute voice recordings.
-            • Double-Tap Full-Screen & Settings: View or edit notes full-screen. Customize Sticky card width (50%–80%) and preview lines (4–10 lines) in Settings > Appearance.
+            1. 📌 "STICKY" TAB: KEEP-STYLE PLAIN EDITOR, CUSTOM TAGS & 8-ICON TOOLBAR
+            • Scroll-Safe Gesture & Wobbling Cards: Vertical/horizontal scrolling immediately cancels the 3-second long-press gesture so scrolling is never interrupted. On mobile portrait, cards wobble continuously and alternate leftward and rightward based on card width %; on tablets/landscape wall mode, columns start at staggered top heights for an organic wall look.
+            • Google Keep-Style Plain Editor & Custom Tags: Removed inner card boxes and subtitle—only Title and Body sit cleanly on a plain Material 3 surface. Categorize notes with custom #tags and filter them via the horizontally scrollable tag bar on the left of the top header while Search and Settings icons remain fixed on the right.
+            • Single-Line 8-Icon Bottom Toolbar: Icon-only bottom toolbar (optimized for mobile and tablet) featuring Bold, Italic, Align Left, Center, Right, Justify, Insert Table, and Attach File, applying directly to selected text or cursor position.
 
-            2. 📞 CALL & CONTACT POPUPS, SHORT NOTES & UNIFIED INFO UI
-            • Hotel Call / WhatsApp Popup: Tapping the call icon on a hotel opens Phone Call or WhatsApp Chat (automatically showing only WhatsApp on Wi-Fi-only tablets without telephony).
-            • Account Contact Options: Tapping the contact icon on an account card offers Mail (Email), WhatsApp Chat, and Text Message (SMS).
-            • Short Notes & Unified Info Cards: Add short notes to any hotel or account and view them inside the unified Info Popup or the tablet left-column information panel.
+            2. ⚡ STRICT DATE-RANGE BILL CALCULATOR & RATE POLICY GROUPING
+            • Exact Selected Range Math: Strictly calculates kWh consumption between your selected Start Date and End Date (e.g., 15 Aug: 971.0 to 17 Oct: 1091.0 = 120.0 kWh) without pulling earlier readings outside the range.
+            • Group-by-Group Rate Splitting & Smooth Interpolation: Automatically splits consumption across rate policy effective dates and linearly interpolates partial ranges (e.g., if 20 Oct = 1094.0, then 15 Aug to 18 Oct = (1091 - 971) + [((1094 - 1091) / 3) × (18 - 17)] = 121.0 kWh). Removed the redundant Default Rate input from Utility Configuration.
 
-            3. 👤 OWNER PROFILE & LINKED VS. SANDBOXED ACCOUNTS
-            • Sandboxed by Default: Accounts created in Owner Profile remain private to your profile unless explicitly linked to the Extras page, with 2-way sync when linked.
-            • Smart De-link Options: When de-linking an account from Extras, choose to move its transaction history to the Recycle Bin, download the history as CSV, or open the App Export Tool (note: only QR, JSON, CSV, or Copy-Paste exports exclude media attachments for compact size; full ZIP backup includes all media).
-            • Greeting Double-Tap QR: Double-tap the Greeting header on the homepage to display the payment details and UPI QR of your Default Profile Account.
+            3. 📷 "SCAN KHATA TO IMPORT" & MENU MODIFICATION HISTORY
+            • Scan Handwritten Khata Pages: In Settings > Data & Backups, tap "Scan Khata to Import" to capture a camera photo or pick a gallery image (safely downsampled on background threads so large images never freeze the app).
+            • 2-Step Verification & Per-Price Dish Solver: Step 1 displays the Khata image side-by-side with editable Date-Price lines (e.g., `24 - 60+40`). Step 2 flags dates that already have ledger records and evaluates each `+`-separated price (e.g., `60` then `40`) as a separate dish against the hotel's menu: auto-selecting exact matches, showing guess chips for 2–4 matches, or offering manual dish selection when >4 combinations exist.
+            • Menu Modification History: Editing a menu item's price, name, or category logs a timestamped history entry (viewable via the History icon in Menu Editor) while preserving historical prices on past months' transactions.
 
-            4. 🔤 DEDICATED MONTSERRAT BOLD FONT & HIGH-CONTRAST BUTTONS
-            • Dedicated Montserrat Bold: Enabling 'Bold Text' in Appearance Settings applies the Google Font Montserrat Bold across all UI elements for crisp, readable typography.
-            • Auto High-Contrast Buttons: All colored action buttons (Add First Hotel, Save Hotel, Backup buttons) dynamically calculate background luminance to ensure razor-sharp text and icon readability.
+            4. 🔤 ARCHIVO BLACK BOLD FONT & BOLD-IN-BOLD HIERARCHY
+            • Enabling 'Bold Text' in Appearance Settings applies the bundled Google Font 'Archivo Black' across all typography weights. Inside Sticky Notes, regular text uses heavy Archivo while `*bold*` spans render in Archivo Black at 1.12x scale with underline accent so bold formatting remains distinct even when Bold Mode is ON.
 
-            5. 🧾 MEAL RECORD LEDGER, ATTACHMENTS & PAID STATUS BACKUP
-            • Streamlined Meal Record Ledger to the single "Adding One by One" expression mode with well-spaced header navigation and compact group numbering ("1.", "2.").
-            • Added 2-minute compressed `.m4a` voice recording, 2MB image compression, and unlimited PDF attachments to Add Transaction.
-            • Monthly Hotel Paid/Unpaid status is now preserved across all JSON, ZIP, and QR backups.
+            5. 🗄️ GRANULAR DAILY EXPORTS, SETTINGS-ONLY BACKUP & FULL RECYCLE BIN
+            • Export Settings & Preferences separately, or export specific Hotels (Whole Hotel, Order History, Menus, or Hotel Info), Bank Accounts, or Electricity data (Whole, Readings, Bills, Rate Policies) without duplicate Full Backup cards.
+            • Recycle Bin includes a real-time search bar and accepts all soft-deleted items including Hotels, Menus, Extras & Owner Accounts, Meals, Transactions, Meter Readings, Utility Bills, and Electricity Rate Policies.
 
-            6. 📱 DYNAMIC WINDOW RESIZING & MULTI-WINDOW STABILITY
-            • Split-screen multi-window mode, freeform resizing, and keyboard IME transitions dynamically update window dimensions with zero bottom cropping or visual leaking.
+            6. ☀️ EXPRESSIVE MEAL LEDGER ICONS, 2-MODE HISTORY & DEFAULT ORDERING
+            • Meal Record Ledger uses expressive Sun and Moon icons instead of 'Day •'/'Night •' text. Transaction History offers 'Keep Each Apart' and 'Merge Daily Transactions' modes.
+            • Account & Profile lists all hotels and accounts for Default selection, and your Default Hotel and Default Account are always ordered first on launch.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
@@ -811,42 +809,38 @@ fun LegalInfoDialog(
         "license" -> if (prefLanguage == "bn") """
             এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
             
-            আপনি লাইসেন্সের শর্তাবলী অনুযায়ী এই সফটওয়্যারটি ব্যবহার, বিতরণ এবং পরিবর্তন করতে পারেন।
-            
-            ব্যবহৃত থার্ড-পার্টি লাইব্রেরি:
-            - Jetpack Compose & Material Design 3
-            - Room Database
-            - Kotlin Coroutines
-            - ZXing QR Engine
+            ব্যবহৃত ওপেন-সোর্স লাইব্রেরি ও ডাটাবেস:
+            - Android Jetpack Compose & Material Design 3
+            - AndroidX Room SQLite Database (Schema v36)
+            - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
+            - Kotlin Coroutines & Flow
+            - ZXing QR Engine & CameraX
+            - Coil Image Loader
         """.trimIndent() else """
             This application is licensed under the Apache License 2.0.
             
-            You may use, distribute, and modify this software in accordance with the terms of the license.
-            
-            Third-party libraries used:
-            - Jetpack Compose & Material Design 3
-            - Room Database
-            - Kotlin Coroutines
-            - ZXing QR Engine
+            Open-source repositories, databases & assets used:
+            - Android Jetpack Compose & Material Design 3
+            - AndroidX Room SQLite Database (Schema v36)
+            - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
+            - Kotlin Coroutines & Flow
+            - ZXing QR Engine & CameraX
+            - Coil Image Loader
         """.trimIndent()
         "privacy" -> if (prefLanguage == "bn") """
             আপনার প্রাইভেসি আমাদের কাছে সবচেয়ে গুরুত্বপূর্ণ।
             
-            Traker একটি অফলাইন-ফার্স্ট অ্যাপ্লিকেশন। এর অর্থ:
-            ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ফোনেই সংরক্ষিত থাকে।
-            ২. কোনো আর্থিক তথ্য কোনো সার্ভারে পাঠানো হয় না।
-            ৩. আমরা আপনার কোনো ব্যক্তিগত তথ্য সংগ্রহ বা বিক্রি করি না।
-            
-            আপনার তথ্য সম্পূর্ণ আপনার নিয়ন্ত্রণে।
+            Traker একটি ১০০% অফলাইন-ফার্স্ট অ্যাপ্লিকেশন:
+            ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ডিভাইসের রুম ডাটাবেসে সংরক্ষিত থাকে।
+            ২. কোনো আর্থিক তথ্য বা ব্যক্তিগত ডেটা কোনো সার্ভারে পাঠানো হয় না।
+            ৩. গিটহাব বা পাবলিক সোর্স কোডে কোনো ব্যক্তিগত তথ্য বা API কী রাখা হয়নি।
         """.trimIndent() else """
             Your privacy is our priority.
             
-            Traker is an OFFLINE-FIRST application. This means:
-            1. All your data is stored locally on your device.
-            2. No financial data is sent to any external server.
-            3. We do not collect or sell your personal information.
-            
-            You are in full control of your data.
+            Traker is a 100% OFFLINE-FIRST application:
+            1. All your data is stored locally on your device in Room SQLite.
+            2. No financial or personal data is transmitted to any external server.
+            3. Zero personal information, secrets, or API keys are exposed in the repository source code.
         """.trimIndent()
         else -> ""
     }

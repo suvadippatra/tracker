@@ -52,6 +52,8 @@ fun BinScreen(
     val deletedExtraExpenses by viewModel.deletedExtraExpenses.collectAsStateWithLifecycle()
     val deletedMeterReadings by viewModel.deletedMeterReadings.collectAsStateWithLifecycle()
     val deletedUtilityBills by viewModel.deletedUtilityBills.collectAsStateWithLifecycle()
+    val deletedElectricityRates by viewModel.deletedElectricityRates.collectAsStateWithLifecycle()
+    val deletedOwnerAccounts by viewModel.deletedOwnerAccounts.collectAsStateWithLifecycle()
     val deletedStickyNotes by viewModel.deletedStickyNotes.collectAsStateWithLifecycle()
 
     var activeSection by remember { mutableStateOf("Hotels") }
@@ -69,6 +71,8 @@ fun BinScreen(
         "Meals" -> if (isBn) "খাবার" else "Meals"
         "Expenses" -> if (isBn) "খরচ/আয়" else "Expenses"
         "Readings" -> if (isBn) "মিটার রিডিং" else "Readings"
+        "Bills" -> if (isBn) "বিদ্যুৎ বিল" else "Bills"
+        "Rates" -> if (isBn) "বিদ্যুৎ হার" else "Rates"
         "Sticky" -> if (isBn) "স্টিকি নোট" else "Sticky Notes"
         else -> activeSection
     }
@@ -76,7 +80,8 @@ fun BinScreen(
     val filteredHotels = remember(deletedHotels, searchQuery) {
         deletedHotels.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
-            it.location.contains(searchQuery, ignoreCase = true)
+            it.location.contains(searchQuery, ignoreCase = true) ||
+            it.phoneNumber.contains(searchQuery, ignoreCase = true)
         }
     }
     val filteredBankAccounts = remember(deletedBankAccounts, searchQuery) {
@@ -86,11 +91,21 @@ fun BinScreen(
             it.upiId.contains(searchQuery, ignoreCase = true)
         }
     }
+    val filteredOwnerAccounts = remember(deletedOwnerAccounts, searchQuery) {
+        deletedOwnerAccounts.filter {
+            it.accountName.contains(searchQuery, ignoreCase = true) ||
+            it.ownerName.contains(searchQuery, ignoreCase = true) ||
+            it.branchName.contains(searchQuery, ignoreCase = true) ||
+            it.accountNumber.contains(searchQuery, ignoreCase = true) ||
+            it.upiId.contains(searchQuery, ignoreCase = true)
+        }
+    }
     val filteredMenuItems = remember(deletedMenuItems, searchQuery) {
         deletedMenuItems.filter {
             it.englishName.contains(searchQuery, ignoreCase = true) ||
             it.banglaName.contains(searchQuery, ignoreCase = true) ||
-            it.type.contains(searchQuery, ignoreCase = true)
+            it.type.contains(searchQuery, ignoreCase = true) ||
+            it.price.toString().contains(searchQuery)
         }
     }
     val filteredTransactions = remember(deletedTransactions, searchQuery) {
@@ -103,6 +118,7 @@ fun BinScreen(
         deletedExtraExpenses.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
             it.category.contains(searchQuery, ignoreCase = true) ||
+            it.notes.contains(searchQuery, ignoreCase = true) ||
             it.amount.toString().contains(searchQuery)
         }
     }
@@ -112,22 +128,37 @@ fun BinScreen(
             it.totalReading.toString().contains(searchQuery)
         }
     }
+    val filteredUtilityBills = remember(deletedUtilityBills, searchQuery) {
+        deletedUtilityBills.filter {
+            it.totalUnits.toString().contains(searchQuery) ||
+            it.calculatedAmount.toString().contains(searchQuery)
+        }
+    }
+    val filteredElectricityRates = remember(deletedElectricityRates, searchQuery) {
+        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+        deletedElectricityRates.filter {
+            it.ratePerUnit.toString().contains(searchQuery) ||
+            runCatching { sdf.format(java.util.Date(it.effectiveDate)) }.getOrDefault("").contains(searchQuery, ignoreCase = true)
+        }
+    }
     val filteredStickyNotes = remember(deletedStickyNotes, searchQuery) {
         deletedStickyNotes.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.subtitle.contains(searchQuery, ignoreCase = true) ||
-            it.bodyText.contains(searchQuery, ignoreCase = true)
+            it.bodyText.contains(searchQuery, ignoreCase = true) ||
+            it.tags.contains(searchQuery, ignoreCase = true)
         }
     }
 
     val isCurrentSectionEmpty = when (activeSection) {
         "Hotels" -> deletedHotels.isEmpty()
-        "Accounts" -> deletedBankAccounts.isEmpty()
+        "Accounts" -> deletedBankAccounts.isEmpty() && deletedOwnerAccounts.isEmpty()
         "Menu" -> deletedMenuItems.isEmpty()
         "Meals" -> deletedTransactions.isEmpty()
         "Expenses" -> deletedExtraExpenses.isEmpty()
         "Readings" -> deletedMeterReadings.isEmpty()
         "Bills" -> deletedUtilityBills.isEmpty()
+        "Rates" -> deletedElectricityRates.isEmpty()
         "Sticky" -> deletedStickyNotes.isEmpty()
         else -> true
     }
@@ -165,6 +196,8 @@ fun BinScreen(
                         "Meals" to (if (isBn) "খাবার" else "Meals"),
                         "Expenses" to (if (isBn) "খরচ/আয়" else "Expenses"),
                         "Readings" to (if (isBn) "মিটার রিডিং" else "Readings"),
+                        "Bills" to (if (isBn) "বিদ্যুৎ বিল" else "Bills"),
+                        "Rates" to (if (isBn) "বিদ্যুৎ হার" else "Rates"),
                         "Sticky" to (if (isBn) "স্টিকি" else "Sticky")
                     )
                     tabs.forEach { (section, label) ->
@@ -255,7 +288,7 @@ fun BinScreen(
                                 }
                             }
                             "Accounts" -> {
-                                if (filteredBankAccounts.isEmpty()) {
+                                if (filteredBankAccounts.isEmpty() && filteredOwnerAccounts.isEmpty()) {
                                     item { 
                                         EmptyBinState(
                                             if (isBn) {
@@ -268,81 +301,96 @@ fun BinScreen(
                                         ) 
                                     }
                                 } else {
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp, horizontal = 2.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
+                                    if (filteredBankAccounts.isNotEmpty()) {
+                                        item {
                                             Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.clickable {
-                                                    selectedAccountIds = if (selectedAccountIds.size == filteredBankAccounts.size) {
-                                                        emptySet()
-                                                    } else {
-                                                        filteredBankAccounts.map { it.id }.toSet()
-                                                    }
-                                                }
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp, horizontal = 2.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Checkbox(
-                                                    checked = filteredBankAccounts.isNotEmpty() && selectedAccountIds.size == filteredBankAccounts.size,
-                                                    onCheckedChange = { checked ->
-                                                        selectedAccountIds = if (checked) filteredBankAccounts.map { it.id }.toSet() else emptySet()
-                                                    },
-                                                    colors = CheckboxDefaults.colors(
-                                                        checkedColor = AccentCyan,
-                                                        uncheckedColor = AppTextColor().copy(alpha = 0.4f),
-                                                        checkmarkColor = Color.Black
-                                                    )
-                                                )
-                                                Text(
-                                                    text = if (selectedAccountIds.isEmpty()) {
-                                                        if (isBn) "সব সিলেক্ট করুন" else "Select All"
-                                                    } else {
-                                                        if (isBn) "সিলেক্ট করা হয়েছে (${selectedAccountIds.size})" else "Selected (${selectedAccountIds.size})"
-                                                    },
-                                                    color = AppTextColor(),
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
-
-                                            if (selectedAccountIds.isNotEmpty()) {
-                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    TextButton(
-                                                        onClick = {
-                                                            val accountsToRestore = filteredBankAccounts.filter { it.id in selectedAccountIds }
-                                                            accountsToRestore.forEach { viewModel.restoreVirtualAccount(it) }
-                                                            selectedAccountIds = emptySet()
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.clickable {
+                                                        selectedAccountIds = if (selectedAccountIds.size == filteredBankAccounts.size) {
+                                                            emptySet()
+                                                        } else {
+                                                            filteredBankAccounts.map { it.id }.toSet()
                                                         }
-                                                    ) {
-                                                        Text(if (isBn) "পুনরুদ্ধার" else "Restore Selected", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                                     }
-                                                    TextButton(
-                                                        onClick = { showDeleteSelectedAccountsConfirmation = true }
-                                                    ) {
-                                                        Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Selected", color = AccentPink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                ) {
+                                                    Checkbox(
+                                                        checked = filteredBankAccounts.isNotEmpty() && selectedAccountIds.size == filteredBankAccounts.size,
+                                                        onCheckedChange = { checked ->
+                                                            selectedAccountIds = if (checked) filteredBankAccounts.map { it.id }.toSet() else emptySet()
+                                                        },
+                                                        colors = CheckboxDefaults.colors(
+                                                            checkedColor = AccentCyan,
+                                                            uncheckedColor = AppTextColor().copy(alpha = 0.4f),
+                                                            checkmarkColor = Color.Black
+                                                        )
+                                                    )
+                                                    Text(
+                                                        text = if (selectedAccountIds.isEmpty()) {
+                                                            if (isBn) "সব সিলেক্ট করুন" else "Select All"
+                                                        } else {
+                                                            if (isBn) "সিলেক্ট করা হয়েছে (${selectedAccountIds.size})" else "Selected (${selectedAccountIds.size})"
+                                                        },
+                                                        color = AppTextColor(),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+
+                                                if (selectedAccountIds.isNotEmpty()) {
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        TextButton(
+                                                            onClick = {
+                                                                val accountsToRestore = filteredBankAccounts.filter { it.id in selectedAccountIds }
+                                                                accountsToRestore.forEach { viewModel.restoreVirtualAccount(it) }
+                                                                selectedAccountIds = emptySet()
+                                                            }
+                                                        ) {
+                                                            Text(if (isBn) "পুনরুদ্ধার" else "Restore Selected", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        TextButton(
+                                                            onClick = { showDeleteSelectedAccountsConfirmation = true }
+                                                        ) {
+                                                            Text(if (isBn) "স্থায়ীভাবে মুছুন" else "Delete Selected", color = AccentPink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
+                                        items(filteredBankAccounts, key = { "bank_${it.id}" }) { acc ->
+                                            val accNumText = if (acc.accountNumber.isBlank()) (if (isBn) "কোন অ্যাকাউন্ট নম্বর নেই" else "No A/C No") else "A/C: ${acc.accountNumber}"
+                                            val ifscText = if (acc.ifsc.isBlank()) "" else " • IFSC: ${acc.ifsc}"
+                                            BinItemCard(
+                                                title = acc.name,
+                                                subtitle = "$accNumText$ifscText",
+                                                infoLabel = if (isBn) "ব্যালেন্স: ₹${acc.balance}" else "Balance: ₹${acc.balance}",
+                                                isSelected = acc.id in selectedAccountIds,
+                                                onSelectToggle = { checked ->
+                                                    selectedAccountIds = if (checked) selectedAccountIds + acc.id else selectedAccountIds - acc.id
+                                                },
+                                                onRestore = { viewModel.restoreVirtualAccount(acc) },
+                                                onDeletePermanently = { itemToDeletePermanently = acc }
+                                            )
+                                        }
                                     }
-                                    items(filteredBankAccounts, key = { it.id }) { acc ->
-                                        val accNumText = if (acc.accountNumber.isBlank()) (if (isBn) "কোন অ্যাকাউন্ট নম্বর নেই" else "No A/C No") else "A/C: ${acc.accountNumber}"
-                                        val ifscText = if (acc.ifsc.isBlank()) "" else " • IFSC: ${acc.ifsc}"
-                                        BinItemCard(
-                                            title = acc.name,
-                                            subtitle = "$accNumText$ifscText",
-                                            infoLabel = if (isBn) "ব্যালেন্স: ₹${acc.balance}" else "Balance: ₹${acc.balance}",
-                                            isSelected = acc.id in selectedAccountIds,
-                                            onSelectToggle = { checked ->
-                                                selectedAccountIds = if (checked) selectedAccountIds + acc.id else selectedAccountIds - acc.id
-                                            },
-                                            onRestore = { viewModel.restoreVirtualAccount(acc) },
-                                            onDeletePermanently = { itemToDeletePermanently = acc }
-                                        )
+                                    if (filteredOwnerAccounts.isNotEmpty()) {
+                                        items(filteredOwnerAccounts, key = { "owner_${it.id}" }) { ownerAcc ->
+                                            val accNumText = if (ownerAcc.accountNumber.isBlank()) (if (isBn) "কোন অ্যাকাউন্ট নম্বর নেই" else "No A/C No") else "A/C: ${ownerAcc.accountNumber}"
+                                            val bankText = if (ownerAcc.branchName.isBlank()) "" else "${ownerAcc.branchName} • "
+                                            BinItemCard(
+                                                title = ownerAcc.accountName,
+                                                subtitle = "$bankText$accNumText",
+                                                infoLabel = if (isBn) "প্রোফাইল অ্যাকাউন্ট (${ownerAcc.ownerName})" else "Profile Account (${ownerAcc.ownerName})",
+                                                onRestore = { viewModel.restoreOwnerAccount(ownerAcc) },
+                                                onDeletePermanently = { itemToDeletePermanently = ownerAcc }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -487,6 +535,63 @@ fun BinScreen(
                                     }
                                 }
                             }
+                            "Bills" -> {
+                                if (filteredUtilityBills.isEmpty()) {
+                                    item {
+                                        EmptyBinState(
+                                            if (isBn) {
+                                                if (searchQuery.isEmpty()) "কোন মুছে ফেলা বিদ্যুৎ বিল নেই"
+                                                else "'$searchQuery'-এর সাথে মানানসই কোন বিদ্যুৎ বিল পাওয়া যায়নি"
+                                            } else {
+                                                if (searchQuery.isEmpty()) "No deleted electricity bills"
+                                                else "No deleted bills matching '$searchQuery'"
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    items(filteredUtilityBills, key = { it.id }) { bill ->
+                                        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+                                        val rangeStr = runCatching {
+                                            "${sdf.format(java.util.Date(bill.startDate))} - ${sdf.format(java.util.Date(bill.endDate))}"
+                                        }.getOrDefault("")
+                                        val effRate = if (bill.totalUnits > 0) String.format(java.util.Locale.US, "%.2f", bill.calculatedAmount / bill.totalUnits) else "0.00"
+                                        BinItemCard(
+                                            title = if (isBn) "₹${String.format(java.util.Locale.US, "%.2f", bill.calculatedAmount)} (${bill.totalUnits} ইউনিট)" else "₹${String.format(java.util.Locale.US, "%.2f", bill.calculatedAmount)} (${bill.totalUnits} kWh)",
+                                            subtitle = rangeStr,
+                                            infoLabel = if (isBn) "গড় হার: ₹$effRate/ইউনিট" else "Avg Rate: ₹$effRate/kWh",
+                                            onRestore = { viewModel.restoreUtilityBill(bill) },
+                                            onDeletePermanently = { itemToDeletePermanently = bill }
+                                        )
+                                    }
+                                }
+                            }
+                            "Rates" -> {
+                                if (filteredElectricityRates.isEmpty()) {
+                                    item {
+                                        EmptyBinState(
+                                            if (isBn) {
+                                                if (searchQuery.isEmpty()) "কোন মুছে ফেলা বিদ্যুৎ হার পলিসি নেই"
+                                                else "'$searchQuery'-এর সাথে মানানসই কোন বিদ্যুৎ হার পাওয়া যায়নি"
+                                            } else {
+                                                if (searchQuery.isEmpty()) "No deleted electricity rate policies"
+                                                else "No deleted rate policies matching '$searchQuery'"
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    items(filteredElectricityRates, key = { it.id }) { rate ->
+                                        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+                                        val effStr = runCatching { sdf.format(java.util.Date(rate.effectiveDate)) }.getOrDefault("")
+                                        BinItemCard(
+                                            title = if (isBn) "₹${rate.ratePerUnit} / ইউনিট" else "₹${rate.ratePerUnit} / Unit",
+                                            subtitle = if (isBn) "কার্যকর তারিখ: $effStr" else "Effective: $effStr",
+                                            infoLabel = if (isBn) "বিদ্যুৎ হার পলিসি" else "Electricity Rate Policy",
+                                            onRestore = { viewModel.restoreElectricityRate(rate) },
+                                            onDeletePermanently = { itemToDeletePermanently = rate }
+                                        )
+                                    }
+                                }
+                            }
                             "Sticky" -> {
                                 if (filteredStickyNotes.isEmpty()) {
                                     item {
@@ -504,10 +609,11 @@ fun BinScreen(
                                     items(filteredStickyNotes, key = { it.id }) { sn ->
                                         val displayTitle = sn.title.ifBlank { sn.subtitle.ifBlank { sn.bodyText.lines().firstOrNull()?.take(36) ?: "Sticky Note #${sn.id}" } }
                                         val displaySub = sn.subtitle.ifBlank { sn.bodyText.replace("\n", " ").take(60) }
+                                        val tagBadge = if (sn.tags.isNotBlank()) " • #${sn.tags.split(",").firstOrNull()?.trim() ?: ""}" else ""
                                         BinItemCard(
                                             title = displayTitle,
                                             subtitle = displaySub.ifBlank { "Empty note" },
-                                            infoLabel = if (isBn) "স্টিকি নোট" else "Sticky Note",
+                                            infoLabel = (if (isBn) "স্টিকি নোট" else "Sticky Note") + tagBadge,
                                             onRestore = { viewModel.restoreStickyNote(sn) },
                                             onDeletePermanently = { itemToDeletePermanently = sn }
                                         )
@@ -623,11 +729,13 @@ fun BinScreen(
         val name = when (item) {
             is HotelEntity -> item.name
             is BankAccountEntity -> item.name
+            is com.example.data.model.OwnerAccountEntity -> item.accountName
             is MenuEntity -> item.englishName
             is com.example.data.model.HotelTransactionEntity -> if (isBn) "খাবারের অর্ডার (₹${item.totalAmount})" else "Meal Order (₹${item.totalAmount})"
             is com.example.data.model.ExtraExpenseEntity -> "${item.name} (₹${item.amount})"
             is com.example.data.model.MeterReading -> if (isBn) "${item.unitsConsumed} ইউনিট ব্যবহৃত মিটার রিডিং" else "${item.unitsConsumed} Units Reading"
-                    is com.example.data.model.UtilityBill -> if (isBn) "${item.totalUnits} ইউনিটের বিল" else "Bill for ${item.totalUnits} Units"
+            is com.example.data.model.UtilityBill -> if (isBn) "${item.totalUnits} ইউনিটের বিল" else "Bill for ${item.totalUnits} Units"
+            is com.example.data.model.ElectricityRate -> if (isBn) "বিদ্যুৎ হার (₹${item.ratePerUnit}/ইউনিট)" else "Electricity Rate (₹${item.ratePerUnit}/Unit)"
             is com.example.data.model.StickyNoteEntity -> item.title.ifBlank { "Sticky Note #${item.id}" }
             else -> ""
         }
@@ -657,11 +765,13 @@ fun BinScreen(
                             when (item) {
                                 is HotelEntity -> viewModel.deleteHotelPermanently(item)
                                 is BankAccountEntity -> viewModel.deleteVirtualAccountPermanently(item)
+                                is com.example.data.model.OwnerAccountEntity -> viewModel.deleteOwnerAccountPermanently(item)
                                 is MenuEntity -> viewModel.deleteMenuPermanently(item)
                                 is com.example.data.model.HotelTransactionEntity -> viewModel.deleteTransactionPermanently(item)
                                 is com.example.data.model.ExtraExpenseEntity -> viewModel.deleteExtraExpensePermanently(item)
                                 is com.example.data.model.MeterReading -> viewModel.deleteReading(item)
                                 is com.example.data.model.UtilityBill -> viewModel.deleteUtilityBillPermanently(item)
+                                is com.example.data.model.ElectricityRate -> viewModel.deleteElectricityRatePermanently(item)
                                 is com.example.data.model.StickyNoteEntity -> viewModel.deleteStickyNotePermanently(item)
                             }
                             itemToDeletePermanently = null
@@ -699,6 +809,7 @@ fun BinScreen(
                             "Expenses" -> viewModel.emptyDeletedExpensesPermanently()
                             "Readings" -> viewModel.emptyDeletedReadingsPermanently()
                             "Bills" -> viewModel.emptyDeletedUtilityBillsPermanently()
+                            "Rates" -> viewModel.emptyDeletedElectricityRatesPermanently()
                             "Sticky" -> viewModel.emptyDeletedStickyNotesPermanently()
                         }
                     }

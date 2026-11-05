@@ -60,7 +60,10 @@ fun MenuManagementScreen(
     BackHandler(onBack = onBack)
 
     val menuItems by viewModel.allMenuItems.collectAsStateWithLifecycle(initialValue = emptyList())
+    val hotelHistory by viewModel.getHistoryForHotel(hotel.id).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddMenu by remember { mutableStateOf(false) }
+    var showHotelMenuHistory by remember { mutableStateOf(false) }
+    var selectedItemForHistory by remember { mutableStateOf<MenuEntity?>(null) }
 
     val csvExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) {
@@ -113,6 +116,7 @@ fun MenuManagementScreen(
     }
 
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isBn = userProfile?.language == "bn"
     val themeMode = userProfile?.themeMode ?: "Auto"
     val bgPreset = userProfile?.bgPreset ?: "Midnight Glow"
     val customBgUri = userProfile?.customBgUri ?: ""
@@ -179,12 +183,22 @@ fun MenuManagementScreen(
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = "Manage categories and items",
+                                            text = if (isBn) "খাবার আইটেম ও মূল্য পরিবর্তনের ইতিহাস" else "Manage menu items & price change history",
                                             color = AppTextColor().copy(alpha = 0.7f),
                                             fontSize = 12.sp,
                                             maxLines = 1
                                         )
                                     }
+                                    IconButton(
+                                        onClick = { showHotelMenuHistory = true },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(getGlassIconButtonBg(), CircleShape)
+                                            .bounceClick()
+                                    ) {
+                                        Icon(Icons.Default.History, contentDescription = "Menu Change History", tint = AppAccentColor())
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     IconButton(
                                         onClick = { csvImportLauncher.launch("text/*") },
                                         modifier = Modifier
@@ -240,6 +254,7 @@ fun MenuManagementScreen(
                                                 MenuTableRow(
                                                     item = item,
                                                     onSave = { updatedItem -> viewModel.updateMenu(updatedItem) },
+                                                    onViewHistory = { selectedItemForHistory = item },
                                                     onDelete = { viewModel.deleteMenu(item) }
                                                 )
                                                 HorizontalDivider(color = AppTextColor().copy(alpha = 0.05f))
@@ -286,6 +301,142 @@ fun MenuManagementScreen(
                     }
                 )
             }
+
+            if (showHotelMenuHistory || selectedItemForHistory != null) {
+                val itemSpecific = selectedItemForHistory
+                val historyToDisplay = remember(hotelHistory, itemSpecific) {
+                    if (itemSpecific != null) hotelHistory.filter { it.menuItemId == itemSpecific.id }
+                    else hotelHistory
+                }
+                AlertDialog(
+                    onDismissRequest = {
+                        showHotelMenuHistory = false
+                        selectedItemForHistory = null
+                    },
+                    containerColor = getDialogBackground(),
+                    shape = RoundedCornerShape(24.dp),
+                    title = {
+                        Column {
+                            Text(
+                                text = if (itemSpecific != null) {
+                                    if (isBn) "${itemSpecific.emoji} ${itemSpecific.englishName} - পরিবর্তনের ইতিহাস"
+                                    else "${itemSpecific.emoji} ${itemSpecific.englishName} - Change History"
+                                } else {
+                                    if (isBn) "মেনু ও মূল্য পরিবর্তনের ইতিহাস" else "Menu Modification History"
+                                },
+                                color = AppTextColor(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isBn) "বিঃদ্রঃ নতুন দাম শুধুমাত্র ভবিষ্যতের অর্ডারে প্রযোজ্য হবে; পূর্ববর্তী মাসের হিসাব অপরিবর্তিত থাকে।"
+                                else "Note: Price updates apply only to future orders; past months' meal records keep their original snapshot prices.",
+                                color = AppAccentColor(),
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    },
+                    text = {
+                        if (historyToDisplay.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isBn) "এখনও কোনো দাম বা নামের পরিবর্তন রেকর্ড করা হয়নি।" else "No price or name modifications recorded yet.",
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 13.5.sp
+                                )
+                            }
+                        } else {
+                            val sdf = remember { java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 360.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                historyToDisplay.forEach { rec ->
+                                    val dateStr = runCatching { sdf.format(java.util.Date(rec.modifiedAt)) }.getOrDefault("")
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = getCardBackground(),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder()),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = rec.itemName,
+                                                    color = AppTextColor(),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Text(
+                                                    text = dateStr,
+                                                    color = AppSecondaryTextColor(),
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            if (rec.changeSummary.isNotBlank()) {
+                                                Text(
+                                                    text = rec.changeSummary,
+                                                    color = AccentGreen,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                if (rec.oldPrice != rec.newPrice) {
+                                                    Text(
+                                                        text = if (isBn) "দাম: ₹${rec.oldPrice.toInt()} → ₹${rec.newPrice.toInt()}" else "Price: ₹${rec.oldPrice.toInt()} → ₹${rec.newPrice.toInt()}",
+                                                        color = AccentGreen,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "₹${rec.newPrice.toInt()}",
+                                                        color = AppSecondaryTextColor(),
+                                                        fontSize = 12.5.sp
+                                                    )
+                                                }
+                                                if (rec.oldType != rec.newType) {
+                                                    Text(
+                                                        text = "${rec.oldType} → ${rec.newType}",
+                                                        color = AppAccentColor(),
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.5.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showHotelMenuHistory = false
+                                selectedItemForHistory = null
+                            }
+                        ) {
+                            Text(if (isBn) "বন্ধ করুন" else "Close", color = AppAccentColor(), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -294,6 +445,7 @@ fun MenuManagementScreen(
 fun MenuTableRow(
     item: MenuEntity,
     onSave: (MenuEntity) -> Unit,
+    onViewHistory: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
@@ -465,6 +617,10 @@ fun MenuTableRow(
                             onClick = { showMenu = false; isEditing = true }
                         )
                         DropdownMenuItem(
+                            text = { Text("Price & Change History", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
+                            onClick = { showMenu = false; onViewHistory() }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
                             onClick = { showMenu = false; showDeleteConfirm = true }
                         )
@@ -610,11 +766,11 @@ fun AddMenuItemDialog(
                                 ))
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(48.dp).bounceClick()
                     ) {
-                        Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Save", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
                     }
                 }
             }

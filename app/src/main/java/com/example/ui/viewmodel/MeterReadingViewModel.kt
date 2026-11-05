@@ -347,7 +347,7 @@ class MeterReadingViewModel(
         // and selected from the last unpaid reading date or a later date up to endDay, or no readings exist after startDay).
         // Carry over previous unpaid reading intervals + unpaid bills + 0 rupees for the inactive duration after lastReadingDay.
         val readingsAfterStart = normalized.filter { it.dayStart > startDay }
-        if (readingsAfterStart.isEmpty() && (rawEndReading - rawStartReading) <= 0.0) {
+        if (readingsAfterStart.isEmpty() && (rawEndReading - rawStartReading) <= 0.0 && startDay >= lastReadingDay) {
             val unpaidReadings = normalized.filter { !it.isPaid && it.dayStart <= endDay }
             if (unpaidReadings.isNotEmpty()) {
                 // Find the first unpaid reading after the most recent paid reading (or the very first reading if none are paid)
@@ -365,19 +365,6 @@ class MeterReadingViewModel(
                     val firstReading = normalized[0]
                     rawStartReading = (firstReading.cumulativeReading - firstReading.rawUnitsConsumed).coerceAtLeast(0.0)
                     effectiveStartDay = firstReading.dayStart
-                }
-            }
-        } else {
-            // Case 2: startDay lands directly on an unpaid reading whose own unitsConsumed should be part of this period
-            // (e.g., first unpaid reading after paid readings)
-            val startDayReadings = normalized.filter { it.dayStart == startDay }
-            val firstOnStartDay = startDayReadings.firstOrNull()
-            if (firstOnStartDay != null && !firstOnStartDay.isPaid && firstOnStartDay.rawUnitsConsumed > 0.0) {
-                val idx = normalized.indexOfFirst { it.id == firstOnStartDay.id }
-                val allPriorPaid = idx > 0 && normalized.subList(0, idx).all { it.isPaid }
-                if (allPriorPaid) {
-                    rawStartReading = normalized[idx - 1].cumulativeReading
-                    effectiveStartDay = normalized[idx - 1].dayStart
                 }
             }
         }
@@ -634,7 +621,7 @@ class MeterReadingViewModel(
 
     fun deleteUtilityBill(bill: UtilityBill) {
         viewModelScope.launch {
-            repository.deleteUtilityBill(bill)
+            repository.softDeleteUtilityBill(bill.id)
         }
     }
 
@@ -699,7 +686,7 @@ class MeterReadingViewModel(
 
     fun deleteElectricityRate(rate: com.example.data.model.ElectricityRate) {
         viewModelScope.launch {
-            repository.deleteElectricityRate(rate)
+            repository.softDeleteElectricityRate(rate.id)
         }
     }
 

@@ -16,6 +16,7 @@ sealed class ImportOutcome {
 
 enum class BackupDataType(val displayName: String, val category: String) {
     HOTEL_WHOLE("Whole Hotel Data", "Hotel"),
+    HOTEL_INFO("Hotel Profile Info", "Hotel"),
     HOTEL_MENUS("Hotel Menus", "Hotel"),
     HOTEL_HISTORY("Hotel Order History", "Hotel"),
     WALLET_WHOLE("Whole Accounts & Transactions", "Transactions"),
@@ -25,6 +26,8 @@ enum class BackupDataType(val displayName: String, val category: String) {
     ELECTRICITY_WHOLE("Whole Electricity Data", "Electricity"),
     METER_READINGS("Electricity Datewise Readings", "Electricity"),
     UTILITY_BILLS("Electricity Paid Bill List", "Electricity"),
+    ELECTRICITY_RATES("Electricity Rate Policies", "Electricity"),
+    SETTINGS("Settings & Preferences Only", "Settings"),
     FULL_BACKUP("Full Application Backup", "Full")
 }
 
@@ -113,6 +116,27 @@ class DataTransferManager(private val db: AppDatabase) {
             }
         }
         root.toString()
+    }
+
+    suspend fun exportHotelInfoJson(hotelId: Int): String = withContext(Dispatchers.IO) {
+        val hotel = hotelDao.getHotelByIdSync(hotelId) ?: throw IllegalArgumentException("Hotel not found")
+        val root = JSONObject().apply {
+            put("version", 3)
+            put("dataType", BackupDataType.HOTEL_INFO.name)
+            put("exportDate", System.currentTimeMillis())
+            put("hotel", JSONObject().apply {
+                put("id", hotel.id)
+                put("name", hotel.name)
+                put("advancedPayment", hotel.advancedPayment)
+                put("phoneNumber", hotel.phoneNumber)
+                put("location", hotel.location)
+                put("upiId", hotel.upiId)
+                put("qrCodeUri", hotel.qrCodeUri)
+                put("notes", hotel.notes)
+                put("whatsappNumber", hotel.whatsappNumber)
+            })
+        }
+        root.toString(2)
     }
 
     suspend fun exportHotelMenusJson(hotelId: Int): String = withContext(Dispatchers.IO) {
@@ -440,6 +464,53 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString()
     }
 
+    suspend fun exportElectricityRatesJson(): String = withContext(Dispatchers.IO) {
+        val rates = meterDao.getAllElectricityRatesSync()
+        val root = JSONObject().apply {
+            put("version", 3)
+            put("dataType", BackupDataType.ELECTRICITY_RATES.name)
+            put("exportDate", System.currentTimeMillis())
+            val rateArr = JSONArray()
+            rates.forEach { r ->
+                rateArr.put(JSONObject().apply {
+                    put("ratePerUnit", r.ratePerUnit)
+                    put("effectiveDate", r.effectiveDate)
+                })
+            }
+            put("electricityRates", rateArr)
+        }
+        root.toString(2)
+    }
+
+    suspend fun exportSettingsJson(): String = withContext(Dispatchers.IO) {
+        val profile = userProfileDao.getUserProfileSync() ?: UserProfileEntity()
+        val root = JSONObject().apply {
+            put("version", 3)
+            put("dataType", BackupDataType.SETTINGS.name)
+            put("exportDate", System.currentTimeMillis())
+            put("userProfile", JSONObject().apply {
+                put("name", profile.name)
+                put("contact", profile.contact)
+                put("currencySymbol", profile.currencySymbol)
+                put("language", profile.language)
+                put("themeMode", profile.themeMode)
+                put("enableSupplementaryAddons", profile.enableSupplementaryAddons)
+                put("bgPreset", profile.bgPreset)
+                put("enableLiquidGlassTheme", profile.enableLiquidGlassTheme)
+                put("disableHeavyEffects", profile.disableHeavyEffects)
+                put("mealGroupPosition", profile.mealGroupPosition)
+                put("textSize", profile.textSize)
+                put("isBoldTextEnabled", profile.isBoldTextEnabled)
+                put("stickyCardWidthPercent", profile.stickyCardWidthPercent)
+                put("stickyPreviewLines", profile.stickyPreviewLines)
+                put("appVersion", profile.appVersion)
+                if (profile.defaultHotelId != null) put("defaultHotelId", profile.defaultHotelId)
+                if (profile.defaultBankAccountId != null) put("defaultBankAccountId", profile.defaultBankAccountId)
+            })
+        }
+        root.toString(2)
+    }
+
     suspend fun exportFullBackupJson(): String = withContext(Dispatchers.IO) {
         val hotels = hotelDao.getAllHotelsSync()
         val menus = menuDao.getAllMenuItemsSync()
@@ -475,6 +546,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("isBoldTextEnabled", profile.isBoldTextEnabled)
                     put("stickyCardWidthPercent", profile.stickyCardWidthPercent)
                     put("stickyPreviewLines", profile.stickyPreviewLines)
+                    put("appVersion", profile.appVersion)
                 })
             }
 
@@ -596,6 +668,7 @@ class DataTransferManager(private val db: AppDatabase) {
                         put("title", sn.title)
                         put("subtitle", sn.subtitle)
                         put("bodyText", sn.bodyText)
+                        put("tags", sn.tags)
                         put("textAlignment", sn.textAlignment)
                         put("sortOrder", sn.sortOrder)
                         put("createdAt", sn.createdAt)
@@ -840,6 +913,17 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.toString()
     }
 
+    suspend fun exportHotelInfoCsv(hotelId: Int): String = withContext(Dispatchers.IO) {
+        val hotel = hotelDao.getHotelByIdSync(hotelId)
+        val sb = StringBuilder()
+        sb.append("# HOTEL DETAILS\n")
+        sb.append("Hotel Name,Advance Payment,Phone Number,Location,UPI ID,Notes\n")
+        if (hotel != null) {
+            sb.append("\"${escapeCsv(hotel.name)}\",${hotel.advancedPayment},\"${escapeCsv(hotel.phoneNumber)}\",\"${escapeCsv(hotel.location)}\",\"${escapeCsv(hotel.upiId)}\",\"${escapeCsv(hotel.notes)}\"\n")
+        }
+        sb.toString()
+    }
+
     suspend fun exportSingleBankAccountCsv(bankAccountId: Int): String = withContext(Dispatchers.IO) {
         val account = bankAccountDao.getBankAccountByIdSync(bankAccountId)
         val sb = StringBuilder()
@@ -928,6 +1012,26 @@ class DataTransferManager(private val db: AppDatabase) {
             val rateBreakdown = generateRateBreakdownString(b.startDate, b.endDate, b.totalUnits, rates)
             sb.append("\"${escapeCsv(b.id)}\",\"$startStr\",\"$endStr\",${b.totalUnits},$avgRate,${b.calculatedAmount},\"$dueStr\",$status,\"${escapeCsv(b.transactionId ?: "")}\",\"${escapeCsv(rateBreakdown)}\",${b.startDate},${b.endDate},${b.dueDate}\n")
         }
+        sb.toString()
+    }
+
+    suspend fun exportElectricityRatesCsv(): String = withContext(Dispatchers.IO) {
+        val rates = meterDao.getAllElectricityRatesSync().sortedByDescending { it.effectiveDate }
+        val sb = StringBuilder()
+        sb.append("Effective Timestamp,Effective Date,Rate Per Unit (₹/kWh)\n")
+        rates.forEach { r ->
+            val dateStr = dateOnlyFormat.format(Date(r.effectiveDate))
+            sb.append("${r.effectiveDate},\"$dateStr\",${r.ratePerUnit}\n")
+        }
+        sb.toString()
+    }
+
+    suspend fun exportSettingsCsv(): String = withContext(Dispatchers.IO) {
+        val p = userProfileDao.getUserProfileSync() ?: UserProfileEntity()
+        val sb = StringBuilder()
+        sb.append("# USER PROFILE & SETTINGS\n")
+        sb.append("Name,Contact,Currency,Language,Theme Mode,Text Size,Bold Text,Sticky Card Width %,Sticky Preview Lines,App Version\n")
+        sb.append("\"${escapeCsv(p.name)}\",\"${escapeCsv(p.contact)}\",\"${escapeCsv(p.currencySymbol)}\",\"${escapeCsv(p.language)}\",\"${escapeCsv(p.themeMode)}\",\"${escapeCsv(p.textSize)}\",${p.isBoldTextEnabled},${p.stickyCardWidthPercent},${p.stickyPreviewLines},\"${escapeCsv(p.appVersion)}\"\n")
         sb.toString()
     }
 
@@ -1023,9 +1127,13 @@ class DataTransferManager(private val db: AppDatabase) {
                             textSize = pObj.optString("textSize", existing.textSize),
                             isBoldTextEnabled = pObj.optBoolean("isBoldTextEnabled", existing.isBoldTextEnabled),
                             stickyCardWidthPercent = pObj.optInt("stickyCardWidthPercent", existing.stickyCardWidthPercent),
-                            stickyPreviewLines = pObj.optInt("stickyPreviewLines", existing.stickyPreviewLines)
+                            stickyPreviewLines = pObj.optInt("stickyPreviewLines", existing.stickyPreviewLines),
+                            appVersion = pObj.optString("appVersion", existing.appVersion)
                         )
                         userProfileDao.insertOrUpdateProfile(profile)
+                        if (dataType == BackupDataType.SETTINGS.name) {
+                            return@withContext ImportOutcome.Success("Settings & preferences restored successfully", count = 1)
+                        }
                     }
 
                     val hotelIdMap = mutableMapOf<Int, Int>()
@@ -1227,6 +1335,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                     title = item.optString("title", ""),
                                     subtitle = item.optString("subtitle", ""),
                                     bodyText = item.optString("bodyText", ""),
+                                    tags = item.optString("tags", ""),
                                     textAlignment = item.optString("textAlignment", "START"),
                                     sortOrder = item.optInt("sortOrder", i),
                                     createdAt = item.optLong("createdAt", System.currentTimeMillis()),
@@ -1335,7 +1444,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     )
                 }
 
-                dataType == BackupDataType.HOTEL_WHOLE.name || root.has("hotel") -> {
+                dataType == BackupDataType.HOTEL_WHOLE.name || dataType == BackupDataType.HOTEL_INFO.name || root.has("hotel") -> {
                     val hObj = root.getJSONObject("hotel")
                     val newHotel = HotelEntity(
                         name = hObj.optString("name", "Imported Hotel"),
@@ -1818,6 +1927,28 @@ class DataTransferManager(private val db: AppDatabase) {
                     return@withContext ImportOutcome.Success(
                         message = "Imported ${list.size} electricity bills",
                         count = list.size
+                    )
+                }
+
+                dataType == BackupDataType.ELECTRICITY_RATES.name || root.has("electricityRates") -> {
+                    val rateArr = root.getJSONArray("electricityRates")
+                    var count = 0
+                    for (i in 0 until rateArr.length()) {
+                        val item = rateArr.getJSONObject(i)
+                        val rVal = item.optDouble("ratePerUnit", 0.0)
+                        if (rVal > 0.0) {
+                            meterDao.insertElectricityRate(
+                                ElectricityRate(
+                                    effectiveDate = item.optLong("effectiveDate", System.currentTimeMillis()),
+                                    ratePerUnit = rVal
+                                )
+                            )
+                            count++
+                        }
+                    }
+                    return@withContext ImportOutcome.Success(
+                        message = "Imported $count electricity rate policy(s)",
+                        count = count
                     )
                 }
 
@@ -2835,6 +2966,9 @@ class DataTransferManager(private val db: AppDatabase) {
             val count = when (contextType) {
                 BackupDataType.HOTEL_MENUS -> importMenusCsv(trimmed, hotelId)
                 BackupDataType.HOTEL_HISTORY -> importHotelHistoryCsv(trimmed, hotelId)
+                BackupDataType.HOTEL_INFO -> {
+                    return@withContext importWholeHotelCsv(trimmed, hotelId)
+                }
                 BackupDataType.HOTEL_WHOLE -> {
                     if (trimmed.contains("# HOTEL DETAILS", ignoreCase = true) || trimmed.contains("# ORDER HISTORY", ignoreCase = true)) {
                         return@withContext importWholeHotelCsv(trimmed, hotelId)
@@ -2867,7 +3001,22 @@ class DataTransferManager(private val db: AppDatabase) {
                 }
                 BackupDataType.METER_READINGS -> importMeterReadingsCsv(trimmed)
                 BackupDataType.UTILITY_BILLS -> importUtilityBillsCsv(trimmed)
-                BackupDataType.FULL_BACKUP -> {
+                BackupDataType.ELECTRICITY_RATES -> {
+                    val lines = trimmed.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
+                    var c = 0
+                    for ((idx, line) in lines.withIndex()) {
+                        val cols = splitCsvRow(line)
+                        if (idx == 0 && cols.firstOrNull()?.contains("effective", ignoreCase = true) == true) continue
+                        val ts = parseTimestamp(cols.getOrElse(0) { "" }, cols.getOrElse(1) { "" })
+                        val rate = cols.lastOrNull()?.toDoubleOrNull() ?: 0.0
+                        if (rate > 0.0) {
+                            meterDao.insertElectricityRate(ElectricityRate(effectiveDate = ts, ratePerUnit = rate))
+                            c++
+                        }
+                    }
+                    c
+                }
+                BackupDataType.SETTINGS, BackupDataType.FULL_BACKUP -> {
                     return@withContext importFullBackupCsv(trimmed)
                 }
             }

@@ -32,12 +32,9 @@
             android:theme="@style/Theme.MyApplication"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
-            android:screenOrientation="portrait"
-            android:resizeableActivity="false"
-            android:maxAspectRatio="2.4"
+            android:resizeableActivity="true"
             android:launchMode="singleTop"
-            android:alwaysRetainTaskState="true"
-            tools:ignore="LockedOrientationActivity,NonResizeableActivity">
+            android:alwaysRetainTaskState="true">
             <layout
                 android:defaultWidth="420dp"
                 android:defaultHeight="820dp"

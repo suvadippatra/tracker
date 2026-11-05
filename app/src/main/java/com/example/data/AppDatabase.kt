@@ -46,9 +46,10 @@ import com.example.data.dao.OwnerAccountDao
         OwnerAccountEntity::class,
         com.example.data.model.HotelPaymentEntity::class,
         com.example.data.model.ExpenseEntity::class,
-        StickyNoteEntity::class
+        StickyNoteEntity::class,
+        com.example.data.model.MenuModificationHistoryEntity::class
     ],
-    version = 35,
+    version = 36,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -68,6 +69,31 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun syncDao(): com.example.data.dao.SyncDao
 
     companion object {
+
+        val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profile ADD COLUMN appVersion TEXT NOT NULL DEFAULT '2.4.0'")
+                db.execSQL("ALTER TABLE sticky_notes ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `menu_modification_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `menuItemId` INTEGER NOT NULL,
+                        `hotelId` INTEGER NOT NULL,
+                        `itemName` TEXT NOT NULL,
+                        `oldPrice` REAL NOT NULL,
+                        `newPrice` REAL NOT NULL,
+                        `oldType` TEXT NOT NULL DEFAULT '',
+                        `newType` TEXT NOT NULL DEFAULT '',
+                        `changeSummary` TEXT NOT NULL DEFAULT '',
+                        `modifiedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_modification_history_menuItemId` ON `menu_modification_history` (`menuItemId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_menu_modification_history_hotelId` ON `menu_modification_history` (`hotelId`)")
+            }
+        }
 
         val MIGRATION_34_35 = object : Migration(34, 35) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -302,7 +328,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_16_17, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31,
-                    MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35
+                    MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35,
+                    MIGRATION_35_36
                 )
                 .build()
                 INSTANCE = instance

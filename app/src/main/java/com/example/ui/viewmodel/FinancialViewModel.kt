@@ -159,15 +159,29 @@ class FinancialViewModel(
             }
             val hotels = repository.allHotels.first()
             if (hotels.isNotEmpty()) {
-                val savedHotelId = savedStateHandle.get<Int>("KEY_ACTIVE_HOTEL_ID")
-                if (savedHotelId != null && hotels.any { it.id == savedHotelId }) {
-                    activeHotelId.value = savedHotelId
+                val targetHotelId = profile?.defaultHotelId ?: hotels.first().id
+                if (hotels.any { it.id == targetHotelId }) {
+                    activeHotelId.value = targetHotelId
                 } else {
-                    val targetHotelId = profile?.defaultHotelId ?: hotels.first().id
-                    if (hotels.any { it.id == targetHotelId }) {
-                        activeHotelId.value = targetHotelId
+                    val savedHotelId = savedStateHandle.get<Int>("KEY_ACTIVE_HOTEL_ID")
+                    if (savedHotelId != null && hotels.any { it.id == savedHotelId }) {
+                        activeHotelId.value = savedHotelId
                     } else {
                         activeHotelId.value = hotels.first().id
+                    }
+                }
+            }
+            val accounts = repository.allBankAccounts.first()
+            if (accounts.isNotEmpty()) {
+                val targetAccountId = profile?.defaultBankAccountId ?: accounts.first().id
+                if (accounts.any { it.id == targetAccountId }) {
+                    activeBankAccountId.value = targetAccountId
+                } else {
+                    val savedAccId = savedStateHandle.get<Int>("KEY_ACTIVE_BANK_ACCOUNT_ID")
+                    if (savedAccId != null && accounts.any { it.id == savedAccId }) {
+                        activeBankAccountId.value = savedAccId
+                    } else {
+                        activeBankAccountId.value = accounts.first().id
                     }
                 }
             }
@@ -176,14 +190,16 @@ class FinancialViewModel(
         viewModelScope.launch {
             repository.allHotels.collect { updatedHotels ->
                 if (updatedHotels.isNotEmpty() && updatedHotels.none { it.id == activeHotelId.value }) {
-                    activeHotelId.value = updatedHotels.first().id
+                    val defId = userProfile.value.defaultHotelId
+                    activeHotelId.value = updatedHotels.find { it.id == defId }?.id ?: updatedHotels.first().id
                 }
             }
         }
         viewModelScope.launch {
             repository.allBankAccounts.collect { accounts ->
-                if (accounts.isNotEmpty() && activeBankAccountId.value == null) {
-                    activeBankAccountId.value = accounts.first().id
+                if (accounts.isNotEmpty() && (activeBankAccountId.value == null || accounts.none { it.id == activeBankAccountId.value })) {
+                    val defId = userProfile.value.defaultBankAccountId
+                    activeBankAccountId.value = accounts.find { it.id == defId }?.id ?: accounts.first().id
                 }
             }
         }
@@ -198,14 +214,20 @@ class FinancialViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initialProfile)
 
-    val allHotels: StateFlow<List<HotelEntity>> = repository.allHotels
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val selectedStickyTag = MutableStateFlow("ALL")
+
+    val allHotels: StateFlow<List<HotelEntity>> = combine(repository.allHotels, userProfile) { hotels, profile ->
+        val defId = profile.defaultHotelId
+        hotels.sortedWith(compareByDescending<HotelEntity> { it.id == defId }.thenBy { it.id })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedHotels: StateFlow<List<HotelEntity>> = repository.deletedHotels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allBankAccounts: StateFlow<List<BankAccountEntity>> = repository.allBankAccounts
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allBankAccounts: StateFlow<List<BankAccountEntity>> = combine(repository.allBankAccounts, userProfile) { accounts, profile ->
+        val defId = profile.defaultBankAccountId
+        accounts.sortedWith(compareByDescending<BankAccountEntity> { it.id == defId }.thenBy { it.id })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allTransactions: StateFlow<List<HotelTransactionEntity>> = repository.allTransactions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -229,6 +251,10 @@ class FinancialViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val deletedUtilityBills: StateFlow<List<UtilityBill>> = repository.deletedUtilityBills
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val deletedElectricityRates: StateFlow<List<com.example.data.model.ElectricityRate>> = repository.deletedElectricityRates
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val deletedOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = repository.deletedOwnerAccounts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.allExtraExpenses
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -239,8 +265,10 @@ class FinancialViewModel(
     val allHotelPayments: StateFlow<List<HotelPaymentEntity>> = repository.allHotelPayments
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = repository.allOwnerAccounts
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = combine(repository.allOwnerAccounts, userProfile) { accounts, profile ->
+        val defId = profile.defaultOwnerAccountId
+        accounts.sortedWith(compareByDescending<com.example.data.model.OwnerAccountEntity> { it.id == defId }.thenBy { it.id })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.allStickyNotes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -348,7 +376,7 @@ class FinancialViewModel(
     }
 
     fun deleteOwnerAccount(account: com.example.data.model.OwnerAccountEntity) {
-        viewModelScope.launch { repository.deleteOwnerAccount(account) }
+        viewModelScope.launch { repository.updateOwnerAccount(account.copy(isDeleted = true, lastUpdatedMillis = System.currentTimeMillis())) }
     }
 
     // Sticky Notes CRUD
@@ -415,11 +443,7 @@ class FinancialViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val deletedMenuItems: StateFlow<List<MenuEntity>> = activeHotel
-        .flatMapLatest { hotel ->
-            if (hotel != null) repository.getDeletedMenuForHotel(hotel.id)
-            else flowOf(emptyList())
-        }
+    val deletedMenuItems: StateFlow<List<MenuEntity>> = repository.allDeletedMenuItems
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Active Hotel Transactions
@@ -776,6 +800,7 @@ class FinancialViewModel(
             val manager = com.example.data.QrExportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
             val result = when (type) {
                 com.example.data.BackupDataType.HOTEL_WHOLE -> manager.exportWholeHotel(hotelId)
+                com.example.data.BackupDataType.HOTEL_INFO -> manager.exportHotelInfo(hotelId)
                 com.example.data.BackupDataType.HOTEL_MENUS -> manager.exportHotelMenus(hotelId)
                 com.example.data.BackupDataType.HOTEL_HISTORY -> manager.exportHotelHistory(hotelId)
                 com.example.data.BackupDataType.WALLET_WHOLE -> manager.exportWalletWhole(bankAccountId)
@@ -785,6 +810,8 @@ class FinancialViewModel(
                 com.example.data.BackupDataType.ELECTRICITY_WHOLE -> manager.exportElectricityWhole()
                 com.example.data.BackupDataType.METER_READINGS -> manager.exportMeterReadings()
                 com.example.data.BackupDataType.UTILITY_BILLS -> manager.exportUtilityBills()
+                com.example.data.BackupDataType.ELECTRICITY_RATES -> manager.exportElectricityRates()
+                com.example.data.BackupDataType.SETTINGS -> manager.exportSettings()
                 com.example.data.BackupDataType.FULL_BACKUP -> manager.exportFullBackup()
             }
             onResult(result)
@@ -798,6 +825,7 @@ class FinancialViewModel(
                 val dtm = com.example.data.DataTransferManager(db)
                 val json = when (type) {
                     com.example.data.BackupDataType.HOTEL_WHOLE -> dtm.exportWholeHotelJson(hotelId)
+                    com.example.data.BackupDataType.HOTEL_INFO -> dtm.exportHotelInfoJson(hotelId)
                     com.example.data.BackupDataType.HOTEL_MENUS -> dtm.exportHotelMenusJson(hotelId)
                     com.example.data.BackupDataType.HOTEL_HISTORY -> dtm.exportHotelHistoryJson(hotelId)
                     com.example.data.BackupDataType.WALLET_WHOLE -> dtm.exportWalletWholeJson(bankAccountId)
@@ -807,6 +835,8 @@ class FinancialViewModel(
                     com.example.data.BackupDataType.ELECTRICITY_WHOLE -> dtm.exportElectricityWholeJson()
                     com.example.data.BackupDataType.METER_READINGS -> dtm.exportMeterReadingsJson()
                     com.example.data.BackupDataType.UTILITY_BILLS -> dtm.exportUtilityBillsJson()
+                    com.example.data.BackupDataType.ELECTRICITY_RATES -> dtm.exportElectricityRatesJson()
+                    com.example.data.BackupDataType.SETTINGS -> dtm.exportSettingsJson()
                     com.example.data.BackupDataType.FULL_BACKUP -> dtm.exportFullBackupJson()
                 }
                 onResult(json)
@@ -824,6 +854,7 @@ class FinancialViewModel(
                 val dtm = com.example.data.DataTransferManager(db)
                 val csv = when (type) {
                     com.example.data.BackupDataType.HOTEL_WHOLE -> dtm.exportWholeHotelCsv(hotelId)
+                    com.example.data.BackupDataType.HOTEL_INFO -> dtm.exportHotelInfoCsv(hotelId)
                     com.example.data.BackupDataType.HOTEL_MENUS -> dtm.exportMenusCsv(hotelId)
                     com.example.data.BackupDataType.HOTEL_HISTORY -> dtm.exportHotelHistoryCsv(hotelId)
                     com.example.data.BackupDataType.WALLET_WHOLE -> dtm.exportWalletWholeCsv(bankAccountId)
@@ -833,6 +864,8 @@ class FinancialViewModel(
                     com.example.data.BackupDataType.ELECTRICITY_WHOLE -> dtm.exportElectricityWholeCsv()
                     com.example.data.BackupDataType.METER_READINGS -> dtm.exportMeterReadingsCsv()
                     com.example.data.BackupDataType.UTILITY_BILLS -> dtm.exportUtilityBillsCsv()
+                    com.example.data.BackupDataType.ELECTRICITY_RATES -> dtm.exportElectricityRatesCsv()
+                    com.example.data.BackupDataType.SETTINGS -> dtm.exportSettingsCsv()
                     com.example.data.BackupDataType.FULL_BACKUP -> dtm.exportFullBackupCsv()
                 }
                 onResult(csv)
@@ -849,6 +882,21 @@ class FinancialViewModel(
             val dtm = com.example.data.DataTransferManager(db)
             val outcome = dtm.importUniversalText(content, type, hotelId)
             onResult(outcome)
+        }
+    }
+
+    fun importKhataTransactions(transactions: List<HotelTransactionEntity>, onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            try {
+                transactions.forEach { tx ->
+                    repository.insertTransaction(tx)
+                }
+                updateWidgets()
+                onResult(transactions.size)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(0)
+            }
         }
     }
 
@@ -1340,7 +1388,9 @@ class FinancialViewModel(
         )
     }
     fun editHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.updateHotel(hotel) }
-    fun deleteHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.deleteHotel(hotel) }
+    fun deleteHotel(hotel: com.example.data.model.HotelEntity) = viewModelScope.launch {
+        repository.updateHotel(hotel.copy(isDeleted = true, lastUpdatedMillis = System.currentTimeMillis()))
+    }
     fun addVirtualAccount(
         name: String,
         balance: Double,
@@ -1396,38 +1446,84 @@ class FinancialViewModel(
     }
     fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account.copy(isDeleted = true)) }
     fun addMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.insertMenu(menu) }
-    fun updateMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.updateMenu(menu) }
-    fun deleteMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.deleteMenu(menu) }
+    fun updateMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch {
+        val oldItem = allMenuItems.value.find { it.id == menu.id }
+        if (oldItem != null) {
+            val oldName = oldItem.englishName.ifBlank { oldItem.banglaName }
+            val newName = menu.englishName.ifBlank { menu.banglaName }
+            val priceChanged = kotlin.math.abs(oldItem.price - menu.price) > 0.001
+            val nameChanged = oldName != newName || oldItem.banglaName != menu.banglaName
+            val typeChanged = oldItem.type != menu.type
+            if (priceChanged || nameChanged || typeChanged) {
+                val changes = mutableListOf<String>()
+                if (priceChanged) changes.add("Price: ₹${oldItem.price} → ₹${menu.price}")
+                if (nameChanged) changes.add("Name: $oldName → $newName")
+                if (typeChanged) changes.add("Type: ${oldItem.type} → ${menu.type}")
+                repository.insertMenuHistory(
+                    com.example.data.model.MenuModificationHistoryEntity(
+                        menuItemId = menu.id,
+                        hotelId = menu.hotelId,
+                        itemName = newName.ifBlank { "Menu Item #${menu.id}" },
+                        oldPrice = oldItem.price,
+                        newPrice = menu.price,
+                        oldType = oldItem.type,
+                        newType = menu.type,
+                        changeSummary = changes.joinToString(" • "),
+                        modifiedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+        repository.updateMenu(menu.copy(lastUpdatedMillis = System.currentTimeMillis()))
+    }
+    fun deleteMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch {
+        repository.updateMenu(menu.copy(isDeleted = true, lastUpdatedMillis = System.currentTimeMillis()))
+    }
+    fun getHistoryForMenuItem(menuItemId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>> =
+        repository.getHistoryForMenuItem(menuItemId)
+    fun getHistoryForHotel(hotelId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>> =
+        repository.getHistoryForHotel(hotelId)
     fun deleteExtraExpense(expense: com.example.data.model.ExtraExpenseEntity) = viewModelScope.launch { repository.softDeleteExpenseAndRevert(expense, allBankAccounts.value) }
     fun addCategory(name: String, type: String) = viewModelScope.launch { repository.insertCategory(com.example.data.model.TransactionCategoryEntity(name = name, type = type)) }
 
     // Bin Restore
     fun restoreHotel(item: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.updateHotel(item.copy(isDeleted = false)) }
     fun restoreVirtualAccount(item: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(item.copy(isDeleted = false)) }
+    fun restoreOwnerAccount(item: com.example.data.model.OwnerAccountEntity) = viewModelScope.launch { repository.updateOwnerAccount(item.copy(isDeleted = false)) }
     fun restoreMenu(item: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.updateMenu(item.copy(isDeleted = false)) }
     fun restoreExtraExpense(item: com.example.data.model.ExtraExpenseEntity) = viewModelScope.launch { repository.restoreExpenseAndApply(item, allBankAccounts.value) }
     fun restoreMeterReading(item: com.example.data.model.MeterReading) = viewModelScope.launch { repository.restoreReading(item.id) }
-    
+    fun restoreUtilityBill(item: com.example.data.model.UtilityBill) = viewModelScope.launch { repository.restoreUtilityBill(item.id) }
+    fun restoreElectricityRate(item: com.example.data.model.ElectricityRate) = viewModelScope.launch { repository.restoreElectricityRate(item.id) }
+
     // Bin Hard Delete
-    fun deleteHotelPermanently(item: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.deleteHotel(item) } 
+    fun deleteHotelPermanently(item: com.example.data.model.HotelEntity) = viewModelScope.launch { repository.deleteHotel(item) }
     fun deleteVirtualAccountPermanently(item: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.deleteBankAccount(item) }
+    fun deleteOwnerAccountPermanently(item: com.example.data.model.OwnerAccountEntity) = viewModelScope.launch { repository.deleteOwnerAccount(item) }
     fun deleteMenuPermanently(item: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.deleteMenu(item) }
     fun deleteExtraExpensePermanently(item: com.example.data.model.ExtraExpenseEntity) = viewModelScope.launch { repository.deleteExpensePermanently(item) }
     fun deleteUtilityBillPermanently(item: com.example.data.model.UtilityBill) = viewModelScope.launch { repository.deleteUtilityBill(item) }
+    fun deleteElectricityRatePermanently(item: com.example.data.model.ElectricityRate) = viewModelScope.launch { repository.deleteElectricityRate(item) }
     fun deleteReading(item: com.example.data.model.MeterReading) = viewModelScope.launch { repository.deleteReading(item) }
 
     // Bin Empty All
-    fun emptyDeletedHotelsPermanently() = viewModelScope.launch { }
+    fun emptyDeletedHotelsPermanently() = viewModelScope.launch {
+        deletedHotels.value.forEach { hotel -> repository.deleteHotel(hotel) }
+    }
     fun emptyDeletedBankAccountsPermanently() = viewModelScope.launch {
         deletedBankAccounts.value.forEach { account ->
             repository.deleteBankAccount(account)
         }
+        deletedOwnerAccounts.value.forEach { ownerAcc ->
+            repository.deleteOwnerAccount(ownerAcc)
+        }
     }
-    fun emptyDeletedMenuItemsPermanently() = viewModelScope.launch { }
+    fun emptyDeletedMenuItemsPermanently() = viewModelScope.launch { repository.emptyDeletedMenuItemsPermanently() }
     fun emptyDeletedTransactionsPermanently() = viewModelScope.launch { repository.emptyDeletedTransactionsPermanently() }
     fun emptyDeletedExpensesPermanently() = viewModelScope.launch { repository.emptyDeletedExpensesPermanently() }
     fun emptyDeletedReadingsPermanently() = viewModelScope.launch { repository.emptyDeletedReadingsPermanently() }
     fun emptyDeletedUtilityBillsPermanently() = viewModelScope.launch { repository.emptyDeletedUtilityBillsPermanently() }
+    fun emptyDeletedElectricityRatesPermanently() = viewModelScope.launch { repository.emptyDeletedElectricityRatesPermanently() }
 
     // Profiles
     fun saveUserProfile(profile: com.example.data.model.UserProfileEntity) = viewModelScope.launch {
@@ -1495,20 +1591,36 @@ class FinancialViewModel(
 
     fun setDefaultHotel(hotelId: Int) = viewModelScope.launch {
         val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(defaultHotelId = hotelId))
+        val updated = current.copy(defaultHotelId = hotelId)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
+        activeHotelId.value = hotelId
         com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
     }
 
     fun setDefaultBankAccount(accountId: Int) = viewModelScope.launch {
         val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(defaultBankAccountId = accountId))
+        val updated = current.copy(defaultBankAccountId = accountId)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
+        activeBankAccountId.value = accountId
         com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
     }
 
     fun setDefaultOwnerAccount(accountId: Int) = viewModelScope.launch {
         val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
-        repository.saveUserProfile(current.copy(defaultOwnerAccountId = accountId))
+        val updated = current.copy(defaultOwnerAccountId = accountId)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
         com.example.widget.WidgetUpdater.updateAllWidgets(getApplication<Application>())
+    }
+
+    fun updateAppVersion(newVersion: String) = viewModelScope.launch {
+        val clean = newVersion.trim().ifBlank { "2.4.0" }
+        val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
+        val updated = current.copy(appVersion = clean)
+        com.example.ui.theme.ThemePreferences.save(getApplication(), updated)
+        repository.saveUserProfile(updated)
     }
 
     fun updateDefaultOwnerAccount(accountId: Int) {

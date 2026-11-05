@@ -183,16 +183,6 @@ fun UtilityConfigurationScreen(
                                         HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f))
 
                                         GlassTextField(
-                                            value = defaultRateInput,
-                                            onValueChange = { defaultRateInput = it },
-                                            label = { Text(if (language == "bn") "ডিফল্ট প্রতি ইউনিটের দাম ($currency/kWh)" else "Default Rate per Unit ($currency/kWh)") },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                                            leadingIcon = { Icon(Icons.Default.OfflineBolt, contentDescription = null, tint = primaryAccent) },
-                                            singleLine = true,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        GlassTextField(
                                             value = chargeInput,
                                             onValueChange = { chargeInput = it },
                                             label = { Text(if (language == "bn") "স্থির সার্ভিস চার্জ ($currency)" else "Fixed Service Charge ($currency)") },
@@ -205,8 +195,7 @@ fun UtilityConfigurationScreen(
                                         Button(
                                             onClick = {
                                                 val charge = chargeInput.toDoubleOrNull() ?: 0.0
-                                                val defRate = defaultRateInput.toDoubleOrNull() ?: currentDefaultRate
-                                                viewModel.updateCalculationParameters(charge, defRate)
+                                                viewModel.updateCalculationParameters(charge, currentDefaultRate)
                                                 val pendingPolicyRate = rateInput.toDoubleOrNull()
                                                 if (pendingPolicyRate != null && pendingPolicyRate > 0.0) {
                                                     viewModel.insertElectricityRate(pendingPolicyRate, rateDateMillis)

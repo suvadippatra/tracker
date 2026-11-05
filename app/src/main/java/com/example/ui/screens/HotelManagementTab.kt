@@ -1565,23 +1565,23 @@ fun MealHistoryModal(
                                     amountsSb.append("($grpExpr)")
                                     groups.forEachIndexed { gIdx, grp ->
                                         val itemAddition = grp.items.joinToString(" + ") { "${(it.quantity * it.price).toInt()}" }
-                                        val itemNames = grp.items.joinToString(", ") { "${it.name} x${it.quantity}" }
+                                        val itemNames = grp.items.joinToString("  •  ") { "${it.name} × ${it.quantity}" }
                                         linesForTx.add(
-                                            "${if (tx.isNight) "Night" else "Day"} • ${gIdx + 1}. $itemAddition = ₹${grp.subtotal.toInt()} ($itemNames)"
+                                            "#${gIdx + 1}   $itemAddition  =  ₹${grp.subtotal.toInt()}   ($itemNames)"
                                         )
                                     }
                                 } else {
                                     amountsSb.append(tx.totalAmount.toInt())
                                     val items = com.example.data.model.TransactionSerializer.deserialize(tx.itemsSerialized)
                                     val itemAddition = items.joinToString(" + ") { "${(it.quantity * it.price).toInt()}" }
-                                    val itemNames = items.joinToString(", ") { "${it.name} x${it.quantity}" }
+                                    val itemNames = items.joinToString("  •  ") { "${it.name} × ${it.quantity}" }
                                     if (items.size > 1) {
                                         linesForTx.add(
-                                            "${if (tx.isNight) "Night" else "Day"}: $itemAddition = ₹${tx.totalAmount.toInt()} ($itemNames)"
+                                            "$itemAddition  =  ₹${tx.totalAmount.toInt()}   ($itemNames)"
                                         )
                                     } else {
                                         linesForTx.add(
-                                            "${if (tx.isNight) "Night" else "Day"}: ₹${tx.totalAmount.toInt()} ($itemNames)"
+                                            "₹${tx.totalAmount.toInt()}   •   $itemNames"
                                         )
                                     }
                                 }
@@ -1632,7 +1632,7 @@ fun MealHistoryModal(
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "$dateStr → $amountsStr = ₹$dayTotalInt",
+                                        text = "$dateStr   →   $amountsStr  =  ₹$dayTotalInt",
                                         color = AppAccentColor(),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
@@ -1650,18 +1650,33 @@ fun MealHistoryModal(
                                                 )
                                             }
                                             Row(
-                                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column(modifier = Modifier.weight(1f)) {
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
                                                     lines.forEach { line ->
-                                                        Text(
-                                                            text = line,
-                                                            color = AppSecondaryTextColor(),
-                                                            fontSize = 11.sp,
-                                                            modifier = Modifier.padding(top = 1.dp)
-                                                        )
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.padding(vertical = 1.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (tx.isNight) Icons.Default.NightsStay else Icons.Default.WbSunny,
+                                                                contentDescription = if (tx.isNight) "Night" else "Day",
+                                                                tint = if (tx.isNight) AppAccentColor() else AccentGold,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Text(
+                                                                text = line,
+                                                                color = AppSecondaryTextColor(),
+                                                                fontSize = 11.5.sp,
+                                                                lineHeight = 16.sp
+                                                            )
+                                                        }
                                                     }
                                                 }
                                                 Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {

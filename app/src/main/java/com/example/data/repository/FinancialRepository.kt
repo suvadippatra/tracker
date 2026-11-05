@@ -49,14 +49,23 @@ class FinancialRepository(private val db: AppDatabase) {
     val deletedExtraExpenses: Flow<List<ExtraExpenseEntity>> = extraExpenseDao.getDeletedExpenses()
     val deletedMeterReadings: Flow<List<MeterReading>> = meterDao.getDeletedReadings()
     val deletedUtilityBills: Flow<List<UtilityBill>> = meterDao.getDeletedUtilityBills()
+    val deletedElectricityRates: Flow<List<com.example.data.model.ElectricityRate>> = meterDao.getDeletedElectricityRates()
     val deletedStickyNotes: Flow<List<StickyNoteEntity>> = stickyNoteDao.getDeletedStickyNotes()
+    val allDeletedMenuItems: Flow<List<MenuEntity>> = menuDao.getAllDeletedMenuItems()
+    val deletedOwnerAccounts: Flow<List<com.example.data.model.OwnerAccountEntity>> = ownerAccountDao.getDeletedOwnerAccounts()
 
     suspend fun emptyDeletedTransactionsPermanently() = transactionDao.emptyDeletedTransactionsPermanently()
     suspend fun emptyDeletedExpensesPermanently() = extraExpenseDao.emptyDeletedExpensesPermanently()
     suspend fun emptyDeletedReadingsPermanently() = meterDao.emptyDeletedReadingsPermanently()
     suspend fun emptyDeletedUtilityBillsPermanently() = meterDao.emptyDeletedUtilityBillsPermanently()
+    suspend fun emptyDeletedElectricityRatesPermanently() = meterDao.emptyDeletedElectricityRatesPermanently()
     suspend fun emptyDeletedStickyNotesPermanently() = stickyNoteDao.emptyDeletedStickyNotesPermanently()
+    suspend fun emptyDeletedMenuItemsPermanently() = menuDao.emptyDeletedMenuItemsPermanently()
     suspend fun restoreReading(id: String) = meterDao.restoreReading(id)
+    suspend fun softDeleteUtilityBill(id: String) = meterDao.softDeleteUtilityBill(id)
+    suspend fun restoreUtilityBill(id: String) = meterDao.restoreUtilityBill(id)
+    suspend fun softDeleteElectricityRate(id: String) = meterDao.softDeleteElectricityRate(id)
+    suspend fun restoreElectricityRate(id: String) = meterDao.restoreElectricityRate(id)
 
     suspend fun insertStickyNote(note: StickyNoteEntity): Long = stickyNoteDao.insertStickyNote(note)
     suspend fun insertStickyNotes(notes: List<StickyNoteEntity>) = stickyNoteDao.insertStickyNotes(notes)
@@ -110,6 +119,20 @@ class FinancialRepository(private val db: AppDatabase) {
 
     fun getDeletedMenuForHotel(hotelId: Int): Flow<List<MenuEntity>> {
         return menuDao.getDeletedMenuForHotel(hotelId)
+    }
+
+    fun getHistoryForMenuItem(menuItemId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>> {
+        return menuDao.getHistoryForMenuItem(menuItemId)
+    }
+
+    fun getHistoryForHotel(hotelId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>> {
+        return menuDao.getHistoryForHotel(hotelId)
+    }
+
+    suspend fun insertMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity): Long {
+        return withContext(Dispatchers.IO) {
+            menuDao.insertMenuHistory(history)
+        }
     }
 
     fun getTransactionsForHotel(hotelId: Int): Flow<List<HotelTransactionEntity>> {

@@ -35,7 +35,8 @@ data class UserProfileEntity(
     val disableHeavyEffects: Boolean = true,
     val isBoldTextEnabled: Boolean = false,
     val stickyCardWidthPercent: Int = 80,
-    val stickyPreviewLines: Int = 10
+    val stickyPreviewLines: Int = 10,
+    val appVersion: String = "2.4.0"
 )
 
 @Entity(tableName = "hotels", indices = [Index("isDeleted")])
@@ -198,6 +199,7 @@ data class StickyNoteEntity(
     val colorIndex: Int = 0,
     val sortOrder: Int = 0,
     val attachmentsJson: String = "[]",
+    val tags: String = "",
     val isDeleted: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     @androidx.room.ColumnInfo(name = "lastUpdatedMillis") val updatedAt: Long = System.currentTimeMillis()
@@ -205,7 +207,26 @@ data class StickyNoteEntity(
     val content: String get() = bodyText
     val alignment: String get() = textAlignment
     val lastUpdatedMillis: Long get() = updatedAt
+    val tagList: List<String>
+        get() = if (tags.isBlank()) emptyList() else tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 }
+
+@Entity(
+    tableName = "menu_modification_history",
+    indices = [Index("menuItemId"), Index("hotelId")]
+)
+data class MenuModificationHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val menuItemId: Int,
+    val hotelId: Int,
+    val itemName: String,
+    val oldPrice: Double,
+    val newPrice: Double,
+    val oldType: String = "",
+    val newType: String = "",
+    val changeSummary: String = "",
+    val modifiedAt: Long = System.currentTimeMillis()
+)
 
 data class StickyAttachment(
     val id: String = java.util.UUID.randomUUID().toString(),

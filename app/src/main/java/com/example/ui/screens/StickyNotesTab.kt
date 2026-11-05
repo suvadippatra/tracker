@@ -43,16 +43,23 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,9 +123,18 @@ fun parseStickyBodyElements(bodyText: String): List<StickyBodyElement> {
 
 /**
  * Formats inline *bold* and -italic- markers into an AnnotatedString.
+ * When global Bold Text mode is enabled, regular text uses StickyBoldBaseFontFamily (Archivo Bold)
+ * and *bold* spans use ArchivoBlackFontFamily with 1.12x font size so bold text stands out clearly inside Bold Mode.
  */
-fun parseStickyRichText(input: String): AnnotatedString {
+fun parseStickyRichText(
+    input: String,
+    isBoldMode: Boolean = false,
+    baseFontSizeSp: Float = 14f
+): AnnotatedString {
     return buildAnnotatedString {
+        if (isBoldMode) {
+            pushStyle(SpanStyle(fontFamily = StickyBoldBaseFontFamily, fontWeight = FontWeight.Bold))
+        }
         var i = 0
         val n = input.length
         while (i < n) {
@@ -127,7 +143,23 @@ fun parseStickyRichText(input: String): AnnotatedString {
                 val closeIdx = input.indexOf('*', i + 1)
                 if (closeIdx > i + 1) {
                     val inner = input.substring(i + 1, closeIdx)
-                    pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                    if (isBoldMode) {
+                        pushStyle(
+                            SpanStyle(
+                                fontFamily = ArchivoBlackFontFamily,
+                                fontWeight = FontWeight.Black,
+                                fontSize = (baseFontSizeSp * 1.12f).sp,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        )
+                    } else {
+                        pushStyle(
+                            SpanStyle(
+                                fontFamily = ArchivoBlackFontFamily,
+                                fontWeight = FontWeight.Black
+                            )
+                        )
+                    }
                     append(inner)
                     pop()
                     i = closeIdx + 1
@@ -149,6 +181,34 @@ fun parseStickyRichText(input: String): AnnotatedString {
             append(ch)
             i++
         }
+        if (isBoldMode) {
+            pop()
+        }
+    }
+}
+
+fun applyInlineFormatting(value: TextFieldValue, marker: String, placeholderWord: String): TextFieldValue {
+    val text = value.text
+    val selStart = value.selection.min.coerceIn(0, text.length)
+    val selEnd = value.selection.max.coerceIn(0, text.length)
+    return if (selStart != selEnd) {
+        val selected = text.substring(selStart, selEnd)
+        val wrapped = "$marker$selected$marker"
+        val newText = text.replaceRange(selStart, selEnd, wrapped)
+        TextFieldValue(
+            text = newText,
+            selection = TextRange(selStart + marker.length, selStart + marker.length + selected.length)
+        )
+    } else {
+        val token = "$marker$placeholderWord$marker"
+        val prefix = if (selStart > 0 && !text[selStart - 1].isWhitespace()) " " else ""
+        val insertStr = "$prefix$token"
+        val newText = text.substring(0, selStart) + insertStr + text.substring(selStart)
+        val wordStart = selStart + prefix.length + marker.length
+        TextFieldValue(
+            text = newText,
+            selection = TextRange(wordStart, wordStart + placeholderWord.length)
+        )
     }
 }
 
@@ -164,13 +224,24 @@ fun resolveTextAlign(alignmentKey: String): TextAlign {
 @Composable
 fun StickyNotesTab(viewModel: FinancialViewModel) {
     val stickyNotes by viewModel.allStickyNotes.collectAsStateWithLifecycle()
+    val selectedStickyTag by viewModel.selectedStickyTag.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isBn = userProfile.language == "bn"
+    val isBoldMode = userProfile.isBoldTextEnabled
     val widthPercent = userProfile.stickyCardWidthPercent.coerceIn(50, 80)
     val maxPreviewLines = userProfile.stickyPreviewLines.coerceIn(4, 10)
-    val heavyEffectsDisabled = isHeavyEffectsDisabled()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
+
+    val filteredStickyNotes = remember(stickyNotes, selectedStickyTag) {
+        if (selectedStickyTag.equals("ALL", ignoreCase = true)) {
+            stickyNotes
+        } else {
+            stickyNotes.filter { note ->
+                note.tagList.any { it.equals(selectedStickyTag, ignoreCase = true) }
+            }
+        }
+    }
 
     var selectedNoteForViewer by remember { mutableStateOf<StickyNoteEntity?>(null) }
     var openInEditMode by remember { mutableStateOf(false) }
@@ -180,7 +251,6 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     // Keep selectedNoteForViewer synced with latest DB updates for existing saved notes only
     LaunchedEffect(stickyNotes, selectedNoteForViewer?.id) {
         val currentId = selectedNoteForViewer?.id ?: return@LaunchedEffect
-        // If it's a new draft being written (id == 0 or isCreatingNewNote), never close it
         if (currentId <= 0 || isCreatingNewNote) return@LaunchedEffect
         val updated = stickyNotes.find { it.id == currentId }
         if (updated != null) {
@@ -188,21 +258,17 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
         }
     }
 
-    // Simple Harmonic Oscillator phase driver (single lightweight float for all cards)
+    // Continuous Simple Harmonic Oscillator phase driver so Sticky cards always wobble gently
     val infiniteTransition = rememberInfiniteTransition(label = "sticky_sho")
-    val shoPhase by if (heavyEffectsDisabled) {
-        remember { mutableFloatStateOf(0f) }
-    } else {
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = (2f * Math.PI).toFloat(),
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 4200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "sho_phase"
-        )
-    }
+    val shoPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "sho_phase"
+    )
 
     BoxWithConstraints(
         modifier = Modifier
@@ -211,8 +277,6 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     ) {
         val containerWidth = maxWidth
         val containerHeight = maxHeight
-        // On tablet, foldable, or mobile landscape where horizontal width >= vertical height of cards (or width >= 540.dp),
-        // arrange cards in the whole space like sticky notes on a wall (horizontally & vertically scrollable).
         val estimatedCardHeight = 220.dp
         val isWallMode = containerWidth >= containerHeight || containerWidth >= 560.dp || containerWidth >= (estimatedCardHeight * 2.1f)
 
@@ -254,7 +318,7 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             }
 
-            if (stickyNotes.isEmpty()) {
+            if (filteredStickyNotes.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -280,7 +344,11 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                             }
                         }
                         Text(
-                            text = if (isBn) "কোনো স্টিকি নোট নেই" else "No Sticky Notes Yet",
+                            text = if (selectedStickyTag != "ALL") {
+                                if (isBn) "#$selectedStickyTag ট্যাগে কোনো স্টিকি নোট নেই" else "No Sticky Notes in #$selectedStickyTag"
+                            } else {
+                                if (isBn) "কোনো স্টিকি নোট নেই" else "No Sticky Notes Yet"
+                            },
                             color = AppTextColor(),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -296,11 +364,20 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             } else if (isWallMode) {
                 // Wall Layout for Tablet / Foldable / Landscape:
-                // Horizontally and vertically scrollable wall where cards are arranged across rows and columns like sticky notes on a wall
+                // Columns do NOT start from the same top height so every card looks organically unaligned on the wall while still arranged in columns
                 val wallCardWidth = (containerWidth * (widthPercent / 100f) * 0.46f).coerceIn(220.dp, 340.dp)
                 val columnsPerRow = ((containerWidth.value / 240f).toInt().coerceAtLeast(3)).coerceAtMost(5)
-                val rows = remember(stickyNotes, columnsPerRow) {
-                    stickyNotes.chunked(columnsPerRow)
+                val columns = remember(filteredStickyNotes, columnsPerRow) {
+                    List(columnsPerRow) { colIdx ->
+                        filteredStickyNotes.mapIndexedNotNull { idx, item ->
+                            if (idx % columnsPerRow == colIdx) (idx to item) else null
+                        }
+                    }
+                }
+                val columnTopOffsets = remember { listOf(0.dp, 32.dp, 14.dp, 42.dp, 22.dp) }
+                val columnHorizontalShifts = remember(widthPercent) {
+                    val shiftScale = ((80 - widthPercent).coerceAtLeast(4)) / 24f
+                    listOf(0.dp, (10f * shiftScale).dp, (-6f * shiftScale).dp, (14f * shiftScale).dp, (-8f * shiftScale).dp)
                 }
                 val hScroll = rememberScrollState()
                 val vScroll = rememberScrollState()
@@ -312,71 +389,83 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                         .horizontalScroll(hScroll)
                         .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 110.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        rows.forEachIndexed { rowIndex, rowNotes ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                rowNotes.forEachIndexed { colIndex, note ->
-                                    val flatIndex = rowIndex * columnsPerRow + colIndex
-                                    StickyFloatingCard(
-                                        note = note,
-                                        index = flatIndex,
-                                        totalCount = stickyNotes.size,
-                                        shoPhase = shoPhase,
-                                        heavyEffectsDisabled = heavyEffectsDisabled,
-                                        maxPreviewLines = maxPreviewLines,
-                                        isReorderingThis = reorderingNoteId == note.id,
-                                        isAnyReordering = reorderingNoteId != null,
-                                        modifier = Modifier.width(wallCardWidth),
-                                        onClick = {
-                                            val activeReorderId = reorderingNoteId
-                                            if (activeReorderId != null) {
-                                                if (activeReorderId == note.id) {
-                                                    reorderingNoteId = null
-                                                } else {
-                                                    val mutable = stickyNotes.toMutableList()
-                                                    val fromIdx = mutable.indexOfFirst { it.id == activeReorderId }
-                                                    val toIdx = mutable.indexOfFirst { it.id == note.id }
-                                                    if (fromIdx != -1 && toIdx != -1) {
-                                                        val moved = mutable.removeAt(fromIdx)
-                                                        mutable.add(toIdx, moved)
-                                                        viewModel.reorderStickyNotes(mutable)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        columns.forEachIndexed { colIndex, colItems ->
+                            if (colItems.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier.padding(
+                                        top = columnTopOffsets[colIndex % columnTopOffsets.size],
+                                        start = columnHorizontalShifts[colIndex % columnHorizontalShifts.size].coerceAtLeast(0.dp)
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(22.dp)
+                                ) {
+                                    colItems.forEach { (flatIndex, note) ->
+                                        StickyFloatingCard(
+                                            note = note,
+                                            index = flatIndex,
+                                            totalCount = filteredStickyNotes.size,
+                                            shoPhase = shoPhase,
+                                            isBoldMode = isBoldMode,
+                                            maxPreviewLines = maxPreviewLines,
+                                            isReorderingThis = reorderingNoteId == note.id,
+                                            isAnyReordering = reorderingNoteId != null,
+                                            modifier = Modifier.width(wallCardWidth),
+                                            onTagClick = { clickedTag ->
+                                                viewModel.selectedStickyTag.value = clickedTag
+                                            },
+                                            onClick = {
+                                                val activeReorderId = reorderingNoteId
+                                                if (activeReorderId != null) {
+                                                    if (activeReorderId == note.id) {
+                                                        reorderingNoteId = null
+                                                    } else {
+                                                        val mutable = stickyNotes.toMutableList()
+                                                        val fromIdx = mutable.indexOfFirst { it.id == activeReorderId }
+                                                        val toIdx = mutable.indexOfFirst { it.id == note.id }
+                                                        if (fromIdx != -1 && toIdx != -1) {
+                                                            val moved = mutable.removeAt(fromIdx)
+                                                            mutable.add(toIdx, moved)
+                                                            viewModel.reorderStickyNotes(mutable)
+                                                        }
+                                                        reorderingNoteId = null
                                                     }
-                                                    reorderingNoteId = null
+                                                } else {
+                                                    openInEditMode = false
+                                                    selectedNoteForViewer = note
                                                 }
-                                            } else {
-                                                openInEditMode = false
-                                                selectedNoteForViewer = note
+                                            },
+                                            onThreeSecondLongPress = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                reorderingNoteId = if (reorderingNoteId == note.id) null else note.id
+                                                Toast.makeText(
+                                                    context,
+                                                    if (isBn) "পুনর্বিন্যাস মোড সক্রিয়" else "Rearrange mode enabled",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            },
+                                            onMovePrevious = {
+                                                val globalIdx = stickyNotes.indexOfFirst { it.id == note.id }
+                                                if (globalIdx > 0) {
+                                                    val mutable = stickyNotes.toMutableList()
+                                                    val item = mutable.removeAt(globalIdx)
+                                                    mutable.add(globalIdx - 1, item)
+                                                    viewModel.reorderStickyNotes(mutable)
+                                                }
+                                            },
+                                            onMoveNext = {
+                                                val globalIdx = stickyNotes.indexOfFirst { it.id == note.id }
+                                                if (globalIdx != -1 && globalIdx < stickyNotes.size - 1) {
+                                                    val mutable = stickyNotes.toMutableList()
+                                                    val item = mutable.removeAt(globalIdx)
+                                                    mutable.add(globalIdx + 1, item)
+                                                    viewModel.reorderStickyNotes(mutable)
+                                                }
                                             }
-                                        },
-                                        onThreeSecondLongPress = {
-                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            reorderingNoteId = if (reorderingNoteId == note.id) null else note.id
-                                            Toast.makeText(
-                                                context,
-                                                if (isBn) "পুনর্বিন্যাস মোড সক্রিয়" else "Rearrange mode enabled",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        onMovePrevious = {
-                                            if (flatIndex > 0) {
-                                                val mutable = stickyNotes.toMutableList()
-                                                val item = mutable.removeAt(flatIndex)
-                                                mutable.add(flatIndex - 1, item)
-                                                viewModel.reorderStickyNotes(mutable)
-                                            }
-                                        },
-                                        onMoveNext = {
-                                            if (flatIndex < stickyNotes.size - 1) {
-                                                val mutable = stickyNotes.toMutableList()
-                                                val item = mutable.removeAt(flatIndex)
-                                                mutable.add(flatIndex + 1, item)
-                                                viewModel.reorderStickyNotes(mutable)
-                                            }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -384,72 +473,83 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             } else {
                 // Portrait Mobile Layout:
-                // Vertically scrollable column where each card has fixed width = widthPercent (50%..80%) of screen width
+                // Wobbling cards arranged alternating leftward (even index) and rightward (odd index),
+                // where the left-right tendency is naturally controlled by cardWidthFraction (50%..80%).
                 val cardWidthFraction = (widthPercent / 100f).coerceIn(0.5f, 0.8f)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 110.dp, start = 16.dp, end = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    itemsIndexed(stickyNotes, key = { _, item -> item.id }) { index, note ->
-                        StickyFloatingCard(
-                            note = note,
-                            index = index,
-                            totalCount = stickyNotes.size,
-                            shoPhase = shoPhase,
-                            heavyEffectsDisabled = heavyEffectsDisabled,
-                            maxPreviewLines = maxPreviewLines,
-                            isReorderingThis = reorderingNoteId == note.id,
-                            isAnyReordering = reorderingNoteId != null,
-                            modifier = Modifier.fillMaxWidth(cardWidthFraction),
-                            onClick = {
-                                val activeReorderId = reorderingNoteId
-                                if (activeReorderId != null) {
-                                    if (activeReorderId == note.id) {
-                                        reorderingNoteId = null
-                                    } else {
-                                        val mutable = stickyNotes.toMutableList()
-                                        val fromIdx = mutable.indexOfFirst { it.id == activeReorderId }
-                                        val toIdx = mutable.indexOfFirst { it.id == note.id }
-                                        if (fromIdx != -1 && toIdx != -1) {
-                                            val moved = mutable.removeAt(fromIdx)
-                                            mutable.add(toIdx, moved)
-                                            viewModel.reorderStickyNotes(mutable)
+                    itemsIndexed(filteredStickyNotes, key = { _, item -> item.id }) { index, note ->
+                        val itemAlignment = if (index % 2 == 0) Alignment.CenterStart else Alignment.CenterEnd
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = itemAlignment
+                        ) {
+                            StickyFloatingCard(
+                                note = note,
+                                index = index,
+                                totalCount = filteredStickyNotes.size,
+                                shoPhase = shoPhase,
+                                isBoldMode = isBoldMode,
+                                maxPreviewLines = maxPreviewLines,
+                                isReorderingThis = reorderingNoteId == note.id,
+                                isAnyReordering = reorderingNoteId != null,
+                                modifier = Modifier.fillMaxWidth(cardWidthFraction),
+                                onTagClick = { clickedTag ->
+                                    viewModel.selectedStickyTag.value = clickedTag
+                                },
+                                onClick = {
+                                    val activeReorderId = reorderingNoteId
+                                    if (activeReorderId != null) {
+                                        if (activeReorderId == note.id) {
+                                            reorderingNoteId = null
+                                        } else {
+                                            val mutable = stickyNotes.toMutableList()
+                                            val fromIdx = mutable.indexOfFirst { it.id == activeReorderId }
+                                            val toIdx = mutable.indexOfFirst { it.id == note.id }
+                                            if (fromIdx != -1 && toIdx != -1) {
+                                                val moved = mutable.removeAt(fromIdx)
+                                                mutable.add(toIdx, moved)
+                                                viewModel.reorderStickyNotes(mutable)
+                                            }
+                                            reorderingNoteId = null
                                         }
-                                        reorderingNoteId = null
+                                    } else {
+                                        openInEditMode = false
+                                        selectedNoteForViewer = note
                                     }
-                                } else {
-                                    openInEditMode = false
-                                    selectedNoteForViewer = note
+                                },
+                                onThreeSecondLongPress = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    reorderingNoteId = if (reorderingNoteId == note.id) null else note.id
+                                    Toast.makeText(
+                                        context,
+                                        if (isBn) "পুনর্বিন্যাস মোড সক্রিয়" else "Rearrange mode enabled",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onMovePrevious = {
+                                    val globalIdx = stickyNotes.indexOfFirst { it.id == note.id }
+                                    if (globalIdx > 0) {
+                                        val mutable = stickyNotes.toMutableList()
+                                        val item = mutable.removeAt(globalIdx)
+                                        mutable.add(globalIdx - 1, item)
+                                        viewModel.reorderStickyNotes(mutable)
+                                    }
+                                },
+                                onMoveNext = {
+                                    val globalIdx = stickyNotes.indexOfFirst { it.id == note.id }
+                                    if (globalIdx != -1 && globalIdx < stickyNotes.size - 1) {
+                                        val mutable = stickyNotes.toMutableList()
+                                        val item = mutable.removeAt(globalIdx)
+                                        mutable.add(globalIdx + 1, item)
+                                        viewModel.reorderStickyNotes(mutable)
+                                    }
                                 }
-                            },
-                            onThreeSecondLongPress = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                reorderingNoteId = if (reorderingNoteId == note.id) null else note.id
-                                Toast.makeText(
-                                    context,
-                                    if (isBn) "পুনর্বিন্যাস মোড সক্রিয়" else "Rearrange mode enabled",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            onMovePrevious = {
-                                if (index > 0) {
-                                    val mutable = stickyNotes.toMutableList()
-                                    val item = mutable.removeAt(index)
-                                    mutable.add(index - 1, item)
-                                    viewModel.reorderStickyNotes(mutable)
-                                }
-                            },
-                            onMoveNext = {
-                                if (index < stickyNotes.size - 1) {
-                                    val mutable = stickyNotes.toMutableList()
-                                    val item = mutable.removeAt(index)
-                                    mutable.add(index + 1, item)
-                                    viewModel.reorderStickyNotes(mutable)
-                                }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -460,7 +560,8 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             onClick = {
                 isCreatingNewNote = true
                 openInEditMode = true
-                selectedNoteForViewer = StickyNoteEntity()
+                val defaultTag = if (selectedStickyTag != "ALL") selectedStickyTag else ""
+                selectedNoteForViewer = StickyNoteEntity(tags = defaultTag)
             },
             containerColor = AppAccentColor(),
             contentColor = AppOnAccentColor(),
@@ -489,11 +590,14 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
 
     // Full-Screen Sticky Note Viewer / Editor Dialog
     if (selectedNoteForViewer != null) {
+        val allExistingTags = remember(stickyNotes) { stickyNotes.flatMap { it.tagList }.distinct() }
         StickyNoteFullScreenDialog(
             note = selectedNoteForViewer!!,
             initialEditMode = openInEditMode || isCreatingNewNote,
             isNewNote = isCreatingNewNote,
             isBn = isBn,
+            isBoldMode = isBoldMode,
+            existingTags = allExistingTags,
             onDismiss = {
                 selectedNoteForViewer = null
                 isCreatingNewNote = false
@@ -529,11 +633,12 @@ private fun StickyFloatingCard(
     index: Int,
     totalCount: Int,
     shoPhase: Float,
-    heavyEffectsDisabled: Boolean,
+    isBoldMode: Boolean,
     maxPreviewLines: Int,
     isReorderingThis: Boolean,
     isAnyReordering: Boolean,
     modifier: Modifier = Modifier,
+    onTagClick: (String) -> Unit = {},
     onClick: () -> Unit,
     onThreeSecondLongPress: () -> Unit,
     onMovePrevious: () -> Unit,
@@ -543,11 +648,9 @@ private fun StickyFloatingCard(
     val cardBg = if (isLight) M3SurfaceContainerLight else M3SurfaceContainerDark
     val accent = AppAccentColor()
     val shape = RoundedCornerShape(22.dp)
-    val phaseOffset = remember(note.id, index) { (index * 1.15f) + (note.id * 0.45f) }
+    val phaseOffset = remember(note.id, index) { (index * 1.25f) + (note.id * 0.55f) }
 
     val hasTitle = note.title.isNotBlank()
-    val hasSubtitle = note.subtitle.isNotBlank()
-    val showHeaderDivider = hasTitle || hasSubtitle
     val textAlign = resolveTextAlign(note.textAlignment)
 
     val parsedElements = remember(note.bodyText) { parseStickyBodyElements(note.bodyText) }
@@ -555,11 +658,10 @@ private fun StickyFloatingCard(
     Box(
         modifier = modifier
             .graphicsLayer {
-                if (!heavyEffectsDisabled) {
-                    val angle = shoPhase + phaseOffset
-                    translationY = sin(angle) * 5.5f
-                    translationX = cos(angle * 0.5f) * 2.5f
-                }
+                val angle = shoPhase + phaseOffset
+                translationY = sin(angle) * 6.5f
+                translationX = cos(angle * 0.65f) * 3.5f
+                rotationZ = sin(angle * 0.5f) * 0.85f
                 if (isReorderingThis) {
                     scaleX = 1.03f
                     scaleY = 1.03f
@@ -585,20 +687,32 @@ private fun StickyFloatingCard(
             .pointerInput(note.id, isAnyReordering) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    var longPressTriggered = false
-                    val upOrCancel = withTimeoutOrNull(3000L) {
-                        waitForUpOrCancellation()
+                    val downPos = down.position
+                    val touchSlop = viewConfiguration.touchSlop
+                    var movedBeyondSlop = false
+                    var releasedEarly = false
+
+                    val timedOut = withTimeoutOrNull(3000L) {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                            if (change == null || !change.pressed) {
+                                releasedEarly = true
+                                break
+                            }
+                            if ((change.position - downPos).getDistance() > touchSlop) {
+                                movedBeyondSlop = true
+                                break
+                            }
+                        }
                     }
-                    if (upOrCancel == null) {
-                        // Held for 3 full seconds!
-                        longPressTriggered = true
+
+                    if (timedOut == null && !movedBeyondSlop && !releasedEarly) {
+                        // Held stationary for 3 full seconds without scrolling!
                         onThreeSecondLongPress()
                         waitForUpOrCancellation()
-                    } else if (!longPressTriggered) {
-                        val upPos = upOrCancel.position
-                        if ((upPos - down.position).getDistance() < viewConfiguration.touchSlop * 1.5f) {
-                            onClick()
-                        }
+                    } else if (releasedEarly && !movedBeyondSlop) {
+                        onClick()
                     }
                 }
             }
@@ -641,30 +755,15 @@ private fun StickyFloatingCard(
 
             if (hasTitle) {
                 Text(
-                    text = parseStickyRichText(note.title),
+                    text = parseStickyRichText(note.title, isBoldMode = isBoldMode, baseFontSizeSp = 17f),
                     color = AppTextColor(),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
-
-            if (hasSubtitle) {
-                if (hasTitle) Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = parseStickyRichText(note.subtitle),
-                    color = AppSecondaryTextColor(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            if (showHeaderDivider) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 10.dp),
+                    modifier = Modifier.padding(vertical = 8.dp),
                     color = getGlassBorder().copy(alpha = 0.65f)
                 )
             }
@@ -677,7 +776,7 @@ private fun StickyFloatingCard(
                     is StickyBodyElement.TextLine -> {
                         val lineText = element.text
                         Text(
-                            text = parseStickyRichText(lineText.ifEmpty { " " }),
+                            text = parseStickyRichText(lineText.ifEmpty { " " }, isBoldMode = isBoldMode, baseFontSizeSp = 13.5f),
                             color = AppTextColor().copy(alpha = 0.9f),
                             fontSize = 13.5.sp,
                             lineHeight = 19.sp,
@@ -686,7 +785,6 @@ private fun StickyFloatingCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        // Estimate consumed lines (at least 1 line per paragraph)
                         val estimatedUsed = ((lineText.length / 38) + 1).coerceAtLeast(1)
                         remainingLines -= estimatedUsed
                     }
@@ -696,6 +794,7 @@ private fun StickyFloatingCard(
                             StickyTableRenderedView(
                                 rows = visibleRows,
                                 isCompactPreview = true,
+                                isBoldMode = isBoldMode,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
@@ -706,13 +805,41 @@ private fun StickyFloatingCard(
                 }
             }
 
-            if (note.bodyText.isBlank() && !hasTitle && !hasSubtitle) {
+            if (note.bodyText.isBlank() && !hasTitle) {
                 Text(
                     text = "Empty sticky note",
                     color = AppSecondaryTextColor().copy(alpha = 0.6f),
                     fontSize = 13.sp,
                     fontStyle = FontStyle.Italic
                 )
+            }
+
+            // Custom Tag Chips on Card
+            if (note.tagList.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    note.tagList.forEach { tag ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = accent.copy(alpha = 0.14f),
+                            modifier = Modifier.clickable { onTagClick(tag) }
+                        ) {
+                            Text(
+                                text = "#$tag",
+                                color = accent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -722,12 +849,14 @@ private fun StickyFloatingCard(
 fun StickyTableRenderedView(
     rows: List<List<String>>,
     isCompactPreview: Boolean,
+    isBoldMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (rows.isEmpty()) return
     val colCount = rows.maxOfOrNull { it.size } ?: 1
     val borderColor = getGlassBorder()
     val headerBg = AppAccentColor().copy(alpha = 0.12f)
+    val fontSizeSp = if (isCompactPreview) 12f else 13.5f
 
     Column(
         modifier = modifier
@@ -746,9 +875,9 @@ fun StickyTableRenderedView(
                 for (c in 0 until colCount) {
                     val cellText = row.getOrElse(c) { "" }
                     Text(
-                        text = parseStickyRichText(cellText),
+                        text = parseStickyRichText(cellText, isBoldMode = isBoldMode, baseFontSizeSp = fontSizeSp),
                         color = AppTextColor(),
-                        fontSize = if (isCompactPreview) 12.sp else 13.5.sp,
+                        fontSize = fontSizeSp.sp,
                         fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
                         maxLines = if (isCompactPreview) 1 else 3,
                         overflow = TextOverflow.Ellipsis,
@@ -771,6 +900,8 @@ fun StickyNoteFullScreenDialog(
     initialEditMode: Boolean,
     isNewNote: Boolean,
     isBn: Boolean,
+    isBoldMode: Boolean = false,
+    existingTags: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (StickyNoteEntity) -> Unit,
     onMoveToTrash: (StickyNoteEntity) -> Unit
@@ -782,9 +913,18 @@ fun StickyNoteFullScreenDialog(
 
     var isEditing by remember { mutableStateOf(initialEditMode) }
     var title by remember(note.id) { mutableStateOf(note.title) }
-    var subtitle by remember(note.id) { mutableStateOf(note.subtitle) }
-    var bodyText by remember(note.id) { mutableStateOf(note.bodyText) }
+    var bodyFieldValue by remember(note.id) {
+        val mergedInitialBody = if (note.subtitle.isNotBlank() && !note.bodyText.contains(note.subtitle)) {
+            if (note.bodyText.isBlank()) note.subtitle else "${note.subtitle}\n${note.bodyText}"
+        } else {
+            note.bodyText
+        }
+        mutableStateOf(TextFieldValue(mergedInitialBody))
+    }
     var textAlignment by remember(note.id) { mutableStateOf(note.textAlignment) }
+    var tagsList by remember(note.id) { mutableStateOf(note.tagList) }
+    var showAddTagDialog by remember { mutableStateOf(false) }
+    var newTagInput by remember { mutableStateOf("") }
     var attachments by remember(note.id) {
         mutableStateOf(StickyAttachmentSerializer.deserialize(note.attachmentsJson))
     }
@@ -798,16 +938,20 @@ fun StickyNoteFullScreenDialog(
     var viewingPdfAttachment by remember { mutableStateOf<StickyAttachment?>(null) }
     var isProcessingAttachment by remember { mutableStateOf(false) }
 
+    fun buildUpdatedEntity(currentAttachments: List<StickyAttachment> = attachments): StickyNoteEntity {
+        return note.copy(
+            title = title.trim(),
+            subtitle = "",
+            bodyText = bodyFieldValue.text,
+            textAlignment = textAlignment,
+            tags = tagsList.joinToString(","),
+            attachmentsJson = StickyAttachmentSerializer.serialize(currentAttachments)
+        )
+    }
+
     fun persistAttachments(updatedList: List<StickyAttachment>) {
         attachments = updatedList
-        val updatedEntity = note.copy(
-            title = title.trim(),
-            subtitle = subtitle.trim(),
-            bodyText = bodyText,
-            textAlignment = textAlignment,
-            attachmentsJson = StickyAttachmentSerializer.serialize(updatedList)
-        )
-        onSave(updatedEntity)
+        onSave(buildUpdatedEntity(updatedList))
     }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -854,18 +998,13 @@ fun StickyNoteFullScreenDialog(
         }
     }
 
+    val isLight = isAppLightMode()
+    val plainSurfaceBg = if (isLight) M3SurfaceLight else M3SurfaceDark
+
     Dialog(
         onDismissRequest = {
-            if (isEditing && (title.isNotBlank() || subtitle.isNotBlank() || bodyText.isNotBlank() || attachments.isNotEmpty())) {
-                onSave(
-                    note.copy(
-                        title = title.trim(),
-                        subtitle = subtitle.trim(),
-                        bodyText = bodyText,
-                        textAlignment = textAlignment,
-                        attachmentsJson = StickyAttachmentSerializer.serialize(attachments)
-                    )
-                )
+            if (isEditing && (title.isNotBlank() || bodyFieldValue.text.isNotBlank() || attachments.isNotEmpty() || tagsList.isNotEmpty())) {
+                onSave(buildUpdatedEntity())
             }
             onDismiss()
         },
@@ -877,25 +1016,21 @@ fun StickyNoteFullScreenDialog(
         DialogEdgeToEdge()
         BackHandler {
             if (isEditing && !isNewNote) {
-                onSave(
-                    note.copy(
-                        title = title.trim(),
-                        subtitle = subtitle.trim(),
-                        bodyText = bodyText,
-                        textAlignment = textAlignment,
-                        attachmentsJson = StickyAttachmentSerializer.serialize(attachments)
-                    )
-                )
+                onSave(buildUpdatedEntity())
                 isEditing = false
             } else {
+                if (isEditing && (title.isNotBlank() || bodyFieldValue.text.isNotBlank() || attachments.isNotEmpty() || tagsList.isNotEmpty())) {
+                    onSave(buildUpdatedEntity())
+                }
                 onDismiss()
             }
         }
 
+        // Plain Material 3 background just like Google Keep (no inner cards for title/body)
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(getAppBackgroundGradient(LocalAppTheme.current))
+                .background(plainSurfaceBg)
                 .dialogSystemBarsPadding(extraTop = 8.dp)
                 .imePadding(),
             contentAlignment = Alignment.TopCenter
@@ -917,17 +1052,12 @@ fun StickyNoteFullScreenDialog(
                     IconButton(
                         onClick = {
                             if (isEditing && !isNewNote) {
-                                onSave(
-                                    note.copy(
-                                        title = title.trim(),
-                                        subtitle = subtitle.trim(),
-                                        bodyText = bodyText,
-                                        textAlignment = textAlignment,
-                                        attachmentsJson = StickyAttachmentSerializer.serialize(attachments)
-                                    )
-                                )
+                                onSave(buildUpdatedEntity())
                                 isEditing = false
                             } else {
+                                if (isEditing && (title.isNotBlank() || bodyFieldValue.text.isNotBlank() || attachments.isNotEmpty() || tagsList.isNotEmpty())) {
+                                    onSave(buildUpdatedEntity())
+                                }
                                 onDismiss()
                             }
                         },
@@ -962,15 +1092,7 @@ fun StickyNoteFullScreenDialog(
                         if (isEditing) {
                             Button(
                                 onClick = {
-                                    onSave(
-                                        note.copy(
-                                            title = title.trim(),
-                                            subtitle = subtitle.trim(),
-                                            bodyText = bodyText,
-                                            textAlignment = textAlignment,
-                                            attachmentsJson = StickyAttachmentSerializer.serialize(attachments)
-                                        )
-                                    )
+                                    onSave(buildUpdatedEntity())
                                     isEditing = false
                                 },
                                 colors = ButtonDefaults.buttonColors(
@@ -983,6 +1105,15 @@ fun StickyNoteFullScreenDialog(
                                 Icon(Icons.Default.Check, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(if (isBn) "সেভ" else "Save", color = AppOnAccentColor(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        } else {
+                            IconButton(
+                                onClick = { isEditing = true },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(getGlassIconButtonBg(), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AppTextColor(), modifier = Modifier.size(20.dp))
                             }
                         }
 
@@ -1019,6 +1150,19 @@ fun StickyNoteFullScreenDialog(
                                     onClick = {
                                         showMoreMenu = false
                                         isEditing = !isEditing
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (isBn) "ট্যাগ যোগ করুন (Add Tag)" else "Add Tag",
+                                            color = AppTextColor(),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        showAddTagDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -1061,200 +1205,225 @@ fun StickyNoteFullScreenDialog(
                     )
                 }
 
-                // Scrollable Content Area
+                // Google Keep-style Plain Scrollable Canvas (Title + Tag Chips + Body, NO separate cards)
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (isEditing) {
-                        // Formatting & Alignment Toolbar
-                        GlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    // Tag Chips Row (Editable in Edit Mode, Viewable in Viewer Mode)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        tagsList.forEach { tag ->
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = AppAccentColor().copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f))
                             ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    // Bold syntax helper
-                                    AssistChip(
-                                        onClick = { bodyText = if (bodyText.isEmpty()) "*bold*" else "$bodyText *bold*" },
-                                        label = { Text("*Bold*", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                                    Text(
+                                        text = "#$tag",
+                                        color = AppAccentColor(),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    // Italic syntax helper
-                                    AssistChip(
-                                        onClick = { bodyText = if (bodyText.isEmpty()) "-italic-" else "$bodyText -italic-" },
-                                        label = { Text("-Italic-", fontStyle = FontStyle.Italic, fontSize = 12.sp) }
-                                    )
-                                    // Interactive Table Builder
-                                    AssistChip(
-                                        onClick = { showTableBuilder = true },
-                                        leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                        label = { Text(if (isBn) "+ টেবিল" else "+ Table", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                                    )
-                                    // Attach File helper
-                                    AssistChip(
-                                        onClick = { showAttachTypeSheet = true },
-                                        leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                        label = { Text(if (isBn) "ফাইল" else "Attach", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                                    )
-                                }
-
-                                // Paragraph Alignment Selector: Left, Center, Right, Justify
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    listOf(
-                                        Triple("START", if (isBn) "বাম" else "Left", Icons.Default.FormatAlignLeft),
-                                        Triple("CENTER", if (isBn) "মাঝে" else "Center", Icons.Default.FormatAlignCenter),
-                                        Triple("END", if (isBn) "ডান" else "Right", Icons.Default.FormatAlignRight),
-                                        Triple("JUSTIFY", if (isBn) "জাস্টিফাই" else "Justify", Icons.Default.FormatAlignJustify)
-                                    ).forEach { (alignKey, label, icon) ->
-                                        val selected = textAlignment.equals(alignKey, ignoreCase = true)
-                                        Surface(
+                                    if (isEditing) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove Tag",
+                                            tint = AppAccentColor(),
                                             modifier = Modifier
-                                                .weight(1f)
-                                                .height(38.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .clickable { textAlignment = alignKey },
-                                            color = if (selected) AppAccentColor().copy(alpha = 0.18f) else getGlassIconButtonBg(),
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxSize(),
-                                                horizontalArrangement = Arrangement.Center,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = icon,
-                                                    contentDescription = label,
-                                                    tint = if (selected) AppAccentColor() else AppTextColor().copy(alpha = 0.7f),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = label,
-                                                    color = if (selected) AppAccentColor() else AppTextColor().copy(alpha = 0.8f),
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                                )
-                                            }
-                                        }
+                                                .size(14.dp)
+                                                .clickable { tagsList = tagsList.filterNot { it == tag } }
+                                        )
                                     }
                                 }
                             }
                         }
+                        if (isEditing) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = getGlassIconButtonBg(),
+                                border = BorderStroke(1.dp, getGlassBorder()),
+                                modifier = Modifier.clickable { showAddTagDialog = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = AppSecondaryTextColor(), modifier = Modifier.size(14.dp))
+                                    Text(
+                                        text = if (isBn) "+ ট্যাগ যোগ" else "+ Add Tag",
+                                        color = AppSecondaryTextColor(),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
 
-                        // Always show Title, Subtitle, and Body fields in Edit mode
-                        GlassTextField(
+                    val align = resolveTextAlign(textAlignment)
+
+                    if (isEditing) {
+                        // Plain Google Keep-style Title Input (No card border)
+                        BasicTextField(
                             value = title,
                             onValueChange = { title = it },
-                            label = { Text(if (isBn) "শিরোনাম (Title - ঐচ্ছিক)" else "Title (Optional)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        GlassTextField(
-                            value = subtitle,
-                            onValueChange = { subtitle = it },
-                            label = { Text(if (isBn) "উপশিরোনাম (Subtitle - ঐচ্ছিক)" else "Subtitle (Optional)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        GlassTextField(
-                            value = bodyText,
-                            onValueChange = { bodyText = it },
-                            label = {
-                                Text(
-                                    if (isBn) "নোটের বিস্তারিত (*bold*, -italic-, অথবা | A | B | টেবিল)"
-                                    else "Note Body (*bold*, -italic-, or | Col 1 | Col 2 | table)"
-                                )
-                            },
+                            textStyle = TextStyle(
+                                color = AppTextColor(),
+                                fontSize = 23.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = if (isBoldMode) ArchivoBlackFontFamily else FontFamily.Default
+                            ),
+                            cursorBrush = SolidColor(AppAccentColor()),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 220.dp),
-                            singleLine = false
+                                .padding(vertical = 4.dp),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (title.isEmpty()) {
+                                        Text(
+                                            text = if (isBn) "শিরোনাম (Title)" else "Title",
+                                            color = AppSecondaryTextColor().copy(alpha = 0.55f),
+                                            fontSize = 23.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
                         )
+
+                        // Plain Google Keep-style Body Input (No card border)
+                        BasicTextField(
+                            value = bodyFieldValue,
+                            onValueChange = { bodyFieldValue = it },
+                            textStyle = TextStyle(
+                                color = AppTextColor(),
+                                fontSize = 16.sp,
+                                lineHeight = 24.sp,
+                                textAlign = align,
+                                fontFamily = if (isBoldMode) StickyBoldBaseFontFamily else FontFamily.Default,
+                                fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            cursorBrush = SolidColor(AppAccentColor()),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 320.dp)
+                                .padding(vertical = 4.dp),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (bodyFieldValue.text.isEmpty()) {
+                                        Text(
+                                            text = if (isBn) "নোট লিখুন... (*বোল্ড*, -ইটালিক-, অথবা নিচে টেবিল/ফাইল আইকন ব্যবহার করুন)" else "Note... (Use *bold*, -italic-, or the 8 formatting icons below)",
+                                            color = AppSecondaryTextColor().copy(alpha = 0.5f),
+                                            fontSize = 16.sp,
+                                            lineHeight = 24.sp
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        // Live formatted preview of *bold*, -italic-, and | tables | while editing
+                        if (bodyFieldValue.text.contains("*") || bodyFieldValue.text.contains("-") || bodyFieldValue.text.contains("|")) {
+                            HorizontalDivider(color = getGlassBorder().copy(alpha = 0.5f), modifier = Modifier.padding(top = 8.dp))
+                            Text(
+                                text = if (isBn) "ফরম্যাট প্রিভিউ:" else "Formatted Preview:",
+                                color = AppAccentColor(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val previewElements = remember(bodyFieldValue.text) { parseStickyBodyElements(bodyFieldValue.text) }
+                            previewElements.forEach { el ->
+                                when (el) {
+                                    is StickyBodyElement.TextLine -> {
+                                        Text(
+                                            text = parseStickyRichText(el.text.ifEmpty { " " }, isBoldMode = isBoldMode, baseFontSizeSp = 15f),
+                                            color = AppTextColor(),
+                                            fontSize = 15.sp,
+                                            lineHeight = 22.sp,
+                                            textAlign = align,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    is StickyBodyElement.TableBlock -> {
+                                        StickyTableRenderedView(
+                                            rows = el.rows,
+                                            isCompactPreview = false,
+                                            isBoldMode = isBoldMode,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     } else {
-                        // Viewer Mode
-                        GlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp)
-                            ) {
-                                val hasTitle = title.isNotBlank()
-                                val hasSubtitle = subtitle.isNotBlank()
-                                val showDivider = hasTitle || hasSubtitle
-                                val align = resolveTextAlign(textAlignment)
+                        // Plain Google Keep-style Viewer Mode (no card container)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isEditing = true }
+                                .padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (title.isNotBlank()) {
+                                Text(
+                                    text = parseStickyRichText(title, isBoldMode = isBoldMode, baseFontSizeSp = 23f),
+                                    color = AppTextColor(),
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
 
-                                if (hasTitle) {
-                                    Text(
-                                        text = parseStickyRichText(title),
-                                        color = AppTextColor(),
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                if (hasSubtitle) {
-                                    if (hasTitle) Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = parseStickyRichText(subtitle),
-                                        color = AppSecondaryTextColor(),
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                if (showDivider) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 14.dp),
-                                        color = getGlassBorder()
-                                    )
-                                }
-
-                                val elements = remember(bodyText) { parseStickyBodyElements(bodyText) }
-                                if (elements.isEmpty()) {
-                                    Text(
-                                        text = if (isBn) "কোনো লেখা নেই। সম্পাদনা করতে উপরে ⋮ মেনু থেকে Edit নির্বাচন করুন।" else "No text content. Tap Edit from the top-right menu to write.",
-                                        color = AppSecondaryTextColor(),
-                                        fontSize = 14.sp,
-                                        fontStyle = FontStyle.Italic
-                                    )
-                                } else {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        elements.forEach { el ->
-                                            when (el) {
-                                                is StickyBodyElement.TextLine -> {
-                                                    Text(
-                                                        text = parseStickyRichText(el.text.ifEmpty { " " }),
-                                                        color = AppTextColor(),
-                                                        fontSize = 15.sp,
-                                                        lineHeight = 22.sp,
-                                                        textAlign = align,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                    )
-                                                }
-                                                is StickyBodyElement.TableBlock -> {
-                                                    StickyTableRenderedView(
-                                                        rows = el.rows,
-                                                        isCompactPreview = false,
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(vertical = 4.dp)
-                                                    )
-                                                }
+                            val elements = remember(bodyFieldValue.text) { parseStickyBodyElements(bodyFieldValue.text) }
+                            if (elements.isEmpty()) {
+                                Text(
+                                    text = if (isBn) "কোনো লেখা নেই। লিখতে এখানে ট্যাপ করুন।" else "No text content. Tap anywhere to start writing.",
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 15.sp,
+                                    fontStyle = FontStyle.Italic
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    elements.forEach { el ->
+                                        when (el) {
+                                            is StickyBodyElement.TextLine -> {
+                                                Text(
+                                                    text = parseStickyRichText(el.text.ifEmpty { " " }, isBoldMode = isBoldMode, baseFontSizeSp = 16f),
+                                                    color = AppTextColor(),
+                                                    fontSize = 16.sp,
+                                                    lineHeight = 24.sp,
+                                                    textAlign = align,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                            is StickyBodyElement.TableBlock -> {
+                                                StickyTableRenderedView(
+                                                    rows = el.rows,
+                                                    isCompactPreview = false,
+                                                    isBoldMode = isBoldMode,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 4.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -1268,7 +1437,7 @@ fun StickyNoteFullScreenDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp, bottom = 24.dp),
+                                .padding(top = 12.dp, bottom = 24.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
@@ -1307,8 +1476,194 @@ fun StickyNoteFullScreenDialog(
                         }
                     }
                 }
+
+                // Single-Line 8-Icon Bottom Formatting Toolbar (Mobile & Tablet Optimized)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .then(if (isTablet) Modifier.widthIn(max = 540.dp) else Modifier.fillMaxWidth()),
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isLight) M3SurfaceContainerLight else M3SurfaceContainerDark,
+                        shadowElevation = 6.dp,
+                        border = BorderStroke(1.dp, getGlassBorder())
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val accent = AppAccentColor()
+                            // 1. Bold (*text*)
+                            IconButton(
+                                onClick = {
+                                    isEditing = true
+                                    bodyFieldValue = applyInlineFormatting(bodyFieldValue, "*", "bold")
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(Icons.Default.FormatBold, contentDescription = "Bold", tint = AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 2. Italic (-text-)
+                            IconButton(
+                                onClick = {
+                                    isEditing = true
+                                    bodyFieldValue = applyInlineFormatting(bodyFieldValue, "-", "italic")
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Text(
+                                    text = "I",
+                                    color = AppTextColor(),
+                                    fontSize = 18.sp,
+                                    fontStyle = FontStyle.Italic,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Serif
+                                )
+                            }
+                            // 3. Align Left
+                            val isLeft = textAlignment.equals("START", ignoreCase = true)
+                            IconButton(
+                                onClick = { textAlignment = "START" },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isLeft) accent.copy(alpha = 0.18f) else Color.Transparent)
+                            ) {
+                                Icon(Icons.Default.FormatAlignLeft, contentDescription = "Align Left", tint = if (isLeft) accent else AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 4. Align Center
+                            val isCenter = textAlignment.equals("CENTER", ignoreCase = true)
+                            IconButton(
+                                onClick = { textAlignment = "CENTER" },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isCenter) accent.copy(alpha = 0.18f) else Color.Transparent)
+                            ) {
+                                Icon(Icons.Default.FormatAlignCenter, contentDescription = "Align Center", tint = if (isCenter) accent else AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 5. Align Right
+                            val isRight = textAlignment.equals("END", ignoreCase = true)
+                            IconButton(
+                                onClick = { textAlignment = "END" },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isRight) accent.copy(alpha = 0.18f) else Color.Transparent)
+                            ) {
+                                Icon(Icons.Default.FormatAlignRight, contentDescription = "Align Right", tint = if (isRight) accent else AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 6. Align Justify
+                            val isJustify = textAlignment.equals("JUSTIFY", ignoreCase = true)
+                            IconButton(
+                                onClick = { textAlignment = "JUSTIFY" },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isJustify) accent.copy(alpha = 0.18f) else Color.Transparent)
+                            ) {
+                                Icon(Icons.Default.FormatAlignJustify, contentDescription = "Align Justify", tint = if (isJustify) accent else AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 7. Insert Table
+                            IconButton(
+                                onClick = {
+                                    isEditing = true
+                                    showTableBuilder = true
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(Icons.Default.TableChart, contentDescription = "Insert Table", tint = AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                            // 8. Attach File
+                            IconButton(
+                                onClick = { showAttachTypeSheet = true },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(Icons.Default.AttachFile, contentDescription = "Attach File", tint = AppTextColor(), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // Add Custom Tag Dialog
+    if (showAddTagDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddTagDialog = false },
+            containerColor = getDialogBackground(),
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    if (isBn) "কাস্টম ট্যাগ যোগ করুন" else "Add Custom Tag",
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GlassTextField(
+                        value = newTagInput,
+                        onValueChange = { newTagInput = it.replace(",", "") },
+                        label = { Text(if (isBn) "ট্যাগের নাম (যেমন: বাজার, হিসাব)" else "Tag name (e.g. Work, Urgent)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val suggestions = existingTags.filter { it !in tagsList }
+                    if (suggestions.isNotEmpty()) {
+                        Text(
+                            text = if (isBn) "বিদ্যমান ট্যাগসমূহ:" else "Existing Tags:",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 12.sp
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            suggestions.forEach { sug ->
+                                AssistChip(
+                                    onClick = {
+                                        if (sug !in tagsList) tagsList = tagsList + sug
+                                        showAddTagDialog = false
+                                    },
+                                    label = { Text("#$sug", fontSize = 12.sp) }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleaned = newTagInput.trim().removePrefix("#")
+                        if (cleaned.isNotBlank() && cleaned !in tagsList) {
+                            tagsList = tagsList + cleaned
+                        }
+                        newTagInput = ""
+                        showAddTagDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor())
+                ) {
+                    Text(if (isBn) "যোগ করুন" else "Add", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddTagDialog = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel", color = AppSecondaryTextColor())
+                }
+            }
+        )
     }
 
     // Attach File Type Picker Dialog (Image <=1MB auto-compressed up to 10MB, PDF <=1MB)
@@ -1340,12 +1695,12 @@ fun StickyNoteFullScreenDialog(
                             imagePickerLauncher.launch("image/*")
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Image, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.Image, contentDescription = null, tint = AppOnAccentColor())
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isBn) "ছবি নির্বাচন করুন (Image)" else "Attach Image (Up to 10 MB)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (isBn) "ছবি নির্বাচন করুন (Image)" else "Attach Image (Up to 10 MB)", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
                         onClick = {
@@ -1375,7 +1730,9 @@ fun StickyNoteFullScreenDialog(
             isBn = isBn,
             onDismiss = { showTableBuilder = false },
             onInsertTable = { tableMarkdown ->
-                bodyText = if (bodyText.isBlank()) tableMarkdown else "$bodyText\n$tableMarkdown"
+                val cur = bodyFieldValue.text
+                val newText = if (cur.isBlank()) tableMarkdown else "$cur\n$tableMarkdown"
+                bodyFieldValue = TextFieldValue(text = newText, selection = TextRange(newText.length))
                 showTableBuilder = false
             }
         )

@@ -273,6 +273,17 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
         viewModel.registerSubScreen("UtilConfig", showUtilConfig)
     }
 
+    val stickyNotes by viewModel.allStickyNotes.collectAsStateWithLifecycle()
+    val selectedStickyTag by viewModel.selectedStickyTag.collectAsStateWithLifecycle()
+    val allStickyTags = remember(stickyNotes) {
+        stickyNotes.flatMap { it.tagList }.distinct()
+    }
+    LaunchedEffect(allStickyTags, selectedStickyTag) {
+        if (selectedStickyTag != "ALL" && selectedStickyTag !in allStickyTags) {
+            viewModel.selectedStickyTag.value = "ALL"
+        }
+    }
+
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isTablet = configuration.screenWidthDp >= 600
@@ -292,6 +303,9 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                     GlassHeader(
                         userProfile = userProfile,
                         showGreeting = activeTab != "Sticky",
+                        stickyTags = allStickyTags,
+                        selectedStickyTag = selectedStickyTag,
+                        onStickyTagSelected = { viewModel.selectedStickyTag.value = it },
                         onSettingsClicked = { showSettings = true },
                         onSearchClicked = { showSearch = true },
                         onProfileClicked = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile) },
@@ -322,6 +336,9 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                 GlassHeader(
                     userProfile = userProfile,
                     showGreeting = activeTab != "Sticky",
+                    stickyTags = allStickyTags,
+                    selectedStickyTag = selectedStickyTag,
+                    onStickyTagSelected = { viewModel.selectedStickyTag.value = it },
                     onSettingsClicked = { showSettings = true },
                     onSearchClicked = { showSearch = true },
                     onProfileClicked = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile) },
@@ -424,6 +441,9 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
 fun GlassHeader(
     userProfile: UserProfileEntity,
     showGreeting: Boolean = true,
+    stickyTags: List<String> = emptyList(),
+    selectedStickyTag: String = "ALL",
+    onStickyTagSelected: (String) -> Unit = {},
     onSettingsClicked: () -> Unit,
     onSearchClicked: () -> Unit,
     onProfileClicked: () -> Unit,
@@ -440,6 +460,50 @@ fun GlassHeader(
     }
     val isGlass = isLiquidGlassEnabled()
     val isLight = isAppLightMode()
+    val isBn = userProfile.language == "bn"
+    val appAccent = AppAccentColor()
+
+    @Composable
+    fun StickyTagFilterRow(modifier: Modifier = Modifier) {
+        val tagOptions = remember(stickyTags, isBn) {
+            listOf("ALL" to (if (isBn) "সব (All)" else "All")) + stickyTags.map { it to it }
+        }
+        Row(
+            modifier = modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tagOptions.forEach { (tagKey, label) ->
+                val isSelected = selectedStickyTag.equals(tagKey, ignoreCase = true)
+                val chipBg = if (isSelected) appAccent else getGlassIconButtonBg()
+                val chipFg = if (isSelected) AppOnAccentColor(appAccent) else AppTextColor().copy(alpha = 0.85f)
+                Surface(
+                    modifier = Modifier
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(17.dp))
+                        .clickable { onStickyTagSelected(tagKey) },
+                    shape = RoundedCornerShape(17.dp),
+                    color = chipBg,
+                    border = if (isSelected) null else BorderStroke(1.dp, getGlassBorder())
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (tagKey == "ALL") label else "#$label",
+                            color = chipFg,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     if (!isGlass) {
         // Material 3 Solid Docked App Bar
@@ -455,7 +519,7 @@ fun GlassHeader(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (showGreeting) Arrangement.SpaceBetween else Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 if (showGreeting) {
                     Row(
@@ -470,7 +534,6 @@ fun GlassHeader(
                             .padding(vertical = 2.dp, horizontal = 4.dp)
                     ) {
                         Column {
-                            val appAccent = AppAccentColor()
                             if (userProfile.name.isNotBlank()) {
                                 Text(
                                     text = greeting,
@@ -497,6 +560,8 @@ fun GlassHeader(
                             }
                         }
                     }
+                } else {
+                    StickyTagFilterRow(modifier = Modifier.weight(1f))
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -536,7 +601,7 @@ fun GlassHeader(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (showGreeting) Arrangement.SpaceBetween else Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 if (showGreeting) {
                     Row(
@@ -577,6 +642,8 @@ fun GlassHeader(
                             }
                         }
                     }
+                } else {
+                    StickyTagFilterRow(modifier = Modifier.weight(1f))
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {

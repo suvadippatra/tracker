@@ -84,11 +84,26 @@ interface MenuDao {
     @Query("SELECT * FROM menu_items WHERE hotelId = :hotelId AND isDeleted = 1 ORDER BY id ASC")
     fun getDeletedMenuForHotel(hotelId: Int): Flow<List<MenuEntity>>
 
+    @Query("SELECT * FROM menu_items WHERE isDeleted = 1 ORDER BY id DESC")
+    fun getAllDeletedMenuItems(): Flow<List<MenuEntity>>
+
+    @Query("DELETE FROM menu_items WHERE isDeleted = 1")
+    suspend fun emptyDeletedMenuItemsPermanently()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMenuItems(menuItems: List<MenuEntity>)
 
     @Query("DELETE FROM menu_items")
     suspend fun deleteAllMenuItems()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity): Long
+
+    @Query("SELECT * FROM menu_modification_history WHERE menuItemId = :menuItemId ORDER BY modifiedAt DESC")
+    fun getHistoryForMenuItem(menuItemId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>>
+
+    @Query("SELECT * FROM menu_modification_history WHERE hotelId = :hotelId ORDER BY modifiedAt DESC")
+    fun getHistoryForHotel(hotelId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>>
 }
 
 @Dao
@@ -249,6 +264,12 @@ interface MeterDao {
     @Query("SELECT * FROM utility_bills WHERE isDeleted = 1 ORDER BY startDate DESC")
     fun getDeletedUtilityBills(): Flow<List<UtilityBill>>
 
+    @Query("UPDATE utility_bills SET isDeleted = 1, lastUpdatedMillis = :ts WHERE id = :id")
+    suspend fun softDeleteUtilityBill(id: String, ts: Long = System.currentTimeMillis())
+
+    @Query("UPDATE utility_bills SET isDeleted = 0, lastUpdatedMillis = :ts WHERE id = :id")
+    suspend fun restoreUtilityBill(id: String, ts: Long = System.currentTimeMillis())
+
     @Delete
     suspend fun deleteReading(reading: MeterReading)
 
@@ -258,11 +279,23 @@ interface MeterDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertElectricityRate(rate: com.example.data.model.ElectricityRate)
 
-    @Query("SELECT * FROM electricity_rates ORDER BY effectiveDate DESC")
+    @Query("SELECT * FROM electricity_rates WHERE isDeleted = 0 ORDER BY effectiveDate DESC")
     fun getAllElectricityRates(): Flow<List<com.example.data.model.ElectricityRate>>
 
-    @Query("SELECT * FROM electricity_rates ORDER BY effectiveDate DESC")
+    @Query("SELECT * FROM electricity_rates WHERE isDeleted = 0 ORDER BY effectiveDate DESC")
     suspend fun getAllElectricityRatesSync(): List<com.example.data.model.ElectricityRate>
+
+    @Query("SELECT * FROM electricity_rates WHERE isDeleted = 1 ORDER BY effectiveDate DESC")
+    fun getDeletedElectricityRates(): Flow<List<com.example.data.model.ElectricityRate>>
+
+    @Query("UPDATE electricity_rates SET isDeleted = 1, lastUpdatedMillis = :ts WHERE id = :id")
+    suspend fun softDeleteElectricityRate(id: String, ts: Long = System.currentTimeMillis())
+
+    @Query("UPDATE electricity_rates SET isDeleted = 0, lastUpdatedMillis = :ts WHERE id = :id")
+    suspend fun restoreElectricityRate(id: String, ts: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM electricity_rates WHERE isDeleted = 1")
+    suspend fun emptyDeletedElectricityRatesPermanently()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertElectricityRates(rates: List<com.example.data.model.ElectricityRate>)
@@ -300,11 +333,14 @@ interface AttachmentDao {
 
 @Dao
 interface OwnerAccountDao {
-    @Query("SELECT * FROM owner_accounts ORDER BY id ASC")
+    @Query("SELECT * FROM owner_accounts WHERE isDeleted = 0 ORDER BY id ASC")
     fun getAllOwnerAccounts(): Flow<List<com.example.data.model.OwnerAccountEntity>>
 
-    @Query("SELECT * FROM owner_accounts ORDER BY id ASC")
+    @Query("SELECT * FROM owner_accounts WHERE isDeleted = 0 ORDER BY id ASC")
     suspend fun getAllOwnerAccountsSync(): List<com.example.data.model.OwnerAccountEntity>
+
+    @Query("SELECT * FROM owner_accounts WHERE isDeleted = 1 ORDER BY id DESC")
+    fun getDeletedOwnerAccounts(): Flow<List<com.example.data.model.OwnerAccountEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOwnerAccount(account: com.example.data.model.OwnerAccountEntity): Long
