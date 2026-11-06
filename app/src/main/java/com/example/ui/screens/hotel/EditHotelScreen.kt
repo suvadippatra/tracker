@@ -93,8 +93,7 @@ fun EditHotelModal(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset))
-                        .pointerInput(Unit) { detectTapGestures { } },
+                        .background(com.example.ui.components.getAppBackgroundGradient(themeMode, bgPreset)),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     if (customBgUri.isNotBlank()) {
@@ -386,25 +385,112 @@ fun EditHotelModal(
                             }
 
                             if (hotel != null) {
+                                val allMenus by viewModel.allHotelMenus.collectAsStateWithLifecycle()
+                                val hotelMenus = remember(allMenus, hotel.id) {
+                                    allMenus.filter { it.hotelId == hotel.id && !it.isDeleted }
+                                }
+                                var showInlineAddMenu by remember { mutableStateOf(false) }
+
+                                if (showInlineAddMenu) {
+                                    AddMenuItemDialog(
+                                        hotelId = hotel.id,
+                                        onDismiss = { showInlineAddMenu = false },
+                                        onSave = { newItem ->
+                                            viewModel.addMenu(newItem)
+                                            showInlineAddMenu = false
+                                        }
+                                    )
+                                }
+
                                 Spacer(modifier = Modifier.height(32.dp))
                                 HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f))
                                 Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    text = if (isBengali) "মেনু পরিচালনা" else "Menu Management",
-                                    color = AppTextColor(),
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isBengali) "এই হোটেলের সমস্ত খাবার আইটেম, বিভাগ এবং দাম পরিচালনা করুন।" else "Manage and edit all food items, categories, and prices for this hotel.",
-                                    color = AppTextColor().copy(alpha = 0.6f),
-                                    fontSize = 13.sp,
-                                    lineHeight = 18.sp
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (isBengali) "মেনু পরিচালনা (${hotelMenus.size})" else "Menu Items (${hotelMenus.size})",
+                                            color = AppTextColor(),
+                                            fontSize = 19.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (isBengali) "এখান থেকেই সরাসরি খাবার ও নতুন দামের তারিখ এডিট করুন।" else "Edit dishes & price effective dates directly alongside hotel details.",
+                                            color = AppTextColor().copy(alpha = 0.6f),
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    FilledTonalButton(
+                                        onClick = { showInlineAddMenu = true },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = AppAccentColor().copy(alpha = 0.16f),
+                                            contentColor = AppAccentColor()
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (isBengali) "আইটেম যোগ" else "Add Dish", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                if (hotelMenus.isNotEmpty()) {
+                                    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            hotelMenus.forEachIndexed { idx, item ->
+                                                MenuTableRow(
+                                                    item = item,
+                                                    onSave = { updatedItem, effectiveDate ->
+                                                        viewModel.updateMenu(updatedItem, effectiveDate)
+                                                    },
+                                                    onViewHistory = {
+                                                        val adv = editHotelAdvanced.toDoubleOrNull() ?: 0.0
+                                                        val updatedHotel = hotel.copy(
+                                                            name = editHotelName.ifBlank { hotel.name },
+                                                            advancedPayment = adv,
+                                                            phoneNumber = editPhone,
+                                                            location = editLocation,
+                                                            upiId = editUpiId,
+                                                            qrCodeUri = editQrCodeUris.joinToString(","),
+                                                            notes = editNotes,
+                                                            whatsappNumber = editWhatsapp
+                                                        )
+                                                        viewModel.editHotel(updatedHotel)
+                                                        onManageMenu(updatedHotel)
+                                                    },
+                                                    onDelete = { viewModel.deleteMenu(item) }
+                                                )
+                                                if (idx < hotelMenus.lastIndex) {
+                                                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.06f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                }
+
                                 Button(
-                                    onClick = { onManageMenu(hotel) },
+                                    onClick = {
+                                        val adv = editHotelAdvanced.toDoubleOrNull() ?: 0.0
+                                        val updatedHotel = hotel.copy(
+                                            name = editHotelName.ifBlank { hotel.name },
+                                            advancedPayment = adv,
+                                            phoneNumber = editPhone,
+                                            location = editLocation,
+                                            upiId = editUpiId,
+                                            qrCodeUri = editQrCodeUris.joinToString(","),
+                                            notes = editNotes,
+                                            whatsappNumber = editWhatsapp
+                                        )
+                                        viewModel.editHotel(updatedHotel)
+                                        onManageMenu(updatedHotel)
+                                    },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .defaultMinSize(minHeight = 52.dp)
@@ -419,7 +505,7 @@ fun EditHotelModal(
                                     Icon(Icons.Default.RestaurantMenu, contentDescription = "Manage Menu", tint = AppOnAccentColor())
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        text = if (isBengali) "মেনু এডিটর খুলুন" else "Open Menu Editor",
+                                        text = if (isBengali) "সম্পূর্ণ মেনু এডিটর ও ইতিহাস খুলুন" else "Open Full Menu Editor & Price History",
                                         color = AppOnAccentColor(),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp

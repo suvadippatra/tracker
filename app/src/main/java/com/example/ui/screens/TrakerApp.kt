@@ -208,7 +208,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
     val isLight = if (userProfile.themeMode == "Auto") !androidx.compose.foundation.isSystemInDarkTheme() else userProfile.themeMode == "Light"
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
-        androidx.compose.runtime.SideEffect {
+        LaunchedEffect(isLight) {
             var context = view.context
             while (context is android.content.ContextWrapper) {
                 if (context is android.app.Activity) break
@@ -315,7 +315,13 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                     MenuManagementScreen(
                                         hotel = state.hotel,
                                         viewModel = viewModel,
-                                        onBack = { viewModel.closeRootOverlay() }
+                                        onBack = {
+                                            if (state.returnToEditHotel) {
+                                                viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(state.hotel))
+                                            } else {
+                                                viewModel.closeRootOverlay()
+                                            }
+                                        }
                                     )
                                 }
                                 is com.example.ui.viewmodel.RootOverlayState.EditHotel -> {
@@ -323,7 +329,14 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                         hotel = state.hotel,
                                         viewModel = viewModel,
                                         onDismiss = { viewModel.closeRootOverlay() },
-                                        onManageMenu = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.ManageMenu(it)) }
+                                        onManageMenu = {
+                                            viewModel.showRootOverlay(
+                                                com.example.ui.viewmodel.RootOverlayState.ManageMenu(
+                                                    hotel = it,
+                                                    returnToEditHotel = true
+                                                )
+                                            )
+                                        }
                                     )
                                 }
                                 is com.example.ui.viewmodel.RootOverlayState.OwnerProfile -> {

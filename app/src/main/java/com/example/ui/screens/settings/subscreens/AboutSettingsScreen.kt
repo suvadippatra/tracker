@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.ui.components.*
 import com.example.ui.screens.LegalInfoDialog
 import com.example.ui.screens.settings.components.PixelSettingsGroup
@@ -53,19 +54,15 @@ fun AboutSettingsScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val prefLanguage = userProfile.language
-    val appVersion = userProfile.appVersion.ifBlank { "0.0.1" }
+    val appVersion = BuildConfig.VERSION_NAME.ifBlank { "0.0.1" }
     val isLight = isAppLightMode()
     val appAccent = AppAccentColor()
 
     var activeLegalDialog by remember { mutableStateOf<String?>(null) }
-    var showEditVersionDialog by remember { mutableStateOf(false) }
-    var versionDraft by remember(appVersion) { mutableStateOf(appVersion) }
 
     androidx.activity.compose.BackHandler(enabled = true) {
         if (activeLegalDialog != null) {
             activeLegalDialog = null
-        } else if (showEditVersionDialog) {
-            showEditVersionDialog = false
         } else {
             onBack()
         }
@@ -80,110 +77,49 @@ fun AboutSettingsScreen(
         )
     }
 
-    if (showEditVersionDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditVersionDialog = false },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(22.dp),
-            title = {
-                Text(
-                    text = if (prefLanguage == "bn") "অ্যাপ সংস্করণ (Version) পরিবর্তন" else "Update App Version",
-                    color = AppTextColor(),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = if (prefLanguage == "bn") {
-                            "এই সংস্করণ নম্বরটি সেটিংস, অ্যাবাউট পেজ, হেল্প গাইড এবং ব্যাকআপে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।"
-                        } else {
-                            "Changing the version number here syncs it across About, Help Guide, and exported backups."
-                        },
-                        color = AppSecondaryTextColor(),
-                        fontSize = 12.sp
-                    )
-                    OutlinedTextField(
-                        value = versionDraft,
-                        onValueChange = { versionDraft = it },
-                        singleLine = true,
-                        label = { Text(if (prefLanguage == "bn") "সংস্করণ (যেমন 0.0.2)" else "Version (e.g. 0.0.2)") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedBorderColor = appAccent,
-                            unfocusedBorderColor = getGlassBorder()
-                        )
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val cleaned = versionDraft.trim().ifBlank { "0.0.1" }
-                        viewModel.updateAppVersion(cleaned)
-                        showEditVersionDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = appAccent,
-                        contentColor = AppOnAccentColor(appAccent)
-                    )
-                ) {
-                    Text(if (prefLanguage == "bn") "সংরক্ষণ করুন" else "Save Version", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditVersionDialog = false }) {
-                    Text(if (prefLanguage == "bn") "বাতিল" else "Cancel", color = AppSecondaryTextColor())
-                }
-            }
-        )
-    }
-
     val quickHelpItems = remember {
         listOf(
             HelpGuideQuickItem(
                 icon = Icons.Default.StickyNote2,
-                titleEn = "Google Keep-Style Sticky Notes, Custom Tags & 8-Icon Toolbar",
-                titleBn = "গুগল কিপ ধাঁচের স্টিকি নোট, কাস্টম ট্যাগ ও ৮-আইকন টুলবার",
-                descEn = "Plain Material 3 surface editor (Title + Body, no inner cards), custom #tags with top-bar tag filter, scroll-safe 3-second hold selection, harmonic wobbling, alternating left/right mobile cards, staggered tablet wall columns, and a single-line 8-icon bottom toolbar (Bold, Italic, Align Left/Center/Right/Justify, Table, Attach).",
-                descBn = "প্লেইন মেটেরিয়াল ৩ সারফেস এডিটর (শুধু টাইটেল ও বডি), কাস্টম ট্যাগ ও টপ-বার ট্যাগ ফিল্টার, স্ক্রল-বান্ধব ৩-সেকেন্ড লং-প্রেস সিলেকশন, ওবলিং অ্যানিমেশন, মোবাইল বাম-ডান কার্ড বিন্যাস, ট্যাবলেট অসম কলাম এবং নিচে এক লাইনে ৮টি ফরম্যাটিং আইকন।"
+                titleEn = "Visual Grid Sticky Tables, Per-Line Alignment & Background Wobble",
+                titleBn = "ভিজ্যুয়াল গ্রিড টেবিল, প্রতি-লাইন অ্যালাইনমেন্ট ও ব্যাকগ্রাউন্ড ওবলিং",
+                descEn = "Sticky cards stay strictly inside tablet/mobile screen bounds and wobble only the background surface while keeping text completely steady. In Edit Mode (controls hidden in Preview Mode), align individual lines/sentences like a word processor, build interactive Visual Grid Tables directly (no raw markdown or bottom preview), and save attachments reliably.",
+                descBn = "ট্যাবলেট ও মোবাইলে স্টিকি কার্ড স্ক্রিনের ভেতরে থাকে এবং লেখা স্থির রেখে শুধু পেছনের কার্ডটি দুলতে থাকে। এডিট মোডে প্রতিটি লাইন আলাদাভাবে অ্যালাইন করুন, সরাসরি ভিজ্যুয়াল গ্রিড টেবিল তৈরি করুন এবং ফাইল সংযুক্ত করুন।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.QrCodeScanner,
+                titleEn = "Raw Khata Optical Scanner & Step-2 Date/Menu Resolver",
+                titleBn = "খাতা অপটিক্যাল স্ক্যানার ও ২য় ধাপে তারিখ/মেনু মিলকরণ",
+                descEn = "Step 1 scans handwritten khata lines into raw 'Date - Price1+Price2' format (no pre-written text or month selector on Step 1). Step 2 lets you pick the target Hotel & Month, highlights already-recorded dates, and matches each price token to menu dishes.",
+                descBn = "১ম ধাপে খাতার ছবি থেকে সরাসরি 'তারিখ - দাম' লাইন স্ক্যান হয় (কোনো পূর্বলিখিত টেক্সট বা মাস সিলেক্টর ছাড়া)। ২য় ধাপে মাস ও হোটেল অনুযায়ী বিদ্যমান তারিখ চিহ্নিত হয় এবং প্রতিটি দামের জন্য মেনু ডিশ মেলানো হয়।"
+            ),
+            HelpGuideQuickItem(
+                icon = Icons.Default.RestaurantMenu,
+                titleEn = "Inline Menu Editing in Hotel Edit & Effective Price Date",
+                titleBn = "হোটেল এডিটে মেনু সম্পাদনা ও নতুন দামের কার্যকর তারিখ",
+                descEn = "Edit menu items directly inside the Edit Hotel page or open the full Menu Editor (pressing Back returns to Edit Hotel without closing it). When changing a dish's price, choose the Effective Date from which the new price applies.",
+                descBn = "হোটেল এডিট পেজের ভেতরেই মেনু আইটেম সম্পাদনা করুন এবং মেনু এডিটর থেকে ব্যাক করলে হোটেল এডিট পেজেই ফিরে আসুন। মেনুর দাম পরিবর্তনের সময় কোন তারিখ থেকে নতুন দাম কার্যকর হবে তা নির্ধারণ করুন।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
                 titleEn = "Strict Date-Range Bill Calculator & Rate Policy Grouping",
                 titleBn = "নির্দিষ্ট তারিখ-ভিত্তিক বিল ক্যালকুলেটর ও রেট পলিসি গ্রুপিং",
-                descEn = "Strictly calculates electricity units between selected Start and End dates (e.g., 15 Aug to 17 Oct = 120 kWh) with group-by-group rate boundaries and linear interpolation for intermediate dates. Default rate input is hidden in favor of Rate Policies.",
-                descBn = "নির্বাচিত শুরুর ও শেষের তারিখের মধ্যে নিখুঁতভাবে ইউনিট হিসাব করে (যেমন ১৫ আগস্ট থেকে ১৭ অক্টোবর = ১২০ ইউনিট), রেট পরিবর্তনের সীমানা ও ইন্টারপোলেশনসহ। ডিফল্ট রেটের পরিবর্তে রেট পলিসি ব্যবহৃত হয়।"
+                descEn = "Strictly calculates electricity units between selected Start and End dates (e.g., 15 Aug to 17 Oct = 120 kWh) with group-by-group rate boundaries and linear interpolation for intermediate dates.",
+                descBn = "নির্বাচিত শুরুর ও শেষের তারিখের মধ্যে নিখুঁতভাবে ইউনিট হিসাব করে (যেমন ১৫ আগস্ট থেকে ১৭ অক্টোবর = ১২০ ইউনিট), রেট পরিবর্তনের সীমানা ও ইন্টারপোলেশনসহ।"
             ),
             HelpGuideQuickItem(
-                icon = Icons.Default.QrCodeScanner,
-                titleEn = "Scan Khata to Import & Menu Modification History",
-                titleBn = "খাতা স্ক্যান করে ইমপোর্ট এবং মেনু পরিবর্তনের ইতিহাস",
-                descEn = "Capture or pick a handwritten hotel khata photo: side-by-side verification of Date-Price lines (e.g., 24 - 60+40), automatic collision marking for dates with existing records, and per-price dish combination solver. Menu price updates are logged in Menu History without altering past months' ledgers.",
-                descBn = "হাতে লেখা হোটেলের খাতার ছবি তুলে বা গ্যালারি থেকে নিয়ে পাশাপাশি টেক্সট যাচাই করুন এবং প্রতিটি দামের (যেমন 60+40) জন্য স্বয়ংক্রিয়ভাবে মেনু ডিশ মেলান। মেনুর দাম পরিবর্তন করলে তা ইতিহাসে জমা থাকে এবং আগের মাসের হিসাব বদলায় না।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.FormatBold,
-                titleEn = "Archivo Black Bold Font & Bold-in-Bold Hierarchy",
-                titleBn = "Archivo Black বোল্ড ফন্ট ও বোল্ডের ভেতর বোল্ড পার্থক্য",
-                descEn = "Enabling Bold Text applies Google Font Archivo Black across all UI weights. In Sticky Notes, regular text uses heavy Archivo while *bold* spans render in Archivo Black at 1.12x scale with underline accent so bold formatting stands out clearly.",
-                descBn = "বোল্ড টেক্সট চালু করলে সম্পূর্ণ অ্যাপে Archivo Black ফন্ট কার্যকর হয় এবং স্টিকি নোটেও সাধারণ লেখার চেয়ে *বোল্ড* লেখা আলাদাভাবে স্পষ্ট বোঝা যায়।"
+                icon = Icons.Default.Speed,
+                titleEn = "Android 8 Ultra-Fast Touch Response & Instant Transitions",
+                titleBn = "অ্যান্ড্রয়েড ৮ আল্ট্রা-ফাস্ট টাচ ও তাৎক্ষণিক পেজ ট্রানজিশন",
+                descEn = "Hardware-accelerated page transitions, eager in-memory state streams, and zero-overhead card borders on Android 8 ensure instant data loading and zero touch lag.",
+                descBn = "হার্ডওয়্যার-অ্যাক্সিলারেটেড পেজ ট্রানজিশন এবং ইন-মেমরি ডাটা স্ট্রিমের মাধ্যমে অ্যান্ড্রয়েড ৮-সহ সব ডিভাইসে তাৎক্ষণিক পেজ লোডিং ও ল্যাগ-মুক্ত টাচ নিশ্চিত করা হয়েছে।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.Storage,
                 titleEn = "Granular Daily Exports, Settings-Only Backup & Full Recycle Bin",
                 titleBn = "দৈনন্দিন আলাদা এক্সপোর্ট, সেটিংস ব্যাকআপ ও সম্পূর্ণ রিসাইকেল বিন",
-                descEn = "Export Settings separately, or export specific Hotels (Whole, Orders, Menus, Info), Accounts, or Electricity data without duplicate Full Backup cards. Recycle Bin includes a search bar and restores deleted Hotels, Menus, Accounts, Meals, Transactions, Readings, Bills, and Rate Policies.",
-                descBn = "সেটিংস আলাদাভাবে এক্সপোর্ট করুন অথবা নির্দিষ্ট হোটেল, অ্যাকাউন্ট বা বিদ্যুৎ ডাটা ক্যাটাগরি অনুযায়ী এক্সপোর্ট করুন। রিসাইকেল বিনে সার্চ বার এবং ডিলিট করা বিল ও রেট পলিসিসহ সবকিছু পুনরুদ্ধারের সুবিধা রয়েছে।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.WbSunny,
-                titleEn = "Expressive Sun/Moon Meal Icons & Two-Mode Transaction History",
-                titleBn = "সূর্য/চাঁদ মিল আইকন ও দুই-মোড ট্রানজ্যাকশন হিস্ট্রি",
-                descEn = "Meal Record Ledger uses clean Sun and Moon icons instead of 'Day •'/'Night •' text, while Transaction History offers 'Keep Each Apart' and 'Merge Daily Transactions' modes. Default Hotel and Default Account always appear first on launch.",
-                descBn = "মিল লেজারে দিন ও রাতের জন্য সূর্য ও চাঁদ আইকন এবং ট্রানজ্যাকশন হিস্ট্রিতে 'Keep Each Apart' ও 'Merge Daily Transactions' মোড। ডিফল্ট হোটেল ও ডিফল্ট অ্যাকাউন্ট সবসময় প্রথমে দেখায়।"
+                descEn = "Export Settings separately, or export specific Hotels (Whole, Orders, Menus, Info), Accounts, or Electricity data. Recycle Bin includes search and restores deleted Hotels, Menus, Accounts, Meals, Transactions, Readings, Bills, and Rate Policies.",
+                descBn = "সেটিংস আলাদাভাবে এক্সপোর্ট করুন অথবা নির্দিষ্ট হোটেল, অ্যাকাউন্ট বা বিদ্যুৎ ডাটা ক্যাটাগরি অনুযায়ী এক্সপোর্ট করুন। রিসাইকেল বিনে সার্চ বার এবং ডিলিট করা সব আইটেম পুনরুদ্ধারের সুবিধা রয়েছে।"
             )
         )
     }
@@ -229,7 +165,7 @@ fun AboutSettingsScreen(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 1. Redesigned Modern Hero Card (Native Elevation Shadow, Interactive Version Badge)
+        // 1. Hero Card with Static Non-Editable App Version Badge
         item {
             Box(
                 modifier = Modifier
@@ -240,7 +176,6 @@ fun AboutSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
                     color = getCardBackground(),
-                    shadowElevation = if (isLight) 4.dp else 6.dp,
                     tonalElevation = 2.dp
                 ) {
                     Column(
@@ -252,8 +187,7 @@ fun AboutSettingsScreen(
                         Surface(
                             modifier = Modifier.size(84.dp),
                             shape = CircleShape,
-                            color = colorResource(id = com.example.R.color.ic_launcher_background),
-                            shadowElevation = 6.dp
+                            color = colorResource(id = com.example.R.color.ic_launcher_background)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Image(
@@ -278,14 +212,11 @@ fun AboutSettingsScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
+                        // Static read-only version pill (non-editable)
                         Surface(
-                            onClick = {
-                                versionDraft = appVersion
-                                showEditVersionDialog = true
-                            },
                             shape = RoundedCornerShape(50),
                             color = appAccent.copy(alpha = if (isLight) 0.12f else 0.2f),
-                            modifier = Modifier.testTag("edit_app_version_badge")
+                            modifier = Modifier.testTag("app_version_badge")
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -300,13 +231,6 @@ fun AboutSettingsScreen(
                                     color = appAccent,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit App Version",
-                                    tint = appAccent,
-                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }
@@ -405,9 +329,9 @@ fun AboutSettingsScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = if (prefLanguage == "bn") {
-                                        "খাতা স্ক্যানার, স্টিকি ট্যাগ, বিল ক্যালকুলেটর ও এক্সপোর্ট নির্দেশিকা পড়ুন"
+                                        "খাতা স্ক্যানার, ভিজ্যুয়াল টেবিল, মেনু কার্যকর তারিখ ও বিল নির্দেশিকা পড়ুন"
                                     } else {
-                                        "Detailed walkthrough of Khata Scanner, Sticky Tags, Bill Math & Exports"
+                                        "Detailed walkthrough of Khata Scanner, Visual Tables, Menu Effective Dates & Bill Math"
                                     },
                                     color = AppSecondaryTextColor(),
                                     style = MaterialTheme.typography.bodySmall
@@ -609,17 +533,14 @@ fun AboutSettingsScreen(
             }
         }
 
-        // 5. Legal, Licenses & Developer Profile
+        // 5. Legal, Licenses & Developer Profile (Read-Only App Version)
         item {
             PixelSettingsGroup(title = if (prefLanguage == "bn") "আইনি ও ডেভেলপার তথ্য" else "Legal & Developer Info") {
                 PixelSettingsItem(
                     icon = Icons.Default.Numbers,
-                    title = if (prefLanguage == "bn") "অ্যাপ সংস্করণ (App Version)" else "App Version (Tap to Edit)",
+                    title = if (prefLanguage == "bn") "অ্যাপ সংস্করণ (App Version)" else "App Version",
                     subtitle = "v$appVersion",
-                    onClick = {
-                        versionDraft = appVersion
-                        showEditVersionDialog = true
-                    },
+                    onClick = {},
                     showDivider = true
                 )
                 PixelSettingsItem(

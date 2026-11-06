@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.os.Build
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -267,15 +268,24 @@ fun GlassCard(
     content: @Composable () -> Unit
 ) {
     val isLight = isAppLightMode()
-    val fastMode = isHeavyEffectsDisabled()
+    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
     val shape = RoundedCornerShape(cornerRadius)
     val cardBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-    val shadowElev = if (fastMode) (if (isLight) 2.dp else 3.dp) else (if (isLight) 4.dp else 6.dp)
-    val ambientShadow = if (isLight) Color(0x1F0F172A) else Color(0x66000000)
-    val spotShadow = if (isLight) Color(0x290F172A) else Color(0x88000000)
 
-    Box(
-        modifier = modifier
+    val baseMod = if (fastMode) {
+        val lightBorder = border ?: BorderStroke(
+            0.75.dp,
+            if (isLight) Color(0x140F172A) else Color(0x22FFFFFF)
+        )
+        modifier
+            .clip(shape)
+            .background(cardBg)
+            .border(lightBorder, shape)
+    } else {
+        val shadowElev = if (isLight) 4.dp else 6.dp
+        val ambientShadow = if (isLight) Color(0x1F0F172A) else Color(0x66000000)
+        val spotShadow = if (isLight) Color(0x290F172A) else Color(0x88000000)
+        modifier
             .shadow(
                 elevation = shadowElev,
                 shape = shape,
@@ -284,7 +294,11 @@ fun GlassCard(
                 spotColor = spotShadow
             )
             .background(cardBg)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (border != null) Modifier.border(border, shape) else Modifier)
+    }
+
+    Box(
+        modifier = baseMod.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         content()
     }
@@ -295,13 +309,17 @@ fun Modifier.UARTShadow(
     shape: androidx.compose.ui.graphics.Shape,
     ambientColor: Color,
     spotColor: Color
-): Modifier = this.shadow(
-    elevation = elevation,
-    shape = shape,
-    clip = false,
-    ambientColor = ambientColor,
-    spotColor = spotColor
-)
+): Modifier = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+    this
+} else {
+    this.shadow(
+        elevation = elevation,
+        shape = shape,
+        clip = false,
+        ambientColor = ambientColor,
+        spotColor = spotColor
+    )
+}
 
 @Composable
 fun GlassButton(
@@ -313,23 +331,32 @@ fun GlassButton(
     content: @Composable RowScope.() -> Unit
 ) {
     val isLight = isAppLightMode()
-    val fastMode = isHeavyEffectsDisabled()
+    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
     val shape = RoundedCornerShape(cornerRadius)
     val buttonBg = if (isLight) com.example.ui.theme.M3SurfaceHighLight else com.example.ui.theme.M3SurfaceHighDark
-    val ambientShadow = if (isLight) Color(0x180F172A) else Color(0x55000000)
-    val spotShadow = if (isLight) Color(0x220F172A) else Color(0x77000000)
 
-    Row(
-        modifier = modifier
+    val btnMod = if (fastMode) {
+        modifier
+            .defaultMinSize(minHeight = 44.dp)
+            .clip(shape)
+            .background(buttonBg)
+    } else {
+        val ambientShadow = if (isLight) Color(0x180F172A) else Color(0x55000000)
+        val spotShadow = if (isLight) Color(0x220F172A) else Color(0x77000000)
+        modifier
             .defaultMinSize(minHeight = 44.dp)
             .shadow(
-                elevation = if (fastMode) 1.5.dp else (if (isLight) 2.5.dp else 4.dp),
+                elevation = if (isLight) 2.5.dp else 4.dp,
                 shape = shape,
                 clip = true,
                 ambientColor = ambientShadow,
                 spotColor = spotShadow
             )
             .background(buttonBg)
+    }
+
+    Row(
+        modifier = btnMod
             .clickable(onClick = onClick)
             .padding(contentPadding),
         horizontalArrangement = Arrangement.Center,
@@ -353,13 +380,7 @@ fun AttachmentActionChip(
     Box(
         modifier = Modifier
             .height(38.dp)
-            .shadow(
-                elevation = 1.5.dp,
-                shape = shape,
-                clip = true,
-                ambientColor = if (isLight) Color(0x180F172A) else Color(0x44000000),
-                spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
-            )
+            .clip(shape)
             .background(opaqueBg)
             .clickable { onClick() }
             .padding(horizontal = 12.dp),
@@ -475,13 +496,7 @@ fun GlassTextField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(
-                    elevation = if (isFocused) 2.5.dp else (if (isLight) 1.dp else 2.dp),
-                    shape = fieldShape,
-                    clip = true,
-                    ambientColor = if (isLight) Color(0x140F172A) else Color(0x44000000),
-                    spotColor = if (isLight) Color(0x1C0F172A) else Color(0x66000000)
-                )
+                .clip(fieldShape)
                 .background(color = bgColor)
                 .then(
                     if (borderWidth > 0.dp) {
@@ -883,13 +898,7 @@ fun M3Chip(
     Box(
         modifier = modifier
             .height(36.dp)
-            .shadow(
-                elevation = if (selected) 2.5.dp else 1.dp,
-                shape = shape,
-                clip = true,
-                ambientColor = if (isLight) Color(0x160F172A) else Color(0x44000000),
-                spotColor = if (isLight) Color(0x220F172A) else Color(0x66000000)
-            )
+            .clip(shape)
             .background(bgColor)
             .clickable { onClick() }
             .padding(horizontal = 14.dp),

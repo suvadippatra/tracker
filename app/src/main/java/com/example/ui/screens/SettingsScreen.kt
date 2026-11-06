@@ -78,10 +78,7 @@ fun SettingsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(getAppBackgroundGradient())
-                .pointerInput(Unit) { detectTapGestures { } }
-                
-                ,
+                .background(getAppBackgroundGradient()),
             contentAlignment = Alignment.TopCenter
         ) {
             Scaffold(
@@ -152,19 +149,35 @@ fun SettingsScreen(
                             .widthIn(max = 840.dp)
                             .fillMaxWidth()
                     ) {
-                        when (currentScreen) {
-                            "main" -> SettingsMainList(
-                                prefLanguage = userProfile?.language ?: "en",
-                                onNavigate = { currentScreen = it },
-                                onOpenBin = { currentScreen = "bin" },
-                                onOpenOwnerProfile = onOpenOwnerProfile
-                            )
-                            "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
-                            "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
-                            "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                            "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                            "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
-                            "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                        val fastMode = isHeavyEffectsDisabled() || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                val dur = if (fastMode) 90 else 150
+                                if (targetState != "main" && initialState == "main") {
+                                    (slideInHorizontally(tween(dur)) { it / 8 } + fadeIn(tween(dur))) togetherWith
+                                        fadeOut(tween(dur / 2))
+                                } else {
+                                    (slideInHorizontally(tween(dur)) { -it / 10 } + fadeIn(tween(dur))) togetherWith
+                                        fadeOut(tween(dur / 2))
+                                }
+                            },
+                            label = "settings_subscreen_transition"
+                        ) { screen ->
+                            when (screen) {
+                                "main" -> SettingsMainList(
+                                    prefLanguage = userProfile?.language ?: "en",
+                                    onNavigate = { currentScreen = it },
+                                    onOpenBin = { currentScreen = "bin" },
+                                    onOpenOwnerProfile = onOpenOwnerProfile
+                                )
+                                "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
+                                "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
+                                "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                                "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                                "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
+                                "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                            }
                         }
                     }
                 }
@@ -732,7 +745,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v$appVersion (Khata Scanner, Keep-Style Sticky Notes, Archivo Black Bold & Smart Bill Math)
+            Traker v$appVersion (Khata Optical Scanner, Word-Processor Sticky Notes, Inline Menu Editor & Android 8 Speed Boost)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -740,36 +753,31 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 📌 "Sticky" ট্যাব: গুগল কিপ ধাঁচের নোট, ট্যাগ ফিল্টার ও ৮-আইকন টুলবার
-            • স্ক্রল-বান্ধব জেসচার ও ওবলিং কার্ড: পেজ স্ক্রল করার সময় লং-প্রেস সিলেকশন কখনোই বাধা দেবে না (আঙুল সরলেই লং-প্রেস বাতিল হয়)। মোবাইলে স্টিকি কার্ডগুলো কার্ডের প্রস্থ অনুযায়ী পর্যায়ক্রমে বাম ও ডান দিকে ঝুঁকে দুলতে থাকে (Wobbling), এবং ট্যাবলেট বা ল্যান্ডস্কেপ মোডে প্রতিটি কলাম অসম উচ্চতা থেকে শুরু হয় যাতে দেয়ালে লাগানো স্টিকি নোটের মতো স্বাভাবিক দেখায়।
-            • প্লেইন এডিটর ও কাস্টম ট্যাগ: এডিটরে আলাদা কার্ডের পরিবর্তে গুগল কিপ নোটের মতো শুধু Title ও Body প্লেইন মেটেরিয়াল সারফেসে থাকে। প্রতিটি নোটে কাস্টম ট্যাগ (#tag) যুক্ত করা যায় এবং উপরে সার্চ ও সেটিংস আইকন ফিক্সড রেখে বাম দিকে আনুভূমিকভাবে স্ক্রলযোগ্য ট্যাগ ফিল্টার ("All", "#tag1"...) ব্যবহার করা যায়।
-            • নিচে এক লাইনে ৮-আইকন ফরম্যাটিং বার: এডিটরের নিচে এক লাইনে ৮টি আইকন-ওনলি টুল রয়েছে—Bold, Italic, Align Left, Center, Right, Justify, Insert Table এবং Attach File। টেক্সট সিলেক্ট করে ট্যাপ করলেই ফরম্যাটিং প্রযোজ্য হয়।
+            ১. 📌 "Sticky" ট্যাব: গুগল কিপ ধাঁচের নোট, লাইন-ভিত্তিক অ্যালাইনমেন্ট ও ভিজ্যুয়াল গ্রিড টেবিল
+            • স্ক্রিন সীমার মধ্যে ব্যাকগ্রাউন্ড ওবলিং: মোবাইল ও ট্যাবলেট উভয় মোডেই সমস্ত স্টিকি কার্ড সম্পূর্ণ স্ক্রিনের ভেতরে থাকে। কার্ডের ওপরের লেখা স্থির রেখে শুধুমাত্র পেছনের কার্ড ব্যাকগ্রাউন্ড দুলতে থাকে (Illusion Wobble), ফলে লেখা পড়তে কোনো অসুবিধা হয় না।
+            • শুধুমাত্র এডিট মোডে কন্ট্রোল ও ফিক্সড অ্যাটাচমেন্ট: প্রিভিউ মোডে কোনো এডিটিং টুলবার বা বাটন দেখায় না—এডিট আইকনে ট্যাপ করলেই নিচে ৮-আইকন টুলবার ও ট্যাগ কন্ট্রোল আসে এবং এডিটরের নিচে কোনো ডুপ্লিকেট প্রিভিউ দেখায় না। ফাইল বা ছবি অ্যাটাচ করলে তা সরাসরি ডাটাবেসে সেভ হয়।
+            • লাইন-ভিত্তিক অ্যালাইনমেন্ট ও ভিজ্যুয়াল টেবিল গ্রিড: ওয়ার্ড প্রসেসর অ্যাপের মতো কার্সার যে লাইনে আছে শুধুমাত্র সেই লাইন বা প্যারাগ্রাফে Left, Center, Right বা Justify অ্যালাইনমেন্ট প্রযোজ্য হয়। টেবিলগুলো ইনলাইন মার্কডাউনের বদলে সরাসরি ইন্টারঅ্যাক্টিভ গ্রিড হিসেবে এডিট করা যায়।
 
-            ২. ⚡ বিদ্যুৎ বিল ক্যালকুলেটর ও রেট পলিসি (ডিফল্ট রেট ছাড়া)
-            • নির্দিষ্ট তারিখ সীমার হিসাব: নির্বাচিত Start Date এবং End Date-এর মধ্যকার রিডিং অনুযায়ী নিখুঁতভাবে ইউনিট হিসাব করা হয় (যেমন ১৫ আগস্ট: ৯৭১.০ থেকে ১৭ অক্টোবর: ১০৯১.০ = ১২০.০ ইউনিট)।
-            • গ্রুপ-ভিত্তিক রেট ও ইন্টারপোলেশন: রেট পলিসি পরিবর্তনের তারিখ অনুযায়ী গ্রুপ ভাগ করে এবং অমিল তারিখের ক্ষেত্রে লিনিয়ার ইন্টারপোলেশন ব্যবহার করে (যেমন ২০ অক্টোবর ১০৯৪ হলে ১৫ আগস্ট থেকে ১৮ অক্টোবরের বিল = (১০৯১-৯৭১) + [((১০৯৪-১০৯১)/৩)×(১৮-১৭)] = ১২১ ইউনিট)। কনফিগারেশন পেজ থেকে ডিফল্ট রেট সরিয়ে শুধুমাত্র রেট পলিসি রাখা হয়েছে।
+            ২. 📷 "Scan Khata to Import" (২-ধাপে র অপটিক্যাল স্ক্যান ও মেনু মিলকরণ)
+            • ধাপ ১ (র স্ক্যানিং পেজ): কোনো প্রি-রিটেন টেক্সট বা মাসের টগল ছাড়াই সরাসরি ক্যামেরা বা গ্যালারি থেকে খাতার ছবি স্ক্যান করে `তারিখ - দাম১+দাম২` (যেমন `17 - 40+60`) লাইন শনাক্ত করা হয়।
+            • ধাপ ২ (তারিখ যাচাই ও মেনু অনুমান): ২য় ধাপে হোটেল ও মাস নির্বাচন করলে কোন কোন তারিখ ইতিমধ্যে মিল লেজারে আছে তা দেখায় এবং `+` দিয়ে লেখা প্রতিটি দামকে হোটেলের মেনুর সাথে মিলিয়ে ১–৪টি অনুমান বা কাস্টম নাম দেওয়ার সুবিধা দেয়।
 
-            ৩. 📷 "Scan Khata to Import" ও মেনু পরিবর্তনের ইতিহাস (Menu History)
-            • খাতা স্ক্যান করে ইমপোর্ট: সেটিংস > Data & Backups-এ "Scan Khata to Import" বাটনে ট্যাপ করে হাতে লেখা হোটেল খাতার ছবি তুলুন বা গ্যালারি থেকে নিন (বড় ছবি স্বয়ংক্রিয়ভাবে রিসাইজ হয় যাতে অ্যাপ কখনো ফ্রিজ না হয়)।
-            • ২-ধাপে ডিশ ম্যাচিং: ১ম ধাপে ছবির পাশাপাশি তারিখ ও দামের লাইন (যেমন `24 - 60+40`) যাচাই করুন। ২য় ধাপে যেসব তারিখে আগে থেকেই ডাটা আছে তা চিহ্নিত হয় এবং `+` দিয়ে লেখা প্রতিটি দাম (যেমন `60` এবং পরে `40`) আলাদা ডিশ হিসেবে হোটেলের মেনুর সাথে মেলানো হয় (১টি মিললে অটো-সিলেক্ট, ২–৪টি মিললে সাজেশন চিপ, আর ৪টির বেশি হলে ম্যানুয়াল সিলেকশন)।
-            • মেনু পরিবর্তনের ইতিহাস: সময়ের সাথে মেনুর দাম বা নাম পরিবর্তন করলে তার সম্পূর্ণ ইতিহাস (Menu Modification History) সংরক্ষিত থাকে এবং নতুন দাম কখনোই আগের মাসের মিলের হিসাব পরিবর্তন করে না।
+            ৩. 🍽️ হোটেল এডিট পেজে ইনলাইন মেনু এডিটর ও দাম পরিবর্তনের কার্যকর তারিখ (Effective Date)
+            • হোটেল এডিট করার সময় একই পেজ থেকে সরাসরি মেনু আইটেম যোগ বা এডিট করা যায়, এবং ফুল মেনু এডিটর থেকে Back চাপলে হোটেল এডিট পেজটি বন্ধ না হয়ে সেখানেই ফিরে আসে।
+            • যেকোনো মেনু আইটেমের দাম পরিবর্তনের সময় কোন তারিখ (Effective Date) থেকে নতুন দাম কার্যকর হবে তা নির্ধারণ করা যায় এবং তা মেনু ইতিহাসে সংরক্ষিত থাকে।
 
-            ৪. 🔤 স্বতন্ত্র Archivo Black বোল্ড ফন্ট ও বোল্ড-ইন-বোল্ড
-            • সেটিংস > Appearance-এ Bold Text চালু করলে সম্পূর্ণ অ্যাপে Google Font 'Archivo Black' কার্যকর হয়। স্টিকি নোটে বোল্ড মোড চালু থাকলেও সাধারণ টেক্সটের চেয়ে `*bold*` করা অংশ আরও মোটা ও আন্ডারলাইনসহ আলাদাভাবে ফুটে ওঠে।
+            ৪. ⚡ বিদ্যুৎ বিল ক্যালকুলেটর ও রেট পলিসি (ডিফল্ট রেট ছাড়া)
+            • নির্বাচিত Start Date এবং End Date-এর মধ্যকার রিডিং অনুযায়ী নিখুঁতভাবে ইউনিট হিসাব করা হয় এবং রেট পলিসি পরিবর্তনের তারিখ অনুযায়ী গ্রুপ ভাগ ও লিনিয়ার ইন্টারপোলেশন করা হয়।
 
-            ৫. 🗄️ দৈনন্দিন এক্সপোর্ট, আলাদা সেটিংস এক্সপোর্ট ও সম্পূর্ণ রিসাইকেল বিন
-            • সেটিংস আলাদাভাবে এক্সপোর্ট করা যায় এবং হোটেল (Whole, Orders, Menus, Hotel Info), অ্যাকাউন্ট বা বিদ্যুৎ ডাটার যেকোনো নির্দিষ্ট অংশ এক্সপোর্ট করা যায়। ডুপ্লিকেট ফুল ব্যাকআপ অপশন সরানো হয়েছে।
-            • রিসাইকেল বিনে সার্চ বার যুক্ত করা হয়েছে এবং ডিলিট করা হোটেল, মেনু, অ্যাকাউন্ট, মিল, ট্রানজ্যাকশন, রিডিং, বিদ্যুৎ বিল ও রেট পলিসি—সবকিছুই বিনে জমা থাকে ও পুনরুদ্ধার করা যায়।
-
-            ৬. ☀️ মিল লেজার আইকন, ট্রানজ্যাকশন হিস্ট্রি ২-মোড ও ডিফল্ট নির্বাচন
-            • মিল লেজারে "Day •"/"Night •" লেখার বদলে সূর্য ও চাঁদ আইকন দেওয়া হয়েছে। ট্রানজ্যাকশন হিস্ট্রিতে "Keep Each Apart" এবং "Merge Daily Transactions" নামের দুটি স্পষ্ট মোড রয়েছে।
-            • প্রোফাইল পেজে সব হোটেল ও অ্যাকাউন্ট থেকে ডিফল্ট নির্বাচন করা যায় এবং অ্যাপ চালু করলে ডিফল্ট হোটেল ও ডিফল্ট অ্যাকাউন্ট সবসময় প্রথম ট্যাবে দেখায়।
+            ৫. 🚀 Android 8 ল্যাগ ফিক্স, তাৎক্ষণিক ডাটা লোডিং ও অ্যাপ সংস্করণ লক
+            • Android 8 ও পুরনো ডিভাইসে টাচ রেসপন্স ও স্ক্রলিং মাখনের মতো মসৃণ করতে শ্যাডো লেয়ার ও ৬০ FPS রিকম্পোজিশন অপটিমাইজ করা হয়েছে এবং পেজ ট্রানজিশন ও ডাটা লোডিং তাৎক্ষণিক করা হয়েছে।
+            • অ্যাপের সংস্করণ (App Version) এখন সম্পূর্ণ রিড-ওনলি; অ্যাপের ভেতর থেকে এটি পরিবর্তন করা যায় না।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v$appVersion (Khata Scanner, Keep-Style Sticky Notes, Archivo Black Bold & Smart Bill Math)
+            Traker v$appVersion (Khata Optical Scanner, Word-Processor Sticky Notes, Inline Menu Editor & Android 8 Speed Boost)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -777,30 +785,25 @@ fun LegalInfoDialog(
             📖 COMPLETE USER GUIDE & LATEST FEATURES
             ───────────────────────────
 
-            1. 📌 "STICKY" TAB: KEEP-STYLE PLAIN EDITOR, CUSTOM TAGS & 8-ICON TOOLBAR
-            • Scroll-Safe Gesture & Wobbling Cards: Vertical/horizontal scrolling immediately cancels the 3-second long-press gesture so scrolling is never interrupted. On mobile portrait, cards wobble continuously and alternate leftward and rightward based on card width %; on tablets/landscape wall mode, columns start at staggered top heights for an organic wall look.
-            • Google Keep-Style Plain Editor & Custom Tags: Removed inner card boxes and subtitle—only Title and Body sit cleanly on a plain Material 3 surface. Categorize notes with custom #tags and filter them via the horizontally scrollable tag bar on the left of the top header while Search and Settings icons remain fixed on the right.
-            • Single-Line 8-Icon Bottom Toolbar: Icon-only bottom toolbar (optimized for mobile and tablet) featuring Bold, Italic, Align Left, Center, Right, Justify, Insert Table, and Attach File, applying directly to selected text or cursor position.
+            1. 📌 "STICKY" TAB: BACKGROUND-ONLY WOBBLE, PER-LINE ALIGNMENT & VISUAL GRID TABLES
+            • In-Bounds Tablet Layout & Background-Only Wobble: All sticky note columns fit strictly within the screen bounds on both phones and tablets. Only the background card surface wobbles while the foreground text and tables stay rock-steady for effortless reading.
+            • Edit-Mode-Only Controls & Reliable Attachments: Formatting controls, tag editors, and table controls appear strictly in Editing Mode (never in Preview Mode), and the redundant bottom preview box has been removed. Attached files/images persist immediately to the database.
+            • Word-Processor Line Alignment & Interactive Table Grid: Alignment buttons (Left, Center, Right, Justify) align only the specific line/sentence at your cursor rather than the entire note. Tables render as interactive visual grids directly inside the editor instead of raw pipe markdown.
 
-            2. ⚡ STRICT DATE-RANGE BILL CALCULATOR & RATE POLICY GROUPING
-            • Exact Selected Range Math: Strictly calculates kWh consumption between your selected Start Date and End Date (e.g., 15 Aug: 971.0 to 17 Oct: 1091.0 = 120.0 kWh) without pulling earlier readings outside the range.
-            • Group-by-Group Rate Splitting & Smooth Interpolation: Automatically splits consumption across rate policy effective dates and linearly interpolates partial ranges (e.g., if 20 Oct = 1094.0, then 15 Aug to 18 Oct = (1091 - 971) + [((1094 - 1091) / 3) × (18 - 17)] = 121.0 kWh). Removed the redundant Default Rate input from Utility Configuration.
+            2. 📷 "SCAN KHATA TO IMPORT" (2-STEP RAW OPTICAL SCAN & MENU MATCHING)
+            • Step 1 (Raw Scanning Page): Starts with a clean, empty state and no month toggle. Capture or pick a handwritten Khata image to segment rows and recognize `Date - Price1+Price2` lines (e.g., `17 - 40+60`).
+            • Step 2 (Captured Date Check & Menu Solver): Select target Hotel and Month on Step 2 to see which dates are already recorded in your Meal Ledger and match each `+`-separated price token to menu combinations (1–4 guesses or custom dish input).
 
-            3. 📷 "SCAN KHATA TO IMPORT" & MENU MODIFICATION HISTORY
-            • Scan Handwritten Khata Pages: In Settings > Data & Backups, tap "Scan Khata to Import" to capture a camera photo or pick a gallery image (safely downsampled on background threads so large images never freeze the app).
-            • 2-Step Verification & Per-Price Dish Solver: Step 1 displays the Khata image side-by-side with editable Date-Price lines (e.g., `24 - 60+40`). Step 2 flags dates that already have ledger records and evaluates each `+`-separated price (e.g., `60` then `40`) as a separate dish against the hotel's menu: auto-selecting exact matches, showing guess chips for 2–4 matches, or offering manual dish selection when >4 combinations exist.
-            • Menu Modification History: Editing a menu item's price, name, or category logs a timestamped history entry (viewable via the History icon in Menu Editor) while preserving historical prices on past months' transactions.
+            3. 🍽️ INLINE MENU EDITING IN HOTEL EDIT, BACK NAVIGATION & EFFECTIVE DATE
+            • Edit menu items directly inside the Edit Hotel dialog or open the full Menu Editor—pressing Back from the Menu Editor now returns cleanly to Edit Hotel instead of closing the screen.
+            • When editing a menu item's price, select the Effective From Date for the price change so historical records and modification history reflect the exact date.
 
-            4. 🔤 ARCHIVO BLACK BOLD FONT & BOLD-IN-BOLD HIERARCHY
-            • Enabling 'Bold Text' in Appearance Settings applies the bundled Google Font 'Archivo Black' across all typography weights. Inside Sticky Notes, regular text uses heavy Archivo while `*bold*` spans render in Archivo Black at 1.12x scale with underline accent so bold formatting remains distinct even when Bold Mode is ON.
+            4. ⚡ STRICT DATE-RANGE BILL CALCULATOR & RATE POLICY GROUPING
+            • Strictly calculates kWh consumption between your selected Start Date and End Date, splitting pro-rata across rate policy changes and linearly interpolating partial end ranges.
 
-            5. 🗄️ GRANULAR DAILY EXPORTS, SETTINGS-ONLY BACKUP & FULL RECYCLE BIN
-            • Export Settings & Preferences separately, or export specific Hotels (Whole Hotel, Order History, Menus, or Hotel Info), Bank Accounts, or Electricity data (Whole, Readings, Bills, Rate Policies) without duplicate Full Backup cards.
-            • Recycle Bin includes a real-time search bar and accepts all soft-deleted items including Hotels, Menus, Extras & Owner Accounts, Meals, Transactions, Meter Readings, Utility Bills, and Electricity Rate Policies.
-
-            6. ☀️ EXPRESSIVE MEAL LEDGER ICONS, 2-MODE HISTORY & DEFAULT ORDERING
-            • Meal Record Ledger uses expressive Sun and Moon icons instead of 'Day •'/'Night •' text. Transaction History offers 'Keep Each Apart' and 'Merge Daily Transactions' modes.
-            • Account & Profile lists all hotels and accounts for Default selection, and your Default Hotel and Default Account are always ordered first on launch.
+            5. 🚀 ANDROID 8 PERFORMANCE ENGINE, INSTANT DATA LOADING & LOCKED VERSION
+            • Eliminated per-frame card recompositions and heavy offscreen shadow rasterization on Android 8 for instant touch response, zero-delay data loading (`SharingStarted.Eagerly`), and smooth page transitions.
+            • App Version is strictly read-only and bound to the official build configuration.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)

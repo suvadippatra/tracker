@@ -68,15 +68,15 @@ fun DataBackupSettingsScreen(
     val clipboardManager = LocalClipboardManager.current
 
     // Observe data counts
-    val allHotels by viewModel.allHotels.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allHotels by viewModel.allHotels.collectAsStateWithLifecycle()
     val activeHotelId by viewModel.activeHotelId.collectAsStateWithLifecycle()
-    val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
     val activeBankAccountId by viewModel.activeBankAccountId.collectAsStateWithLifecycle()
-    val allExpenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle(initialValue = emptyList())
-    val allReadings by viewModel.allMeterReadings.collectAsStateWithLifecycle(initialValue = emptyList())
-    val allUtilityBills by viewModel.allUtilityBills.collectAsStateWithLifecycle(initialValue = emptyList())
-    val allMenuItems by viewModel.allMenuItems.collectAsStateWithLifecycle(initialValue = emptyList())
-    val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allExpenses by viewModel.allExtraExpenses.collectAsStateWithLifecycle()
+    val allReadings by viewModel.allMeterReadings.collectAsStateWithLifecycle()
+    val allUtilityBills by viewModel.allUtilityBills.collectAsStateWithLifecycle()
+    val allMenuItems by viewModel.allHotelMenus.collectAsStateWithLifecycle()
+    val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
 
     // Selected Hotel for Hotel-specific exports/imports
     var selectedHotelId by remember(activeHotelId, allHotels) {

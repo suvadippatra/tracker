@@ -102,20 +102,31 @@ fun TabContentArea(
     userProfile: com.example.data.model.UserProfileEntity?,
     onOpenUtilityConfig: () -> Unit
 ) {
-    when (activeTab) {
-        "Hotels" -> HotelManagementTab(viewModel)
-        "Extras" -> ExtraExpensesTab(viewModel)
-        "Bill" -> {
-            userProfile?.let { profile ->
-                BillTrackingTab(
-                    viewModel = meterViewModel,
-                    userProfile = profile,
-                    financialViewModel = viewModel,
-                    onOpenUtilityConfig = onOpenUtilityConfig
-                )
+    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
+    AnimatedContent(
+        targetState = activeTab,
+        transitionSpec = {
+            val dur = if (fastMode) 90 else 150
+            fadeIn(animationSpec = tween(dur, easing = FastOutSlowInEasing)) togetherWith
+                fadeOut(animationSpec = tween(dur / 2, easing = FastOutLinearInEasing))
+        },
+        label = "tab_content_transition"
+    ) { tab ->
+        when (tab) {
+            "Hotels" -> HotelManagementTab(viewModel)
+            "Extras" -> ExtraExpensesTab(viewModel)
+            "Bill" -> {
+                userProfile?.let { profile ->
+                    BillTrackingTab(
+                        viewModel = meterViewModel,
+                        userProfile = profile,
+                        financialViewModel = viewModel,
+                        onOpenUtilityConfig = onOpenUtilityConfig
+                    )
+                }
             }
+            "Sticky" -> StickyNotesTab(viewModel)
         }
-        "Sticky" -> StickyNotesTab(viewModel)
     }
 }
 

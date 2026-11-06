@@ -55,7 +55,7 @@ private data class SearchCombineTuple5(
 sealed class RootOverlayState {
     object None : RootOverlayState()
     object AddMeal : RootOverlayState()
-    data class ManageMenu(val hotel: com.example.data.model.HotelEntity) : RootOverlayState()
+    data class ManageMenu(val hotel: com.example.data.model.HotelEntity, val returnToEditHotel: Boolean = false) : RootOverlayState()
     data class EditHotel(val hotel: com.example.data.model.HotelEntity?) : RootOverlayState()
     object OwnerProfile : RootOverlayState()
     object AccountManager : RootOverlayState()
@@ -205,21 +205,21 @@ class FinancialViewModel(
         }
     }
 
-    // Streams from Repository
+    // Streams from Repository (Eagerly shared for zero-delay tab/page transitions)
     val userProfile: StateFlow<UserProfileEntity> = repository.userProfile
         .map { profile ->
             val p = profile ?: initialProfile
             com.example.ui.theme.ThemePreferences.save(getApplication(), p)
             p
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initialProfile)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, initialProfile)
 
     val selectedStickyTag = MutableStateFlow("ALL")
 
     val allHotels: StateFlow<List<HotelEntity>> = combine(repository.allHotels, userProfile) { hotels, profile ->
         val defId = profile.defaultHotelId
         hotels.sortedWith(compareByDescending<HotelEntity> { it.id == defId }.thenBy { it.id })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val deletedHotels: StateFlow<List<HotelEntity>> = repository.deletedHotels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -227,16 +227,19 @@ class FinancialViewModel(
     val allBankAccounts: StateFlow<List<BankAccountEntity>> = combine(repository.allBankAccounts, userProfile) { accounts, profile ->
         val defId = profile.defaultBankAccountId
         accounts.sortedWith(compareByDescending<BankAccountEntity> { it.id == defId }.thenBy { it.id })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allTransactions: StateFlow<List<HotelTransactionEntity>> = repository.allTransactions
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val allHotelMenus: StateFlow<List<MenuEntity>> = repository.allMenuItems
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allMeterReadings: StateFlow<List<MeterReading>> = repository.allMeterReadings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allUtilityBills: StateFlow<List<UtilityBill>> = repository.allUtilityBills
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val deletedBankAccounts: StateFlow<List<BankAccountEntity>> = repository.deletedBankAccounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -257,21 +260,21 @@ class FinancialViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allExtraExpenses: StateFlow<List<ExtraExpenseEntity>> = repository.allExtraExpenses
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allCategories: StateFlow<List<com.example.data.model.TransactionCategoryEntity>> = repository.allCategories
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allHotelPayments: StateFlow<List<HotelPaymentEntity>> = repository.allHotelPayments
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = combine(repository.allOwnerAccounts, userProfile) { accounts, profile ->
         val defId = profile.defaultOwnerAccountId
         accounts.sortedWith(compareByDescending<com.example.data.model.OwnerAccountEntity> { it.id == defId }.thenBy { it.id })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.allStickyNotes
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val deletedStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.deletedStickyNotes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -434,14 +437,16 @@ class FinancialViewModel(
     // Active Hotel Stream
     val activeHotel: StateFlow<HotelEntity?> = combine(allHotels, activeHotelId) { hotels, selectedId ->
         hotels.find { it.id == selectedId } ?: hotels.firstOrNull()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val allMenuItems: StateFlow<List<MenuEntity>> = activeHotel
         .flatMapLatest { hotel ->
             if (hotel != null) repository.getMenuForHotel(hotel.id)
             else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun getMenuForHotel(hotelId: Int): Flow<List<MenuEntity>> = repository.getMenuForHotel(hotelId)
 
     val deletedMenuItems: StateFlow<List<MenuEntity>> = repository.allDeletedMenuItems
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -452,7 +457,7 @@ class FinancialViewModel(
             if (hotel != null) repository.getTransactionsForHotel(hotel.id)
             else flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val earliestTransactionTimestamp: StateFlow<Long> = activeHotelTransactions
         .map { txList -> txList.minOfOrNull { it.timestamp } ?: System.currentTimeMillis() }
@@ -1446,8 +1451,8 @@ class FinancialViewModel(
     }
     fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account.copy(isDeleted = true)) }
     fun addMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.insertMenu(menu) }
-    fun updateMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch {
-        val oldItem = allMenuItems.value.find { it.id == menu.id }
+    fun updateMenu(menu: com.example.data.model.MenuEntity, effectiveDateMillis: Long = System.currentTimeMillis()) = viewModelScope.launch {
+        val oldItem = allHotelMenus.value.find { it.id == menu.id } ?: allMenuItems.value.find { it.id == menu.id }
         if (oldItem != null) {
             val oldName = oldItem.englishName.ifBlank { oldItem.banglaName }
             val newName = menu.englishName.ifBlank { menu.banglaName }
@@ -1456,7 +1461,9 @@ class FinancialViewModel(
             val typeChanged = oldItem.type != menu.type
             if (priceChanged || nameChanged || typeChanged) {
                 val changes = mutableListOf<String>()
-                if (priceChanged) changes.add("Price: ₹${oldItem.price} → ₹${menu.price}")
+                val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+                val effectiveStr = runCatching { sdf.format(java.util.Date(effectiveDateMillis)) }.getOrDefault("")
+                if (priceChanged) changes.add("Price: ₹${oldItem.price.toInt()} → ₹${menu.price.toInt()} (Effective: $effectiveStr)")
                 if (nameChanged) changes.add("Name: $oldName → $newName")
                 if (typeChanged) changes.add("Type: ${oldItem.type} → ${menu.type}")
                 repository.insertMenuHistory(
@@ -1469,12 +1476,12 @@ class FinancialViewModel(
                         oldType = oldItem.type,
                         newType = menu.type,
                         changeSummary = changes.joinToString(" • "),
-                        modifiedAt = System.currentTimeMillis()
+                        modifiedAt = effectiveDateMillis
                     )
                 )
             }
         }
-        repository.updateMenu(menu.copy(lastUpdatedMillis = System.currentTimeMillis()))
+        repository.updateMenu(menu.copy(lastUpdatedMillis = effectiveDateMillis))
     }
     fun deleteMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch {
         repository.updateMenu(menu.copy(isDeleted = true, lastUpdatedMillis = System.currentTimeMillis()))

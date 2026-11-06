@@ -59,7 +59,10 @@ fun MenuManagementScreen(
     val context = LocalContext.current
     BackHandler(onBack = onBack)
 
-    val menuItems by viewModel.allMenuItems.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allMenus by viewModel.allHotelMenus.collectAsStateWithLifecycle()
+    val menuItems = remember(allMenus, hotel.id) {
+        allMenus.filter { it.hotelId == hotel.id && !it.isDeleted }
+    }
     val hotelHistory by viewModel.getHistoryForHotel(hotel.id).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddMenu by remember { mutableStateOf(false) }
     var showHotelMenuHistory by remember { mutableStateOf(false) }
@@ -144,8 +147,7 @@ fun MenuManagementScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(getAppBackgroundGradient(themeMode, bgPreset))
-                            .pointerInput(Unit) { detectTapGestures { } },
+                            .background(getAppBackgroundGradient(themeMode, bgPreset)),
                         contentAlignment = Alignment.TopCenter
                     ) {
                         Scaffold(
@@ -253,7 +255,9 @@ fun MenuManagementScreen(
                                             items(menuItems, key = { it.id }) { item ->
                                                 MenuTableRow(
                                                     item = item,
-                                                    onSave = { updatedItem -> viewModel.updateMenu(updatedItem) },
+                                                    onSave = { updatedItem, effectiveDateMillis ->
+                                                        viewModel.updateMenu(updatedItem, effectiveDateMillis)
+                                                    },
                                                     onViewHistory = { selectedItemForHistory = item },
                                                     onDelete = { viewModel.deleteMenu(item) }
                                                 )
@@ -444,16 +448,30 @@ fun MenuManagementScreen(
 @Composable
 fun MenuTableRow(
     item: MenuEntity,
-    onSave: (MenuEntity) -> Unit,
+    onSave: (MenuEntity, Long) -> Unit,
     onViewHistory: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
     
-    var editName by remember { mutableStateOf(item.englishName) }
-    var editPrice by remember { mutableStateOf(item.price.toString()) }
-    var editType by remember { mutableStateOf(item.type) }
-    var editEmoji by remember { mutableStateOf(item.emoji) }
+    var editName by remember(item.englishName) { mutableStateOf(item.englishName) }
+    var editPrice by remember(item.price) { mutableStateOf(item.price.toString()) }
+    var editType by remember(item.type) { mutableStateOf(item.type) }
+    var editEmoji by remember(item.emoji) { mutableStateOf(item.emoji) }
+    var effectiveDateMillis by remember(item.id) { mutableLongStateOf(System.currentTimeMillis()) }
+    var showEffectiveDatePicker by remember { mutableStateOf(false) }
+    val dateFormat = remember { java.text.SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    if (showEffectiveDatePicker) {
+        SlidingDatePickerModal(
+            initialDateMillis = effectiveDateMillis,
+            onDateSelected = { picked ->
+                effectiveDateMillis = picked
+                showEffectiveDatePicker = false
+            },
+            onDismiss = { showEffectiveDatePicker = false }
+        )
+    }
 
     Row(
         modifier = Modifier
@@ -481,7 +499,6 @@ fun MenuTableRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Day / Night / Common Toggle Buttons instead of typing "d a y"
                     listOf(
                         "Day" to Icons.Default.WbSunny,
                         "Night" to Icons.Default.NightsStay,
@@ -520,28 +537,75 @@ fun MenuTableRow(
                         singleLine = true
                     )
                 }
+                Spacer(modifier = Modifier.height(6.dp))
+                // Effective Date selector for price changes
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppAccentColor().copy(alpha = 0.10f))
+                        .clickable { showEffectiveDatePicker = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Effective Date",
+                            tint = AppAccentColor(),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Price Effective From:",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = runCatching { dateFormat.format(java.util.Date(effectiveDateMillis)) }.getOrDefault("Today"),
+                        color = AppAccentColor(),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.width(44.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 IconButton(
                     onClick = {
                         val p = editPrice.toDoubleOrNull() ?: item.price
                         if (editName.isNotBlank()) {
-                            onSave(item.copy(
-                                englishName = editName,
-                                banglaName = editName,
-                                price = p,
-                                emoji = editEmoji,
-                                type = editType,
-                                isDayMenu = editType.equals("Day", ignoreCase = true) || editType.equals("Common", ignoreCase = true),
-                                isNightMenu = editType.equals("Night", ignoreCase = true) || editType.equals("Common", ignoreCase = true)
-                            ))
+                            onSave(
+                                item.copy(
+                                    englishName = editName,
+                                    banglaName = editName,
+                                    price = p,
+                                    emoji = editEmoji,
+                                    type = editType,
+                                    isDayMenu = editType.equals("Day", ignoreCase = true) || editType.equals("Common", ignoreCase = true),
+                                    isNightMenu = editType.equals("Night", ignoreCase = true) || editType.equals("Common", ignoreCase = true)
+                                ),
+                                effectiveDateMillis
+                            )
                             isEditing = false
                         }
                     },
                     modifier = Modifier.size(32.dp).background(AccentCyan.copy(alpha = 0.2f), CircleShape)
                 ) {
                     Icon(Icons.Default.Check, contentDescription = "Save", tint = AccentCyan, modifier = Modifier.size(16.dp))
+                }
+                IconButton(
+                    onClick = { isEditing = false },
+                    modifier = Modifier.size(28.dp).background(AccentPink.copy(alpha = 0.15f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = AccentPink, modifier = Modifier.size(14.dp))
                 }
             }
         } else {
@@ -568,11 +632,14 @@ fun MenuTableRow(
                             "Night" -> "Common"
                             else -> "Day"
                         }
-                        onSave(item.copy(
-                            type = nextType,
-                            isDayMenu = nextType == "Day" || nextType == "Common",
-                            isNightMenu = nextType == "Night" || nextType == "Common"
-                        ))
+                        onSave(
+                            item.copy(
+                                type = nextType,
+                                isDayMenu = nextType == "Day" || nextType == "Common",
+                                isNightMenu = nextType == "Night" || nextType == "Common"
+                            ),
+                            System.currentTimeMillis()
+                        )
                     }
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
