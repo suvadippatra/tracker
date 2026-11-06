@@ -745,7 +745,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v$appVersion (Khata Optical Scanner, Word-Processor Sticky Notes, Inline Menu Editor & Android 8 Speed Boost)
+            Traker v$appVersion (2MB Smart Compression, Pin/Clip Sticky Notes, Uncropped Khata OCR, On-Screen Calculator & Split-Screen Ready)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -753,31 +753,31 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 📌 "Sticky" ট্যাব: গুগল কিপ ধাঁচের নোট, লাইন-ভিত্তিক অ্যালাইনমেন্ট ও ভিজ্যুয়াল গ্রিড টেবিল
-            • স্ক্রিন সীমার মধ্যে ব্যাকগ্রাউন্ড ওবলিং: মোবাইল ও ট্যাবলেট উভয় মোডেই সমস্ত স্টিকি কার্ড সম্পূর্ণ স্ক্রিনের ভেতরে থাকে। কার্ডের ওপরের লেখা স্থির রেখে শুধুমাত্র পেছনের কার্ড ব্যাকগ্রাউন্ড দুলতে থাকে (Illusion Wobble), ফলে লেখা পড়তে কোনো অসুবিধা হয় না।
-            • শুধুমাত্র এডিট মোডে কন্ট্রোল ও ফিক্সড অ্যাটাচমেন্ট: প্রিভিউ মোডে কোনো এডিটিং টুলবার বা বাটন দেখায় না—এডিট আইকনে ট্যাপ করলেই নিচে ৮-আইকন টুলবার ও ট্যাগ কন্ট্রোল আসে এবং এডিটরের নিচে কোনো ডুপ্লিকেট প্রিভিউ দেখায় না। ফাইল বা ছবি অ্যাটাচ করলে তা সরাসরি ডাটাবেসে সেভ হয়।
-            • লাইন-ভিত্তিক অ্যালাইনমেন্ট ও ভিজ্যুয়াল টেবিল গ্রিড: ওয়ার্ড প্রসেসর অ্যাপের মতো কার্সার যে লাইনে আছে শুধুমাত্র সেই লাইন বা প্যারাগ্রাফে Left, Center, Right বা Justify অ্যালাইনমেন্ট প্রযোজ্য হয়। টেবিলগুলো ইনলাইন মার্কডাউনের বদলে সরাসরি ইন্টারঅ্যাক্টিভ গ্রিড হিসেবে এডিট করা যায়।
+            ১. 📌 "Sticky" ট্যাব: ডিফল্ট সাদা/কালো থিম কার্ড, পিন/ক্লিপ আইকন (📌📎) ও বর্ডারলেস টেবিল
+            • ডিফল্ট সাদা/কালো রঙ ও পিন/ক্লিপ আইকন: নতুন স্টিকি কার্ডগুলো থিম অনুযায়ী ডিফল্টভাবে সাদা (লাইট মোডে) বা কালো (ডার্ক মোডে) থাকে, তবে যেকোনো রঙ বাছাই করা যায়। ল্যান্ডিং কার্ডে এডিট/ডিলিট বাটনের বদলে কার্ডের সাথে নিখুঁতভাবে সিঙ্ক করা পিন (📌) বা পেপারক্লিপ (📎) আইকন দেখায়।
+            • টপ-বারে শিরোনাম, সাব-হেডিং ও ট্রিপল-ডট (⋮) মেনু: নোট খুললে ব্যাক বাটন ও ট্রিপল-ডট মেনুর মাঝখানে শিরোনাম দেখায় এবং মূল লেখার ঠিক ওপরে সাব-হেডিং থাকে। ট্রিপল-ডট (⋮) মেনুতে রয়েছে: Edit, Remove, Show Preview, Attachment, Share এবং Attached Icon (📌/📎)।
+            • বর্ডারলেস ভিজ্যুয়াল টেবিল ও অ্যাটাচমেন্ট অ্যাকশন: ভিজ্যুয়াল গ্রিড টেবিলটি সম্পূর্ণ বর্ডারলেস। সংযুক্ত ছবির ওপর সিঙ্গেল ট্যাপ করলে ফুল-স্ক্রিন প্রিভিউ ও অন্যান্য ফাইলের জন্য উপযুক্ত অ্যাপ তালিকা খোলে; লং-প্রেস করলে View, Download, Share ও Remove অপশন পাওয়া যায়।
 
-            ২. 📷 "Scan Khata to Import" (২-ধাপে র অপটিক্যাল স্ক্যান ও মেনু মিলকরণ)
-            • ধাপ ১ (র স্ক্যানিং পেজ): কোনো প্রি-রিটেন টেক্সট বা মাসের টগল ছাড়াই সরাসরি ক্যামেরা বা গ্যালারি থেকে খাতার ছবি স্ক্যান করে `তারিখ - দাম১+দাম২` (যেমন `17 - 40+60`) লাইন শনাক্ত করা হয়।
-            • ধাপ ২ (তারিখ যাচাই ও মেনু অনুমান): ২য় ধাপে হোটেল ও মাস নির্বাচন করলে কোন কোন তারিখ ইতিমধ্যে মিল লেজারে আছে তা দেখায় এবং `+` দিয়ে লেখা প্রতিটি দামকে হোটেলের মেনুর সাথে মিলিয়ে ১–৪টি অনুমান বা কাস্টম নাম দেওয়ার সুবিধা দেয়।
+            ২. 📷 "Scan Khata to Import" (আনক্রপড প্রিভিউ, ফ্লেক্সিবল তারিখ ও পুরনো বনাম নতুন তারিখ)
+            • আনক্রপড খাতা ছবি ও ট্যাবলেট ফ্লিকার ফিক্স: খাতার ছবি ১৬:৯ অনুপাতে কাটা হয় না—সম্পূর্ণ খাতার পাতা দেখা যায় এবং ট্যাপ করে জুম করা যায়।
+            • ফ্লেক্সিবল তারিখ ও দাম পার্সিং: `9.10.26 - 60+50`, `11.10.26 - 40`, `13.10.26-20`-সহ স্পেস থাকুক বা না থাকুক সব ফরম্যাট স্বয়ংক্রিয়ভাবে বোঝে।
+            • পুরনো বনাম নতুন তারিখ (Existing vs New): স্ক্যান করা তারিখ ডাটাবেসে আগে থেকেই থাকলে পুরনো রেকর্ডটি (Existing) দেখায় এবং নতুন স্ক্যান করা খাবার (১–৪টি সম্ভাব্য মেনু কম্বিনেশন) দেখায়, যাতে আপনি কোনটি রাখবেন তা সহজেই বেছে নিতে পারেন।
 
-            ৩. 🍽️ হোটেল এডিট পেজে ইনলাইন মেনু এডিটর ও দাম পরিবর্তনের কার্যকর তারিখ (Effective Date)
-            • হোটেল এডিট করার সময় একই পেজ থেকে সরাসরি মেনু আইটেম যোগ বা এডিট করা যায়, এবং ফুল মেনু এডিটর থেকে Back চাপলে হোটেল এডিট পেজটি বন্ধ না হয়ে সেখানেই ফিরে আসে।
-            • যেকোনো মেনু আইটেমের দাম পরিবর্তনের সময় কোন তারিখ (Effective Date) থেকে নতুন দাম কার্যকর হবে তা নির্ধারণ করা যায় এবং তা মেনু ইতিহাসে সংরক্ষিত থাকে।
+            ৩. 🍽️ "Add Meal", পেমেন্ট স্ট্যাটাস ছবি সংযুক্তি ও অন-স্ক্রিন ক্যালকুলেটর কিবোর্ড
+            • "Add Meal" পেজের টপ বারে সেভ বাটনের ঠিক আগে একটি সিঙ্গেল আইকনে (☀️/🌙) দিন ও রাত পরিবর্তন করা যায়। ডিশ কার্ডগুলো মোবাইলে ২ কলামে ও ট্যাবলেটে ৩–৪ কলামে দেখায় এবং নিচে অন-স্ক্রিন ক্যালকুলেটরসহ কাস্টম খাবার ও দাম যোগ করার অপশন রয়েছে।
+            • হোটেল মিলের "Payment Status" পপআপে পরিষ্কার ব্যাকগ্রাউন্ডের পাশাপাশি রশিদ/ছবি সংযুক্ত করার বাটন যোগ করা হয়েছে, যা Universal Transfer, Whole Hotel Data ও Hotel Order History এক্সপোর্টে সিঙ্ক থাকে।
+            • "Add Transaction" ও "Add Meal"-এ টাকার পরিমাণের বক্সে ট্যাপ করলে নিচে অন-স্ক্রিন ক্যালকুলেটর কিবোর্ড (`+`, `-`, `×`, `÷`, `00`, `Edit`, `Enter`) খোলে।
 
-            ৪. ⚡ বিদ্যুৎ বিল ক্যালকুলেটর ও রেট পলিসি (ডিফল্ট রেট ছাড়া)
-            • নির্বাচিত Start Date এবং End Date-এর মধ্যকার রিডিং অনুযায়ী নিখুঁতভাবে ইউনিট হিসাব করা হয় এবং রেট পলিসি পরিবর্তনের তারিখ অনুযায়ী গ্রুপ ভাগ ও লিনিয়ার ইন্টারপোলেশন করা হয়।
-
-            ৫. 🚀 Android 8 ল্যাগ ফিক্স, তাৎক্ষণিক ডাটা লোডিং ও অ্যাপ সংস্করণ লক
-            • Android 8 ও পুরনো ডিভাইসে টাচ রেসপন্স ও স্ক্রলিং মাখনের মতো মসৃণ করতে শ্যাডো লেয়ার ও ৬০ FPS রিকম্পোজিশন অপটিমাইজ করা হয়েছে এবং পেজ ট্রানজিশন ও ডাটা লোডিং তাৎক্ষণিক করা হয়েছে।
-            • অ্যাপের সংস্করণ (App Version) এখন সম্পূর্ণ রিড-ওনলি; অ্যাপের ভেতর থেকে এটি পরিবর্তন করা যায় না।
+            ৪. ⚡ প্রজেক্টেড ইউটিলিটি বিল ব্রেকডাউন, ২ এমবি ইমেজ কম্প্রেশন ও অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিন
+            • প্রজেক্টেড ইউটিলিটি বিল কার্ডে কোনো লেখা ভাঙে না এবং প্রতিটি রেট অঞ্চলের জন্য তারিখের সীমা, রিডিং সীমা (`start → end kWh`), মোট রিডিং ও মোট দাম আলাদাভাবে দেখায়।
+            • স্টিকি নোট, ট্রানজ্যাকশন, পেমেন্ট স্ট্যাটাস ও প্রোফাইল ফটোতে ২ এমবি-র বেশি বড় ছবি বাছাই করলে তা স্বয়ংক্রিয়ভাবে ২ এমবি-র নিচে JPEG হিসেবে কম্প্রেস হয়ে সেভ হয়।
+            • অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিনে অ্যাপের বটম নেভিগেশন বার সিস্টেম নেভিগেশন বারের নিচে লুকিয়ে যায় না, এবং যেকোনো এডিট পেজ থেকে সেভ না করে ব্যাক করলে সতর্কবার্তা (Unsaved Changes Warning) দেখায়।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v$appVersion (Khata Optical Scanner, Word-Processor Sticky Notes, Inline Menu Editor & Android 8 Speed Boost)
+            Traker v$appVersion (2MB Smart Compression, Pin/Clip Sticky Notes, Uncropped Khata OCR, On-Screen Calculator & Split-Screen Ready)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -785,25 +785,25 @@ fun LegalInfoDialog(
             📖 COMPLETE USER GUIDE & LATEST FEATURES
             ───────────────────────────
 
-            1. 📌 "STICKY" TAB: BACKGROUND-ONLY WOBBLE, PER-LINE ALIGNMENT & VISUAL GRID TABLES
-            • In-Bounds Tablet Layout & Background-Only Wobble: All sticky note columns fit strictly within the screen bounds on both phones and tablets. Only the background card surface wobbles while the foreground text and tables stay rock-steady for effortless reading.
-            • Edit-Mode-Only Controls & Reliable Attachments: Formatting controls, tag editors, and table controls appear strictly in Editing Mode (never in Preview Mode), and the redundant bottom preview box has been removed. Attached files/images persist immediately to the database.
-            • Word-Processor Line Alignment & Interactive Table Grid: Alignment buttons (Left, Center, Right, Justify) align only the specific line/sentence at your cursor rather than the entire note. Tables render as interactive visual grids directly inside the editor instead of raw pipe markdown.
+            1. 📌 "STICKY" TAB: THEME-DEFAULT CARDS, PIN/CLIP BADGE (📌📎) & BORDERLESS TABLES
+            • White/Black Theme Default & Pin/Clip Badge: Sticky notes default to clean White in Light Mode and Black/Dark Surface in Dark Mode while letting you pick any custom accent palette. Landing cards feature a synced Pin (📌) or Paperclip (📎) badge at the top with no cluttered edit/delete buttons or accidental double-click editing.
+            • Top-Bar Title, Sub-Heading & Triple-Dot (⋮) Menu: Opening a note displays the Title centered in the top bar between Back and the Triple-Dot (⋮) button, and places the Sub-heading right above the main body text. The Triple-Dot menu includes Edit, Remove, Show Preview, Attachment, Share, and Attached Icon (📌/📎).
+            • Borderless Visual Tables & Attachment Gestures: Visual grid tables render cleanly without cell/outer borders. Single-tap an image attachment for an in-app full-screen preview (or external app chooser for other files); long-press any attachment for View, Download, Share, and Remove options.
 
-            2. 📷 "SCAN KHATA TO IMPORT" (2-STEP RAW OPTICAL SCAN & MENU MATCHING)
-            • Step 1 (Raw Scanning Page): Starts with a clean, empty state and no month toggle. Capture or pick a handwritten Khata image to segment rows and recognize `Date - Price1+Price2` lines (e.g., `17 - 40+60`).
-            • Step 2 (Captured Date Check & Menu Solver): Select target Hotel and Month on Step 2 to see which dates are already recorded in your Meal Ledger and match each `+`-separated price token to menu combinations (1–4 guesses or custom dish input).
+            2. 📷 "SCAN KHATA TO IMPORT" (UNCROPPED IMAGE, FLEXIBLE PARSER & EXISTING VS NEW RESOLVER)
+            • Uncropped Khata Preview & Tablet Stability: Displays captured/selected Khata images in full aspect ratio (`ContentScale.Fit` with tap-to-zoom) without 16:9 cropping and without tablet screen flickering.
+            • Flexible Date & Price Parsing: Understands full dates and spacing variations such as `9.10.26 - 60+50`, `11.10.26 - 40`, `13.10.26-20`, and `31.10.26 - 40` even when spaces are omitted.
+            • Existing vs New Date Choice: In Step 2, if a scanned date already exists in the database, both the Existing recorded dishes/amount and the New scanned options are shown side-by-side so you can choose to Keep Existing or Use New (with up to 4 menu combination choices per price token).
 
-            3. 🍽️ INLINE MENU EDITING IN HOTEL EDIT, BACK NAVIGATION & EFFECTIVE DATE
-            • Edit menu items directly inside the Edit Hotel dialog or open the full Menu Editor—pressing Back from the Menu Editor now returns cleanly to Edit Hotel instead of closing the screen.
-            • When editing a menu item's price, select the Effective From Date for the price change so historical records and modification history reflect the exact date.
+            3. 🍽️ "ADD MEAL" GRID, PAYMENT STATUS IMAGE PROOF & ON-SCREEN CALCULATOR KEYBOARD
+            • Add Meal features a compact single-icon Day/Night toggle (☀️/🌙) in the top bar before Save, 2-to-4 column responsive dish cards, smooth in-place expansion for "View More Dishes", and a bottom Custom Text + Custom Amount group.
+            • Hotel Meal "Payment Status" popup has a clean edge-to-edge backdrop, an Image Attachment button (auto-compressed <= 2MB), and full export/import sync across Universal Transfer, Whole Hotel Data, and Hotel Order History.
+            • Tapping the Amount box in Add Transaction or Add Meal opens the built-in On-Screen Calculator Keyboard (`0–9`, `.`, `00`, `+`, `-`, `×`, `÷`, `Edit`, `Enter`) directly below the input field.
 
-            4. ⚡ STRICT DATE-RANGE BILL CALCULATOR & RATE POLICY GROUPING
-            • Strictly calculates kWh consumption between your selected Start Date and End Date, splitting pro-rata across rate policy changes and linearly interpolating partial end ranges.
-
-            5. 🚀 ANDROID 8 PERFORMANCE ENGINE, INSTANT DATA LOADING & LOCKED VERSION
-            • Eliminated per-frame card recompositions and heavy offscreen shadow rasterization on Android 8 for instant touch response, zero-delay data loading (`SharingStarted.Eagerly`), and smooth page transitions.
-            • App Version is strictly read-only and bound to the official build configuration.
+            4. ⚡ PROJECTED UTILITY BILL BREAKDOWN, 2MB IMAGE COMPRESSION & ANDROID 8 SPLIT-SCREEN
+            • Projected Utility Bill card displays Date Range, Reading Range (`start → end kWh`), Total Units @ Rate, and Total Price without text wrapping, repeating for each rate region when multiple rate policies apply.
+            • All image attachments (Sticky Notes, Transactions, Payment Status popup, Profile Photo) are automatically compressed to <= 2MB JPEG, and cached theme/typography objects ensure instant Light/Dark and Bold Text switching.
+            • Android 8 split-screen keeps the bottom navigation bar above the system navigation bar, and pressing Back while editing any form shows an Unsaved Changes confirmation dialog.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
@@ -816,6 +816,7 @@ fun LegalInfoDialog(
             - Android Jetpack Compose & Material Design 3
             - AndroidX Room SQLite Database (Schema v36)
             - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
+            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression & Offline OCR)
             - Kotlin Coroutines & Flow
             - ZXing QR Engine & CameraX
             - Coil Image Loader
@@ -826,6 +827,7 @@ fun LegalInfoDialog(
             - Android Jetpack Compose & Material Design 3
             - AndroidX Room SQLite Database (Schema v36)
             - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
+            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression & Offline OCR)
             - Kotlin Coroutines & Flow
             - ZXing QR Engine & CameraX
             - Coil Image Loader

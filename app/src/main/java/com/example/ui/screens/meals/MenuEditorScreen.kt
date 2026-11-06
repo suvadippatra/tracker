@@ -460,7 +460,39 @@ fun MenuTableRow(
     var editEmoji by remember(item.emoji) { mutableStateOf(item.emoji) }
     var effectiveDateMillis by remember(item.id) { mutableLongStateOf(System.currentTimeMillis()) }
     var showEffectiveDatePicker by remember { mutableStateOf(false) }
+    var showDiscardRowDialog by remember { mutableStateOf(false) }
     val dateFormat = remember { java.text.SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    val hasRowChanges = isEditing && (
+        editName != item.englishName ||
+            editPrice != item.price.toString() ||
+            !editType.equals(item.type, ignoreCase = true) ||
+            editEmoji != item.emoji
+    )
+
+    if (isEditing) {
+        BackHandler {
+            if (hasRowChanges) {
+                showDiscardRowDialog = true
+            } else {
+                isEditing = false
+            }
+        }
+    }
+
+    if (showDiscardRowDialog) {
+        UnsavedChangesWarningDialog(
+            onKeepEditing = { showDiscardRowDialog = false },
+            onDiscard = {
+                showDiscardRowDialog = false
+                editName = item.englishName
+                editPrice = item.price.toString()
+                editType = item.type
+                editEmoji = item.emoji
+                isEditing = false
+            }
+        )
+    }
 
     if (showEffectiveDatePicker) {
         SlidingDatePickerModal(
@@ -602,7 +634,13 @@ fun MenuTableRow(
                     Icon(Icons.Default.Check, contentDescription = "Save", tint = AccentCyan, modifier = Modifier.size(16.dp))
                 }
                 IconButton(
-                    onClick = { isEditing = false },
+                    onClick = {
+                        if (hasRowChanges) {
+                            showDiscardRowDialog = true
+                        } else {
+                            isEditing = false
+                        }
+                    },
                     modifier = Modifier.size(28.dp).background(AccentPink.copy(alpha = 0.15f), CircleShape)
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Cancel", tint = AccentPink, modifier = Modifier.size(14.dp))

@@ -823,7 +823,7 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.append("\n")
 
         sb.append("# ORDER HISTORY (GROUP-WISE COMPACT)\n")
-        sb.append(exportHotelHistoryCsv(null))
+        sb.append(exportHotelHistoryCsv(null, includePaymentsSection = false))
         sb.append("\n")
 
         val allHotelPayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
@@ -867,7 +867,7 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.toString()
     }
 
-    suspend fun exportHotelHistoryCsv(hotelId: Int? = null): String = withContext(Dispatchers.IO) {
+    suspend fun exportHotelHistoryCsv(hotelId: Int? = null, includePaymentsSection: Boolean = true): String = withContext(Dispatchers.IO) {
         val txs = if (hotelId != null) transactionDao.getTransactionsForHotelSync(hotelId) else transactionDao.getAllTransactionsSync()
         val sb = StringBuilder()
         sb.append("Order ID,Date,Time,Session,Meal Groups & Items,Total Items,Order Total,Timestamp\n")
@@ -883,6 +883,19 @@ class DataTransferManager(private val db: AppDatabase) {
             val compactGroupsStr = formatMealGroupsCompact(t.itemsSerialized)
 
             sb.append("${t.id},\"$dateStr\",\"$timeStr\",\"$sessionName\",\"${escapeCsv(compactGroupsStr)}\",$totalItems,${t.totalAmount},${t.timestamp}\n")
+        }
+
+        if (includePaymentsSection) {
+            val payments = hotelPaymentDao.getAllPaymentsSync().filter {
+                !it.isDeleted && (hotelId == null || it.hotelId == hotelId)
+            }
+            if (payments.isNotEmpty()) {
+                sb.append("\n# HOTEL MONTHLY PAYMENTS\n")
+                sb.append("Hotel ID,Year,Month,Amount Paid,Payment Date,Note\n")
+                payments.forEach { p ->
+                    sb.append("${p.hotelId},${p.year},${p.month},${p.amountPaid},${p.paymentDate},\"${escapeCsv(p.note)}\"\n")
+                }
+            }
         }
         sb.toString()
     }
@@ -901,7 +914,7 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.append("# MENU ITEMS\n")
         sb.append(exportMenusCsv(hotelId))
         sb.append("\n# ORDER HISTORY (GROUP-WISE COMPACT)\n")
-        sb.append(exportHotelHistoryCsv(hotelId))
+        sb.append(exportHotelHistoryCsv(hotelId, includePaymentsSection = false))
         val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
         if (payments.isNotEmpty()) {
             sb.append("\n# HOTEL MONTHLY PAYMENTS\n")
@@ -2145,13 +2158,51 @@ class DataTransferManager(private val db: AppDatabase) {
         val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() }
         if (lines.isEmpty()) return@withContext 0
 
-        // Extract lines specifically from order history section if whole hotel CSV
+        // Extract lines specifically from order history section (stop before # HOTEL MONTHLY PAYMENTS if present)
         val historyLines = if (lines.any { it.startsWith("# ORDER HISTORY", ignoreCase = true) }) {
-            lines.dropWhile { !it.startsWith("# ORDER HISTORY", ignoreCase = true) }.drop(1).filter { !it.startsWith("#") && it.isNotBlank() }
+            lines.dropWhile { !it.startsWith("# ORDER HISTORY", ignoreCase = true) }
+                .drop(1)
+                .takeWhile { !it.startsWith("#") }
+                .filter { it.isNotBlank() }
         } else {
-            lines.filter { !it.startsWith("#") && it.isNotBlank() }
+            lines.takeWhile { !it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }
+                .filter { !it.startsWith("#") && it.isNotBlank() }
         }
-        if (historyLines.isEmpty()) return@withContext 0
+
+        var importedPaymentsCount = 0
+        if (lines.any { it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }) {
+            val payLines = lines.dropWhile { !it.startsWith("# HOTEL MONTHLY PAYMENTS", ignoreCase = true) }
+                .drop(1)
+                .takeWhile { !it.startsWith("#") }
+                .filter { it.isNotBlank() && !it.startsWith("Hotel ID", ignoreCase = true) }
+            val payList = mutableListOf<HotelPaymentEntity>()
+            for (line in payLines) {
+                val cols = splitCsvRow(line)
+                if (cols.size >= 4) {
+                    val yr = cols.getOrElse(1) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+                    val mo = cols.getOrElse(2) { "0" }.toIntOrNull() ?: Calendar.getInstance().get(Calendar.MONTH)
+                    val amt = cols.getOrElse(3) { "0" }.toDoubleOrNull() ?: 0.0
+                    val pDate = cols.getOrElse(4) { "0" }.toLongOrNull() ?: System.currentTimeMillis()
+                    val note = cols.getOrElse(5) { "" }
+                    payList.add(
+                        HotelPaymentEntity(
+                            hotelId = hotelId,
+                            year = yr,
+                            month = mo,
+                            amountPaid = amt,
+                            paymentDate = pDate,
+                            note = note
+                        )
+                    )
+                }
+            }
+            if (payList.isNotEmpty()) {
+                hotelPaymentDao.insertPayments(payList)
+                importedPaymentsCount = payList.size
+            }
+        }
+
+        if (historyLines.isEmpty()) return@withContext importedPaymentsCount
 
         val firstLineCols = splitCsvRow(historyLines[0])
         val isHeader = firstLineCols.any { col ->
@@ -2334,7 +2385,7 @@ class DataTransferManager(private val db: AppDatabase) {
         if (txList.isNotEmpty()) {
             transactionDao.insertTransactions(txList)
         }
-        txList.size
+        txList.size + importedPaymentsCount
     }
 
     suspend fun importWholeHotelCsv(csv: String, targetHotelId: Int? = null): ImportOutcome = withContext(Dispatchers.IO) {

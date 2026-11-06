@@ -656,13 +656,15 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
                                                     text = account.name,
                                                     color = AppTextColor(),
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.ExtraBold
+                                                    fontSize = 24.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 val isDefaultAcc = userProfile?.defaultBankAccountId == account.id
                                                 if (isDefaultAcc) {
@@ -743,13 +745,6 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                             }
                                                         }
                                                     )
-                                                    DropdownMenuItem(
-                                                        text = { Text("Import Ledger via QR", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
-                                                        onClick = {
-                                                            showAccountMenu = false
-                                                            showQrImportScanner = true
-                                                        }
-                                                    )
                                                     val isDefaultAcc = userProfile?.defaultBankAccountId == account.id
                                                     DropdownMenuItem(
                                                         text = {
@@ -762,13 +757,6 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                         onClick = {
                                                             viewModel.setDefaultBankAccount(account.id)
                                                             showAccountMenu = false
-                                                        }
-                                                    )
-                                                    DropdownMenuItem(
-                                                        text = { Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
-                                                        onClick = {
-                                                            showAccountMenu = false
-                                                            showDeleteDialog = true
                                                         }
                                                     )
                                                 }
@@ -1533,19 +1521,20 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         }
     }
 
-    // Bottom-end floating button
+    // Unified Bottom-end floating button across tabs
     if (accounts.isNotEmpty()) {
         FloatingActionButton(
             onClick = { showAddExpense = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 148.dp, end = 16.dp)
+                .padding(end = 20.dp, bottom = 104.dp)
+                .size(58.dp)
                 .bounceClick()
                 .testTag("add_expense_fab"),
-            shape = CircleShape,
+            shape = RoundedCornerShape(18.dp),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            elevation = FloatingActionButtonDefaults.elevation(4.dp)
+            elevation = FloatingActionButtonDefaults.elevation(8.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
@@ -2068,27 +2057,11 @@ fun AttachmentItem(attachment: AttachmentEntity, context: android.content.Contex
     }
 
     if (showImageViewer) {
-        Dialog(
-            onDismissRequest = { showImageViewer = false },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false
-            )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.9f))
-                    .clickable { showImageViewer = false },
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = attachment.uri,
-                    contentDescription = "Image Viewer",
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-            }
-        }
+        FullScreenImagePreviewDialog(
+            imageUri = attachment.uri,
+            title = attachment.uri.substringAfterLast("/"),
+            onDismiss = { showImageViewer = false }
+        )
     }
 }
 

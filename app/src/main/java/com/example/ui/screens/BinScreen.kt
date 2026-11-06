@@ -77,22 +77,31 @@ fun BinScreen(
         else -> activeSection
     }
 
-    val filteredHotels = remember(deletedHotels, searchQuery) {
-        deletedHotels.filter {
+    val sharedDateFormat = remember { java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault()) }
+    val sharedDateTimeFormat = remember { java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()) }
+
+    val filteredHotels = remember(activeSection, deletedHotels, searchQuery) {
+        if (activeSection != "Hotels") emptyList()
+        else if (searchQuery.isBlank()) deletedHotels
+        else deletedHotels.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
             it.location.contains(searchQuery, ignoreCase = true) ||
             it.phoneNumber.contains(searchQuery, ignoreCase = true)
         }
     }
-    val filteredBankAccounts = remember(deletedBankAccounts, searchQuery) {
-        deletedBankAccounts.filter {
+    val filteredBankAccounts = remember(activeSection, deletedBankAccounts, searchQuery) {
+        if (activeSection != "Accounts") emptyList()
+        else if (searchQuery.isBlank()) deletedBankAccounts
+        else deletedBankAccounts.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
             it.accountNumber.contains(searchQuery, ignoreCase = true) ||
             it.upiId.contains(searchQuery, ignoreCase = true)
         }
     }
-    val filteredOwnerAccounts = remember(deletedOwnerAccounts, searchQuery) {
-        deletedOwnerAccounts.filter {
+    val filteredOwnerAccounts = remember(activeSection, deletedOwnerAccounts, searchQuery) {
+        if (activeSection != "Accounts") emptyList()
+        else if (searchQuery.isBlank()) deletedOwnerAccounts
+        else deletedOwnerAccounts.filter {
             it.accountName.contains(searchQuery, ignoreCase = true) ||
             it.ownerName.contains(searchQuery, ignoreCase = true) ||
             it.branchName.contains(searchQuery, ignoreCase = true) ||
@@ -100,49 +109,62 @@ fun BinScreen(
             it.upiId.contains(searchQuery, ignoreCase = true)
         }
     }
-    val filteredMenuItems = remember(deletedMenuItems, searchQuery) {
-        deletedMenuItems.filter {
+    val filteredMenuItems = remember(activeSection, deletedMenuItems, searchQuery) {
+        if (activeSection != "Menu") emptyList()
+        else if (searchQuery.isBlank()) deletedMenuItems
+        else deletedMenuItems.filter {
             it.englishName.contains(searchQuery, ignoreCase = true) ||
             it.banglaName.contains(searchQuery, ignoreCase = true) ||
             it.type.contains(searchQuery, ignoreCase = true) ||
             it.price.toString().contains(searchQuery)
         }
     }
-    val filteredTransactions = remember(deletedTransactions, searchQuery) {
-        deletedTransactions.filter {
+    val filteredTransactions = remember(activeSection, deletedTransactions, searchQuery) {
+        if (activeSection != "Meals") emptyList()
+        else if (searchQuery.isBlank()) deletedTransactions
+        else deletedTransactions.filter {
             it.itemsSerialized.contains(searchQuery, ignoreCase = true) ||
             it.totalAmount.toString().contains(searchQuery)
         }
     }
-    val filteredExtraExpenses = remember(deletedExtraExpenses, searchQuery) {
-        deletedExtraExpenses.filter {
+    val filteredExtraExpenses = remember(activeSection, deletedExtraExpenses, searchQuery) {
+        if (activeSection != "Expenses") emptyList()
+        else if (searchQuery.isBlank()) deletedExtraExpenses
+        else deletedExtraExpenses.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
             it.category.contains(searchQuery, ignoreCase = true) ||
             it.notes.contains(searchQuery, ignoreCase = true) ||
             it.amount.toString().contains(searchQuery)
         }
     }
-    val filteredMeterReadings = remember(deletedMeterReadings, searchQuery) {
-        deletedMeterReadings.filter {
+    val filteredMeterReadings = remember(activeSection, deletedMeterReadings, searchQuery) {
+        if (activeSection != "Readings") emptyList()
+        else if (searchQuery.isBlank()) deletedMeterReadings
+        else deletedMeterReadings.filter {
             it.unitsConsumed.toString().contains(searchQuery) ||
             it.totalReading.toString().contains(searchQuery)
         }
     }
-    val filteredUtilityBills = remember(deletedUtilityBills, searchQuery) {
-        deletedUtilityBills.filter {
+    val filteredUtilityBills = remember(activeSection, deletedUtilityBills, searchQuery) {
+        if (activeSection != "Bills") emptyList()
+        else if (searchQuery.isBlank()) deletedUtilityBills
+        else deletedUtilityBills.filter {
             it.totalUnits.toString().contains(searchQuery) ||
             it.calculatedAmount.toString().contains(searchQuery)
         }
     }
-    val filteredElectricityRates = remember(deletedElectricityRates, searchQuery) {
-        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-        deletedElectricityRates.filter {
+    val filteredElectricityRates = remember(activeSection, deletedElectricityRates, searchQuery) {
+        if (activeSection != "Rates") emptyList()
+        else if (searchQuery.isBlank()) deletedElectricityRates
+        else deletedElectricityRates.filter {
             it.ratePerUnit.toString().contains(searchQuery) ||
-            runCatching { sdf.format(java.util.Date(it.effectiveDate)) }.getOrDefault("").contains(searchQuery, ignoreCase = true)
+            runCatching { sharedDateFormat.format(java.util.Date(it.effectiveDate)) }.getOrDefault("").contains(searchQuery, ignoreCase = true)
         }
     }
-    val filteredStickyNotes = remember(deletedStickyNotes, searchQuery) {
-        deletedStickyNotes.filter {
+    val filteredStickyNotes = remember(activeSection, deletedStickyNotes, searchQuery) {
+        if (activeSection != "Sticky") emptyList()
+        else if (searchQuery.isBlank()) deletedStickyNotes
+        else deletedStickyNotes.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.subtitle.contains(searchQuery, ignoreCase = true) ||
             it.bodyText.contains(searchQuery, ignoreCase = true) ||
@@ -443,8 +465,7 @@ fun BinScreen(
                                         val items = com.example.data.model.TransactionSerializer.deserialize(tx.itemsSerialized)
                                         val itemNames = items.joinToString(", ") { "${it.name} x${it.quantity}" }
                                         val formattedDate = try {
-                                            val sdf = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault())
-                                            sdf.format(java.util.Date(tx.timestamp))
+                                            sharedDateTimeFormat.format(java.util.Date(tx.timestamp))
                                         } catch (e: Exception) { "" }
                                         val isNightText = if (tx.isNight) (if (isBn) "রাত" else "Night") else (if (isBn) "দিন" else "Day")
                                         BinItemCard(
@@ -473,8 +494,7 @@ fun BinScreen(
                                 } else {
                                     items(filteredExtraExpenses, key = { it.id }) { ex ->
                                         val formattedDate = try {
-                                            val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-                                            sdf.format(java.util.Date(ex.timestamp))
+                                            sharedDateFormat.format(java.util.Date(ex.timestamp))
                                         } catch (e: Exception) { "" }
                                         val catText = when (ex.category) {
                                             "ROOM_SERVICE" -> if (isBn) "রুম সার্ভিস" else "ROOM_SERVICE"
@@ -521,8 +541,7 @@ fun BinScreen(
                                 } else {
                                     items(filteredMeterReadings, key = { it.id }) { r ->
                                         val formattedDate = try {
-                                            val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-                                            sdf.format(java.util.Date(r.readingDate))
+                                            sharedDateFormat.format(java.util.Date(r.readingDate))
                                         } catch (e: Exception) { "" }
                                         val isPaidLabel = if (r.isPaid) (if (isBn) "পরিশোধিত" else "Paid") else (if (isBn) "অপরিশোধিত" else "Unpaid")
                                         BinItemCard(
@@ -550,9 +569,8 @@ fun BinScreen(
                                     }
                                 } else {
                                     items(filteredUtilityBills, key = { it.id }) { bill ->
-                                        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
                                         val rangeStr = runCatching {
-                                            "${sdf.format(java.util.Date(bill.startDate))} - ${sdf.format(java.util.Date(bill.endDate))}"
+                                            "${sharedDateFormat.format(java.util.Date(bill.startDate))} - ${sharedDateFormat.format(java.util.Date(bill.endDate))}"
                                         }.getOrDefault("")
                                         val effRate = if (bill.totalUnits > 0) String.format(java.util.Locale.US, "%.2f", bill.calculatedAmount / bill.totalUnits) else "0.00"
                                         BinItemCard(
@@ -580,8 +598,7 @@ fun BinScreen(
                                     }
                                 } else {
                                     items(filteredElectricityRates, key = { it.id }) { rate ->
-                                        val sdf = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-                                        val effStr = runCatching { sdf.format(java.util.Date(rate.effectiveDate)) }.getOrDefault("")
+                                        val effStr = runCatching { sharedDateFormat.format(java.util.Date(rate.effectiveDate)) }.getOrDefault("")
                                         BinItemCard(
                                             title = if (isBn) "₹${rate.ratePerUnit} / ইউনিট" else "₹${rate.ratePerUnit} / Unit",
                                             subtitle = if (isBn) "কার্যকর তারিখ: $effStr" else "Effective: $effStr",

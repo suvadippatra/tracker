@@ -81,45 +81,38 @@ fun AboutSettingsScreen(
         listOf(
             HelpGuideQuickItem(
                 icon = Icons.Default.StickyNote2,
-                titleEn = "Visual Grid Sticky Tables, Per-Line Alignment & Background Wobble",
-                titleBn = "ভিজ্যুয়াল গ্রিড টেবিল, প্রতি-লাইন অ্যালাইনমেন্ট ও ব্যাকগ্রাউন্ড ওবলিং",
-                descEn = "Sticky cards stay strictly inside tablet/mobile screen bounds and wobble only the background surface while keeping text completely steady. In Edit Mode (controls hidden in Preview Mode), align individual lines/sentences like a word processor, build interactive Visual Grid Tables directly (no raw markdown or bottom preview), and save attachments reliably.",
-                descBn = "ট্যাবলেট ও মোবাইলে স্টিকি কার্ড স্ক্রিনের ভেতরে থাকে এবং লেখা স্থির রেখে শুধু পেছনের কার্ডটি দুলতে থাকে। এডিট মোডে প্রতিটি লাইন আলাদাভাবে অ্যালাইন করুন, সরাসরি ভিজ্যুয়াল গ্রিড টেবিল তৈরি করুন এবং ফাইল সংযুক্ত করুন।"
+                titleEn = "Theme-Aware Sticky Cards, Pin/Clip Badge (📌📎) & Borderless Tables",
+                titleBn = "ডিফল্ট সাদা/কালো স্টিকি কার্ড, পিন/ক্লিপ আইকন (📌📎) ও বর্ডারলেস টেবিল",
+                descEn = "Default sticky cards match Light/Dark theme (White/Black) while supporting custom colors. Landing cards display a realistic Pin (📌) or Paperclip (📎) badge without cluttered edit/delete buttons. Opened notes show Title in the top bar, Sub-heading before body text, a Triple-Dot (⋮) menu (Edit, Remove, Show Preview, Attachment, Share, Attached Icon), borderless visual tables, and single-tap/long-press attachment actions.",
+                descBn = "ডিফল্ট স্টিকি কার্ড থিম অনুযায়ী সাদা বা কালো হয়। ল্যান্ডিং কার্ডে পিন (📌) বা ক্লিপ (📎) আইকন দেখায়। নোট খুললে টপ বারে শিরোনাম, মূল লেখার আগে সাব-হেডিং, ট্রিপল-ডট (⋮) মেনু, বর্ডারলেস টেবিল এবং অ্যাটাচমেন্ট প্রিভিউ ও লং-প্রেস অপশন পাওয়া যায়।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.QrCodeScanner,
-                titleEn = "Raw Khata Optical Scanner & Step-2 Date/Menu Resolver",
-                titleBn = "খাতা অপটিক্যাল স্ক্যানার ও ২য় ধাপে তারিখ/মেনু মিলকরণ",
-                descEn = "Step 1 scans handwritten khata lines into raw 'Date - Price1+Price2' format (no pre-written text or month selector on Step 1). Step 2 lets you pick the target Hotel & Month, highlights already-recorded dates, and matches each price token to menu dishes.",
-                descBn = "১ম ধাপে খাতার ছবি থেকে সরাসরি 'তারিখ - দাম' লাইন স্ক্যান হয় (কোনো পূর্বলিখিত টেক্সট বা মাস সিলেক্টর ছাড়া)। ২য় ধাপে মাস ও হোটেল অনুযায়ী বিদ্যমান তারিখ চিহ্নিত হয় এবং প্রতিটি দামের জন্য মেনু ডিশ মেলানো হয়।"
+                titleEn = "Uncropped Offline Khata Scanner & Existing vs New Date Resolver",
+                titleBn = "আনক্রপড অফলাইন খাতা স্ক্যানার ও পুরনো বনাম নতুন তারিখ সমাধান",
+                descBn = "খাতার ছবি ১৬:৯ ক্রপ ছাড়াই সম্পূর্ণ দেখা যায় এবং ট্যাবলেটে ফ্লিকার ছাড়াই কাজ করে। `9.10.26 - 60+50`-এর মতো যেকোনো ফরম্যাট বোঝে এবং ডাটাবেসে তারিখ আগে থেকেই থাকলে পুরনো রেকর্ড রাখবেন নাকি নতুন ৪-অপশন মেনু কম্বিনেশন নেবেন তা বেছে নেওয়ার সুযোগ দেয়।",
+                descEn = "Displays captured Khata photos fully uncropped with tap-to-zoom and zero tablet flicker. Parses flexible lines like '9.10.26 - 60+50' even when spaces vary, and when a date already exists in the database, lets you choose between Keeping Existing or Using New (with up to 4 dish combination options per price)."
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.RestaurantMenu,
-                titleEn = "Inline Menu Editing in Hotel Edit & Effective Price Date",
-                titleBn = "হোটেল এডিটে মেনু সম্পাদনা ও নতুন দামের কার্যকর তারিখ",
-                descEn = "Edit menu items directly inside the Edit Hotel page or open the full Menu Editor (pressing Back returns to Edit Hotel without closing it). When changing a dish's price, choose the Effective Date from which the new price applies.",
-                descBn = "হোটেল এডিট পেজের ভেতরেই মেনু আইটেম সম্পাদনা করুন এবং মেনু এডিটর থেকে ব্যাক করলে হোটেল এডিট পেজেই ফিরে আসুন। মেনুর দাম পরিবর্তনের সময় কোন তারিখ থেকে নতুন দাম কার্যকর হবে তা নির্ধারণ করুন।"
+                titleEn = "Compact Add Meal Grid, Top-Bar Day/Night Icon & Custom Calculator",
+                titleBn = "কমপ্যাক্ট অ্যাড মিল গ্রিড, টপ-বার দিন/রাত আইকন ও ক্যালকুলেটর কিবোর্ড",
+                descEn = "Add Meal features a single-icon Day/Night toggle in the top bar, 2-to-4 column responsive dish cards, smooth in-place expansion for 'View More Dishes', and a Custom Meal + Amount builder at the bottom powered by an on-screen Calculator Keyboard (+, -, ×, ÷, 00, Enter).",
+                descBn = "অ্যাড মিল পেজে টপ বারে দিন/রাত আইকন, ২-৪ কলামের ডিশ কার্ড, স্মুথ 'View More Dishes' অ্যানিমেশন এবং নিচে অন-স্ক্রিন ক্যালকুলেটর কিবোর্ডসহ কাস্টম খাবার ও দাম যোগ করার সুবিধা রয়েছে।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "Strict Date-Range Bill Calculator & Rate Policy Grouping",
-                titleBn = "নির্দিষ্ট তারিখ-ভিত্তিক বিল ক্যালকুলেটর ও রেট পলিসি গ্রুপিং",
-                descEn = "Strictly calculates electricity units between selected Start and End dates (e.g., 15 Aug to 17 Oct = 120 kWh) with group-by-group rate boundaries and linear interpolation for intermediate dates.",
-                descBn = "নির্বাচিত শুরুর ও শেষের তারিখের মধ্যে নিখুঁতভাবে ইউনিট হিসাব করে (যেমন ১৫ আগস্ট থেকে ১৭ অক্টোবর = ১২০ ইউনিট), রেট পরিবর্তনের সীমানা ও ইন্টারপোলেশনসহ।"
+                titleEn = "No-Wrap Projected Utility Bill Card & Multi-Region Rate Breakdown",
+                titleBn = "প্রজেক্টেড ইউটিলিটি বিল কার্ড ও বিস্তারিত রেট রিজিওন ব্রেকডাউন",
+                descEn = "Displays Date Range, Reading Range (start → end kWh), Total Units @ Rate, and Total Price cleanly without text wrapping, repeating for each rate region when multiple rate policies apply.",
+                descBn = "প্রতিটি রেট পলিসি অঞ্চলের জন্য তারিখের সীমা, রিডিং সীমা (শুরু → শেষ ইউনিট), মোট ইউনিট ও মোট মূল্য কোনো টেক্সট ভাঙা ছাড়াই স্পষ্টভাবে প্রদর্শন করে।"
             ),
             HelpGuideQuickItem(
-                icon = Icons.Default.Speed,
-                titleEn = "Android 8 Ultra-Fast Touch Response & Instant Transitions",
-                titleBn = "অ্যান্ড্রয়েড ৮ আল্ট্রা-ফাস্ট টাচ ও তাৎক্ষণিক পেজ ট্রানজিশন",
-                descEn = "Hardware-accelerated page transitions, eager in-memory state streams, and zero-overhead card borders on Android 8 ensure instant data loading and zero touch lag.",
-                descBn = "হার্ডওয়্যার-অ্যাক্সিলারেটেড পেজ ট্রানজিশন এবং ইন-মেমরি ডাটা স্ট্রিমের মাধ্যমে অ্যান্ড্রয়েড ৮-সহ সব ডিভাইসে তাৎক্ষণিক পেজ লোডিং ও ল্যাগ-মুক্ত টাচ নিশ্চিত করা হয়েছে।"
-            ),
-            HelpGuideQuickItem(
-                icon = Icons.Default.Storage,
-                titleEn = "Granular Daily Exports, Settings-Only Backup & Full Recycle Bin",
-                titleBn = "দৈনন্দিন আলাদা এক্সপোর্ট, সেটিংস ব্যাকআপ ও সম্পূর্ণ রিসাইকেল বিন",
-                descEn = "Export Settings separately, or export specific Hotels (Whole, Orders, Menus, Info), Accounts, or Electricity data. Recycle Bin includes search and restores deleted Hotels, Menus, Accounts, Meals, Transactions, Readings, Bills, and Rate Policies.",
-                descBn = "সেটিংস আলাদাভাবে এক্সপোর্ট করুন অথবা নির্দিষ্ট হোটেল, অ্যাকাউন্ট বা বিদ্যুৎ ডাটা ক্যাটাগরি অনুযায়ী এক্সপোর্ট করুন। রিসাইকেল বিনে সার্চ বার এবং ডিলিট করা সব আইটেম পুনরুদ্ধারের সুবিধা রয়েছে।"
+                icon = Icons.Default.Image,
+                titleEn = "2MB Auto-Compression, Payment Status Image Attachment & Split-Screen",
+                titleBn = "২ এমবি অটো-কম্প্রেশন, পেমেন্ট স্ট্যাটাস ছবি সংযুক্তি ও স্প্লিট-স্ক্রিন",
+                descEn = "All image attachments (Sticky, Transactions, Meal Payment Status popup, Profile Photo) are automatically compressed under 2MB JPEG. Meal Payment Status supports image proofs synced across Universal Transfer, Whole Hotel Data & Order History. Android 8 split-screen keeps the bottom navigation bar visible.",
+                descBn = "সব ছবির অ্যাটাচমেন্ট স্বয়ংক্রিয়ভাবে ২ এমবি-র নিচে JPEG কম্প্রেস হয়। পেমেন্ট স্ট্যাটাস পপআপে ছবি সংযুক্ত করার সুবিধা ও এক্সপোর্ট সিঙ্ক যোগ করা হয়েছে এবং অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিনে বটম নেভিগেশন বার সর্বদা দৃশ্যমান থাকে।"
             )
         )
     }
@@ -128,13 +121,13 @@ fun AboutSettingsScreen(
         listOf(
             PublicRepoReference(
                 name = "Android Jetpack Compose & Material 3",
-                category = "UI Framework & Adaptive Window Layouts",
+                category = "Adaptive UI Framework, Split-Screen Insets & Zero-Alloc Theme Cache",
                 license = "Apache License 2.0",
                 urlOrSource = "https://developer.android.com/jetpack/compose"
             ),
             PublicRepoReference(
                 name = "AndroidX Room Persistence Library (SQLite)",
-                category = "Local Encrypted-Ready Relational Database (v36 Schema)",
+                category = "Local Relational Database (v36 Schema)",
                 license = "Apache License 2.0",
                 urlOrSource = "https://developer.android.com/training/data-storage/room"
             ),
@@ -143,6 +136,12 @@ fun AboutSettingsScreen(
                 category = "Bundled Offline Typography Assets (OFL)",
                 license = "SIL Open Font License 1.1",
                 urlOrSource = "https://fonts.google.com/specimen/Archivo+Black"
+            ),
+            PublicRepoReference(
+                name = "Android Graphics Bitmap & ExifInterface Pipeline",
+                category = "2MB Automatic JPEG Downsampling, Compression & Offline Optical Matrix",
+                license = "Apache License 2.0",
+                urlOrSource = "https://developer.android.com/topic/performance/graphics"
             ),
             PublicRepoReference(
                 name = "ZXing (Zebra Crossing) & CameraX",

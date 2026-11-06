@@ -66,9 +66,19 @@ fun OwnerProfileScreen(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showChooseVisibleAccountsDialog by remember { mutableStateOf(false) }
     var accountToEdit by remember { mutableStateOf<OwnerAccountEntity?>(null) }
+    var showOwnerAvatarPreview by remember { mutableStateOf(false) }
+
+    if (showOwnerAvatarPreview && userProfile.avatar.isNotBlank()) {
+        FullScreenImagePreviewDialog(
+            imageUri = userProfile.avatar,
+            title = userProfile.name.ifBlank { "Profile Photo" },
+            onDismiss = { showOwnerAvatarPreview = false }
+        )
+    }
 
     androidx.activity.compose.BackHandler {
         when {
+            showOwnerAvatarPreview -> showOwnerAvatarPreview = false
             showEditProfileDialog -> showEditProfileDialog = false
             showAddAccountDialog -> showAddAccountDialog = false
             showChooseVisibleAccountsDialog -> showChooseVisibleAccountsDialog = false
@@ -166,8 +176,12 @@ fun OwnerProfileScreen(
                                 if (userProfile.avatar.isNotBlank()) {
                                     AsyncImage(
                                         model = userProfile.avatar,
-                                        contentDescription = "Profile Picture",
-                                        modifier = Modifier.size(90.dp).clip(CircleShape),
+                                        contentDescription = "Profile Picture (Tap to preview)",
+                                        modifier = Modifier
+                                            .size(90.dp)
+                                            .clip(CircleShape)
+                                            .border(2.dp, AppAccentColor().copy(alpha = 0.6f), CircleShape)
+                                            .clickable { showOwnerAvatarPreview = true },
                                         contentScale = ContentScale.Crop
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -418,8 +432,6 @@ fun EditProfileDialog(
     onDismiss: () -> Unit,
     onSave: (name: String, contact: String, avatar: String, bankName: String, accNum: String, ifsc: String, branch: String, upi: String, qrUri: String) -> Unit
 ) {
-    androidx.activity.compose.BackHandler { onDismiss() }
-
     var name by remember { mutableStateOf(userProfile.name) }
     var contact by remember { mutableStateOf(userProfile.contact) }
     var avatar by remember { mutableStateOf(userProfile.avatar) }
@@ -430,18 +442,58 @@ fun EditProfileDialog(
     var branch by remember { mutableStateOf(defaultOwnerAccount?.branchName ?: "") }
     var upi by remember { mutableStateOf(defaultOwnerAccount?.upiId ?: "") }
     var qrUri by remember { mutableStateOf(defaultOwnerAccount?.qrCodeUri ?: "") }
+    var showEditAvatarPreview by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    val hasUnsavedChanges = name != userProfile.name ||
+        contact != userProfile.contact ||
+        avatar != userProfile.avatar ||
+        bankName != (defaultOwnerAccount?.accountName ?: "") ||
+        accNum != (defaultOwnerAccount?.accountNumber ?: "") ||
+        ifsc != (defaultOwnerAccount?.ifscCode ?: "") ||
+        branch != (defaultOwnerAccount?.branchName ?: "") ||
+        upi != (defaultOwnerAccount?.upiId ?: "") ||
+        qrUri != (defaultOwnerAccount?.qrCodeUri ?: "")
+
+    val handleBack = {
+        if (hasUnsavedChanges) {
+            showDiscardDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+    androidx.activity.compose.BackHandler { handleBack() }
+
+    if (showDiscardDialog) {
+        UnsavedChangesWarningDialog(
+            isBengali = userProfile.language == "bn",
+            onKeepEditing = { showDiscardDialog = false },
+            onDiscard = {
+                showDiscardDialog = false
+                onDismiss()
+            }
+        )
+    }
+
+    if (showEditAvatarPreview && avatar.isNotBlank()) {
+        FullScreenImagePreviewDialog(
+            imageUri = avatar,
+            title = name.ifBlank { "Profile Photo" },
+            onDismiss = { showEditAvatarPreview = false }
+        )
+    }
+
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { avatar = com.example.ui.components.copyUriToPersistentFile(context, it, "AVATAR") }
+        uri?.let { avatar = com.example.ui.components.copyUriToPersistentFile(context, it, "AVATAR") ?: avatar }
     }
 
     val qrPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { qrUri = com.example.ui.components.copyUriToPersistentFile(context, it, "QR") }
+        uri?.let { qrUri = com.example.ui.components.copyUriToPersistentFile(context, it, "QR") ?: qrUri }
     }
 
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleBack() },
         properties = androidx.compose.ui.window.DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -481,7 +533,7 @@ fun EditProfileDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
-                                        onClick = onDismiss,
+                                        onClick = { handleBack() },
                                         modifier = Modifier
                                             .size(40.dp)
                                             .background(getGlassIconButtonBg(), CircleShape)
@@ -528,19 +580,40 @@ fun EditProfileDialog(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(90.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isAppLightMode()) Color.Black.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.1f))
-                                    .clickable { photoPicker.launch("image/*") }
-                                    .align(Alignment.CenterHorizontally),
-                                contentAlignment = Alignment.Center
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                if (avatar.isNotBlank()) {
-                                    AsyncImage(model = avatar, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                } else {
-                                    Icon(Icons.Default.CameraAlt, null, tint = AppTextColor().copy(alpha = 0.6f))
+                                Box(
+                                    modifier = Modifier
+                                        .size(90.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isAppLightMode()) Color.Black.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.1f))
+                                        .clickable {
+                                            if (avatar.isNotBlank()) {
+                                                showEditAvatarPreview = true
+                                            } else {
+                                                photoPicker.launch("image/*")
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (avatar.isNotBlank()) {
+                                        AsyncImage(model = avatar, contentDescription = "Tap to preview", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                    } else {
+                                        Icon(Icons.Default.CameraAlt, null, tint = AppTextColor().copy(alpha = 0.6f))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TextButton(onClick = { photoPicker.launch("image/*") }) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (avatar.isNotBlank()) "Change Profile Photo (≤2MB)" else "Upload Profile Photo (≤2MB)",
+                                        color = AppAccentColor(),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
 

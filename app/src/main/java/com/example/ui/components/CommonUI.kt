@@ -731,10 +731,92 @@ fun FullScreenQRPreviewDialog(
     }
 }
 
-fun copyUriToPersistentFile(context: android.content.Context, uri: android.net.Uri, prefix: String = "QR"): String {
+fun copyUriToPersistentFile(
+    context: android.content.Context,
+    uri: android.net.Uri,
+    prefix: String = "QR",
+    maxBytes: Long = 2L * 1024L * 1024L,
+    maxDimension: Int = 1920
+): String {
     try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return uri.toString()
-        val file = java.io.File(context.filesDir, "${prefix}_${System.currentTimeMillis()}.png")
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri) ?: ""
+        var originalSize = 0L
+        runCatching {
+            resolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                originalSize = pfd.statSize.coerceAtLeast(0L)
+            }
+        }
+        val isLikelyImage = mime.startsWith("image/", ignoreCase = true) ||
+            prefix.equals("IMG", ignoreCase = true) ||
+            prefix.equals("AVATAR", ignoreCase = true) ||
+            prefix.equals("PAY", ignoreCase = true) ||
+            prefix.equals("QR", ignoreCase = true) ||
+            uri.toString().lowercase(Locale.ROOT).let {
+                it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".png") || it.endsWith(".webp")
+            }
+
+        if (isLikelyImage && (originalSize > maxBytes || prefix.equals("AVATAR", ignoreCase = true) || originalSize == 0L)) {
+            val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            resolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, boundsOpts) }
+            if (boundsOpts.outWidth > 0 && boundsOpts.outHeight > 0) {
+                // If file is already under maxBytes and not an avatar and dimensions are reasonable, copy directly
+                if (originalSize in 1..maxBytes && !prefix.equals("AVATAR", ignoreCase = true) &&
+                    boundsOpts.outWidth <= maxDimension && boundsOpts.outHeight <= maxDimension
+                ) {
+                    val ext = if (mime.contains("png", true)) "png" else "jpg"
+                    val directFile = java.io.File(context.filesDir, "${prefix}_${System.currentTimeMillis()}.$ext")
+                    resolver.openInputStream(uri)?.use { input ->
+                        java.io.FileOutputStream(directFile).use { output -> input.copyTo(output) }
+                    }
+                    return android.net.Uri.fromFile(directFile).toString()
+                }
+
+                var sampleSize = 1
+                val targetMaxDim = if (prefix.equals("AVATAR", ignoreCase = true)) 720 else maxDimension
+                while ((boundsOpts.outWidth / sampleSize) > targetMaxDim * 2 ||
+                    (boundsOpts.outHeight / sampleSize) > targetMaxDim * 2
+                ) {
+                    sampleSize *= 2
+                }
+                val decodeOpts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                val decoded = resolver.openInputStream(uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, decodeOpts)
+                }
+                if (decoded != null) {
+                    val w = decoded.width
+                    val h = decoded.height
+                    val scaled = if (w > targetMaxDim || h > targetMaxDim) {
+                        val ratio = w.toFloat() / h.toFloat()
+                        val nw = if (w >= h) targetMaxDim else (targetMaxDim * ratio).toInt().coerceAtLeast(1)
+                        val nh = if (h > w) targetMaxDim else (targetMaxDim / ratio).toInt().coerceAtLeast(1)
+                        android.graphics.Bitmap.createScaledBitmap(decoded, nw, nh, true)
+                    } else decoded
+
+                    val outFile = java.io.File(context.filesDir, "${prefix}_${System.currentTimeMillis()}.jpg")
+                    var quality = if (prefix.equals("AVATAR", ignoreCase = true)) 82 else 86
+                    var bytes: ByteArray
+                    do {
+                        val baos = java.io.ByteArrayOutputStream()
+                        scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, baos)
+                        bytes = baos.toByteArray()
+                        quality -= 12
+                    } while (bytes.size > maxBytes && quality >= 35)
+
+                    java.io.FileOutputStream(outFile).use { it.write(bytes) }
+                    if (scaled !== decoded) scaled.recycle()
+                    decoded.recycle()
+                    return android.net.Uri.fromFile(outFile).toString()
+                }
+            }
+        }
+
+        val inputStream = resolver.openInputStream(uri) ?: return uri.toString()
+        val ext = android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "bin"
+        val file = java.io.File(context.filesDir, "${prefix}_${System.currentTimeMillis()}.$ext")
         java.io.FileOutputStream(file).use { outputStream ->
             inputStream.copyTo(outputStream)
         }
@@ -745,6 +827,394 @@ fun copyUriToPersistentFile(context: android.content.Context, uri: android.net.U
         return uri.toString()
     }
 }
+
+@Composable
+fun UnsavedChangesWarningDialog(
+    isBengali: Boolean = false,
+    onDiscard: () -> Unit,
+    onKeepEditing: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onKeepEditing,
+        containerColor = getDialogBackground(),
+        titleContentColor = AppTextColor(),
+        textContentColor = AppTextColor(),
+        shape = RoundedCornerShape(22.dp),
+        title = {
+            Text(
+                text = if (isBengali) "অসংরক্ষিত পরিবর্তন!" else "Unsaved Changes",
+                fontWeight = FontWeight.Bold,
+                color = AppTextColor(),
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Text(
+                text = if (isBengali)
+                    "আপনি কিছু তথ্য পরিবর্তন করেছেন যা এখনও সেভ করা হয়নি। আপনি কি সেভ না করেই ফিরে যেতে চান?"
+                else
+                    "You have unsaved changes. Are you sure you want to go back and discard your edits?",
+                color = AppSecondaryTextColor(),
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDiscard,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentPink,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = if (isBengali) "পরিবর্তন বাতিল করুন" else "Discard Changes",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onKeepEditing,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = if (isBengali) "এডিট চালিয়ে যান" else "Keep Editing",
+                    color = AppAccentColor(),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun FullScreenImagePreviewDialog(
+    imageUri: String,
+    title: String = "",
+    onOpenExternal: (() -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    if (imageUri.isBlank()) return
+    androidx.activity.compose.BackHandler { onDismiss() }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.94f))
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { onDismiss() })
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            coil.compose.AsyncImage(
+                model = imageUri,
+                contentDescription = title.ifBlank { "Image Preview" },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .dialogSafeTopPadding(extraTop = 8.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title.ifBlank { "Tap anywhere to close" },
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (onOpenExternal != null) {
+                    TextButton(onClick = onOpenExternal) {
+                        Text("Open App", color = AccentCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun evaluateCalculatorExpression(rawExpr: String): String {
+    val clean = rawExpr
+        .replace("₹", "")
+        .replace(",", "")
+        .replace("×", "*")
+        .replace("x", "*")
+        .replace("X", "*")
+        .replace("÷", "/")
+        .replace(" ", "")
+        .trim()
+    if (clean.isEmpty()) return ""
+    return try {
+        val tokens = mutableListOf<String>()
+        val numBuf = StringBuilder()
+        for (i in clean.indices) {
+            val c = clean[i]
+            if (c.isDigit() || c == '.') {
+                numBuf.append(c)
+            } else if (c in listOf('+', '-', '*', '/')) {
+                if (c == '-' && numBuf.isEmpty() && (tokens.isEmpty() || tokens.last() in listOf("+", "-", "*", "/"))) {
+                    numBuf.append(c)
+                } else {
+                    if (numBuf.isNotEmpty()) {
+                        tokens.add(numBuf.toString())
+                        numBuf.setLength(0)
+                    }
+                    if (tokens.isNotEmpty() && tokens.last() !in listOf("+", "-", "*", "/")) {
+                        tokens.add(c.toString())
+                    }
+                }
+            }
+        }
+        if (numBuf.isNotEmpty()) tokens.add(numBuf.toString())
+        while (tokens.isNotEmpty() && tokens.last() in listOf("+", "-", "*", "/")) {
+            tokens.removeAt(tokens.lastIndex)
+        }
+        if (tokens.isEmpty()) return ""
+
+        // Pass 1: * and /
+        val pass1 = mutableListOf<String>()
+        var i = 0
+        while (i < tokens.size) {
+            val tk = tokens[i]
+            if ((tk == "*" || tk == "/") && pass1.isNotEmpty() && i + 1 < tokens.size) {
+                val left = pass1.removeAt(pass1.lastIndex).toDoubleOrNull() ?: 0.0
+                val right = tokens[i + 1].toDoubleOrNull() ?: 1.0
+                val res = if (tk == "*") left * right else if (right != 0.0) left / right else left
+                pass1.add(res.toString())
+                i += 2
+            } else {
+                pass1.add(tk)
+                i++
+            }
+        }
+
+        // Pass 2: + and -
+        var total = pass1.firstOrNull()?.toDoubleOrNull() ?: 0.0
+        var j = 1
+        while (j + 1 < pass1.size) {
+            val op = pass1[j]
+            val right = pass1[j + 1].toDoubleOrNull() ?: 0.0
+            if (op == "+") total += right
+            else if (op == "-") total -= right
+            j += 2
+        }
+
+        if (total.isNaN() || total.isInfinite()) return rawExpr
+        val rounded = kotlin.math.round(total * 100.0) / 100.0
+        if (rounded % 1.0 == 0.0) {
+            rounded.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.2f", rounded).trimEnd('0').trimEnd('.')
+        }
+    } catch (_: Exception) {
+        rawExpr
+    }
+}
+
+@Composable
+fun OnScreenCalculatorKeyboard(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onEnter: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isLight = isAppLightMode()
+    val accent = AppAccentColor()
+    val keyBg = if (isLight) Color(0xFFF1F5F9) else Color(0xFF1E293B)
+    val opBg = accent.copy(alpha = if (isLight) 0.14f else 0.22f)
+    val textColor = AppTextColor()
+
+    fun appendToken(token: String) {
+        val operators = listOf("+", "-", "×", "÷")
+        if (token in operators) {
+            if (value.isBlank()) {
+                if (token == "-") onValueChange("-")
+                return
+            }
+            val lastChar = value.last().toString()
+            if (lastChar in operators) {
+                onValueChange(value.dropLast(1) + token)
+            } else {
+                onValueChange(value + token)
+            }
+        } else if (token == ".") {
+            val lastNumberSegment = value.split("+", "-", "×", "÷").lastOrNull() ?: ""
+            if (!lastNumberSegment.contains(".")) {
+                onValueChange(if (lastNumberSegment.isEmpty()) "${value}0." else "$value.")
+            }
+        } else {
+            onValueChange(value + token)
+        }
+    }
+
+    val rows = listOf(
+        listOf("7", "8", "9", "÷"),
+        listOf("4", "5", "6", "×"),
+        listOf("1", "2", "3", "-"),
+        listOf("0", "00", ".", "+")
+    )
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = if (isLight) Color(0xFFFFFFFF) else Color(0xFF111827),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        shadowElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Preview evaluated result if expression contains operators
+            val hasOperator = value.drop(1).any { it == '+' || it == '-' || it == '×' || it == '÷' || it == '*' || it == '/' }
+            if (hasOperator) {
+                val preview = remember(value) { evaluateCalculatorExpression(value) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = value,
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "= ₹$preview",
+                        color = accent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+
+            rows.forEach { rowKeys ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowKeys.forEach { keyLabel ->
+                        val isOp = keyLabel in listOf("+", "-", "×", "÷")
+                        Surface(
+                            onClick = { appendToken(keyLabel) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isOp) opBg else keyBg,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = keyLabel,
+                                    color = if (isOp) accent else textColor,
+                                    fontSize = if (isOp) 18.sp else 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bottom action row: Clear (C), Edit (Backspace), and Enter (= / Confirm)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    onClick = { onValueChange("") },
+                    shape = RoundedCornerShape(12.dp),
+                    color = AccentPink.copy(alpha = 0.14f),
+                    modifier = Modifier
+                        .weight(0.8f)
+                        .height(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "C",
+                            color = AccentPink,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        if (value.isNotEmpty()) {
+                            onValueChange(value.dropLast(1))
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = keyBg,
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Edit ⌫",
+                            color = textColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = {
+                        val evaluated = evaluateCalculatorExpression(value)
+                        onValueChange(evaluated)
+                        onEnter(evaluated)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = accent,
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Enter ↵",
+                            color = AppOnAccentColor(accent),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 fun formatIndianNumbering(number: Long): String {
     val str = number.toString()

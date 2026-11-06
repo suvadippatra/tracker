@@ -296,9 +296,8 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
     }
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isTablet = configuration.screenWidthDp >= 600
-    val useSideNavigation = isLandscape || isTablet
+    val useSideNavigation = isTablet
 
     if (useSideNavigation) {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -706,10 +705,11 @@ fun GlassBottomNavigation(
         shadowElevation = if (isLight) 8.dp else 12.dp,
         tonalElevation = if (isLight) 2.dp else 3.dp
     ) {
+        val safeBottomPad = rememberSplitScreenSafeBottomPadding()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
+                .padding(bottom = safeBottomPad)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically

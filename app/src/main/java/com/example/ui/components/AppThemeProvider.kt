@@ -18,9 +18,11 @@ fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> U
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val currentDensity = androidx.compose.ui.platform.LocalDensity.current
     val customFontScale = ThemePreferences.getFontScale(userProfile.textSize)
-    val activeFontFamily = if (userProfile.isBoldTextEnabled) AppBoldFontFamily else AppFontFamily
-    val activeTypography = remember(userProfile.textSize, userProfile.isBoldTextEnabled) {
-        getAppTypography(userProfile.textSize, userProfile.isBoldTextEnabled)
+    val customDensity = remember(currentDensity.density, customFontScale) {
+        androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = customFontScale
+        )
     }
 
     CompositionLocalProvider(
@@ -32,22 +34,7 @@ fun AppThemeProvider(viewModel: FinancialViewModel, content: @Composable () -> U
         LocalBoldTextEnabled provides userProfile.isBoldTextEnabled,
         LocalStickyCardWidthPercent provides userProfile.stickyCardWidthPercent.coerceIn(50, 80),
         LocalStickyPreviewLines provides userProfile.stickyPreviewLines.coerceIn(4, 10),
-        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
-            density = currentDensity.density,
-            fontScale = customFontScale
-        )
-    ) {
-        MaterialTheme(
-            colorScheme = MaterialTheme.colorScheme,
-            typography = activeTypography
-        ) {
-            androidx.compose.material3.ProvideTextStyle(
-                value = androidx.compose.ui.text.TextStyle(
-                    fontFamily = activeFontFamily,
-                    fontWeight = if (userProfile.isBoldTextEnabled) FontWeight.Black else null
-                ),
-                content = content
-            )
-        }
-    }
+        androidx.compose.ui.platform.LocalDensity provides customDensity,
+        content = content
+    )
 }

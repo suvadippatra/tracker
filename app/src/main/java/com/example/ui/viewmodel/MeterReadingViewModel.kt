@@ -17,7 +17,9 @@ data class RateBreakdownItem(
     val units: Double,
     val cost: Double,
     val periodStart: Long,
-    val periodEnd: Long
+    val periodEnd: Long,
+    val startReading: Double = 0.0,
+    val endReading: Double = 0.0
 )
 
 data class DetailedBillResult(
@@ -319,12 +321,28 @@ class MeterReadingViewModel(
                 }
             }
 
+            val singleStartReading = if (dayReadings.isNotEmpty()) {
+                (dayReadings.maxOf { it.cumulativeReading } - dayUnits).coerceAtLeast(0.0)
+            } else {
+                (normalized.last().cumulativeReading - dayUnits).coerceAtLeast(0.0)
+            }
+            val singleEndReading = singleStartReading + dayUnits
             val rate = getActiveRateAt(startDay)
             val cost = Math.round((dayUnits * rate + fixedCharge) * 100.0) / 100.0
             return DetailedBillResult(
                 totalUnits = Math.round(dayUnits * 100.0) / 100.0,
                 totalCost = cost,
-                breakdown = if (dayUnits > 0) listOf(RateBreakdownItem(rate, dayUnits, dayUnits * rate, startDay, endDay)) else emptyList(),
+                breakdown = if (dayUnits > 0) listOf(
+                    RateBreakdownItem(
+                        ratePerUnit = rate,
+                        units = dayUnits,
+                        cost = dayUnits * rate,
+                        periodStart = startDay,
+                        periodEnd = endDay,
+                        startReading = singleStartReading,
+                        endReading = singleEndReading
+                    )
+                ) else emptyList(),
                 activeRates = if (rate > 0.0) listOf(rate) else emptyList()
             )
         }
@@ -437,7 +455,9 @@ class MeterReadingViewModel(
                         units = windowUnits,
                         cost = cost,
                         periodStart = startDay,
-                        periodEnd = endDay
+                        periodEnd = endDay,
+                        startReading = startReading,
+                        endReading = startReading + windowUnits
                     )
                 )
             }
@@ -460,7 +480,9 @@ class MeterReadingViewModel(
                         units = intervalUnits,
                         cost = cost,
                         periodStart = if (i == 0) startDay else rStart,
-                        periodEnd = rEnd
+                        periodEnd = rEnd,
+                        startReading = startValue,
+                        endReading = endValue
                     )
                 )
             }
@@ -481,7 +503,9 @@ class MeterReadingViewModel(
                         units = mergedUnits,
                         cost = mergedCost,
                         periodStart = last.periodStart,
-                        periodEnd = item.periodEnd
+                        periodEnd = item.periodEnd,
+                        startReading = if (last.startReading > 0.0) last.startReading else item.startReading,
+                        endReading = if (item.endReading > 0.0) item.endReading else (last.startReading + mergedUnits)
                     )
                 } else {
                     breakdownItems.add(item)

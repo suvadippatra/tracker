@@ -86,8 +86,6 @@ fun AddMealFlowModal(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    BackHandler { onDismiss() }
-
     val date by viewModel.addMealDate.collectAsStateWithLifecycle()
     val isNight by viewModel.addMealIsNight.collectAsStateWithLifecycle()
     val quantities by viewModel.orderQuantities.collectAsStateWithLifecycle()
@@ -104,23 +102,58 @@ fun AddMealFlowModal(
     val isBengali = userProfile?.language == "bn"
 
     val context = LocalContext.current
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val gridColumns = when {
+        configuration.screenWidthDp >= 840 -> 4
+        configuration.screenWidthDp >= 600 -> 3
+        else -> 2
+    }
 
     var showAllDishes by remember { mutableStateOf(false) }
     var isAddonsSectionCollapsed by remember { mutableStateOf(false) }
+    var customMealText by remember { mutableStateOf("") }
+    var customMealAmountStr by remember { mutableStateOf("") }
+    var showCustomAmountKeyboard by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
 
-    // Filter menu dynamically using remember to avoid redundant work
-    val filteredDishes = remember(menuItems, isNight, showAllDishes) {
-        menuItems.filter {
-            if (showAllDishes) {
-                true
-            } else {
-                if (isNight) it.isNightMenu else it.isDayMenu
-            }
+    val initialCommittedIds = remember { committedGroups.map { it.id } }
+    val hasUnsavedChanges = quantities.any { it.value > 0 } ||
+        customMealText.isNotBlank() ||
+        customMealAmountStr.isNotBlank() ||
+        committedGroups.map { it.id } != initialCommittedIds
+
+    val handleBack = {
+        if (hasUnsavedChanges) {
+            showDiscardDialog = true
+        } else {
+            onDismiss()
         }
     }
-    val mainDishes = remember(filteredDishes) { filteredDishes.filter { !it.isAddOn } }
-    val addOnDishes = remember(filteredDishes) { filteredDishes.filter { it.isAddOn } }
+    BackHandler { handleBack() }
+
+    if (showDiscardDialog) {
+        UnsavedChangesWarningDialog(
+            isBengali = isBengali,
+            onKeepEditing = { showDiscardDialog = false },
+            onDiscard = {
+                showDiscardDialog = false
+                onDismiss()
+            }
+        )
+    }
+
+    // Keep primary period dishes stable at top and extra dishes below so View More never jumps to top
+    val primaryMainDishes = remember(menuItems, isNight) {
+        menuItems.filter { !it.isAddOn && (if (isNight) it.isNightMenu else it.isDayMenu) }
+    }
+    val extraMainDishes = remember(menuItems, isNight) {
+        menuItems.filter { !it.isAddOn && !(if (isNight) it.isNightMenu else it.isDayMenu) }
+    }
+    val addOnDishes = remember(menuItems, isNight, showAllDishes) {
+        menuItems.filter {
+            it.isAddOn && (showAllDishes || (if (isNight) it.isNightMenu else it.isDayMenu))
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -165,12 +198,13 @@ fun AddMealFlowModal(
                         )
                     }
 
-                    // BOTTOM ACTION & TOTAL SUMMARY ROW (LOCKED AT BOTTOM)
-                val hasDraftSelection = quantities.any { it.value > 0 }
+                // BOTTOM ACTION & TOTAL SUMMARY ROW (LOCKED AT BOTTOM)
+                val pendingCustomAmount = customMealAmountStr.toDoubleOrNull() ?: evaluateCalculatorExpression(customMealAmountStr).toDoubleOrNull() ?: 0.0
+                val hasDraftSelection = quantities.any { it.value > 0 } || pendingCustomAmount > 0.0
                 val draftSubtotal = quantities.mapNotNull { (id, qty) ->
                     val item = menuItems.find { it.id == id }
                     if (item != null && qty > 0) item.price * qty else null
-                }.sum()
+                }.sum() + (if (pendingCustomAmount > 0.0) pendingCustomAmount else 0.0)
                 val committedSubtotal = committedGroups.sumOf { it.subtotal }
                 val overallTotal = committedSubtotal + draftSubtotal
                     Scaffold(
@@ -193,7 +227,7 @@ fun AddMealFlowModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
-                                        onClick = onDismiss,
+                                        onClick = { handleBack() },
                                         modifier = Modifier
                                             .size(40.dp)
                                             .background(getGlassIconButtonBg(), CircleShape)
@@ -209,9 +243,9 @@ fun AddMealFlowModal(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = if (isBengali) {
-                                            if (editingTxId != null) "খাবার রেকর্ড সম্পাদনা" else "খাবার রেকর্ড যোগ করুন"
+                                            if (editingTxId != null) "খাবার সম্পাদনা" else "খাবার যোগ করুন"
                                         } else {
-                                            if (editingTxId != null) "Edit Meal Record" else "Add Meal Record"
+                                            if (editingTxId != null) "Edit Meal" else "Add Meal"
                                         },
                                         color = AppTextColor(),
                                         fontSize = 19.sp,
@@ -221,9 +255,43 @@ fun AddMealFlowModal(
                                         overflow = TextOverflow.Ellipsis
                                     )
 
+                                    // Single-Icon Day/Night Toggle Button right before Save
+                                    IconButton(
+                                        onClick = { viewModel.toggleDayNight() },
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                if (isNight) Color(0xFF3F51B5).copy(alpha = 0.22f)
+                                                else Color(0xFFFF9800).copy(alpha = 0.22f),
+                                                CircleShape
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (isNight) Color(0xFF7986CB).copy(alpha = 0.6f)
+                                                else Color(0xFFFFB74D).copy(alpha = 0.6f),
+                                                CircleShape
+                                            )
+                                            .bounceClick()
+                                            .testTag("day_night_top_toggle_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isNight) Icons.Default.NightsStay else Icons.Default.WbSunny,
+                                            contentDescription = if (isNight) "Night Menu (Tap for Day)" else "Day Menu (Tap for Night)",
+                                            tint = if (isNight) Color(0xFF9FA8DA) else Color(0xFFFFB300),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
                                     // Glowy Save Button
                                     GlassButton(
                                         onClick = {
+                                            if (pendingCustomAmount > 0.0) {
+                                                viewModel.addCustomMealGroup(customMealText, pendingCustomAmount)
+                                                customMealText = ""
+                                                customMealAmountStr = ""
+                                            }
                                             viewModel.saveHotelTransaction()
                                             onDismiss()
                                         },
@@ -276,7 +344,17 @@ fun AddMealFlowModal(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Button(
-                                                onClick = { viewModel.commitCurrentSelectionGroup() },
+                                                onClick = {
+                                                    if (quantities.any { it.value > 0 }) {
+                                                        viewModel.commitCurrentSelectionGroup()
+                                                    }
+                                                    if (pendingCustomAmount > 0.0) {
+                                                        viewModel.addCustomMealGroup(customMealText, pendingCustomAmount)
+                                                        customMealText = ""
+                                                        customMealAmountStr = ""
+                                                        showCustomAmountKeyboard = false
+                                                    }
+                                                },
                                                 enabled = hasDraftSelection,
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = ButtonDefaults.buttonColors(
@@ -345,162 +423,127 @@ fun AddMealFlowModal(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // DAY/NIGHT ICON-BASED TOGGLE SWITCH
+                    // MAIN DISHES MULTI-COLUMN GRID SECTION
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Menu Period Selection",
+                            text = if (isBengali) "মূল খাবার" else "Main Dishes",
                             color = AppTextColor(),
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
+                            fontWeight = FontWeight.Bold
                         )
+                        Text(
+                            text = if (isNight) (if (isBengali) "🌙 রাতের মেনু" else "🌙 Night Menu") else (if (isBengali) "☀️ দিনের মেনু" else "☀️ Day Menu"),
+                            color = AppAccentColor(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
-                        val isAppLight = isAppLightMode()
-                        Row(
-                            modifier = Modifier
-                                .background(
-                                    if (isAppLight) Color(0x1A000000) else Color(0x1F000000),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .border(
-                                    1.dp,
-                                    if (isAppLight) Color(0x33000000) else getGlassBorder(),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Day Icon Button
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        primaryMainDishes.chunked(gridColumns).forEach { rowDishes ->
                             Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .background(
-                                        if (!isNight) Brush.horizontalGradient(listOf(Color(0xFFFF9800), Color(0xFFFF5722)))
-                                        else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-                                    )
-                                    .clickable { if (isNight) viewModel.toggleDayNight() }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.WbSunny,
-                                    contentDescription = "Day",
-                                    tint = if (!isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Text(
-                                    text = "Day",
-                                    color = if (!isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
+                                rowDishes.forEach { dish ->
+                                    DishCard(
+                                        dish = dish,
+                                        qty = quantities[dish.id] ?: 0,
+                                        isSelected = selectedMainId == dish.id,
+                                        onSelect = { viewModel.selectMainDish(dish.id) },
+                                        onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                repeat(gridColumns - rowDishes.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
+                        }
 
-                            // Night Icon Button
+                        // Extra dishes hidden below the last card that smoothly appear in-place
+                        AnimatedVisibility(
+                            visible = showAllDishes && extraMainDishes.isNotEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                extraMainDishes.chunked(gridColumns).forEach { rowDishes ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowDishes.forEach { dish ->
+                                            DishCard(
+                                                dish = dish,
+                                                qty = quantities[dish.id] ?: 0,
+                                                isSelected = selectedMainId == dish.id,
+                                                onSelect = { viewModel.selectMainDish(dish.id) },
+                                                onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        repeat(gridColumns - rowDishes.size) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (extraMainDishes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // View More Dishes toggle button
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bounceClick()
+                                .background(
+                                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                        listOf(AccentCyan.copy(alpha = 0.15f), AccentPink.copy(alpha = 0.15f))
+                                    ),
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                                .clickable { showAllDishes = !showAllDishes }
+                                .padding(vertical = 11.dp, horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .background(
-                                        if (isNight) Brush.horizontalGradient(listOf(Color(0xFF3F51B5), Color(0xFF673AB7)))
-                                        else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
-                                    )
-                                    .clickable { if (!isNight) viewModel.toggleDayNight() }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.NightsStay,
-                                    contentDescription = "Night",
-                                    tint = if (isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    modifier = Modifier.size(15.dp)
+                                    imageVector = if (showAllDishes) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = AccentCyan,
+                                    modifier = Modifier.size(16.dp)
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Night",
-                                    color = if (isNight) Color.White else AppTextColor().copy(alpha = 0.5f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    softWrap = false
+                                    text = if (showAllDishes) "View Less Dishes" else "View More Dishes (Show ${if (isNight) "Day" else "Night"} Dishes)",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    // MAIN DISHES LIST SECTION
-                    Text(
-                        text = "Main Dishes (Select One to View Add-ons)",
-                        color = AppTextColor(),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        mainDishes.forEach { dish ->
-                            DishCard(
-                                dish = dish,
-                                qty = quantities[dish.id] ?: 0,
-                                isSelected = selectedMainId == dish.id,
-                                onSelect = { viewModel.selectMainDish(dish.id) },
-                                onUpdateQty = { delta -> viewModel.updateItemQuantity(dish.id, delta) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // View More Dishes menu item / toggle button
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bounceClick()
-                            .background(
-                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    listOf(AccentCyan.copy(alpha = 0.15f), AccentPink.copy(alpha = 0.15f))
-                                ),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                            .clickable { showAllDishes = !showAllDishes }
-                            .padding(vertical = 12.dp, horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (showAllDishes) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = null,
-                                tint = AccentCyan,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (showAllDishes) "View Less Dishes" else "View More Dishes (Show ${if (isNight) "Day" else "Night"} Dishes)",
-                                color = AppTextColor(),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
 
                     // DYNAMICALLY RENDERED ADD-ON DISHES TRAY BELOW
                     val shouldShowAddons = userProfile.enableSupplementaryAddons && selectedMainId != null && addOnDishes.isNotEmpty()
@@ -656,6 +699,115 @@ fun AddMealFlowModal(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // CUSTOM AMOUNT & CUSTOM TEXT SECTION AT BOTTOM OF ADD MEAL PAGE
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 18.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        tint = AppAccentColor(),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isBengali) "কাস্টম খাবার ও পরিমাণ" else "Custom Meal / Amount",
+                                        color = AppTextColor(),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (pendingCustomAmount > 0.0) {
+                                    Surface(
+                                        onClick = {
+                                            viewModel.addCustomMealGroup(customMealText, pendingCustomAmount)
+                                            customMealText = ""
+                                            customMealAmountStr = ""
+                                            showCustomAmountKeyboard = false
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = AppAccentColor().copy(alpha = 0.18f),
+                                        border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.5f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (isBengali) "গ্রুপে যোগ করুন" else "Add as Group",
+                                                color = AppAccentColor(),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GlassTextField(
+                                    value = customMealText,
+                                    onValueChange = { customMealText = it },
+                                    label = { Text(if (isBengali) "বিবরণ (যেমন: স্পেশাল থালি)" else "Custom Text (e.g. Guest Meal)") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1.3f)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { showCustomAmountKeyboard = true }
+                                ) {
+                                    GlassTextField(
+                                        value = customMealAmountStr,
+                                        onValueChange = { newVal ->
+                                            if (newVal.all { c -> c.isDigit() || c == '.' || c == '+' || c == '-' || c == '×' || c == '÷' || c == '*' || c == '/' }) {
+                                                customMealAmountStr = newVal
+                                            }
+                                            showCustomAmountKeyboard = true
+                                        },
+                                        label = { Text(if (isBengali) "পরিমাণ (₹)" else "Amount (₹)") },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("custom_meal_amount_input")
+                                    )
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = showCustomAmountKeyboard,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                OnScreenCalculatorKeyboard(
+                                    value = customMealAmountStr,
+                                    onValueChange = { customMealAmountStr = it },
+                                    onEnter = { showCustomAmountKeyboard = false }
+                                )
                             }
                         }
                     }

@@ -1184,34 +1184,108 @@ fun BillSummaryScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(AppTextColor().copy(alpha = 0.04f))
-                                .padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = if (language == "bn") "রেট অনুযায়ী বিভাজন:" else "Rate-wise Consumption Breakdown:",
+                                text = if (language == "bn") "রেট অনুযায়ী বিস্তারিত হিসাব:" else "Rate-wise Consumption Breakdown:",
                                 color = AppSecondaryTextColor(),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            currentCalculation.breakdown.forEach { item ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                            currentCalculation.breakdown.forEachIndexed { idx, item ->
+                                if (idx > 0) {
+                                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f))
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(AppTextColor().copy(alpha = 0.03f))
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(
-                                        text = "${formatter.format(Date(item.periodStart))} - ${formatter.format(Date(item.periodEnd))}: ${String.format(Locale.getDefault(), "%.2f", item.units)} kWh @ ${String.format(Locale.getDefault(), "%s %.2f", currency, item.ratePerUnit)}",
-                                        color = AppTextColor(),
-                                        fontSize = 11.sp
-                                    )
-                                    Text(
-                                        text = String.format(Locale.getDefault(), "%s %.2f", currency, item.cost),
-                                        color = AppAccentColor(),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    // Top Row: Date Range & Total Price (never wraps mid-price)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${formatter.format(Date(item.periodStart))} – ${formatter.format(Date(item.periodEnd))}",
+                                            color = AppTextColor(),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = String.format(Locale.getDefault(), "%s %.2f", currency, item.cost),
+                                            color = AppAccentColor(),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                    // Middle Row: Reading Range
+                                    if (item.endReading > 0.0 || item.startReading > 0.0) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (language == "bn") "রিডিং পরিসীমা:" else "Reading Range:",
+                                                color = AppSecondaryTextColor(),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                text = String.format(
+                                                    Locale.getDefault(),
+                                                    "%.2f kWh → %.2f kWh",
+                                                    item.startReading,
+                                                    item.endReading
+                                                ),
+                                                color = AppTextColor().copy(alpha = 0.9f),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                    // Bottom Row: Total Units & Rate
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (language == "bn") "মোট ইউনিট ও রেট:" else "Total Reading & Rate:",
+                                            color = AppSecondaryTextColor(),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = String.format(
+                                                Locale.getDefault(),
+                                                "%.2f kWh @ %s %.2f/kWh",
+                                                item.units,
+                                                currency,
+                                                item.ratePerUnit
+                                            ),
+                                            color = AppTextColor(),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                             }
                         }

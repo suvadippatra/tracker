@@ -43,8 +43,6 @@ fun EditHotelModal(
     onDismiss: () -> Unit,
     onManageMenu: (HotelEntity) -> Unit
 ) {
-    BackHandler { onDismiss() }
-
     val context = LocalContext.current
     var editHotelName by remember(hotel) { mutableStateOf(hotel?.name ?: "") }
     var editHotelAdvanced by remember(hotel) { mutableStateOf(hotel?.advancedPayment?.toString() ?: "") }
@@ -55,15 +53,51 @@ fun EditHotelModal(
     var editNotes by remember(hotel) { mutableStateOf(hotel?.notes ?: "") }
     var editQrCodeUris by remember(hotel) { mutableStateOf(hotel?.qrCodeUri?.split(",")?.filter { it.isNotBlank() } ?: emptyList()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
 
     val qrCodeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) {
-            editQrCodeUris = editQrCodeUris + uris.map { com.example.ui.components.copyUriToPersistentFile(context, it, "QR") }
+            editQrCodeUris = editQrCodeUris + uris.mapNotNull { com.example.ui.components.copyUriToPersistentFile(context, it, "QR") }
         }
     }
 
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isBengali = userProfile?.language == "bn"
+
+    val hasUnsavedChanges = if (hotel == null) {
+        editHotelName.isNotBlank() || editHotelAdvanced.isNotBlank() || editPhone.isNotBlank() ||
+            editWhatsapp.isNotBlank() || editLocation.isNotBlank() || editUpiId.isNotBlank() ||
+            editNotes.isNotBlank() || editQrCodeUris.isNotEmpty()
+    } else {
+        editHotelName != hotel.name ||
+            editHotelAdvanced != hotel.advancedPayment.toString() ||
+            editPhone != hotel.phoneNumber ||
+            editWhatsapp != hotel.whatsappNumber ||
+            editLocation != hotel.location ||
+            editUpiId != hotel.upiId ||
+            editNotes != hotel.notes ||
+            editQrCodeUris.joinToString(",") != hotel.qrCodeUri
+    }
+
+    val handleBack = {
+        if (hasUnsavedChanges) {
+            showDiscardDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+    BackHandler { handleBack() }
+
+    if (showDiscardDialog) {
+        UnsavedChangesWarningDialog(
+            isBengali = isBengali,
+            onKeepEditing = { showDiscardDialog = false },
+            onDiscard = {
+                showDiscardDialog = false
+                onDismiss()
+            }
+        )
+    }
 
     val themeMode = userProfile?.themeMode ?: "Auto"
     val bgPreset = userProfile?.bgPreset ?: "Midnight Glow"
@@ -71,7 +105,7 @@ fun EditHotelModal(
     val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleBack() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false
@@ -136,7 +170,7 @@ fun EditHotelModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
-                                        onClick = onDismiss,
+                                        onClick = { handleBack() },
                                         modifier = Modifier
                                             .size(40.dp)
                                             .background(getGlassIconButtonBg(), CircleShape)

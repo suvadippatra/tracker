@@ -611,6 +611,19 @@ class FinancialViewModel(
         return true
     }
 
+    fun addCustomMealGroup(customTitle: String, customAmount: Double): Boolean {
+        if (customAmount <= 0.0) return false
+        val safeTitle = customTitle.trim().ifBlank { "Custom Meal" }
+        val customItem = OrderedItem(
+            name = safeTitle,
+            quantity = 1,
+            price = customAmount
+        )
+        val newGroup = com.example.data.model.MealGroup(items = listOf(customItem))
+        _committedMealGroups.value = _committedMealGroups.value + newGroup
+        return true
+    }
+
     fun removeMealGroup(groupId: String) {
         _committedMealGroups.value = _committedMealGroups.value.filter { it.id != groupId }
     }

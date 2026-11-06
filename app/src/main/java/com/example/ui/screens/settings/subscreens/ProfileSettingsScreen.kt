@@ -63,10 +63,20 @@ fun ProfileSettingsScreen(
     var accountToEdit by remember { mutableStateOf<OwnerAccountEntity?>(null) }
     var accountToDelete by remember { mutableStateOf<OwnerAccountEntity?>(null) }
     var showDefaultHotelDialog by remember { mutableStateOf(false) }
+    var showDefaultHotelDropdown by remember { mutableStateOf(false) }
     var showDefaultOwnerAccountDialog by remember { mutableStateOf(false) }
     var showDefaultLedgerAccountDialog by remember { mutableStateOf(false) }
     var showChooseVisibleAccountsDialog by remember { mutableStateOf(false) }
     var accountToShowDetails by remember { mutableStateOf<OwnerAccountEntity?>(null) }
+    var showAvatarPreview by remember { mutableStateOf(false) }
+
+    if (showAvatarPreview && userProfile.avatar.isNotBlank()) {
+        FullScreenImagePreviewDialog(
+            imageUri = userProfile.avatar,
+            title = userProfile.name.ifBlank { "Profile Photo" },
+            onDismiss = { showAvatarPreview = false }
+        )
+    }
 
     val isAnyModalOpen = showEditProfileDialog ||
             showLanguageDialog ||
@@ -546,21 +556,37 @@ fun ProfileSettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar Badge
+                    // Avatar Badge (Single-tap opens full-screen photo preview if set)
                     Box(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
                             .background(appAccent.copy(alpha = if (isLight) 0.12f else 0.18f))
-                            .border(1.5.dp, appAccent, CircleShape),
+                            .border(1.5.dp, appAccent, CircleShape)
+                            .clickable {
+                                if (userProfile.avatar.isNotBlank()) {
+                                    showAvatarPreview = true
+                                } else {
+                                    onOpenOwnerProfile()
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "👤",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = appAccent
-                        )
+                        if (userProfile.avatar.isNotBlank()) {
+                            AsyncImage(
+                                model = userProfile.avatar,
+                                contentDescription = "Profile Photo",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "👤",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = appAccent
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
@@ -631,88 +657,96 @@ fun ProfileSettingsScreen(
                             )
                         }
 
-                        // Choose Default Hotel Button
+                        // Choose Default Hotel Dropdown / Popup Button (Compact, saves space)
                         val defaultHotelName = nonDeletedHotels.find { it.id == effectiveDefaultHotelId }?.name ?: (if (prefLanguage == "bn") "ডিফল্ট হোটেল" else "Default Hotel")
-                        OutlinedButton(
-                            onClick = { showDefaultHotelDialog = true },
-                            border = BorderStroke(1.dp, appAccent.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .defaultMinSize(minHeight = 48.dp)
-                                .wrapContentHeight()
-                                .bounceClick()
-                        ) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = defaultHotelName,
-                                color = AppTextColor(),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                maxLines = 2,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-
-                    // Show all hotels so user can view & pick default directly from the list
-                    if (nonDeletedHotels.isNotEmpty()) {
-                        Text(
-                            text = if (prefLanguage == "bn") "সকল হোটেল (${nonDeletedHotels.size}) — ডিফল্ট হোটেলটি প্রথমে দেখানো হবে:" else "All Hotels (${nonDeletedHotels.size}) — Default hotel appears first on launch:",
-                            color = AppSecondaryTextColor(),
-                            fontSize = 12.sp
-                        )
-                        nonDeletedHotels.forEach { hotel ->
-                            val isDefaultHotel = hotel.id == effectiveDefaultHotelId
-                            Row(
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { showDefaultHotelDropdown = true },
+                                border = BorderStroke(1.dp, appAccent.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isDefaultHotel) AccentGold.copy(alpha = 0.1f) else getCardBackground())
-                                    .border(1.dp, if (isDefaultHotel) AccentGold.copy(alpha = 0.6f) else getGlassBorder(), RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.setDefaultHotel(hotel.id) }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .wrapContentHeight()
+                                    .bounceClick()
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    RadioButton(
-                                        selected = isDefaultHotel,
-                                        onClick = { viewModel.setDefaultHotel(hotel.id) },
-                                        colors = RadioButtonDefaults.colors(selectedColor = AccentGold)
+                                Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = defaultHotelName,
+                                    color = AppTextColor(),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = AppSecondaryTextColor(), modifier = Modifier.size(18.dp))
+                            }
+
+                            DropdownMenu(
+                                expanded = showDefaultHotelDropdown,
+                                onDismissRequest = { showDefaultHotelDropdown = false },
+                                modifier = Modifier
+                                    .heightIn(max = 240.dp)
+                                    .widthIn(min = 210.dp)
+                                    .background(getDialogBackground())
+                            ) {
+                                if (nonDeletedHotels.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (prefLanguage == "bn") "কোনো হোটেল পাওয়া যায়নি" else "No hotels found",
+                                                color = AppSecondaryTextColor(),
+                                                fontSize = 13.sp
+                                            )
+                                        },
+                                        onClick = { showDefaultHotelDropdown = false }
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(text = hotel.name, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                            if (isDefaultHotel) {
-                                                Surface(
-                                                    color = AccentGold.copy(alpha = 0.18f),
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f))
+                                } else {
+                                    nonDeletedHotels.forEach { hotel ->
+                                        val isDefaultHotel = hotel.id == effectiveDefaultHotelId
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
-                                                    Text(
-                                                        text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
-                                                        color = AccentGold,
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = hotel.name,
+                                                            color = if (isDefaultHotel) AccentGold else AppTextColor(),
+                                                            fontWeight = if (isDefaultHotel) FontWeight.Bold else FontWeight.Medium,
+                                                            fontSize = 14.sp
+                                                        )
+                                                        if (hotel.location.isNotBlank()) {
+                                                            Text(
+                                                                text = hotel.location,
+                                                                color = AppSecondaryTextColor(),
+                                                                fontSize = 11.sp,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
+                                                    if (isDefaultHotel) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = "Default",
+                                                            tint = AccentGold,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
                                                 }
+                                            },
+                                            onClick = {
+                                                viewModel.setDefaultHotel(hotel.id)
+                                                showDefaultHotelDropdown = false
                                             }
-                                        }
-                                        if (hotel.location.isNotBlank()) {
-                                            Text(text = hotel.location, color = AppSecondaryTextColor(), fontSize = 11.sp)
-                                        }
+                                        )
                                     }
-                                }
-                                IconButton(
-                                    onClick = { hotelToEdit = hotel },
-                                    modifier = Modifier.size(34.dp)
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit Hotel", tint = AppSecondaryTextColor(), modifier = Modifier.size(18.dp))
                                 }
                             }
                         }

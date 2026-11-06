@@ -54,19 +54,13 @@ import java.util.*
 
 fun copyUriToLocalFile(context: Context, uri: Uri, prefix: String): Uri {
     try {
-        val inputStream = context.contentResolver.openInputStream(uri)
-        if (inputStream != null) {
-            val extension = when (prefix) {
-                "IMG" -> "jpg"
-                "PDF" -> "pdf"
-                else -> "bin"
+        val persistentPath = copyUriToPersistentFile(context, uri, prefix)
+        if (!persistentPath.isNullOrBlank()) {
+            return if (persistentPath.startsWith("file://") || persistentPath.startsWith("content://")) {
+                Uri.parse(persistentPath)
+            } else {
+                Uri.fromFile(File(persistentPath))
             }
-            val file = File(context.cacheDir, "${prefix}_${System.currentTimeMillis()}.$extension")
-            val outputStream = FileOutputStream(file)
-            inputStream.copyTo(outputStream)
-            inputStream.close()
-            outputStream.close()
-            return Uri.fromFile(file)
         }
     } catch (e: Exception) {
         e.printStackTrace()
@@ -79,8 +73,6 @@ fun AddTransactionScreen(
     viewModel: FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    androidx.activity.compose.BackHandler { onDismiss() }
-
     val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
     val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
@@ -93,6 +85,7 @@ fun AddTransactionScreen(
 
     var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
+    var showAmountKeyboard by remember { mutableStateOf(false) }
     var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
     var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
     
@@ -100,10 +93,41 @@ fun AddTransactionScreen(
     var category by remember { mutableStateOf("General") }
     var notes by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf(listOf<Pair<Uri, String>>()) } // uri to type
+    var previewImageUri by remember { mutableStateOf<String?>(null) }
 
     var showAccountDropdown by remember { mutableStateOf(false) }
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val hasUnsavedChanges = name.isNotBlank() || amountStr.isNotBlank() || notes.isNotBlank() || attachments.isNotEmpty()
+    val handleBack = {
+        if (hasUnsavedChanges) {
+            showDiscardDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+    androidx.activity.compose.BackHandler { handleBack() }
+
+    if (showDiscardDialog) {
+        UnsavedChangesWarningDialog(
+            isBengali = isBengali,
+            onKeepEditing = { showDiscardDialog = false },
+            onDiscard = {
+                showDiscardDialog = false
+                onDismiss()
+            }
+        )
+    }
+
+    if (previewImageUri != null) {
+        FullScreenImagePreviewDialog(
+            imageUri = previewImageUri!!,
+            title = if (isBengali) "সংযুক্ত ছবি" else "Attachment Preview",
+            onDismiss = { previewImageUri = null }
+        )
+    }
 
     var isRecording by remember { mutableStateOf(false) }
     var recordingTimer by remember { mutableStateOf(0) }
@@ -167,11 +191,13 @@ fun AddTransactionScreen(
     ) { bitmap ->
         try {
             bitmap?.let {
-                val file = File(context.cacheDir, "CAM_${System.currentTimeMillis()}.jpg")
-                file.outputStream().use { out ->
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                val rawFile = File(context.cacheDir, "CAM_RAW_${System.currentTimeMillis()}.jpg")
+                rawFile.outputStream().use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, out)
                 }
-                attachments = attachments + (Uri.fromFile(file) to "IMAGE")
+                val compressedUri = copyUriToLocalFile(context, Uri.fromFile(rawFile), "IMG")
+                rawFile.delete()
+                attachments = attachments + (compressedUri to "IMAGE")
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -275,7 +301,7 @@ fun AddTransactionScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     IconButton(
-                                        onClick = onDismiss,
+                                        onClick = { handleBack() },
                                         modifier = Modifier
                                             .size(40.dp)
                                             .background(getGlassIconButtonBg(), CircleShape)
@@ -310,7 +336,7 @@ fun AddTransactionScreen(
                                                 android.widget.Toast.makeText(context, if (isBengali) "দয়া করে শিরোনাম লিখুন" else "Please enter a title", android.widget.Toast.LENGTH_SHORT).show()
                                                 return@GlassButton
                                             }
-                                            val amt = amountStr.toDoubleOrNull()
+                                            val amt = amountStr.toDoubleOrNull() ?: evaluateCalculatorExpression(amountStr).toDoubleOrNull()
                                             if (amt == null || amt <= 0) {
                                                 android.widget.Toast.makeText(context, if (isBengali) "দয়া করে সঠিক পরিমাণ লিখুন" else "Please enter a valid amount", android.widget.Toast.LENGTH_SHORT).show()
                                                 return@GlassButton
@@ -435,25 +461,48 @@ fun AddTransactionScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Amount Input
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            // Amount Input + On-Screen Calculator Keyboard
+                            GlassCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showAmountKeyboard = true }
+                            ) {
                                 Column(
                                     modifier = Modifier.padding(16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text(
-                                        if (isBengali) "পরিমাণ (₹)" else "Amount (₹)",
-                                        color = AppTextColor().copy(alpha = 0.6f),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            if (isBengali) "পরিমাণ (₹)" else "Amount (₹)",
+                                            color = AppTextColor().copy(alpha = 0.6f),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = if (showAmountKeyboard) Icons.Default.KeyboardArrowUp else Icons.Default.Calculate,
+                                            contentDescription = "Toggle Calculator Keyboard",
+                                            tint = AppAccentColor(),
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clickable { showAmountKeyboard = !showAmountKeyboard }
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     BasicTextField(
                                         value = amountStr,
-                                        onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) amountStr = it },
+                                        onValueChange = { newVal ->
+                                            if (newVal.all { c -> c.isDigit() || c == '.' || c == '+' || c == '-' || c == '×' || c == '÷' || c == '*' || c == '/' }) {
+                                                amountStr = newVal
+                                            }
+                                            showAmountKeyboard = true
+                                        },
                                         textStyle = TextStyle(
                                             color = AppTextColor(),
-                                            fontSize = 44.sp,
+                                            fontSize = 40.sp,
                                             fontWeight = FontWeight.Black,
                                             textAlign = TextAlign.Center
                                         ),
@@ -465,21 +514,44 @@ fun AddTransactionScreen(
                                         cursorBrush = SolidColor(AppAccentColor()),
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clickable { showAmountKeyboard = true }
                                             .testTag("transaction_amount_input"),
                                         decorationBox = { inner ->
-                                            if (amountStr.isEmpty()) {
-                                                Text(
-                                                    "0.00",
-                                                    color = AppTextColor().copy(alpha = 0.15f),
-                                                    fontSize = 44.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    textAlign = TextAlign.Center,
-                                                    modifier = Modifier.fillMaxWidth()
-                                                )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { showAmountKeyboard = true },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (amountStr.isEmpty()) {
+                                                    Text(
+                                                        "0.00",
+                                                        color = AppTextColor().copy(alpha = 0.15f),
+                                                        fontSize = 40.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        textAlign = TextAlign.Center,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    )
+                                                }
+                                                inner()
                                             }
-                                            inner()
                                         }
                                     )
+
+                                    AnimatedVisibility(
+                                        visible = showAmountKeyboard,
+                                        enter = expandVertically() + fadeIn(),
+                                        exit = shrinkVertically() + fadeOut()
+                                    ) {
+                                        Column {
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            OnScreenCalculatorKeyboard(
+                                                value = amountStr,
+                                                onValueChange = { amountStr = it },
+                                                onEnter = { showAmountKeyboard = false }
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -530,7 +602,9 @@ fun AddTransactionScreen(
                                             DropdownMenu(
                                                 expanded = showAccountDropdown,
                                                 onDismissRequest = { showAccountDropdown = false },
-                                                modifier = Modifier.background(getDialogBackground())
+                                                modifier = Modifier
+                                                    .heightIn(max = 240.dp)
+                                                    .background(getDialogBackground())
                                             ) {
                                                 accounts.forEach { acc ->
                                                     DropdownMenuItem(
@@ -569,7 +643,9 @@ fun AddTransactionScreen(
                                             DropdownMenu(
                                                 expanded = showCategoryDropdown,
                                                 onDismissRequest = { showCategoryDropdown = false },
-                                                modifier = Modifier.background(getDialogBackground())
+                                                modifier = Modifier
+                                                    .heightIn(max = 240.dp)
+                                                    .background(getDialogBackground())
                                             ) {
                                                 val cats = if (type == "EXPENSE") ExpenseCategories else IncomeCategories
                                                 val allCats = (cats + userCategories.filter { it.type == type }.map { it.name }).distinct()
@@ -637,11 +713,15 @@ fun AddTransactionScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Attachments Card
+                            // Attachments Card — Heading + Icon-Only Centered Options
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
                                     Text(
-                                        if (isBengali) "সংযুক্তি" else "Attachments",
+                                        if (isBengali) "সংযুক্তি" else "Attachment",
                                         color = AppTextColor().copy(alpha = 0.6f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -649,45 +729,64 @@ fun AddTransactionScreen(
                                     Spacer(modifier = Modifier.height(12.dp))
                                     
                                     Row(
-                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        AttachmentActionChip(icon = Icons.Default.CameraAlt, label = if (isBengali) "ক্যামেরা" else "Camera", color = AppAccentColor()) {
-                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                        }
-                                        AttachmentActionChip(icon = Icons.Default.Image, label = if (isBengali) "গ্যালারি (≤2MB)" else "Image (≤2MB)", color = AppAccentColor()) {
-                                            imagePicker.launch("image/*")
-                                        }
-                                        AttachmentActionChip(icon = Icons.Default.PictureAsPdf, label = if (isBengali) "পিডিএফ" else "PDF (Unlimited)", color = AccentGold) {
-                                            pdfPicker.launch("application/pdf")
-                                        }
-                                        AttachmentActionChip(
-                                            icon = if (isRecording) Icons.Default.StopCircle else Icons.Default.Mic,
-                                            label = if (isRecording) {
-                                                val mm = recordingTimer / 60
-                                                val ss = recordingTimer % 60
-                                                String.format(Locale.US, "Stop (%02d:%02d/02:00)", mm, ss)
-                                            } else {
-                                                if (isBengali) "ভয়েস (২ মি.)" else "Voice (Max 2m)"
+                                        val attachButtons = listOf(
+                                            Triple(Icons.Default.CameraAlt, AppAccentColor(), "Camera") to {
+                                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                             },
-                                            color = if (isRecording) AccentPink else AccentGreen
-                                        ) {
-                                            if (isRecording) {
-                                                stopRecording(
-                                                    context = context,
-                                                    recorder = mediaRecorder,
-                                                    setRecording = { isRecording = it },
-                                                    currentUri = { currentVoiceUri },
-                                                    onComplete = { recordedUri ->
-                                                        attachments = attachments + (recordedUri to "VOICE")
-                                                    }
-                                                )
-                                            } else {
-                                                audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                            Triple(Icons.Default.Image, AppAccentColor(), "Image (≤2MB)") to {
+                                                imagePicker.launch("image/*")
+                                            },
+                                            Triple(Icons.Default.PictureAsPdf, AccentGold, "PDF") to {
+                                                pdfPicker.launch("application/pdf")
+                                            },
+                                            Triple(
+                                                if (isRecording) Icons.Default.StopCircle else Icons.Default.Mic,
+                                                if (isRecording) AccentPink else AccentGreen,
+                                                "Voice"
+                                            ) to {
+                                                if (isRecording) {
+                                                    stopRecording(
+                                                        context = context,
+                                                        recorder = mediaRecorder,
+                                                        setRecording = { isRecording = it },
+                                                        currentUri = { currentVoiceUri },
+                                                        onComplete = { recordedUri ->
+                                                            attachments = attachments + (recordedUri to "VOICE")
+                                                        }
+                                                    )
+                                                } else {
+                                                    audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                                }
+                                            },
+                                            Triple(Icons.Default.AttachFile, AccentGold, "File") to {
+                                                filePicker.launch("*/*")
                                             }
-                                        }
-                                        AttachmentActionChip(icon = Icons.Default.AttachFile, label = if (isBengali) "ফাইল" else "File", color = AccentGold) {
-                                            filePicker.launch("*/*")
+                                        )
+
+                                        attachButtons.forEach { (meta, action) ->
+                                            val (icon, tintColor, desc) = meta
+                                            Surface(
+                                                onClick = action,
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = tintColor.copy(alpha = 0.14f),
+                                                border = BorderStroke(1.dp, tintColor.copy(alpha = 0.35f)),
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .bounceClick()
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = desc,
+                                                        tint = tintColor,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
 
@@ -721,7 +820,7 @@ fun AddTransactionScreen(
                                                             setRecording = { isRecording = it },
                                                             currentUri = { currentVoiceUri },
                                                             onComplete = { recordedUri ->
-                                                                attachments = attachments + (recordedUri to "VOICE")
+                                                                 attachments = attachments + (recordedUri to "VOICE")
                                                             }
                                                         )
                                                     }
@@ -740,6 +839,11 @@ fun AddTransactionScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            if (fileType == "IMAGE") {
+                                                                previewImageUri = uri.toString()
+                                                            }
+                                                        }
                                                         .padding(8.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.SpaceBetween

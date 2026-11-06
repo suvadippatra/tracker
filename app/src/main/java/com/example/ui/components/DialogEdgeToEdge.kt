@@ -255,49 +255,98 @@ fun DialogEdgeToEdge() {
  * the status bar and bottom buttons to sit behind the 3-button navigation bar.
  * This modifier reads the Activity window's real system bar insets (with safe fallbacks).
  */
-fun Modifier.dialogSystemBarsPadding(
-    extraTop: Dp = 0.dp,
-    extraBottom: Dp = 0.dp
-): Modifier = composed {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+private fun computeSystemNavBarBottomPx(context: Context): Int {
+    val res = context.resources
+    val activity = context.findActivity()
+    val actDecor = activity?.window?.decorView
+    val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
+    var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    if (navBottomPx <= 0) {
+        try {
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val realMetrics = DisplayMetrics()
+            val usableMetrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getRealMetrics(realMetrics)
+            @Suppress("DEPRECATION")
+            wm.defaultDisplay.getMetrics(usableMetrics)
+            val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
+            val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else 0
+            val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity?.isInMultiWindowMode == true
 
-    val (fallbackTopDp, fallbackBottomDp) = androidx.compose.runtime.remember(context, density) {
-        val res = context.resources
-        val statusId = res.getIdentifier("status_bar_height", "dimen", "android")
-        val statusPx = if (statusId > 0) res.getDimensionPixelSize(statusId) else 0
-        val topDp = with(density) {
-            if (statusPx > 0) statusPx.toDp() else 24.dp
-        }
-
-        val activity = context.findActivity()
-        val actDecor = activity?.window?.decorView
-        val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
-        var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-        val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity?.isInMultiWindowMode == true
-        if (navBottomPx <= 0 && !isMultiWindow) {
-            try {
-                val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                val realMetrics = DisplayMetrics()
-                val usableMetrics = DisplayMetrics()
-                @Suppress("DEPRECATION")
-                wm.defaultDisplay.getRealMetrics(realMetrics)
-                @Suppress("DEPRECATION")
-                wm.defaultDisplay.getMetrics(usableMetrics)
+            if (isMultiWindow && actDecor != null && actDecor.height > 0) {
+                val loc = IntArray(2)
+                actDecor.getLocationOnScreen(loc)
+                val windowBottomY = loc[1] + actDecor.height
+                val systemNavTopY = realMetrics.heightPixels - navResPx
+                // If this split-screen pane sits at the bottom of the physical screen or overlaps the system nav bar
+                if (navResPx > 0 && windowBottomY > systemNavTopY) {
+                    navBottomPx = (windowBottomY - systemNavTopY).coerceIn(0, navResPx)
+                } else if (loc[1] > 40 && navResPx > 0 && windowBottomY >= usableMetrics.heightPixels - 4) {
+                    // Bottom split-screen pane on Android 8 where decorView reaches usable bottom but system nav bar overlays
+                    navBottomPx = navResPx
+                }
+            } else {
                 val isLetterboxed = actDecor != null && actDecor.width > 0 &&
                     (kotlin.math.abs(actDecor.width - realMetrics.widthPixels) > 4 ||
                      kotlin.math.abs(actDecor.height - realMetrics.heightPixels) > 180)
                 if (!isLetterboxed) {
                     val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
                     if (diffH in 1..220) {
-                        val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
-                        val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
-                        navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
+                        val fallbackNav = if (navResPx > 0) navResPx else diffH
+                        navBottomPx = minOf(diffH, fallbackNav.coerceAtLeast(diffH / 2))
                     }
                 }
-            } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+    }
+    return navBottomPx
+}
+
+@Composable
+fun rememberSplitScreenSafeBottomPadding(): Dp {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+    val fallbackBottomDp = androidx.compose.runtime.remember(
+        context,
+        density,
+        configuration.screenHeightDp,
+        configuration.screenWidthDp,
+        configuration.orientation
+    ) {
+        val navPx = computeSystemNavBarBottomPx(context)
+        with(density) {
+            if (navPx > 0) navPx.toDp() else 0.dp
         }
+    }
+    return maxOf(composeInsets.calculateBottomPadding(), fallbackBottomDp)
+}
+
+fun Modifier.dialogSystemBarsPadding(
+    extraTop: Dp = 0.dp,
+    extraBottom: Dp = 0.dp
+): Modifier = composed {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val composeInsets = WindowInsets.systemBars.asPaddingValues()
+
+    val (fallbackTopDp, fallbackBottomDp) = androidx.compose.runtime.remember(
+        context,
+        density,
+        configuration.screenHeightDp,
+        configuration.screenWidthDp,
+        configuration.orientation
+    ) {
+        val res = context.resources
+        val statusId = res.getIdentifier("status_bar_height", "dimen", "android")
+        val statusPx = if (statusId > 0) res.getDimensionPixelSize(statusId) else 0
+        val topDp = with(density) {
+            if (statusPx > 0) statusPx.toDp() else 24.dp
+        }
+        val navBottomPx = computeSystemNavBarBottomPx(context)
         val bottomDp = with(density) {
             if (navBottomPx > 0) navBottomPx.toDp() else 0.dp
         }
@@ -334,45 +383,7 @@ fun Modifier.dialogSafeTopPadding(extraTop: Dp = 0.dp): Modifier = composed {
 }
 
 fun Modifier.dialogSafeBottomPadding(extraBottom: Dp = 0.dp): Modifier = composed {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val composeInsets = WindowInsets.systemBars.asPaddingValues()
-
-    val fallbackBottomDp = androidx.compose.runtime.remember(context, density) {
-        val res = context.resources
-        val activity = context.findActivity()
-        val actDecor = activity?.window?.decorView
-        val rootInsets = if (actDecor != null) ViewCompat.getRootWindowInsets(actDecor) else null
-        var navBottomPx = rootInsets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
-        val isMultiWindow = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity?.isInMultiWindowMode == true
-        if (navBottomPx <= 0 && !isMultiWindow) {
-            try {
-                val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                val realMetrics = DisplayMetrics()
-                val usableMetrics = DisplayMetrics()
-                @Suppress("DEPRECATION")
-                wm.defaultDisplay.getRealMetrics(realMetrics)
-                @Suppress("DEPRECATION")
-                wm.defaultDisplay.getMetrics(usableMetrics)
-                val isLetterboxed = actDecor != null && actDecor.width > 0 &&
-                    (kotlin.math.abs(actDecor.width - realMetrics.widthPixels) > 4 ||
-                     kotlin.math.abs(actDecor.height - realMetrics.heightPixels) > 180)
-                if (!isLetterboxed) {
-                    val diffH = realMetrics.heightPixels - usableMetrics.heightPixels
-                    if (diffH in 1..220) {
-                        val navId = res.getIdentifier("navigation_bar_height", "dimen", "android")
-                        val navResPx = if (navId > 0) res.getDimensionPixelSize(navId) else diffH
-                        navBottomPx = minOf(diffH, navResPx.coerceAtLeast(diffH / 2))
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-        with(density) {
-            if (navBottomPx > 0) navBottomPx.toDp() else 0.dp
-        }
-    }
-
-    val bottomPadding = maxOf(composeInsets.calculateBottomPadding(), fallbackBottomDp) + extraBottom
+    val bottomPadding = rememberSplitScreenSafeBottomPadding() + extraBottom
     this.padding(bottom = bottomPadding)
 }
 

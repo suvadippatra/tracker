@@ -75,236 +75,239 @@ fun getAppAccentColor(bgPreset: String?, isLiquidGlass: Boolean, isLightMode: Bo
     }
 }
 
+private val colorSchemeCache = java.util.concurrent.ConcurrentHashMap<Triple<String, Boolean, Boolean>, ColorScheme>()
+
 fun buildAppColorScheme(
     preset: String?,
     isLiquidGlass: Boolean,
     darkTheme: Boolean
 ): ColorScheme {
     val p = preset ?: "Default"
-
-    return if (darkTheme) {
-        when {
-            p.contains("Emerald", ignoreCase = true) -> darkColorScheme(
-                primary = if (isLiquidGlass) GlassEmeraldGlow else EmeraldPrimaryDark,
-                onPrimary = Color(0xFF00391C),
-                primaryContainer = EmeraldPrimaryContainerDark,
-                onPrimaryContainer = EmeraldOnPrimaryContainerDark,
-                secondary = EmeraldSecondaryDark,
-                onSecondary = Color(0xFF00382B),
-                secondaryContainer = Color(0xFF00513F),
-                onSecondaryContainer = Color(0xFF70F7D4),
-                tertiary = Color(0xFF80D5D3),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-            p.contains("Rose", ignoreCase = true) || p.contains("Crimson", ignoreCase = true) -> darkColorScheme(
-                primary = if (isLiquidGlass) GlassElectricSunset else RosePrimaryDark,
-                onPrimary = Color.White,
-                primaryContainer = RosePrimaryContainerDark,
-                onPrimaryContainer = RoseOnPrimaryContainerDark,
-                secondary = RoseSecondaryDark,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFF7A1D38),
-                onSecondaryContainer = Color(0xFFFFD9E2),
-                tertiary = Color(0xFFFFB2B8),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-            p.contains("Gold", ignoreCase = true) || p.contains("Amber", ignoreCase = true) || p.contains("Sunset", ignoreCase = true) -> darkColorScheme(
-                primary = if (isLiquidGlass) GlassGoldenHour else GoldPrimaryDark,
-                onPrimary = Color(0xFF0F172A),
-                primaryContainer = GoldPrimaryContainerDark,
-                onPrimaryContainer = GoldOnPrimaryContainerDark,
-                secondary = GoldSecondaryDark,
-                onSecondary = Color(0xFF0F172A),
-                secondaryContainer = Color(0xFF5F3B00),
-                onSecondaryContainer = Color(0xFFFFDF9E),
-                tertiary = Color(0xFFE5C18D),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> darkColorScheme(
-                primary = if (isLiquidGlass) GlassNeonCyan else ObsidianPrimaryDark,
-                onPrimary = if (isLiquidGlass) Color(0xFF0F172A) else Color.White,
-                primaryContainer = ObsidianPrimaryContainerDark,
-                onPrimaryContainer = ObsidianOnPrimaryContainerDark,
-                secondary = ObsidianSecondaryDark,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFF334155),
-                onSecondaryContainer = Color(0xFFCBD5E1),
-                tertiary = Color(0xFF94A3B8),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-            p.contains("Purple", ignoreCase = true) -> darkColorScheme(
-                primary = if (isLiquidGlass) GlassPurpleTwilight else Color(0xFFA78BFA),
-                onPrimary = if (isLiquidGlass) Color.White else Color(0xFF1E1035),
-                primaryContainer = Color(0xFF4F378B),
-                onPrimaryContainer = Color(0xFFEADDFF),
-                secondary = Color(0xFFCCC2DC),
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFF4A4458),
-                onSecondaryContainer = Color(0xFFE8DEF8),
-                tertiary = Color(0xFFEFB8C8),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-            else -> darkColorScheme(
-                // Ocean / Default Material 3 Blue
-                primary = if (isLiquidGlass) GlassMidnightBlue else Color(0xFF7FCFFF),
-                onPrimary = Color(0xFF003355),
-                primaryContainer = Color(0xFF004A77),
-                onPrimaryContainer = Color(0xFFC2E7FF),
-                secondary = OceanSecondaryDark,
-                onSecondary = Color(0xFF0F172A),
-                secondaryContainer = Color(0xFF004B70),
-                onSecondaryContainer = Color(0xFFC7E7FF),
-                tertiary = Color(0xFFA5C8FF),
-                background = M3BackgroundDark,
-                surface = M3SurfaceDark,
-                surfaceVariant = M3SurfaceHighDark,
-                outline = M3OutlineDark,
-                outlineVariant = M3OutlineVariantDark,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-        }
-    } else {
-        when {
-            p.contains("Emerald", ignoreCase = true) -> lightColorScheme(
-                primary = EmeraldPrimaryLight,
-                onPrimary = Color.White,
-                primaryContainer = EmeraldPrimaryContainerLight,
-                onPrimaryContainer = EmeraldOnPrimaryContainerLight,
-                secondary = EmeraldSecondaryLight,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFCCFBF1),
-                onSecondaryContainer = Color(0xFF115E59),
-                tertiary = Color(0xFF0D9488),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
-            p.contains("Rose", ignoreCase = true) || p.contains("Crimson", ignoreCase = true) -> lightColorScheme(
-                primary = RosePrimaryLight,
-                onPrimary = Color.White,
-                primaryContainer = RosePrimaryContainerLight,
-                onPrimaryContainer = RoseOnPrimaryContainerLight,
-                secondary = RoseSecondaryLight,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFFFD9E2),
-                onSecondaryContainer = Color(0xFF3B0717),
-                tertiary = Color(0xFF984061),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
-            p.contains("Gold", ignoreCase = true) || p.contains("Amber", ignoreCase = true) || p.contains("Sunset", ignoreCase = true) -> lightColorScheme(
-                primary = GoldPrimaryLight,
-                onPrimary = Color.White,
-                primaryContainer = GoldPrimaryContainerLight,
-                onPrimaryContainer = GoldOnPrimaryContainerLight,
-                secondary = GoldSecondaryLight,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFFFDF9E),
-                onSecondaryContainer = Color(0xFF2B1700),
-                tertiary = Color(0xFF7A5812),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
-            p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> lightColorScheme(
-                primary = ObsidianPrimaryLight,
-                onPrimary = Color.White,
-                primaryContainer = ObsidianPrimaryContainerLight,
-                onPrimaryContainer = ObsidianOnPrimaryContainerLight,
-                secondary = ObsidianSecondaryLight,
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFF1F5F9),
-                onSecondaryContainer = Color(0xFF1E293B),
-                tertiary = Color(0xFF475569),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
-            p.contains("Purple", ignoreCase = true) -> lightColorScheme(
-                primary = M3AccentPurple,
-                onPrimary = Color.White,
-                primaryContainer = Color(0xFFEDE9FE),
-                onPrimaryContainer = Color(0xFF5B21B6),
-                secondary = Color(0xFF625B71),
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFE8DEF8),
-                onSecondaryContainer = Color(0xFF1D192B),
-                tertiary = Color(0xFF7D5260),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
-            else -> lightColorScheme(
-                // Ocean / Default Material 3 Deep Primary Blue
-                primary = Color(0xFF0B57D0),
-                onPrimary = Color.White,
-                primaryContainer = Color(0xFFD3E3FD),
-                onPrimaryContainer = Color(0xFF041E49),
-                secondary = Color(0xFF00639B),
-                onSecondary = Color.White,
-                secondaryContainer = Color(0xFFC2E7FF),
-                onSecondaryContainer = Color(0xFF001D35),
-                tertiary = Color(0xFF006399),
-                background = M3BackgroundLight,
-                surface = M3SurfaceLight,
-                surfaceVariant = M3SurfaceHighLight,
-                outline = M3OutlineLight,
-                outlineVariant = M3OutlineVariantLight,
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A)
-            )
+    return colorSchemeCache.getOrPut(Triple(p, isLiquidGlass, darkTheme)) {
+        if (darkTheme) {
+            when {
+                p.contains("Emerald", ignoreCase = true) -> darkColorScheme(
+                    primary = if (isLiquidGlass) GlassEmeraldGlow else EmeraldPrimaryDark,
+                    onPrimary = Color(0xFF00391C),
+                    primaryContainer = EmeraldPrimaryContainerDark,
+                    onPrimaryContainer = EmeraldOnPrimaryContainerDark,
+                    secondary = EmeraldSecondaryDark,
+                    onSecondary = Color(0xFF00382B),
+                    secondaryContainer = Color(0xFF00513F),
+                    onSecondaryContainer = Color(0xFF70F7D4),
+                    tertiary = Color(0xFF80D5D3),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+                p.contains("Rose", ignoreCase = true) || p.contains("Crimson", ignoreCase = true) -> darkColorScheme(
+                    primary = if (isLiquidGlass) GlassElectricSunset else RosePrimaryDark,
+                    onPrimary = Color.White,
+                    primaryContainer = RosePrimaryContainerDark,
+                    onPrimaryContainer = RoseOnPrimaryContainerDark,
+                    secondary = RoseSecondaryDark,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFF7A1D38),
+                    onSecondaryContainer = Color(0xFFFFD9E2),
+                    tertiary = Color(0xFFFFB2B8),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+                p.contains("Gold", ignoreCase = true) || p.contains("Amber", ignoreCase = true) || p.contains("Sunset", ignoreCase = true) -> darkColorScheme(
+                    primary = if (isLiquidGlass) GlassGoldenHour else GoldPrimaryDark,
+                    onPrimary = Color(0xFF0F172A),
+                    primaryContainer = GoldPrimaryContainerDark,
+                    onPrimaryContainer = GoldOnPrimaryContainerDark,
+                    secondary = GoldSecondaryDark,
+                    onSecondary = Color(0xFF0F172A),
+                    secondaryContainer = Color(0xFF5F3B00),
+                    onSecondaryContainer = Color(0xFFFFDF9E),
+                    tertiary = Color(0xFFE5C18D),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+                p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> darkColorScheme(
+                    primary = if (isLiquidGlass) GlassNeonCyan else ObsidianPrimaryDark,
+                    onPrimary = if (isLiquidGlass) Color(0xFF0F172A) else Color.White,
+                    primaryContainer = ObsidianPrimaryContainerDark,
+                    onPrimaryContainer = ObsidianOnPrimaryContainerDark,
+                    secondary = ObsidianSecondaryDark,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFF334155),
+                    onSecondaryContainer = Color(0xFFCBD5E1),
+                    tertiary = Color(0xFF94A3B8),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+                p.contains("Purple", ignoreCase = true) -> darkColorScheme(
+                    primary = if (isLiquidGlass) GlassPurpleTwilight else Color(0xFFA78BFA),
+                    onPrimary = if (isLiquidGlass) Color.White else Color(0xFF1E1035),
+                    primaryContainer = Color(0xFF4F378B),
+                    onPrimaryContainer = Color(0xFFEADDFF),
+                    secondary = Color(0xFFCCC2DC),
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFF4A4458),
+                    onSecondaryContainer = Color(0xFFE8DEF8),
+                    tertiary = Color(0xFFEFB8C8),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+                else -> darkColorScheme(
+                    // Ocean / Default Material 3 Blue
+                    primary = if (isLiquidGlass) GlassMidnightBlue else Color(0xFF7FCFFF),
+                    onPrimary = Color(0xFF003355),
+                    primaryContainer = Color(0xFF004A77),
+                    onPrimaryContainer = Color(0xFFC2E7FF),
+                    secondary = OceanSecondaryDark,
+                    onSecondary = Color(0xFF0F172A),
+                    secondaryContainer = Color(0xFF004B70),
+                    onSecondaryContainer = Color(0xFFC7E7FF),
+                    tertiary = Color(0xFFA5C8FF),
+                    background = M3BackgroundDark,
+                    surface = M3SurfaceDark,
+                    surfaceVariant = M3SurfaceHighDark,
+                    outline = M3OutlineDark,
+                    outlineVariant = M3OutlineVariantDark,
+                    onBackground = Color.White,
+                    onSurface = Color.White
+                )
+            }
+        } else {
+            when {
+                p.contains("Emerald", ignoreCase = true) -> lightColorScheme(
+                    primary = EmeraldPrimaryLight,
+                    onPrimary = Color.White,
+                    primaryContainer = EmeraldPrimaryContainerLight,
+                    onPrimaryContainer = EmeraldOnPrimaryContainerLight,
+                    secondary = EmeraldSecondaryLight,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFCCFBF1),
+                    onSecondaryContainer = Color(0xFF115E59),
+                    tertiary = Color(0xFF0D9488),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+                p.contains("Rose", ignoreCase = true) || p.contains("Crimson", ignoreCase = true) -> lightColorScheme(
+                    primary = RosePrimaryLight,
+                    onPrimary = Color.White,
+                    primaryContainer = RosePrimaryContainerLight,
+                    onPrimaryContainer = RoseOnPrimaryContainerLight,
+                    secondary = RoseSecondaryLight,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFFFD9E2),
+                    onSecondaryContainer = Color(0xFF3B0717),
+                    tertiary = Color(0xFF984061),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+                p.contains("Gold", ignoreCase = true) || p.contains("Amber", ignoreCase = true) || p.contains("Sunset", ignoreCase = true) -> lightColorScheme(
+                    primary = GoldPrimaryLight,
+                    onPrimary = Color.White,
+                    primaryContainer = GoldPrimaryContainerLight,
+                    onPrimaryContainer = GoldOnPrimaryContainerLight,
+                    secondary = GoldSecondaryLight,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFFFDF9E),
+                    onSecondaryContainer = Color(0xFF2B1700),
+                    tertiary = Color(0xFF7A5812),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+                p.contains("Obsidian", ignoreCase = true) || p == "Pure Black" -> lightColorScheme(
+                    primary = ObsidianPrimaryLight,
+                    onPrimary = Color.White,
+                    primaryContainer = ObsidianPrimaryContainerLight,
+                    onPrimaryContainer = ObsidianOnPrimaryContainerLight,
+                    secondary = ObsidianSecondaryLight,
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFF1F5F9),
+                    onSecondaryContainer = Color(0xFF1E293B),
+                    tertiary = Color(0xFF475569),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+                p.contains("Purple", ignoreCase = true) -> lightColorScheme(
+                    primary = M3AccentPurple,
+                    onPrimary = Color.White,
+                    primaryContainer = Color(0xFFEDE9FE),
+                    onPrimaryContainer = Color(0xFF5B21B6),
+                    secondary = Color(0xFF625B71),
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFE8DEF8),
+                    onSecondaryContainer = Color(0xFF1D192B),
+                    tertiary = Color(0xFF7D5260),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+                else -> lightColorScheme(
+                    // Ocean / Default Material 3 Deep Primary Blue
+                    primary = Color(0xFF0B57D0),
+                    onPrimary = Color.White,
+                    primaryContainer = Color(0xFFD3E3FD),
+                    onPrimaryContainer = Color(0xFF041E49),
+                    secondary = Color(0xFF00639B),
+                    onSecondary = Color.White,
+                    secondaryContainer = Color(0xFFC2E7FF),
+                    onSecondaryContainer = Color(0xFF001D35),
+                    tertiary = Color(0xFF006399),
+                    background = M3BackgroundLight,
+                    surface = M3SurfaceLight,
+                    surfaceVariant = M3SurfaceHighLight,
+                    outline = M3OutlineLight,
+                    outlineVariant = M3OutlineVariantLight,
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A)
+                )
+            }
         }
     }
 }
@@ -320,48 +323,50 @@ fun MyApplicationTheme(
     isBoldTextEnabled: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        accentColor != null && preset == null -> {
-            if (darkTheme) {
-                darkColorScheme(
-                    primary = accentColor,
-                    secondary = accentColor,
-                    tertiary = Purple80,
-                    background = M3BackgroundDark,
-                    surface = M3SurfaceDark,
-                    surfaceVariant = M3SurfaceHighDark,
-                    outline = M3OutlineDark,
-                    outlineVariant = M3OutlineVariantDark,
-                    onBackground = Color.White,
-                    onSurface = Color.White,
-                    onPrimary = Color.White
-                )
-            } else {
-                lightColorScheme(
-                    primary = accentColor,
-                    secondary = accentColor,
-                    tertiary = Purple40,
-                    background = M3BackgroundLight,
-                    surface = M3SurfaceLight,
-                    surfaceVariant = M3SurfaceHighLight,
-                    outline = M3OutlineLight,
-                    outlineVariant = M3OutlineVariantLight,
-                    onBackground = Color(0xFF0F172A),
-                    onSurface = Color(0xFF0F172A),
-                    onPrimary = Color.White
-                )
+    val context = LocalContext.current
+    val colorScheme = androidx.compose.runtime.remember(darkTheme, preset, isLiquidGlass, accentColor, dynamicColor) {
+        when {
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             }
+            accentColor != null && preset == null -> {
+                if (darkTheme) {
+                    darkColorScheme(
+                        primary = accentColor,
+                        secondary = accentColor,
+                        tertiary = Purple80,
+                        background = M3BackgroundDark,
+                        surface = M3SurfaceDark,
+                        surfaceVariant = M3SurfaceHighDark,
+                        outline = M3OutlineDark,
+                        outlineVariant = M3OutlineVariantDark,
+                        onBackground = Color.White,
+                        onSurface = Color.White,
+                        onPrimary = Color.White
+                    )
+                } else {
+                    lightColorScheme(
+                        primary = accentColor,
+                        secondary = accentColor,
+                        tertiary = Purple40,
+                        background = M3BackgroundLight,
+                        surface = M3SurfaceLight,
+                        surfaceVariant = M3SurfaceHighLight,
+                        outline = M3OutlineLight,
+                        outlineVariant = M3OutlineVariantLight,
+                        onBackground = Color(0xFF0F172A),
+                        onSurface = Color(0xFF0F172A),
+                        onPrimary = Color.White
+                    )
+                }
+            }
+            else -> buildAppColorScheme(preset, isLiquidGlass, darkTheme)
         }
-        else -> buildAppColorScheme(preset, isLiquidGlass, darkTheme)
     }
 
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
-        androidx.compose.runtime.SideEffect {
+        androidx.compose.runtime.LaunchedEffect(darkTheme) {
             val window = (view.context as? android.app.Activity)?.window
             if (window != null) {
                 val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, view)
@@ -374,28 +379,32 @@ fun MyApplicationTheme(
     val currentDensity = androidx.compose.ui.platform.LocalDensity.current
     val targetFontScale = ThemePreferences.getFontScale(textSize)
     val activeFontFamily = if (isBoldTextEnabled) AppBoldFontFamily else AppFontFamily
-    val activeTypography = androidx.compose.runtime.remember(textSize, isBoldTextEnabled) {
-        getAppTypography(textSize, isBoldTextEnabled)
+    val activeTypography = getAppTypography(textSize, isBoldTextEnabled)
+    val customDensity = androidx.compose.runtime.remember(currentDensity.density, targetFontScale) {
+        androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = targetFontScale
+        )
+    }
+    val defaultTextStyle = androidx.compose.runtime.remember(activeFontFamily, isBoldTextEnabled) {
+        androidx.compose.ui.text.TextStyle(
+            fontFamily = activeFontFamily,
+            fontWeight = if (isBoldTextEnabled) androidx.compose.ui.text.font.FontWeight.Bold else null,
+            fontSize = 14.sp,
+            lineHeight = 20.sp
+        )
     }
 
     androidx.compose.runtime.CompositionLocalProvider(
         com.example.ui.components.LocalBoldTextEnabled provides isBoldTextEnabled,
-        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
-            density = currentDensity.density,
-            fontScale = targetFontScale
-        )
+        androidx.compose.ui.platform.LocalDensity provides customDensity
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = activeTypography
         ) {
             androidx.compose.material3.ProvideTextStyle(
-                value = androidx.compose.ui.text.TextStyle(
-                    fontFamily = activeFontFamily,
-                    fontWeight = if (isBoldTextEnabled) androidx.compose.ui.text.font.FontWeight.Bold else null,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                ),
+                value = defaultTextStyle,
                 content = content
             )
         }
