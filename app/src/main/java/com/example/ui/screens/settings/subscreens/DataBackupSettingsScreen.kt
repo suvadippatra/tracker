@@ -225,6 +225,41 @@ fun DataBackupSettingsScreen(
         }
     }
 
+    val allStickyNotes by viewModel.allStickyNotes.collectAsStateWithLifecycle()
+
+    // Exact Transferable Data Size & Sync Number for Universal Transfer verification across 2 devices
+    var exactTransferBytes by remember { mutableIntStateOf(0) }
+    val totalRecordCount = remember(
+        allHotels.size,
+        allMenuItems.size,
+        allTransactions.size,
+        allBankAccounts.size,
+        allExpenses.size,
+        allReadings.size,
+        allUtilityBills.size,
+        allStickyNotes.size
+    ) {
+        allHotels.size + allMenuItems.size + allTransactions.size +
+            allBankAccounts.size + allExpenses.size + allReadings.size +
+            allUtilityBills.size + allStickyNotes.size
+    }
+
+    LaunchedEffect(totalRecordCount) {
+        viewModel.exportDataJson(BackupDataType.FULL_BACKUP, selectedHotelId, null) { json ->
+            exactTransferBytes = json.toByteArray(Charsets.UTF_8).size
+        }
+    }
+
+    val formattedTransferSize = remember(exactTransferBytes, totalRecordCount) {
+        val kb = exactTransferBytes / 1024.0
+        val sizeLabel = when {
+            exactTransferBytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.2f MB (%,d B)", exactTransferBytes / (1024.0 * 1024.0), exactTransferBytes)
+            exactTransferBytes >= 1024 -> String.format(java.util.Locale.US, "%.2f KB (%,d B)", kb, exactTransferBytes)
+            else -> "$exactTransferBytes B"
+        }
+        "$sizeLabel • $totalRecordCount records"
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -245,7 +280,7 @@ fun DataBackupSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Universal Transfer",
                                 color = AppTextColor(),
@@ -257,7 +292,33 @@ fun DataBackupSettingsScreen(
                                 color = AppSecondaryTextColor(),
                                 fontSize = 12.sp
                             )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = AccentCyan.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(0.5.dp, AccentCyan.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Storage,
+                                        contentDescription = null,
+                                        tint = AccentCyan,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "Sync Size: $formattedTransferSize",
+                                        color = AccentCyan,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
                                 .size(40.dp)

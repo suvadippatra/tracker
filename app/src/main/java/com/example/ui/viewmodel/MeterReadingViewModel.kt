@@ -273,22 +273,28 @@ class MeterReadingViewModel(
 
         val normalized = normalizeReadings(sortedReadings)
 
-        // Helper for unpaid bills carry-over prior to or overlapping an inactive window
+        // Helper for unpaid / partially paid bills carry-over prior to or overlapping an inactive window
         fun getUnpaidBillsPriorTo(cutoffDay: Long): List<UtilityBill> {
-            return bills.filter { !it.isPaid && it.calculatedAmount > 0.0 && getDayStart(it.startDate) <= cutoffDay }
+            return bills.filter { getBillRemainingUnpaid(it) >= 0.01 && getDayStart(it.startDate) <= cutoffDay }
         }
 
         if (normalized.isEmpty()) {
             val defaultRate = getActiveRateAt(endDay)
             val unpaidBills = getUnpaidBillsPriorTo(endDay)
-            val carriedUnits = unpaidBills.sumOf { it.totalUnits }
-            val carriedCost = unpaidBills.sumOf { it.calculatedAmount }
+            val carriedUnits = unpaidBills.sumOf { bill ->
+                val remRatio = if (bill.calculatedAmount > 0.0) (getBillRemainingUnpaid(bill) / bill.calculatedAmount).coerceIn(0.0, 1.0) else 0.0
+                bill.totalUnits * remRatio
+            }
+            val carriedCost = unpaidBills.sumOf { getBillRemainingUnpaid(it) }
             val breakdown = unpaidBills.map { bill ->
+                val remCost = getBillRemainingUnpaid(bill)
+                val remRatio = if (bill.calculatedAmount > 0.0) (remCost / bill.calculatedAmount).coerceIn(0.0, 1.0) else 0.0
+                val remUnits = Math.round(bill.totalUnits * remRatio * 100.0) / 100.0
                 val effRate = if (bill.totalUnits > 0.0) Math.round((bill.calculatedAmount / bill.totalUnits) * 100.0) / 100.0 else defaultRate
                 RateBreakdownItem(
                     ratePerUnit = effRate,
-                    units = bill.totalUnits,
-                    cost = bill.calculatedAmount,
+                    units = remUnits,
+                    cost = remCost,
                     periodStart = getDayStart(bill.startDate),
                     periodEnd = getDayStart(bill.endDate)
                 )
@@ -415,29 +421,32 @@ class MeterReadingViewModel(
         val rawBreakdownItems = mutableListOf<RateBreakdownItem>()
         var totalCost = 0.0
 
-        // Include any explicit unpaid UtilityBill records strictly prior to effectiveStartDay when readings are inactive (endDay > lastReadingDay)
-        if (endDay >= lastReadingDay) {
-            val priorUnpaidBills = bills.filter {
-                !it.isPaid && it.calculatedAmount > 0.0 && getDayEnd(it.endDate) < effectiveStartDay
+        // Include any explicit unpaid or partially-paid UtilityBill records prior to effectiveStartDay
+        val priorUnpaidOrPartialBills = bills.filter { bill ->
+            val rem = getBillRemainingUnpaid(bill)
+            val isPartial = getBillPaidAmount(bill) > 0.0 && rem >= 0.01
+            rem >= 0.01 && getDayEnd(bill.endDate) <= effectiveStartDay && (isPartial || endDay >= lastReadingDay)
+        }
+        for (unpaidBill in priorUnpaidOrPartialBills) {
+            val remCost = getBillRemainingUnpaid(unpaidBill)
+            val remRatio = if (unpaidBill.calculatedAmount > 0.0) (remCost / unpaidBill.calculatedAmount).coerceIn(0.0, 1.0) else 0.0
+            val remUnits = Math.round(unpaidBill.totalUnits * remRatio * 100.0) / 100.0
+            val effRate = if (unpaidBill.totalUnits > 0.0) {
+                Math.round((unpaidBill.calculatedAmount / unpaidBill.totalUnits) * 100.0) / 100.0
+            } else {
+                getActiveRateAt(unpaidBill.startDate)
             }
-            for (unpaidBill in priorUnpaidBills) {
-                val effRate = if (unpaidBill.totalUnits > 0.0) {
-                    Math.round((unpaidBill.calculatedAmount / unpaidBill.totalUnits) * 100.0) / 100.0
-                } else {
-                    getActiveRateAt(unpaidBill.startDate)
-                }
-                totalUnits += unpaidBill.totalUnits
-                totalCost += unpaidBill.calculatedAmount
-                rawBreakdownItems.add(
-                    RateBreakdownItem(
-                        ratePerUnit = effRate,
-                        units = unpaidBill.totalUnits,
-                        cost = unpaidBill.calculatedAmount,
-                        periodStart = getDayStart(unpaidBill.startDate),
-                        periodEnd = getDayStart(unpaidBill.endDate)
-                    )
+            totalUnits += remUnits
+            totalCost += remCost
+            rawBreakdownItems.add(
+                RateBreakdownItem(
+                    ratePerUnit = effRate,
+                    units = remUnits,
+                    cost = remCost,
+                    periodStart = getDayStart(unpaidBill.startDate),
+                    periodEnd = getDayStart(unpaidBill.endDate)
                 )
-            }
+            )
         }
 
         val windowUnits = (endReading - startReading).coerceAtLeast(0.0).let { diff ->
@@ -669,14 +678,51 @@ class MeterReadingViewModel(
             .apply()
     }
 
-    fun updateBillPaymentStatus(bill: UtilityBill, newIsPaid: Boolean, note: String = bill.note) {
+    fun getBillPaidAmount(bill: UtilityBill): Double {
+        val raw = bill.transactionId?.trim() ?: ""
+        if (raw.startsWith("PAID_AMT:")) {
+            val parsed = raw.removePrefix("PAID_AMT:").trim().toDoubleOrNull()
+            if (parsed != null) {
+                return parsed.coerceIn(0.0, bill.calculatedAmount.coerceAtLeast(0.0))
+            }
+        }
+        return if (bill.isPaid) bill.calculatedAmount.coerceAtLeast(0.0) else 0.0
+    }
+
+    fun getBillRemainingUnpaid(bill: UtilityBill): Double {
+        val paid = getBillPaidAmount(bill)
+        return (Math.round((bill.calculatedAmount - paid).coerceAtLeast(0.0) * 100.0) / 100.0)
+    }
+
+    fun updateBillPaymentStatus(
+        bill: UtilityBill,
+        newIsPaid: Boolean,
+        note: String = bill.note,
+        paidAmount: Double? = null
+    ) {
         viewModelScope.launch {
             val normStart = minOf(bill.startDate, bill.endDate)
             val normEnd = maxOf(bill.startDate, bill.endDate)
-            repository.insertUtilityBill(bill.copy(startDate = normStart, endDate = normEnd, isPaid = newIsPaid, note = note.trim()))
+            val totalBillAmt = bill.calculatedAmount.coerceAtLeast(0.0)
+            val resolvedPaidAmt = when {
+                paidAmount != null -> (Math.round(paidAmount.coerceIn(0.0, totalBillAmt) * 100.0) / 100.0)
+                newIsPaid -> totalBillAmt
+                else -> 0.0
+            }
+            val resolvedIsPaid = resolvedPaidAmt >= (totalBillAmt - 0.01) && totalBillAmt > 0.0
+            val encodedTxId = "PAID_AMT:$resolvedPaidAmt"
+            repository.insertUtilityBill(
+                bill.copy(
+                    startDate = normStart,
+                    endDate = normEnd,
+                    isPaid = resolvedIsPaid,
+                    transactionId = encodedTxId,
+                    note = note.trim()
+                )
+            )
             val startDay = getDayStart(normStart)
             val endDay = getDayEnd(normEnd)
-            repository.updateReadingsPaidStatus(startDay, endDay, newIsPaid)
+            repository.updateReadingsPaidStatus(startDay, endDay, resolvedIsPaid)
         }
     }
 
@@ -685,7 +731,16 @@ class MeterReadingViewModel(
             val newIsPaid = !bill.isPaid
             val normStart = minOf(bill.startDate, bill.endDate)
             val normEnd = maxOf(bill.startDate, bill.endDate)
-            repository.insertUtilityBill(bill.copy(startDate = normStart, endDate = normEnd, isPaid = newIsPaid, note = note?.trim() ?: bill.note))
+            val resolvedPaidAmt = if (newIsPaid) bill.calculatedAmount.coerceAtLeast(0.0) else 0.0
+            repository.insertUtilityBill(
+                bill.copy(
+                    startDate = normStart,
+                    endDate = normEnd,
+                    isPaid = newIsPaid,
+                    transactionId = "PAID_AMT:$resolvedPaidAmt",
+                    note = note?.trim() ?: bill.note
+                )
+            )
             val startDay = getDayStart(normStart)
             val endDay = getDayEnd(normEnd)
             repository.updateReadingsPaidStatus(startDay, endDay, newIsPaid)

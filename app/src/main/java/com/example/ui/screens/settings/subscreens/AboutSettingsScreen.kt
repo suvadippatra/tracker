@@ -81,38 +81,38 @@ fun AboutSettingsScreen(
         listOf(
             HelpGuideQuickItem(
                 icon = Icons.Default.StickyNote2,
-                titleEn = "Theme-Aware Sticky Cards, Pin/Clip Badge (📌📎) & Borderless Tables",
-                titleBn = "ডিফল্ট সাদা/কালো স্টিকি কার্ড, পিন/ক্লিপ আইকন (📌📎) ও বর্ডারলেস টেবিল",
-                descEn = "Default sticky cards match Light/Dark theme (White/Black) while supporting custom colors. Landing cards display a realistic Pin (📌) or Paperclip (📎) badge without cluttered edit/delete buttons. Opened notes show Title in the top bar, Sub-heading before body text, a Triple-Dot (⋮) menu (Edit, Remove, Show Preview, Attachment, Share, Attached Icon), borderless visual tables, and single-tap/long-press attachment actions.",
-                descBn = "ডিফল্ট স্টিকি কার্ড থিম অনুযায়ী সাদা বা কালো হয়। ল্যান্ডিং কার্ডে পিন (📌) বা ক্লিপ (📎) আইকন দেখায়। নোট খুললে টপ বারে শিরোনাম, মূল লেখার আগে সাব-হেডিং, ট্রিপল-ডট (⋮) মেনু, বর্ডারলেস টেবিল এবং অ্যাটাচমেন্ট প্রিভিউ ও লং-প্রেস অপশন পাওয়া যায়।"
+                titleEn = "3D Push-Pin & Paperclip Sticky Notes, Damper Scroll & Bottom Color Dots",
+                titleBn = "৩ডি পুশ-পিন ও পেপারক্লিপ স্টিকি কার্ড, ড্যাম্পার স্ক্রল ও বটম কালার ডটস",
+                descEn = "Sticky cards feature custom-drawn 3D glossy Blue Push-Pin and Metallic Gold/Copper Paperclip badges overlapping the card edge, smooth slow-motion damper scroll, zero load/click lag, centered heading in the opened note top bar (without pin icon), and page color dots at the bottom end line of the scrollable page.",
+                descBn = "স্টিকি কার্ডে বাস্তবসম্মত ৩ডি নীল পুশ-পিন ও সোনালী পেপারক্লিপ গ্রাফিক্স, ড্যাম্পার স্লো-মোশন স্ক্রল, দ্রুত লোডিং, নোটের টপ বারে মাঝখানে শিরোনাম এবং পেজের একদম নিচে কালার ডটস যুক্ত করা হয়েছে।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.QrCodeScanner,
-                titleEn = "Uncropped Offline Khata Scanner & Existing vs New Date Resolver",
-                titleBn = "আনক্রপড অফলাইন খাতা স্ক্যানার ও পুরনো বনাম নতুন তারিখ সমাধান",
-                descBn = "খাতার ছবি ১৬:৯ ক্রপ ছাড়াই সম্পূর্ণ দেখা যায় এবং ট্যাবলেটে ফ্লিকার ছাড়াই কাজ করে। `9.10.26 - 60+50`-এর মতো যেকোনো ফরম্যাট বোঝে এবং ডাটাবেসে তারিখ আগে থেকেই থাকলে পুরনো রেকর্ড রাখবেন নাকি নতুন ৪-অপশন মেনু কম্বিনেশন নেবেন তা বেছে নেওয়ার সুযোগ দেয়।",
-                descEn = "Displays captured Khata photos fully uncropped with tap-to-zoom and zero tablet flicker. Parses flexible lines like '9.10.26 - 60+50' even when spaces vary, and when a date already exists in the database, lets you choose between Keeping Existing or Using New (with up to 4 dish combination options per price)."
+                titleEn = "ML Kit + Google Lens Khata OCR Auto-Repair & QR Send Pinch-to-Zoom",
+                titleBn = "এমএল কিট + গুগল লেন্স খাতা OCR অটো-রিপেয়ার ও QR পিঞ্চ-টু-জুম",
+                descBn = "হাতের লেখার খাতা স্ক্যানের জন্য অন-ডিভাইস Google ML Kit ও Google Lens পেস্ট বাটন যোগ করা হয়েছে, যা `6p 10 ( 26 -> 70 + 20` বা `H1of2645`-এর মতো ভাঙা লেখাও স্বয়ংক্রিয়ভাবে ঠিক করে। এছাড়া QR Send পেজে দুই আঙুলে পিঞ্চ করে পূর্ণ স্ক্রিন পর্যন্ত জুম করা যায় এবং Universal Transfer কার্ডে মোট ডেটা সাইজ দেখা যায়।",
+                descEn = "Integrates on-device Google ML Kit Text Recognition plus a 'Paste / Google Lens Text' button with intelligent handwritten OCR error repair (fixing artifacts like '6p 10 ( 26' or 'H1of2645'). QR Send supports two-finger pinch-to-zoom up to full width/height, and Universal Transfer displays exact transferable data size."
             ),
             HelpGuideQuickItem(
-                icon = Icons.Default.RestaurantMenu,
-                titleEn = "Compact Add Meal Grid, Top-Bar Day/Night Icon & Custom Calculator",
-                titleBn = "কমপ্যাক্ট অ্যাড মিল গ্রিড, টপ-বার দিন/রাত আইকন ও ক্যালকুলেটর কিবোর্ড",
-                descEn = "Add Meal features a single-icon Day/Night toggle in the top bar, 2-to-4 column responsive dish cards, smooth in-place expansion for 'View More Dishes', and a Custom Meal + Amount builder at the bottom powered by an on-screen Calculator Keyboard (+, -, ×, ÷, 00, Enter).",
-                descBn = "অ্যাড মিল পেজে টপ বারে দিন/রাত আইকন, ২-৪ কলামের ডিশ কার্ড, স্মুথ 'View More Dishes' অ্যানিমেশন এবং নিচে অন-স্ক্রিন ক্যালকুলেটর কিবোর্ডসহ কাস্টম খাবার ও দাম যোগ করার সুবিধা রয়েছে।"
+                icon = Icons.Default.Notifications,
+                titleEn = "Legal UPI Payment Auto-Popup, Monthly Reminders & Native Voice STT",
+                titleBn = "ইউপিআই পেমেন্ট অটো-পপআপ, মাসিক রিমাইন্ডার ও ভয়েস স্পিচ-টু-টেক্সট",
+                descEn = "Extras page includes an opt-in UPI Payment Detector (Google Pay, PhonePe, Paytm, BHIM) that automatically opens a popup to log purpose, category, account, and screenshot (<= 2MB), a Monthly Payment Reminder scheduler, redesigned Account Cards, and native offline-capable English/Bengali Voice Dictation (STT) in Add Transaction.",
+                descBn = "Extras পেজে অপ্ট-ইন UPI পেমেন্ট ডিটেক্টর (অটো-পপআপসহ), মাসিক পেমেন্ট রিমাইন্ডার, নতুন ডিজাইনের অ্যাকাউন্ট কার্ড এবং Add Transaction পেজে বাংলা ও ইংরেজি ভয়েস টাইপিং (STT) যুক্ত করা হয়েছে।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "No-Wrap Projected Utility Bill Card & Multi-Region Rate Breakdown",
-                titleBn = "প্রজেক্টেড ইউটিলিটি বিল কার্ড ও বিস্তারিত রেট রিজিওন ব্রেকডাউন",
-                descEn = "Displays Date Range, Reading Range (start → end kWh), Total Units @ Rate, and Total Price cleanly without text wrapping, repeating for each rate region when multiple rate policies apply.",
-                descBn = "প্রতিটি রেট পলিসি অঞ্চলের জন্য তারিখের সীমা, রিডিং সীমা (শুরু → শেষ ইউনিট), মোট ইউনিট ও মোট মূল্য কোনো টেক্সট ভাঙা ছাড়াই স্পষ্টভাবে প্রদর্শন করে।"
+                titleEn = "Electricity Bill 'Paid Amount Edit' (Partial Carry-Over) & Hotel Status Export",
+                titleBn = "বিদ্যুৎ বিলের 'Paid Amount Edit' (আংশিক পেমেন্ট ক্যারি-ওভার) ও হোটেল স্ট্যাটাস এক্সপোর্ট",
+                descEn = "Recorded Bill History replaces 'Mark as Unpaid & Note' with 'Paid Amount Edit' so you can log partial/half payments and automatically carry forward the remaining unpaid balance to the next month's bill. Hotel Monthly Payment Status dialog now includes a direct Export/Share button.",
+                descBn = "বিদ্যুৎ বিলের ইতিহাসে 'Paid Amount Edit'-এর মাধ্যমে আংশিক বা অর্ধেক পেমেন্ট এন্ট্রি করলে বাকি টাকা স্বয়ংক্রিয়ভাবে পরের মাসের বিলে যোগ হয়। হোটেলের মাসিক পেমেন্ট স্ট্যাটাস পপআপে সরাসরি এক্সপোর্ট/শেয়ার বাটন যুক্ত হয়েছে।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.Image,
                 titleEn = "2MB Auto-Compression, Payment Status Image Attachment & Split-Screen",
                 titleBn = "২ এমবি অটো-কম্প্রেশন, পেমেন্ট স্ট্যাটাস ছবি সংযুক্তি ও স্প্লিট-স্ক্রিন",
-                descEn = "All image attachments (Sticky, Transactions, Meal Payment Status popup, Profile Photo) are automatically compressed under 2MB JPEG. Meal Payment Status supports image proofs synced across Universal Transfer, Whole Hotel Data & Order History. Android 8 split-screen keeps the bottom navigation bar visible.",
-                descBn = "সব ছবির অ্যাটাচমেন্ট স্বয়ংক্রিয়ভাবে ২ এমবি-র নিচে JPEG কম্প্রেস হয়। পেমেন্ট স্ট্যাটাস পপআপে ছবি সংযুক্ত করার সুবিধা ও এক্সপোর্ট সিঙ্ক যোগ করা হয়েছে এবং অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিনে বটম নেভিগেশন বার সর্বদা দৃশ্যমান থাকে।"
+                descEn = "All image attachments (Sticky, Transactions, Meal Payment Status popup, Profile Photo) are automatically compressed under 2MB JPEG. Hardware-accelerated RGBA_8888 rendering ensures zero lag and clean GPU frame buffers on Android 8 through Android 15.",
+                descBn = "সব ছবির অ্যাটাচমেন্ট স্বয়ংক্রিয়ভাবে ২ এমবি-র নিচে JPEG কম্প্রেস হয় এবং অ্যান্ড্রয়েড ৮ থেকে ১৫ পর্যন্ত সব ডিভাইসে দ্রুত ও ল্যাগ-মুক্ত পারফরম্যান্স নিশ্চিত করা হয়েছে।"
             )
         )
     }
@@ -121,9 +121,21 @@ fun AboutSettingsScreen(
         listOf(
             PublicRepoReference(
                 name = "Android Jetpack Compose & Material 3",
-                category = "Adaptive UI Framework, Split-Screen Insets & Zero-Alloc Theme Cache",
+                category = "Adaptive UI Framework, Damper Scroll, Pinch-to-Zoom & 3D Canvas Graphics",
                 license = "Apache License 2.0",
                 urlOrSource = "https://developer.android.com/jetpack/compose"
+            ),
+            PublicRepoReference(
+                name = "Google ML Kit Text Recognition (On-Device OCR v16.0.1)",
+                category = "Offline Handwritten & Printed Khata Optical Character Recognition",
+                license = "Android Software Development Kit License",
+                urlOrSource = "https://developers.google.com/ml-kit/vision/text-recognition/v2"
+            ),
+            PublicRepoReference(
+                name = "Android SpeechRecognizer & NotificationListenerService APIs",
+                category = "Native Keyless Voice-to-Text (EN/BN) & Opt-In UPI Payment Auto-Detection",
+                license = "Apache License 2.0",
+                urlOrSource = "https://developer.android.com/reference/android/speech/SpeechRecognizer"
             ),
             PublicRepoReference(
                 name = "AndroidX Room Persistence Library (SQLite)",

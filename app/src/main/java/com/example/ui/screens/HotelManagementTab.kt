@@ -423,7 +423,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                     }
                                                 }
                                             }
-                                            Spacer(modifier = Modifier.height(24.dp))
+                                            Spacer(modifier = Modifier.height(10.dp))
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -894,7 +894,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                 }
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Spacer(modifier = Modifier.height(10.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2417,6 +2417,53 @@ fun HotelMonthlyPaymentDialog(
                                     }
                                 }
                             }
+                        }
+
+                        // Export / Share Monthly Bill Paid Status Action
+                        OutlinedButton(
+                            onClick = {
+                                val paidVal = if (isPaidSelected) (amountText.toDoubleOrNull() ?: grandTotal) else 0.0
+                                val statusLabel = if (isPaidSelected && paidVal > 0.0) "PAID (₹${paidVal.toInt()})" else "UNPAID"
+                                val dateStr = dateDisplayFormat.format(Date(paymentDateMillis))
+                                val exportSummary = buildString {
+                                    appendLine("=== HOTEL MONTHLY BILL STATUS ===")
+                                    appendLine("Hotel: $hotelName")
+                                    appendLine("Billing Month: $monthName")
+                                    appendLine("Total Bill: ₹${grandTotal.toInt()}")
+                                    appendLine("Status: $statusLabel")
+                                    if (isPaidSelected) appendLine("Payment Date: $dateStr")
+                                    if (noteText.isNotBlank()) appendLine("Note: ${noteText.trim()}")
+                                    if (attachmentUri.isNotBlank()) appendLine("Receipt Image: Attached")
+                                }
+                                val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "$hotelName - $monthName Bill Status")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, exportSummary)
+                                }
+                                context.startActivity(
+                                    android.content.Intent.createChooser(
+                                        sendIntent,
+                                        if (language == "bn") "পেমেন্ট স্ট্যাটাস এক্সপোর্ট করুন" else "Export Monthly Bill Paid Status"
+                                    )
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.55f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Export Paid Status",
+                                tint = AppAccentColor(),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (language == "bn") "এই মাসের পেমেন্ট স্ট্যাটাস এক্সপোর্ট / শেয়ার করুন" else "Export / Share Monthly Bill Paid Status",
+                                color = AppAccentColor(),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 

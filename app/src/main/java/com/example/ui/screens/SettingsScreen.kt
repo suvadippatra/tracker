@@ -745,7 +745,7 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v$appVersion (2MB Smart Compression, Pin/Clip Sticky Notes, Uncropped Khata OCR, On-Screen Calculator & Split-Screen Ready)
+            Traker v$appVersion (3D Pin/Clip Sticky Notes, ML Kit + Google Lens Khata OCR, UPI Auto-Detect, Voice STT & Partial Bill Carry-Over)
             ডেভেলপার: @suvadippatra (GitHub)
             © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
 
@@ -753,31 +753,29 @@ fun LegalInfoDialog(
             📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
             ───────────────────────────
 
-            ১. 📌 "Sticky" ট্যাব: ডিফল্ট সাদা/কালো থিম কার্ড, পিন/ক্লিপ আইকন (📌📎) ও বর্ডারলেস টেবিল
-            • ডিফল্ট সাদা/কালো রঙ ও পিন/ক্লিপ আইকন: নতুন স্টিকি কার্ডগুলো থিম অনুযায়ী ডিফল্টভাবে সাদা (লাইট মোডে) বা কালো (ডার্ক মোডে) থাকে, তবে যেকোনো রঙ বাছাই করা যায়। ল্যান্ডিং কার্ডে এডিট/ডিলিট বাটনের বদলে কার্ডের সাথে নিখুঁতভাবে সিঙ্ক করা পিন (📌) বা পেপারক্লিপ (📎) আইকন দেখায়।
-            • টপ-বারে শিরোনাম, সাব-হেডিং ও ট্রিপল-ডট (⋮) মেনু: নোট খুললে ব্যাক বাটন ও ট্রিপল-ডট মেনুর মাঝখানে শিরোনাম দেখায় এবং মূল লেখার ঠিক ওপরে সাব-হেডিং থাকে। ট্রিপল-ডট (⋮) মেনুতে রয়েছে: Edit, Remove, Show Preview, Attachment, Share এবং Attached Icon (📌/📎)।
-            • বর্ডারলেস ভিজ্যুয়াল টেবিল ও অ্যাটাচমেন্ট অ্যাকশন: ভিজ্যুয়াল গ্রিড টেবিলটি সম্পূর্ণ বর্ডারলেস। সংযুক্ত ছবির ওপর সিঙ্গেল ট্যাপ করলে ফুল-স্ক্রিন প্রিভিউ ও অন্যান্য ফাইলের জন্য উপযুক্ত অ্যাপ তালিকা খোলে; লং-প্রেস করলে View, Download, Share ও Remove অপশন পাওয়া যায়।
+            ১. 📌 "Sticky" ট্যাব: ৩ডি পুশ-পিন ও পেপারক্লিপ গ্রাফিক্স, ড্যাম্পার স্ক্রল ও বটম কালার ডটস
+            • বাস্তবসম্মত ৩ডি পুশ-পিন ও পেপারক্লিপ: স্টিকি কার্ডের ওপরে কাস্টম ক্যানভাসে আঁকা ৩ডি নীল পুশ-পিন বা মেটালিক গোল্ড/কপার পেপারক্লিপ গ্রাফিক্স কার্ডের কোণা ছুঁয়ে থাকে।
+            • জিরো-ল্যাগ ও ড্যাম্পার স্ক্রল: নোট ক্যাশিং ও স্মার্ট অ্যানিমেশন পজের কারণে পেজ ও নোট তৎক্ষণাৎ খোলে এবং স্ক্রলিংয়ে ধীরগতির ড্যাম্পার ইফেক্ট দেয়।
+            • মাঝখানে শিরোনাম ও নিচে কালার ডটস: নোট খুললে টপ বারে পিন আইকন ছাড়াই শিরোনামটি ঠিক মাঝখানে দেখায় এবং পেজের রঙ পরিবর্তনের ডটগুলো স্ক্রলযোগ্য পেজের একদম নিচের লাইনে মাঝখানে থাকে।
 
-            ২. 📷 "Scan Khata to Import" (আনক্রপড প্রিভিউ, ফ্লেক্সিবল তারিখ ও পুরনো বনাম নতুন তারিখ)
-            • আনক্রপড খাতা ছবি ও ট্যাবলেট ফ্লিকার ফিক্স: খাতার ছবি ১৬:৯ অনুপাতে কাটা হয় না—সম্পূর্ণ খাতার পাতা দেখা যায় এবং ট্যাপ করে জুম করা যায়।
-            • ফ্লেক্সিবল তারিখ ও দাম পার্সিং: `9.10.26 - 60+50`, `11.10.26 - 40`, `13.10.26-20`-সহ স্পেস থাকুক বা না থাকুক সব ফরম্যাট স্বয়ংক্রিয়ভাবে বোঝে।
-            • পুরনো বনাম নতুন তারিখ (Existing vs New): স্ক্যান করা তারিখ ডাটাবেসে আগে থেকেই থাকলে পুরনো রেকর্ডটি (Existing) দেখায় এবং নতুন স্ক্যান করা খাবার (১–৪টি সম্ভাব্য মেনু কম্বিনেশন) দেখায়, যাতে আপনি কোনটি রাখবেন তা সহজেই বেছে নিতে পারেন।
+            ২. 📷 "Scan Khata to Import" (Google ML Kit + Google Lens পেস্ট ও হাতের লেখা অটো-রিপেয়ার)
+            • অন-ডিভাইস ML Kit ও Google Lens পেস্ট: খাতার ছবি থেকে সরাসরি টেক্সট পড়ার পাশাপাশি Step 1-এ "Paste / Google Lens Text" বাটন রয়েছে।
+            • হাতের লেখার ভুল সংশোধন: `6p 10 ( 26 -> 70 + 20`, `H1of2645`, `(9/16) / 26 -> 60 + 50`, `13/10/26201-`, `31/10/26-401-`-এর মতো অস্পষ্ট বা ভাঙা OCR লাইন স্বয়ংক্রিয়ভাবে সঠিক তারিখ ও দামে (`01 Oct` থেকে `31 Oct`) রূপান্তরিত হয়।
 
-            ৩. 🍽️ "Add Meal", পেমেন্ট স্ট্যাটাস ছবি সংযুক্তি ও অন-স্ক্রিন ক্যালকুলেটর কিবোর্ড
-            • "Add Meal" পেজের টপ বারে সেভ বাটনের ঠিক আগে একটি সিঙ্গেল আইকনে (☀️/🌙) দিন ও রাত পরিবর্তন করা যায়। ডিশ কার্ডগুলো মোবাইলে ২ কলামে ও ট্যাবলেটে ৩–৪ কলামে দেখায় এবং নিচে অন-স্ক্রিন ক্যালকুলেটরসহ কাস্টম খাবার ও দাম যোগ করার অপশন রয়েছে।
-            • হোটেল মিলের "Payment Status" পপআপে পরিষ্কার ব্যাকগ্রাউন্ডের পাশাপাশি রশিদ/ছবি সংযুক্ত করার বাটন যোগ করা হয়েছে, যা Universal Transfer, Whole Hotel Data ও Hotel Order History এক্সপোর্টে সিঙ্ক থাকে।
-            • "Add Transaction" ও "Add Meal"-এ টাকার পরিমাণের বক্সে ট্যাপ করলে নিচে অন-স্ক্রিন ক্যালকুলেটর কিবোর্ড (`+`, `-`, `×`, `÷`, `00`, `Edit`, `Enter`) খোলে।
+            ৩. 🔔 ইউপিআই পেমেন্ট অটো-পপআপ, মাসিক রিমাইন্ডার, ভয়েস টাইপিং (STT) ও QR জুম
+            • আইনি UPI পেমেন্ট ডিটেক্টর: Google Pay, PhonePe, Paytm, BHIM ইত্যাদিতে পেমেন্ট সম্পন্ন হলে স্বয়ংক্রিয়ভাবে পপআপ খুলে পেমেন্টের কারণ, ক্যাটাগরি, ব্যাংক অ্যাকাউন্ট ও স্ক্রিনশট (<= 2MB) সেভ করার সুযোগ দেয়।
+            • মাসিক পেমেন্ট রিমাইন্ডার ও ভয়েস STT: Extras পেজের ওপরে "Monthly Reminder" বাটন এবং Add Transaction পেজে API কী ছাড়াই বাংলা ও ইংরেজি ভয়েস স্পিচ-টু-টেক্সট (STT) যুক্ত করা হয়েছে।
+            • QR Send পিঞ্চ-টু-জুম ও সিঙ্ক সাইজ: QR Send পেজে দুই আঙুলে পিঞ্চ করে পূর্ণ প্রস্থ/উচ্চতা পর্যন্ত জুম করা যায় এবং Universal Transfer কার্ডে মোট ট্রান্সফারযোগ্য ডেটার সাইজ দেখা যায়।
 
-            ৪. ⚡ প্রজেক্টেড ইউটিলিটি বিল ব্রেকডাউন, ২ এমবি ইমেজ কম্প্রেশন ও অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিন
-            • প্রজেক্টেড ইউটিলিটি বিল কার্ডে কোনো লেখা ভাঙে না এবং প্রতিটি রেট অঞ্চলের জন্য তারিখের সীমা, রিডিং সীমা (`start → end kWh`), মোট রিডিং ও মোট দাম আলাদাভাবে দেখায়।
-            • স্টিকি নোট, ট্রানজ্যাকশন, পেমেন্ট স্ট্যাটাস ও প্রোফাইল ফটোতে ২ এমবি-র বেশি বড় ছবি বাছাই করলে তা স্বয়ংক্রিয়ভাবে ২ এমবি-র নিচে JPEG হিসেবে কম্প্রেস হয়ে সেভ হয়।
-            • অ্যান্ড্রয়েড ৮ স্প্লিট-স্ক্রিনে অ্যাপের বটম নেভিগেশন বার সিস্টেম নেভিগেশন বারের নিচে লুকিয়ে যায় না, এবং যেকোনো এডিট পেজ থেকে সেভ না করে ব্যাক করলে সতর্কবার্তা (Unsaved Changes Warning) দেখায়।
+            ৪. ⚡ বিদ্যুৎ বিলের আংশিক পেমেন্ট ("Paid Amount Edit") ও হোটেল মাসিক বিল এক্সপোর্ট
+            • বিদ্যুৎ বিলের ইতিহাসে "Mark as Unpaid & Note"-এর পরিবর্তে "Paid Amount Edit" যুক্ত করা হয়েছে। আংশিক বা অর্ধেক বিল পরিশোধ করলে বাকি অপরিশোধিত টাকা স্বয়ংক্রিয়ভাবে পরের মাসের বিলে যোগ (Carry-Forward) হয়।
+            • হোটেলের মাসিক বিলের "Payment Status" পপআপে সরাসরি এক্সপোর্ট/শেয়ার বাটন এবং নতুন ডিজাইনের অ্যাকাউন্ট কার্ড যুক্ত করা হয়েছে।
 
             👨‍💻 ডেভেলপার ও ওপেন সোর্স:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
             লাইসেন্স: Apache License 2.0
         """.trimIndent() else """
-            Traker v$appVersion (2MB Smart Compression, Pin/Clip Sticky Notes, Uncropped Khata OCR, On-Screen Calculator & Split-Screen Ready)
+            Traker v$appVersion (3D Pin/Clip Sticky Notes, ML Kit + Google Lens Khata OCR, UPI Auto-Detect, Voice STT & Partial Bill Carry-Over)
             Developed by @suvadippatra (GitHub)
             © 2026 @suvadippatra. All rights reserved.
 
@@ -785,25 +783,23 @@ fun LegalInfoDialog(
             📖 COMPLETE USER GUIDE & LATEST FEATURES
             ───────────────────────────
 
-            1. 📌 "STICKY" TAB: THEME-DEFAULT CARDS, PIN/CLIP BADGE (📌📎) & BORDERLESS TABLES
-            • White/Black Theme Default & Pin/Clip Badge: Sticky notes default to clean White in Light Mode and Black/Dark Surface in Dark Mode while letting you pick any custom accent palette. Landing cards feature a synced Pin (📌) or Paperclip (📎) badge at the top with no cluttered edit/delete buttons or accidental double-click editing.
-            • Top-Bar Title, Sub-Heading & Triple-Dot (⋮) Menu: Opening a note displays the Title centered in the top bar between Back and the Triple-Dot (⋮) button, and places the Sub-heading right above the main body text. The Triple-Dot menu includes Edit, Remove, Show Preview, Attachment, Share, and Attached Icon (📌/📎).
-            • Borderless Visual Tables & Attachment Gestures: Visual grid tables render cleanly without cell/outer borders. Single-tap an image attachment for an in-app full-screen preview (or external app chooser for other files); long-press any attachment for View, Download, Share, and Remove options.
+            1. 📌 "STICKY" TAB: 3D PUSH-PIN & PAPERCLIP GRAPHICS, DAMPER SCROLL & BOTTOM COLOR DOTS
+            • Realistic 3D Push-Pin & Paperclip: Sticky cards render custom vector Canvas 3D glossy Blue Push-Pins (with cast shadow) and Metallic Gold/Copper Paperclips overlapping the top-right edge of each note.
+            • Instant Load & Damper Scroll: Parsed note models are cached in memory and background wobble pauses while viewing/editing a note, eliminating open/click lag. Scrolling uses a smooth slow-motion damper effect.
+            • Centered Top-Bar Heading & Bottom Color Dots: Inside an opened note, the Heading is centered in the top bar without any pin/clip icon, first-tap edit jump is fixed, and page color dots sit centered at the bottom end line of the scrollable page content.
 
-            2. 📷 "SCAN KHATA TO IMPORT" (UNCROPPED IMAGE, FLEXIBLE PARSER & EXISTING VS NEW RESOLVER)
-            • Uncropped Khata Preview & Tablet Stability: Displays captured/selected Khata images in full aspect ratio (`ContentScale.Fit` with tap-to-zoom) without 16:9 cropping and without tablet screen flickering.
-            • Flexible Date & Price Parsing: Understands full dates and spacing variations such as `9.10.26 - 60+50`, `11.10.26 - 40`, `13.10.26-20`, and `31.10.26 - 40` even when spaces are omitted.
-            • Existing vs New Date Choice: In Step 2, if a scanned date already exists in the database, both the Existing recorded dishes/amount and the New scanned options are shown side-by-side so you can choose to Keep Existing or Use New (with up to 4 menu combination choices per price token).
+            2. 📷 "SCAN KHATA TO IMPORT" (GOOGLE ML KIT + GOOGLE LENS PASTE & HANDWRITTEN OCR REPAIR)
+            • Hybrid ML Kit + Google Lens Paste: Runs on-device Google ML Kit Text Recognition (`com.google.mlkit:text-recognition:16.0.1`) and provides a one-tap "Paste / Google Lens Text" button on Step 1.
+            • Handwritten Error Normalizer: Automatically repairs real-world handwritten OCR artifacts such as `6p 10 ( 26 -> 70 + 20`, `H1of2645`, `(9/16) / 26 -> 60 + 50`, `11/10/2640/`, `13/10/26201-`, and `31/10/26-401-` into exact dates and dish prices.
 
-            3. 🍽️ "ADD MEAL" GRID, PAYMENT STATUS IMAGE PROOF & ON-SCREEN CALCULATOR KEYBOARD
-            • Add Meal features a compact single-icon Day/Night toggle (☀️/🌙) in the top bar before Save, 2-to-4 column responsive dish cards, smooth in-place expansion for "View More Dishes", and a bottom Custom Text + Custom Amount group.
-            • Hotel Meal "Payment Status" popup has a clean edge-to-edge backdrop, an Image Attachment button (auto-compressed <= 2MB), and full export/import sync across Universal Transfer, Whole Hotel Data, and Hotel Order History.
-            • Tapping the Amount box in Add Transaction or Add Meal opens the built-in On-Screen Calculator Keyboard (`0–9`, `.`, `00`, `+`, `-`, `×`, `÷`, `Edit`, `Enter`) directly below the input field.
+            3. 🔔 LEGAL UPI PAYMENT AUTO-POPUP, MONTHLY REMINDERS, VOICE STT & QR PINCH-TO-ZOOM
+            • Opt-In UPI Auto-Detection: Detects completed payment notifications from Google Pay, PhonePe, Paytm, BharatPe, BHIM, etc., and automatically opens a popup in Traker to record purpose, category, account, and screenshot (<= 2MB).
+            • Monthly Payment Reminders & Native Voice STT: Schedule recurring monthly bill/rent reminders from the Extras hero card, and dictate transaction notes in English or Bengali using native keyless Android Speech-to-Text (`SpeechRecognizer`).
+            • QR Pinch-to-Zoom & Transfer Size Badge: Pinch with two fingers on the QR Send screen to zoom up to full screen width/height, and verify exact byte/record sync size on the Universal Transfer card.
 
-            4. ⚡ PROJECTED UTILITY BILL BREAKDOWN, 2MB IMAGE COMPRESSION & ANDROID 8 SPLIT-SCREEN
-            • Projected Utility Bill card displays Date Range, Reading Range (`start → end kWh`), Total Units @ Rate, and Total Price without text wrapping, repeating for each rate region when multiple rate policies apply.
-            • All image attachments (Sticky Notes, Transactions, Payment Status popup, Profile Photo) are automatically compressed to <= 2MB JPEG, and cached theme/typography objects ensure instant Light/Dark and Bold Text switching.
-            • Android 8 split-screen keeps the bottom navigation bar above the system navigation bar, and pressing Back while editing any form shows an Unsaved Changes confirmation dialog.
+            4. ⚡ ELECTRICITY BILL "PAID AMOUNT EDIT" (PARTIAL CARRY-OVER) & HOTEL STATUS EXPORT
+            • Recorded Bill History replaces "Mark as Unpaid & Note" with "Paid Amount Edit" (with Full 100%, Half 50%, and Unpaid presets). Entering a partial payment automatically carries forward the remaining unpaid balance into the next month's bill calculation.
+            • Hotel Monthly Bill "Payment Status" dialog includes a direct Export/Share button, and Account Cards on the Extras page match the Hotel Card layout with inline Init/Inc/Exp breakdown.
 
             👨‍💻 Developer & Open Source:
             GitHub: @suvadippatra (https://github.com/suvadippatra)
@@ -814,9 +810,11 @@ fun LegalInfoDialog(
             
             ব্যবহৃত ওপেন-সোর্স লাইব্রেরি ও ডাটাবেস:
             - Android Jetpack Compose & Material Design 3
+            - Google ML Kit Text Recognition (com.google.mlkit:text-recognition:16.0.1)
+            - Android SpeechRecognizer & NotificationListenerService APIs
             - AndroidX Room SQLite Database (Schema v36)
             - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
-            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression & Offline OCR)
+            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression)
             - Kotlin Coroutines & Flow
             - ZXing QR Engine & CameraX
             - Coil Image Loader
@@ -825,9 +823,11 @@ fun LegalInfoDialog(
             
             Open-source repositories, databases & assets used:
             - Android Jetpack Compose & Material Design 3
+            - Google ML Kit Text Recognition (com.google.mlkit:text-recognition:16.0.1)
+            - Android SpeechRecognizer & NotificationListenerService APIs
             - AndroidX Room SQLite Database (Schema v36)
             - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
-            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression & Offline OCR)
+            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression)
             - Kotlin Coroutines & Flow
             - ZXing QR Engine & CameraX
             - Coil Image Loader

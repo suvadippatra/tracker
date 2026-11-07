@@ -122,6 +122,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.biometric)
   implementation(libs.coil.compose)
+  implementation(libs.mlkit.text.recognition)
   // implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:

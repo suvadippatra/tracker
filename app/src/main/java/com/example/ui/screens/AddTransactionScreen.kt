@@ -1,10 +1,13 @@
 @file:Suppress("DEPRECATION")
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import android.speech.RecognizerIntent
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -146,6 +149,45 @@ fun AddTransactionScreen(
                 mediaPlayerRef.value?.apply { stop(); release() }
             } catch (_: Exception) {}
             mediaPlayerRef.value = null
+        }
+    }
+
+    var sttLang by remember(isBengali) { mutableStateOf(if (isBengali) "bn-IN" else "en-IN") }
+
+    val sttLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val recognizedText = matches?.firstOrNull()?.trim().orEmpty()
+            if (recognizedText.isNotEmpty()) {
+                if (name.isBlank()) {
+                    name = recognizedText.take(40)
+                }
+                notes = if (notes.isBlank()) recognizedText else "$notes\n$recognizedText"
+            }
+        }
+    }
+
+    fun launchSpeechToText(langTag: String = sttLang) {
+        runCatching {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, langTag)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langTag)
+                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, langTag)
+                putExtra(
+                    RecognizerIntent.EXTRA_PROMPT,
+                    if (langTag.startsWith("bn")) "বাংলায় বলুন (Speak in Bengali)..." else "Speak in English..."
+                )
+            }
+            sttLauncher.launch(intent)
+        }.onFailure {
+            android.widget.Toast.makeText(
+                context,
+                if (isBengali) "এই ডিভাইসে ভয়েস টাইপিং উপলব্ধ নেই" else "Speech-to-Text service is not available on this device",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -699,15 +741,75 @@ fun AddTransactionScreen(
                                         }
                                     }
 
-                                    // Notes
-                                    GlassTextField(
-                                        value = notes,
-                                        onValueChange = { notes = it },
-                                        label = { Text(if (isBengali) "নোট (ঐচ্ছিক)" else "Notes (Optional)") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = false,
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
-                                    )
+                                    // Notes + Built-in Free Speech-to-Text (English & Bengali)
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (isBengali) "নোট ও ভয়েস টেক্সট (STT)" else "Notes & Voice-to-Text (STT)",
+                                                color = AppTextColor().copy(alpha = 0.65f),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Surface(
+                                                    onClick = {
+                                                        sttLang = if (sttLang == "en-IN") "bn-IN" else "en-IN"
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = AppAccentColor().copy(alpha = 0.14f),
+                                                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f))
+                                                ) {
+                                                    Text(
+                                                        text = if (sttLang == "bn-IN") "ভাষা: বাংলা" else "Lang: EN",
+                                                        color = AppAccentColor(),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                                Surface(
+                                                    onClick = { launchSpeechToText(sttLang) },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = AccentGreen.copy(alpha = 0.16f),
+                                                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Mic,
+                                                            contentDescription = "Voice to Text",
+                                                            tint = AccentGreen,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                        Text(
+                                                            text = if (isBengali) "ভয়েস টাইপ" else "Dictate (STT)",
+                                                            color = AccentGreen,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        GlassTextField(
+                                            value = notes,
+                                            onValueChange = { notes = it },
+                                            label = { Text(if (isBengali) "নোট (ঐচ্ছিক)" else "Notes (Optional)") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = false,
+                                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
+                                        )
+                                    }
                                 }
                             }
 
@@ -909,6 +1011,17 @@ fun AddTransactionScreen(
                                                                     contentDescription = "Play Voice",
                                                                     tint = AppAccentColor(),
                                                                     modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
+                                                            IconButton(
+                                                                onClick = { launchSpeechToText(sttLang) },
+                                                                modifier = Modifier.size(28.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Mic,
+                                                                    contentDescription = "Transcribe Voice to Text",
+                                                                    tint = AccentGreen,
+                                                                    modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                         }

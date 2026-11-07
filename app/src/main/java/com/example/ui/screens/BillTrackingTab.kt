@@ -1,6 +1,6 @@
 package com.example.ui.screens
 import androidx.compose.ui.draw.rotate
-
+import androidx.compose.ui.platform.testTag
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.CircleShape
 
@@ -756,6 +756,7 @@ fun BillSummaryScreen(
     var billToEditStatus by remember { mutableStateOf<UtilityBill?>(null) }
     var editingStatusIsPaid by remember { mutableStateOf(false) }
     var editingStatusNote by remember { mutableStateOf("") }
+    var editingPaidAmountText by remember { mutableStateOf("") }
 
     if (deletingBill != null) {
         com.example.ui.components.Tier1DeleteDialog(
@@ -770,13 +771,15 @@ fun BillSummaryScreen(
 
     if (billToEditStatus != null) {
         val targetBill = billToEditStatus!!
+        val parsedEnteredPaid = editingPaidAmountText.toDoubleOrNull()?.coerceIn(0.0, targetBill.calculatedAmount.coerceAtLeast(0.0)) ?: 0.0
+        val remainingCarryOver = (targetBill.calculatedAmount - parsedEnteredPaid).coerceAtLeast(0.0)
         AlertDialog(
             onDismissRequest = { billToEditStatus = null },
             containerColor = getDialogBackground(),
             shape = RoundedCornerShape(24.dp),
             title = {
                 Text(
-                    text = if (language == "bn") "পেমেন্ট স্ট্যাটাস ও নোট আপডেট" else "Update Payment Status & Notes",
+                    text = if (language == "bn") "পরিশোধিত পরিমাণ ও নোট সম্পাদনা" else "Paid Amount Edit & Notes",
                     color = AppTextColor(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -784,7 +787,7 @@ fun BillSummaryScreen(
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .verticalScroll(rememberScrollState())
                         .imePadding()
@@ -793,50 +796,127 @@ fun BillSummaryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(AppTextColor().copy(alpha = 0.05f), RoundedCornerShape(10.dp))
-                            .padding(12.dp)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "${if (language == "bn") "বিল পরিমাণ:" else "Bill Amount:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, targetBill.calculatedAmount)}",
+                            text = "${if (language == "bn") "মোট বিল:" else "Total Bill Amount:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, targetBill.calculatedAmount)}",
                             color = AppAccentColor(),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${if (language == "bn") "মোট ইউনিট:" else "Total Units:"} ${String.format(Locale.getDefault(), "%.2f", targetBill.totalUnits)} kWh",
-                            color = AppTextColor(),
-                            fontSize = 12.sp
+                            text = "${if (language == "bn") "পরবর্তী বিলে যোগ হবে (বাকি):" else "Unpaid Carry-Forward to Next Bill:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, remainingCarryOver)}",
+                            color = if (remainingCarryOver >= 0.01) AccentPink else AppPaidTextColor(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${if (language == "bn") "সময়সীমা:" else "Period:"} ${formatter.format(Date(targetBill.startDate))} - ${formatter.format(Date(targetBill.endDate))}",
+                            text = "${if (language == "bn") "মোট ইউনিট:" else "Total Units:"} ${String.format(Locale.getDefault(), "%.2f", targetBill.totalUnits)} kWh • ${formatter.format(Date(targetBill.startDate))} - ${formatter.format(Date(targetBill.endDate))}",
                             color = AppSecondaryTextColor(),
                             fontSize = 11.sp
                         )
                     }
 
+                    OutlinedTextField(
+                        value = editingPaidAmountText,
+                        onValueChange = { newVal ->
+                            if (newVal.isEmpty() || newVal.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                editingPaidAmountText = newVal
+                                val v = newVal.toDoubleOrNull() ?: 0.0
+                                editingStatusIsPaid = v >= (targetBill.calculatedAmount - 0.01)
+                            }
+                        },
+                        label = { Text(if (language == "bn") "পরিশোধিত পরিমাণ ($currency)" else "Paid Amount ($currency)", color = AppSecondaryTextColor()) },
+                        placeholder = { Text("0.00", color = AppSecondaryTextColor().copy(alpha = 0.5f)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("bill_paid_amount_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AppTextColor(),
+                            unfocusedTextColor = AppTextColor(),
+                            focusedBorderColor = AppAccentColor(),
+                            unfocusedBorderColor = AppTextColor().copy(alpha = 0.2f),
+                            cursorColor = AppAccentColor()
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+
+                    // Quick Presets: Full, Half (50%), Unpaid (0)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = if (language == "bn") "পরিশোধের স্থিতি:" else "Payment Status:",
-                            color = AppTextColor(),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        GlassSwitch(
-                            checked = editingStatusIsPaid,
-                            onCheckedChange = { editingStatusIsPaid = it },
-                            activeText = "PAID",
-                            inactiveText = "UNPAID"
-                        )
+                        val halfAmt = Math.round((targetBill.calculatedAmount / 2.0) * 100.0) / 100.0
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AppAccentColor().copy(alpha = 0.14f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    editingPaidAmountText = String.format(Locale.US, "%.2f", targetBill.calculatedAmount)
+                                    editingStatusIsPaid = true
+                                }
+                        ) {
+                            Text(
+                                text = if (language == "bn") "সম্পূর্ণ (100%)" else "Full (100%)",
+                                color = AppAccentColor(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AppPrimaryBlueColor().copy(alpha = 0.14f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    editingPaidAmountText = String.format(Locale.US, "%.2f", halfAmt)
+                                    editingStatusIsPaid = false
+                                }
+                        ) {
+                            Text(
+                                text = if (language == "bn") "অর্ধেক (50%)" else "Half (50%)",
+                                color = AppPrimaryBlueColor(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AccentPink.copy(alpha = 0.14f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    editingPaidAmountText = "0.0"
+                                    editingStatusIsPaid = false
+                                }
+                        ) {
+                            Text(
+                                text = if (language == "bn") "বাকি (₹0)" else "Unpaid (0)",
+                                color = AccentPink,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
 
                     OutlinedTextField(
                         value = editingStatusNote,
                         onValueChange = { editingStatusNote = it },
                         label = { Text(if (language == "bn") "অতিরিক্ত নোট (ঐচ্ছিক)" else "Extra Notes (Optional)", color = AppSecondaryTextColor()) },
-                        placeholder = { Text(if (language == "bn") "যেমন: ট্রানজাকশন আইডি / ক্যাশ পেমেন্ট..." else "e.g. Paid via UPI, Ref #1234...", color = AppSecondaryTextColor().copy(alpha = 0.5f)) },
+                        placeholder = { Text(if (language == "bn") "যেমন: অর্ধেক পেমেন্ট / ট্রানজাকশন আইডি..." else "e.g. Paid half via UPI, balance carried forward...", color = AppSecondaryTextColor().copy(alpha = 0.5f)) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AppTextColor(),
@@ -854,10 +934,12 @@ fun BillSummaryScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        val paidVal = editingPaidAmountText.toDoubleOrNull()?.coerceIn(0.0, targetBill.calculatedAmount.coerceAtLeast(0.0)) ?: 0.0
                         viewModel.updateBillPaymentStatus(
                             bill = targetBill,
-                            newIsPaid = editingStatusIsPaid,
-                            note = editingStatusNote
+                            newIsPaid = paidVal >= (targetBill.calculatedAmount - 0.01),
+                            note = editingStatusNote,
+                            paidAmount = paidVal
                         )
                         billToEditStatus = null
                     }
@@ -905,18 +987,26 @@ fun BillSummaryScreen(
 
     val paidBillDisplayItems = remember(successState.bills, currency, language) {
         successState.bills.sortedByDescending { it.endDate }.map { bill ->
+            val paidAmt = viewModel.getBillPaidAmount(bill)
+            val remainingDue = viewModel.getBillRemainingUnpaid(bill)
+            val isFullyPaid = remainingDue < 0.01 && bill.calculatedAmount > 0.0
+            val isPartial = paidAmt > 0.0 && remainingDue >= 0.01
             UtilityBillDisplayItem(
                 id = bill.id,
                 bill = bill,
-                formattedAmount = String.format(Locale.getDefault(), "%s %.2f", currency, bill.calculatedAmount),
+                formattedAmount = if (isPartial) {
+                    String.format(Locale.getDefault(), "%s %.2f (Paid %s%.0f)", currency, bill.calculatedAmount, currency, paidAmt)
+                } else {
+                    String.format(Locale.getDefault(), "%s %.2f", currency, bill.calculatedAmount)
+                },
                 formattedSubtitle = "${String.format(Locale.getDefault(), "%.2f", bill.totalUnits)} Units (${Formatters.formatDayMonthYear(bill.startDate)} - ${Formatters.formatDayMonthYear(bill.endDate)})",
                 formattedDueDate = if (bill.dueDate > 0) "Due: ${Formatters.formatDayMonthYear(bill.dueDate)}" else "",
-                statusText = if (bill.isPaid) {
-                    if (language == "bn") "পরিশোধিত" else "PAID"
-                } else {
-                    if (language == "bn") "অপরিশোধিত" else "UNPAID"
+                statusText = when {
+                    isFullyPaid -> if (language == "bn") "পরিশোধিত" else "PAID"
+                    isPartial -> if (language == "bn") "বাকি $currency${String.format(Locale.getDefault(), "%.0f", remainingDue)}" else "PARTIAL (Due $currency${String.format(Locale.getDefault(), "%.0f", remainingDue)})"
+                    else -> if (language == "bn") "অপরিশোধিত" else "UNPAID"
                 },
-                isPaid = bill.isPaid
+                isPaid = isFullyPaid
             )
         }
     }
@@ -1370,8 +1460,10 @@ fun BillSummaryScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(statusBg, RoundedCornerShape(6.dp))
                                     .clickable {
+                                        val currentPaid = viewModel.getBillPaidAmount(bill)
                                         billToEditStatus = bill
-                                        editingStatusIsPaid = !bill.isPaid
+                                        editingPaidAmountText = String.format(Locale.US, "%.2f", currentPaid)
+                                        editingStatusIsPaid = bill.isPaid
                                         editingStatusNote = bill.note
                                     }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1442,11 +1534,19 @@ fun BillSummaryScreen(
                                     modifier = Modifier.background(getDialogBackground())
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (bill.isPaid) "Mark as Unpaid & Note" else "Mark as Paid & Note", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                        text = {
+                                            Text(
+                                                text = if (language == "bn") "পরিশোধিত পরিমাণ সম্পাদনা (Paid Amount Edit)" else "Paid Amount Edit",
+                                                color = AppTextColor(),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        },
                                         onClick = {
                                             showBillMenu = false
+                                            val currentPaid = viewModel.getBillPaidAmount(bill)
                                             billToEditStatus = bill
-                                            editingStatusIsPaid = !bill.isPaid
+                                            editingPaidAmountText = String.format(Locale.US, "%.2f", currentPaid)
+                                            editingStatusIsPaid = bill.isPaid
                                             editingStatusNote = bill.note
                                         }
                                     )
@@ -1454,7 +1554,9 @@ fun BillSummaryScreen(
                                         text = { Text(if (language == "bn") "নোট সম্পাদনা" else "Edit Note / Status", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                         onClick = {
                                             showBillMenu = false
+                                            val currentPaid = viewModel.getBillPaidAmount(bill)
                                             billToEditStatus = bill
+                                            editingPaidAmountText = String.format(Locale.US, "%.2f", currentPaid)
                                             editingStatusIsPaid = bill.isPaid
                                             editingStatusNote = bill.note
                                         }

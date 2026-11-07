@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +50,9 @@ fun QrExportStreamDialog(
     val encoder = remember { QrFountainEncoder(exportData.payload, sessionId, exportData.key, exportData.iv) }
     var packetIndex by remember { mutableIntStateOf(0) }
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Two-finger pinch-to-zoom factor (1.0f = default, up to 1.45f = full width/height edge-to-edge)
+    var qrZoomFactor by remember { mutableFloatStateOf(1f) }
 
     // Initially paused so user can align scanner before starting stream
     var isPaused by remember { mutableStateOf(true) }
@@ -215,17 +220,24 @@ fun QrExportStreamDialog(
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Left: Unclipped Square QR Code Box
-                            Box(
+                            // Left: Unclipped Square QR Code Box with Two-Finger Pinch-to-Zoom up to Full Height
+                            BoxWithConstraints(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxHeight(),
+                                    .fillMaxHeight()
+                                    .pointerInput(Unit) {
+                                        detectTransformGestures { _, _, zoom, _ ->
+                                            qrZoomFactor = (qrZoomFactor * zoom).coerceIn(0.85f, 1.35f)
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
+                                val maxAllowedSide = minOf(maxWidth, maxHeight)
+                                val baseSide = maxAllowedSide * 0.88f
+                                val zoomedSide = (baseSide * qrZoomFactor).coerceIn(baseSide * 0.85f, maxAllowedSide)
+                                val innerPad = (12.dp * (1.35f - qrZoomFactor).coerceIn(0.15f, 1f))
                                 Surface(
-                                    modifier = Modifier
-                                        .fillMaxHeight(0.92f)
-                                        .aspectRatio(1f),
+                                    modifier = Modifier.size(zoomedSide),
                                     shape = RoundedCornerShape(16.dp),
                                     color = Color.White,
                                     border = BorderStroke(1.5.dp, getGlassBorder()),
@@ -234,7 +246,7 @@ fun QrExportStreamDialog(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .padding(12.dp),
+                                            .padding(innerPad),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (currentBitmap != null) {
@@ -411,7 +423,7 @@ fun QrExportStreamDialog(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = "Point receiver camera at QR code below",
+                                            text = "Point receiver camera at QR code (Pinch to Zoom)",
                                             color = secondaryTextColor,
                                             fontSize = 11.sp
                                         )
@@ -432,15 +444,23 @@ fun QrExportStreamDialog(
                                 }
                             }
 
-                            // Center QR Code Container — Guaranteed 1:1 Square without clipping on any screen
+                            // Center QR Code Container — Guaranteed 1:1 Square with Two-Finger Pinch-to-Zoom up to Full Width
                             BoxWithConstraints(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 4.dp)
+                                    .pointerInput(Unit) {
+                                        detectTransformGestures { _, _, zoom, _ ->
+                                            qrZoomFactor = (qrZoomFactor * zoom).coerceIn(0.85f, 1.35f)
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
-                                val qrSide = minOf(maxWidth * 0.90f, maxHeight * 0.96f)
+                                val maxAllowedSide = minOf(maxWidth, maxHeight)
+                                val baseSide = minOf(maxWidth * 0.86f, maxHeight * 0.92f)
+                                val qrSide = (baseSide * qrZoomFactor).coerceIn(baseSide * 0.85f, maxAllowedSide)
+                                val innerPad = (14.dp * (1.35f - qrZoomFactor).coerceIn(0.15f, 1f))
                                 Surface(
                                     modifier = Modifier.size(qrSide),
                                     shape = RoundedCornerShape(18.dp),
@@ -451,7 +471,7 @@ fun QrExportStreamDialog(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .padding(14.dp),
+                                            .padding(innerPad),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (currentBitmap != null) {

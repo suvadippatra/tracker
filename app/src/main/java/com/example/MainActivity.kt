@@ -22,6 +22,10 @@ class MainActivity : FragmentActivity() {
         } else {
             android.graphics.Color.parseColor("#0A1317")
         }
+        window.setFormat(android.graphics.PixelFormat.RGBA_8888)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            window.colorMode = android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
+        }
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(initialBgColor))
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -30,6 +34,7 @@ class MainActivity : FragmentActivity() {
             isAppearanceLightStatusBars = isInitialLight
             isAppearanceLightNavigationBars = isInitialLight
         }
+        com.example.service.MonthlyReminderManager.checkDueRemindersNow(this)
 
         val initialAction = intent?.action ?: intent?.getStringExtra("action")
 

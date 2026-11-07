@@ -489,6 +489,17 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 0.5.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Top Card Action Bar: Monthly Payment Reminder & UPI Auto-Detect Status
+                        ExtrasTopHeroReminderAndUpiRow(
+                            accounts = accounts,
+                            prefLanguage = prefLanguage,
+                            viewModel = viewModel
+                        )
                     }
                 }
             }
@@ -642,74 +653,64 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                             GlassCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                cornerRadius = 22.dp
+                                    .padding(vertical = 8.dp)
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                        .padding(horizontal = 14.dp, vertical = 16.dp)
                                 ) {
+                                    // Top Row: Account Name (without "Default" badge) + Phone, Info, MoreVert icons matching Hotel Card
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = account.name,
-                                                    color = AppTextColor(),
-                                                    fontSize = 24.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                val isDefaultAcc = userProfile?.defaultBankAccountId == account.id
-                                                if (isDefaultAcc) {
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .background(AppAccentColor().copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
-                                                            color = AppAccentColor(),
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            if (account.upiId.isNotBlank()) {
-                                                Text(
-                                                    text = account.upiId,
-                                                    color = AppTextColor().copy(alpha = 0.5f),
-                                                    fontSize = 10.sp
-                                                )
-                                            }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            Text(
+                                                text = account.name,
+                                                color = AppTextColor(),
+                                                fontSize = 24.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
-                                        
+
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(
-                                                onClick = { showContactDialog = true },
-                                                modifier = Modifier.testTag("account_contact_btn_${account.id}")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Phone,
-                                                    contentDescription = "Contact Options",
-                                                    tint = AccentGreen
-                                                )
-                                            }
-                                            IconButton(onClick = { showQRDialog = true }) {
-                                                Icon(Icons.Default.Info, contentDescription = "Account Info", tint = AppAccentColor())
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Phone,
+                                                contentDescription = "Contact Options",
+                                                tint = AppTextColor(),
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(end = 4.dp)
+                                                    .clickable { showContactDialog = true }
+                                                    .testTag("account_contact_btn_${account.id}")
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = "Account Info",
+                                                tint = AppTextColor(),
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(end = 4.dp)
+                                                    .clickable { showQRDialog = true }
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
                                             Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                                                IconButton(onClick = { showAccountMenu = true }) {
-                                                    Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = AppTextColor())
-                                                }
+                                                Icon(
+                                                    imageVector = Icons.Default.MoreVert,
+                                                    contentDescription = "Menu",
+                                                    tint = AppTextColor(),
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clickable { showAccountMenu = true }
+                                                )
                                                 DropdownMenu(
                                                     expanded = showAccountMenu,
                                                     onDismissRequest = { showAccountMenu = false },
@@ -764,75 +765,100 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                         }
                                     }
 
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(
-                                            text = if (prefLanguage == "bn") "চলতি ব্যালেন্স" else "Current Balance",
-                                            color = AppTextColor().copy(alpha = 0.55f),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        RollingNumberText(
-                                            value = computedAccBalance,
-                                            prefix = "₹",
-                                            style = TextStyle(
-                                                color = AppTextColor(),
-                                                fontSize = 30.sp,
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
-                                        )
+                                    // Compact line gap matching Hotel card (10.dp)
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                                        // Metric breakdown row (Initial, Income, Expense)
+                                    // Bottom Row: Current Balance on Left + Initial / Income / Expense breakdown on the Right side of the price value
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (prefLanguage == "bn") "চলতি ব্যালেন্স" else "Current Balance",
+                                                color = AppTextColor().copy(alpha = 0.85f),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            RollingNumberText(
+                                                value = computedAccBalance,
+                                                prefix = "₹",
+                                                style = TextStyle(
+                                                    color = AppTextColor(),
+                                                    fontSize = 28.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Initial / Income / Expense Breakdown placed compactly on the right side of the price value
                                         Row(
                                             modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .background(AppTextColor().copy(alpha = 0.05f))
-                                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Column {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
-                                                    text = if (prefLanguage == "bn") "প্রারম্ভিক" else "Initial",
-                                                    color = AppTextColor().copy(alpha = 0.5f),
-                                                    fontSize = 9.sp
+                                                    text = if (prefLanguage == "bn") "প্রারম্ভিক" else "Init",
+                                                    color = AppTextColor().copy(alpha = 0.55f),
+                                                    fontSize = 8.5.sp
                                                 )
                                                 Text(
                                                     text = "₹${"%,.0f".format(accInitBal)}",
-                                                    color = AppTextColor().copy(alpha = 0.85f),
-                                                    fontSize = 11.sp,
+                                                    color = AppTextColor().copy(alpha = 0.9f),
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                             }
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(0.8.dp)
+                                                    .height(20.dp)
+                                                    .background(AppTextColor().copy(alpha = 0.12f))
+                                            )
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
-                                                    text = if (prefLanguage == "bn") "আয়" else "Income",
-                                                    color = AccentGreen.copy(alpha = 0.7f),
-                                                    fontSize = 9.sp
+                                                    text = if (prefLanguage == "bn") "আয়" else "Inc",
+                                                    color = AccentGreen.copy(alpha = 0.8f),
+                                                    fontSize = 8.5.sp
                                                 )
                                                 Text(
                                                     text = "+₹${"%,.0f".format(accIncome)}",
                                                     color = AccentGreen,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
-                                            Column(horizontalAlignment = Alignment.End) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(0.8.dp)
+                                                    .height(20.dp)
+                                                    .background(AppTextColor().copy(alpha = 0.12f))
+                                            )
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
-                                                    text = if (prefLanguage == "bn") "ব্যয়" else "Expense",
-                                                    color = AccentPink.copy(alpha = 0.7f),
-                                                    fontSize = 9.sp
+                                                    text = if (prefLanguage == "bn") "ব্যয়" else "Exp",
+                                                    color = AccentPink.copy(alpha = 0.8f),
+                                                    fontSize = 8.5.sp
                                                 )
                                                 Text(
                                                     text = "-₹${"%,.0f".format(accExpense)}",
                                                     color = AccentPink,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
                                         }
                                     }
-
                                 }
                             }
                         if (showQRDialog) {
@@ -2539,3 +2565,676 @@ fun TransactionItem(
         }
     }
 }
+
+@Composable
+private fun ExtrasTopHeroReminderAndUpiRow(
+    accounts: List<com.example.data.model.BankAccountEntity>,
+    prefLanguage: String,
+    viewModel: com.example.ui.viewmodel.FinancialViewModel
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isBn = prefLanguage == "bn"
+    val reminders by com.example.service.MonthlyReminderManager.remindersFlow.collectAsStateWithLifecycle()
+    val dueReminders by com.example.service.MonthlyReminderManager.dueRemindersFlow.collectAsStateWithLifecycle()
+    val pendingUpiPayments by com.example.service.DetectedUpiPaymentBus.pendingPayments.collectAsStateWithLifecycle()
+
+    var showReminderModal by remember { mutableStateOf(false) }
+    var showUpiSetupInfoModal by remember { mutableStateOf(false) }
+    var isListenerActive by remember {
+        mutableStateOf(com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context))
+    }
+
+    LaunchedEffect(Unit) {
+        com.example.service.MonthlyReminderManager.checkDueRemindersNow(context)
+        isListenerActive = com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1. Monthly Payment Reminder Button on Top Hero Card
+        Surface(
+            onClick = { showReminderModal = true },
+            shape = RoundedCornerShape(12.dp),
+            color = AppAccentColor().copy(alpha = 0.14f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.38f)),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("monthly_payment_reminder_btn")
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Monthly Payment Reminder",
+                    tint = AppAccentColor(),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (dueReminders.isNotEmpty()) {
+                        if (isBn) "রিমাইন্ডার (${dueReminders.size} বাকি)" else "Monthly Reminder (${dueReminders.size} Due)"
+                    } else if (reminders.isNotEmpty()) {
+                        if (isBn) "মাসিক রিমাইন্ডার (${reminders.size})" else "Monthly Reminder (${reminders.size})"
+                    } else {
+                        if (isBn) "মাসিক পেমেন্ট রিমাইন্ডার" else "Monthly Reminder"
+                    },
+                    color = AppAccentColor(),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 2. Legal UPI Payment Auto-Detect Button (Google Pay, PhonePe, Paytm, BharatPe, BHIM)
+        Surface(
+            onClick = {
+                isListenerActive = com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)
+                showUpiSetupInfoModal = true
+            },
+            shape = RoundedCornerShape(12.dp),
+            color = (if (isListenerActive) AccentGreen else AccentGold).copy(alpha = 0.14f),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                (if (isListenerActive) AccentGreen else AccentGold).copy(alpha = 0.38f)
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("upi_auto_detect_btn")
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccountBalanceWallet,
+                    contentDescription = "UPI Auto Detect",
+                    tint = if (isListenerActive) AccentGreen else AccentGold,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isListenerActive) {
+                        if (isBn) "UPI অটো-ডিটেক্ট: চালু" else "UPI Auto-Detect: ON"
+                    } else {
+                        if (isBn) "UPI অটো-ডিটেক্ট" else "UPI Auto-Detect"
+                    },
+                    color = if (isListenerActive) AccentGreen else AccentGold,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+
+    // Automatically show popup when a UPI payment is detected OR when a monthly reminder is due
+    val activeUpiPayment = pendingUpiPayments.firstOrNull()
+    if (activeUpiPayment != null) {
+        UpiAutoDetectedPaymentPopupDialog(
+            detected = activeUpiPayment,
+            accounts = accounts,
+            isBn = isBn,
+            onSaveTransaction = { title, amt, accId, txType, cat, note, screenshotUri ->
+                val attachList = if (!screenshotUri.isNullOrBlank()) listOf(screenshotUri to "IMAGE") else emptyList()
+                viewModel.saveExtraExpense(
+                    name = title,
+                    amount = amt,
+                    bankAccountId = accId,
+                    timestamp = activeUpiPayment.timestamp,
+                    receiptUri = screenshotUri,
+                    type = txType,
+                    category = cat,
+                    notes = note,
+                    attachments = attachList
+                )
+                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id)
+            },
+            onDismiss = {
+                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id)
+            }
+        )
+    }
+
+    if (showUpiSetupInfoModal) {
+        val hasTelephony = remember { com.example.service.DetectedUpiPaymentBus.hasTelephonyOrSimSupport(context) }
+        val isCapable = remember { com.example.service.DetectedUpiPaymentBus.isDeviceCapableOfUpiDetection(context) }
+        AlertDialog(
+            onDismissRequest = { showUpiSetupInfoModal = false },
+            containerColor = getDialogBackground(),
+            title = {
+                Text(
+                    text = if (isBn) "UPI পেমেন্ট অটো-ডিটেকশন" else "UPI Payment Auto-Detection",
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (isBn)
+                            "Google Pay, PhonePe, Paytm, BharatPe বা BHIM-এ পেমেন্ট সম্পন্ন হলে নোটিফিকেশন থেকে স্বয়ংক্রিয়ভাবে পরিমাণ শনাক্ত করে পপআপ দেখাবে।"
+                        else
+                            "Legally detects completed UPI payment notifications from Google Pay, PhonePe, Paytm, BharatPe, BHIM & Amazon Pay and automatically pops up a quick-save card with screenshot attachment support.",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.5.sp
+                    )
+                    if (!hasTelephony) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AccentGold.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = "Tablet / Wi-Fi Device Mode: No SIM hardware required. Notification listener works safely over Wi-Fi without crashing.",
+                                color = AccentGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isCapable) {
+                            Button(
+                                onClick = {
+                                    com.example.service.DetectedUpiPaymentBus.openNotificationListenerSettings(context)
+                                    showUpiSetupInfoModal = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = if (isListenerActive) "Listener Settings" else "Enable Access",
+                                    color = AppOnAccentColor(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                showUpiSetupInfoModal = false
+                                com.example.service.DetectedUpiPaymentBus.postDetectedPayment(
+                                    com.example.service.DetectedUpiPayment(
+                                        appName = "Google Pay",
+                                        packageName = "com.google.android.apps.nbu.paisa.user",
+                                        amount = 250.0,
+                                        transactionType = "EXPENSE",
+                                        counterparty = "Merchant Store",
+                                        rawText = "Paid ₹250 to Merchant Store via Google Pay UPI"
+                                    )
+                                )
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Test Popup", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showUpiSetupInfoModal = false }) {
+                    Text(if (isBn) "বন্ধ করুন" else "Close", color = AppAccentColor(), fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showReminderModal) {
+        MonthlyPaymentReminderDialog(
+            accounts = accounts,
+            isBn = isBn,
+            onQuickPayReminder = { reminder ->
+                val accId = reminder.accountId?.toIntOrNull() ?: accounts.firstOrNull()?.id ?: 0
+                val amt = reminder.amount ?: 0.0
+                if (amt > 0.0 && accId != 0) {
+                    viewModel.saveExtraExpense(
+                        name = reminder.heading,
+                        amount = amt,
+                        bankAccountId = accId,
+                        timestamp = System.currentTimeMillis(),
+                        receiptUri = null,
+                        type = "EXPENSE",
+                        category = "Bills",
+                        notes = reminder.description,
+                        attachments = emptyList()
+                    )
+                    com.example.service.MonthlyReminderManager.markReminderCompletedForCurrentMonth(context, reminder.id)
+                    android.widget.Toast.makeText(context, "Recorded monthly payment: ${reminder.heading}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { showReminderModal = false }
+        )
+    }
+}
+
+@Composable
+private fun UpiAutoDetectedPaymentPopupDialog(
+    detected: com.example.service.DetectedUpiPayment,
+    accounts: List<com.example.data.model.BankAccountEntity>,
+    isBn: Boolean,
+    onSaveTransaction: (title: String, amount: Double, accountId: Int, type: String, category: String, note: String, screenshotUri: String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var title by remember(detected.id) { mutableStateOf(detected.counterparty.ifBlank { "${detected.appName} Payment" }) }
+    var amountStr by remember(detected.id) { mutableStateOf(detected.amount.toString().removeSuffix(".0")) }
+    var txType by remember(detected.id) { mutableStateOf(detected.transactionType) }
+    var category by remember(detected.id) { mutableStateOf(if (detected.transactionType == "INCOME") "Transfer" else "Shopping") }
+    var note by remember(detected.id) { mutableStateOf("Auto-detected from ${detected.appName}: ${detected.rawText}") }
+    var selectedAccountId by remember(accounts) { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
+    var screenshotUri by remember(detected.id) { mutableStateOf<String?>(null) }
+
+    val screenshotPicker = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val saved = copyUriToPersistentFile(context, uri, "UPI_SS")
+            if (saved != null) screenshotUri = saved
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AccentGreen)
+                Column {
+                    Text(
+                        text = if (isBn) "${detected.appName} পেমেন্ট শনাক্ত হয়েছে" else "${detected.appName} Payment Detected",
+                        color = AppTextColor(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "₹${amountStr} • ${if (txType == "EXPENSE") "Paid / Debited" else "Received / Credited"}",
+                        color = if (txType == "EXPENSE") AccentPink else AccentGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(if (isBn) "বিবরণ / শিরোনাম" else "What was this payment for?") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it },
+                    label = { Text(if (isBn) "পরিমাণ (₹)" else "Amount (₹)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (accounts.isNotEmpty()) {
+                    Text(
+                        text = if (isBn) "অ্যাকাউন্ট নির্বাচন করুন:" else "Select Account:",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        accounts.forEach { acc ->
+                            val isSel = acc.id == selectedAccountId
+                            FilterChip(
+                                selected = isSel,
+                                onClick = { selectedAccountId = acc.id },
+                                label = { Text(acc.name, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+                OutlinedButton(
+                    onClick = { screenshotPicker.launch("image/*") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (screenshotUri != null) "Screenshot Attached (Tap to Change)" else "Attach Payment Screenshot (≤2MB)",
+                        color = AppAccentColor(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = amountStr.toDoubleOrNull() ?: detected.amount
+                    val accId = if (selectedAccountId != 0) selectedAccountId else (accounts.firstOrNull()?.id ?: 0)
+                    onSaveTransaction(
+                        title.ifBlank { "${detected.appName} Payment" },
+                        amt,
+                        accId,
+                        txType,
+                        category,
+                        note,
+                        screenshotUri
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+            ) {
+                Text(if (isBn) "সংরক্ষণ করুন" else "Save Record", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isBn) "উপেক্ষা করুন" else "Ignore", color = AppSecondaryTextColor())
+            }
+        }
+    )
+}
+
+@Composable
+private fun MonthlyPaymentReminderDialog(
+    accounts: List<com.example.data.model.BankAccountEntity>,
+    isBn: Boolean,
+    onQuickPayReminder: (com.example.service.MonthlyPaymentReminder) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val reminders by com.example.service.MonthlyReminderManager.remindersFlow.collectAsStateWithLifecycle()
+    val dueReminders by com.example.service.MonthlyReminderManager.dueRemindersFlow.collectAsStateWithLifecycle()
+
+    var heading by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var amountStr by remember { mutableStateOf("") }
+    var selectedAccountId by remember { mutableStateOf<String?>(null) }
+    var dayOfMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
+    var hourOfDay by remember { mutableIntStateOf(9) }
+    var minute by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        com.example.service.MonthlyReminderManager.loadReminders(context)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = getDialogBackground(),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Notifications, contentDescription = null, tint = AppAccentColor())
+                Text(
+                    text = if (isBn) "মাসিক পেমেন্ট রিমাইন্ডার" else "Monthly Payment Reminders",
+                    color = AppTextColor(),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (dueReminders.isNotEmpty()) {
+                    Text(
+                        text = if (isBn) "এই মাসের বাকি পেমেন্ট:" else "Due This Month:",
+                        color = AccentGold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    dueReminders.forEach { due ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AccentGold.copy(alpha = 0.14f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AccentGold.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(due.heading, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    val sub = buildString {
+                                        if (due.amount != null) append("₹${due.amount.toInt()} • ")
+                                        if (!due.accountName.isNullOrBlank()) append("${due.accountName} • ")
+                                        append("Day ${due.dayOfMonth}")
+                                    }
+                                    Text(sub, color = AppSecondaryTextColor(), fontSize = 11.sp)
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (due.amount != null && due.amount > 0.0) {
+                                        TextButton(onClick = { onQuickPayReminder(due) }) {
+                                            Text("Record Paid", color = AccentGreen, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        }
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            com.example.service.MonthlyReminderManager.markReminderCompletedForCurrentMonth(context, due.id)
+                                        }
+                                    ) {
+                                        Text("Done", color = AppAccentColor(), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = if (isBn) "নতুন মাসিক রিমাইন্ডার যোগ করুন:" else "Create New Monthly Reminder:",
+                    color = AppTextColor(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedTextField(
+                    value = heading,
+                    onValueChange = { heading = it },
+                    label = { Text(if (isBn) "শিরোনাম (আবশ্যক)" else "Heading (Required, e.g. Room Rent)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(if (isBn) "বিবরণ" else "Description (e.g. Pay via UPI by 5th)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it },
+                    label = { Text(if (isBn) "পরিমাণ ₹ (ঐচ্ছিক)" else "Amount ₹ (Optional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Optional Account Picker
+                Text(
+                    text = if (isBn) "অ্যাকাউন্ট (ঐচ্ছিক):" else "Account (Optional):",
+                    color = AppSecondaryTextColor(),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedAccountId == null,
+                        onClick = { selectedAccountId = null },
+                        label = { Text("Any / Optional", fontSize = 11.sp) }
+                    )
+                    accounts.forEach { acc ->
+                        val idStr = acc.id.toString()
+                        FilterChip(
+                            selected = selectedAccountId == idStr,
+                            onClick = { selectedAccountId = idStr },
+                            label = { Text(acc.name, fontSize = 11.sp) }
+                        )
+                    }
+                }
+
+                // Day of Month & Time Picker Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val cal = Calendar.getInstance()
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, _, _, d -> dayOfMonth = d.coerceIn(1, 31) },
+                                cal.get(Calendar.YEAR),
+                                cal.get(Calendar.MONTH),
+                                dayOfMonth
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Day $dayOfMonth Monthly", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            android.app.TimePickerDialog(
+                                context,
+                                { _, h, m ->
+                                    hourOfDay = h
+                                    minute = m
+                                },
+                                hourOfDay,
+                                minute,
+                                false
+                            ).show()
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(String.format(java.util.Locale.US, "%02d:%02d", hourOfDay, minute), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (heading.isBlank()) {
+                            android.widget.Toast.makeText(context, "Please enter a reminder heading", android.widget.Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        val accObj = accounts.find { it.id.toString() == selectedAccountId }
+                        val newRem = com.example.service.MonthlyPaymentReminder(
+                            heading = heading.trim(),
+                            description = description.trim(),
+                            amount = amountStr.toDoubleOrNull()?.takeIf { it > 0.0 },
+                            accountId = accObj?.id?.toString(),
+                            accountName = accObj?.name,
+                            dayOfMonth = dayOfMonth,
+                            hourOfDay = hourOfDay,
+                            minute = minute
+                        )
+                        com.example.service.MonthlyReminderManager.addOrUpdateReminder(context, newRem)
+                        heading = ""
+                        description = ""
+                        amountStr = ""
+                        android.widget.Toast.makeText(context, "Monthly reminder saved for Day $dayOfMonth!", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isBn) "রিমাইন্ডার সেভ করুন" else "Add Monthly Reminder", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
+                }
+
+                if (reminders.isNotEmpty()) {
+                    HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f))
+                    Text(
+                        text = if (isBn) "সক্রিয় মাসিক রিমাইন্ডার তালিকা:" else "Saved Monthly Reminders (${reminders.size}):",
+                        color = AppSecondaryTextColor(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    reminders.forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AppTextColor().copy(alpha = 0.05f))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.heading, color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                val details = buildString {
+                                    append("Every month on Day ${item.dayOfMonth} at ${String.format(java.util.Locale.US, "%02d:%02d", item.hourOfDay, item.minute)}")
+                                    if (item.amount != null) append(" • ₹${item.amount.toInt()}")
+                                    if (!item.accountName.isNullOrBlank()) append(" • ${item.accountName}")
+                                    if (item.description.isNotBlank()) append("\n${item.description}")
+                                }
+                                Text(details, color = AppSecondaryTextColor(), fontSize = 11.sp)
+                            }
+                            IconButton(
+                                onClick = { com.example.service.MonthlyReminderManager.deleteReminder(context, item.id) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Reminder", tint = AccentPink, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isBn) "বন্ধ করুন" else "Close", color = AppAccentColor(), fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+

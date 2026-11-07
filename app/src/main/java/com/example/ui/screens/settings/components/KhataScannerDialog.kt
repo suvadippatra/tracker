@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,11 +47,16 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.OrderedItem
 import com.example.data.model.TransactionSerializer
 import com.example.ui.components.*
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -93,6 +99,7 @@ fun KhataScannerDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val isLight = isAppLightMode()
     val isBn = false
@@ -211,11 +218,11 @@ fun KhataScannerDialog(
                     }
                     capturedBitmap = safeBmp
                     val scannedLines = withContext(Dispatchers.Default) {
-                        analyzeHandwrittenKhataBitmap(safeBmp)
+                        runHybridKhataOcr(safeBmp)
                     }
                     if (scannedLines.isNotEmpty()) {
                         extractedText = scannedLines.joinToString("\n")
-                        scanSummaryStatus = "Offline OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
+                        scanSummaryStatus = "ML Kit + Handwriting OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
                     } else {
                         errorMessage = "Could not automatically isolate clear Date - Price rows from this image. You can inspect the full uncropped image above and type/adjust the lines below."
                     }
@@ -244,11 +251,11 @@ fun KhataScannerDialog(
                     if (decoded != null) {
                         capturedBitmap = decoded
                         val scannedLines = withContext(Dispatchers.Default) {
-                            analyzeHandwrittenKhataBitmap(decoded)
+                            runHybridKhataOcr(decoded)
                         }
                         if (scannedLines.isNotEmpty()) {
                             extractedText = scannedLines.joinToString("\n")
-                            scanSummaryStatus = "Offline OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
+                            scanSummaryStatus = "ML Kit + Handwriting OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
                         } else {
                             errorMessage = "Could not automatically isolate clear Date - Price rows from this photo. You can view the full uncropped photo above and type/edit lines below."
                         }
@@ -476,6 +483,36 @@ fun KhataScannerDialog(
                                                 Text("Pick Image", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                             }
                                         }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipText = clipboardManager.getText()?.text.orEmpty()
+                                                if (clipText.isNotBlank()) {
+                                                    val repairedLines = clipText.lines()
+                                                        .map { normalizeMessyKhataOcrLine(it) }
+                                                        .filter { it.isNotBlank() }
+                                                    extractedText = repairedLines.joinToString("\n")
+                                                    errorMessage = null
+                                                    scanSummaryStatus = "Pasted & auto-repaired ${repairedLines.size} line(s) from Google Lens / Clipboard."
+                                                } else {
+                                                    Toast.makeText(context, "Clipboard is empty. Copy text from Google Lens first.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(42.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            border = BorderStroke(1.dp, accent.copy(alpha = 0.5f))
+                                        ) {
+                                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Paste / Google Lens Text (Auto-Repair Handwritten OCR)",
+                                                color = AppTextColor(),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
 
                                         if (isProcessingImage) {
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -545,10 +582,11 @@ fun KhataScannerDialog(
                                                                 scope.launch {
                                                                     isProcessingImage = true
                                                                     val rescanned = withContext(Dispatchers.Default) {
-                                                                        analyzeHandwrittenKhataBitmap(bmp)
+                                                                        runHybridKhataOcr(bmp)
                                                                     }
                                                                     if (rescanned.isNotEmpty()) {
                                                                         extractedText = rescanned.joinToString("\n")
+                                                                        scanSummaryStatus = "Re-scanned ${rescanned.size} line(s)."
                                                                     }
                                                                     isProcessingImage = false
                                                                 }
@@ -1675,6 +1713,153 @@ private fun countEnclosedHoles(
  * - `9-10-26 : 60 + 50` (hyphen date)
  * - `17 - 60+40` or `17 60+40` or `17-60+40` (day only)
  */
+/**
+ * Runs Google ML Kit on-device Text Recognition first, repairs handwritten OCR errors via
+ * [normalizeMessyKhataOcrLine], and falls back to [analyzeHandwrittenKhataBitmap] if needed.
+ */
+private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
+    val mlKitLines = runCatching {
+        suspendCancellableCoroutine<List<String>> { cont ->
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val image = InputImage.fromBitmap(bitmap, 0)
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    val rawVisualLines = visionText.textBlocks
+                        .flatMap { it.lines }
+                        .sortedBy { it.boundingBox?.top ?: 0 }
+                        .map { it.text.trim() }
+                        .filter { it.isNotEmpty() }
+
+                    // Merge horizontally adjacent fragments on the same vertical row if ML Kit split a date and price into 2 blocks
+                    val visualElements = visionText.textBlocks
+                        .flatMap { it.lines }
+                        .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+
+                    val mergedRows = mutableListOf<String>()
+                    var currentTop = -1000
+                    var currentHeight = 40
+                    val currentRowParts = mutableListOf<Pair<Int, String>>()
+
+                    for (line in visualElements) {
+                        val box = line.boundingBox
+                        val top = box?.top ?: 0
+                        val left = box?.left ?: 0
+                        val height = (box?.height() ?: 40).coerceAtLeast(20)
+                        if (currentRowParts.isEmpty() || abs(top - currentTop) <= (max(currentHeight, height) * 0.55f)) {
+                            if (currentRowParts.isEmpty()) {
+                                currentTop = top
+                                currentHeight = height
+                            }
+                            currentRowParts.add(left to line.text.trim())
+                        } else {
+                            mergedRows.add(currentRowParts.sortedBy { it.first }.joinToString(" ") { it.second })
+                            currentRowParts.clear()
+                            currentTop = top
+                            currentHeight = height
+                            currentRowParts.add(left to line.text.trim())
+                        }
+                    }
+                    if (currentRowParts.isNotEmpty()) {
+                        mergedRows.add(currentRowParts.sortedBy { it.first }.joinToString(" ") { it.second })
+                    }
+
+                    val candidateLines = (if (mergedRows.isNotEmpty()) mergedRows else rawVisualLines)
+                        .map { normalizeMessyKhataOcrLine(it) }
+                        .filter { it.isNotBlank() }
+
+                    if (cont.isActive) cont.resume(candidateLines)
+                }
+                .addOnFailureListener {
+                    if (cont.isActive) cont.resume(emptyList())
+                }
+        }
+    }.getOrDefault(emptyList())
+
+    if (mlKitLines.isNotEmpty()) {
+        return mlKitLines
+    }
+    return analyzeHandwrittenKhataBitmap(bitmap).map { normalizeMessyKhataOcrLine(it) }
+}
+
+/**
+ * Repairs common handwritten Khata & Google Lens OCR errors such as:
+ * - `01/10/26-40` -> `01/10/26 - 40`
+ * - `2/10/2660+20+` -> `2/10/26 - 60+20` (merged 2-digit year and price, trailing `+`)
+ * - `4/10/26→50` -> `4/10/26 - 50` (arrow symbol)
+ * - `6p 10 ( 26 -> 70 + 20` -> `6/10/26 - 70+20` (`p` and `(` misread from handwritten `/`)
+ * - `H1of2645` -> `7/10/26 - 45` (`7/1` misread as `H1`, `0/` misread as `of`, merged `26` and `45`)
+ * - `(9/16) / 26 -> 60 + 50` -> `9/10/26 - 60+50` (`(9/16)` misread from looped `9/10/`)
+ * - `11/10/2640/` -> `11/10/26 - 40` (merged year+price and trailing `/`)
+ * - `13/10/26201-` -> `13/10/26 - 20` (merged year+price and `/-` misread as `1-`)
+ * - `31/10/26-401-` or `31/10/26 -> 40ff-` -> `31/10/26 - 40` (`/-` misread as `1-` or `ff-`)
+ */
+fun normalizeMessyKhataOcrLine(rawLine: String): String {
+    var s = rawLine.trim()
+    if (s.isEmpty()) return ""
+
+    // 1. Normalize arrows and dashes
+    s = s.replace("→", " - ")
+        .replace("->", " - ")
+        .replace("=>", " - ")
+        .replace("—", "-")
+        .replace("–", "-")
+        .replace("~", "-")
+
+    // 2. Repair handwritten "7/10/26" misread as "H1of26..." or "H10/26..." or "71of26..."
+    s = s.replace(Regex("""^[HhTt]1\s*[oO0][fF/]\s*(\d{2})\s*(\d+)$"""), "7/10/$1 - $2")
+    s = s.replace(Regex("""^[HhTt]1\s*[oO0][fF/]\s*(\d{2})\s*[-:]?\s*(.+)$"""), "7/10/$1 - $2")
+    s = s.replace(Regex("""^7\s*1\s*[oO0][fF/]\s*(\d{2})\s*[-:]?\s*(.+)$"""), "7/10/$1 - $2")
+    s = s.replace(Regex("""^(\d{1,2})\s*[oO0][fF]\s*(\d{2})\s*(\d+)$"""), "$1/10/$2 - $3")
+
+    // 3. Remove parentheses around date segments like "(9/16) / 26" and repair looped "/10/" misread as "p 10 (" or "/16)"
+    s = s.replace("(", "/").replace(")", "/")
+    s = s.replace(Regex("""^(\d{1,2})\s*[pP/|lI]\s*(\d{1,2})\s*[/|lI(\s]+\s*(\d{2,4})"""), "$1/$2/$3")
+    s = s.replace(Regex("""/+"""), "/")
+    s = s.replace(Regex("""^/"""), "")
+
+    // If month was misread as 16 or 18 (looped 0 in 10), repair to 10
+    s = s.replace(Regex("""^(\d{1,2})/(16|18|19)/(\d{2,4})"""), "$1/10/$3")
+
+    // 4. Split merged 2-digit year + price when there is no separator (e.g., "2/10/2660+20+" -> "2/10/26 - 60+20+")
+    s = s.replace(
+        Regex("""^(\d{1,2}[./-]\d{1,2}[./-](?:2\d|3[0-5]))(\d{2,}.*)$"""),
+        "$1 - $2"
+    )
+
+    // 5. Ensure a clean " - " separator between the date prefix and price expression
+    val sepMatch = Regex("""^(\d{1,2}(?:[./-]\d{1,2}(?:[./-]\d{2,4})?)?)\s*(?:[-:=>|]+\s*|\s+)(.+)$""").find(s)
+    if (sepMatch != null) {
+        val datePart = sepMatch.groupValues[1].trim()
+        var pricePart = sepMatch.groupValues[2].trim()
+
+        // Clean each '+' separated price token for Indian Rupee trailing "/-" misreads ("1-", "ff-", "/", "|-")
+        val cleanedTokens = pricePart.split(Regex("""[+,&]"""))
+            .map { tok ->
+                var t = tok.trim()
+                // Strip trailing "/-", "ff-", "f-", "|-", "/"
+                t = t.replace(Regex("""(?:/-|ff-|f-|\|-|/|-)+$""", RegexOption.IGNORE_CASE), "").trim()
+                // If a 3+ digit number ends with "1" because "/-" was misread as "1-" (e.g. "201-" -> "201", "401-" -> "401")
+                if (tok.trim().endsWith("1-") || tok.trim().endsWith("1/")) {
+                    val withoutOne = t.removeSuffix("1")
+                    if (withoutOne.isNotEmpty() && withoutOne.all { it.isDigit() }) {
+                        t = withoutOne
+                    }
+                } else if (t.length == 3 && t.endsWith("1") && (t.startsWith("20") || t.startsWith("30") || t.startsWith("40") || t.startsWith("50") || t.startsWith("60") || t.startsWith("70") || t.startsWith("80") || t.startsWith("90"))) {
+                    t = t.substring(0, 2)
+                }
+                t
+            }
+            .filter { it.isNotBlank() && it.any { ch -> ch.isDigit() } }
+
+        if (cleanedTokens.isNotEmpty()) {
+            pricePart = cleanedTokens.joinToString("+")
+            return "$datePart - $pricePart"
+        }
+    }
+
+    return s
+}
+
 fun parseKhataRawText(
     rawText: String,
     fallbackYear: Int,
@@ -1683,23 +1868,16 @@ fun parseKhataRawText(
     hotelMenus: List<MenuEntity>,
     existingTransactions: List<HotelTransactionEntity>
 ): List<KhataDayEntry> {
-    val lines = rawText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    val lines = rawText.lines().map { normalizeMessyKhataOcrLine(it) }.filter { it.isNotEmpty() }
     val entries = mutableListOf<KhataDayEntry>()
 
     val hotelTx = existingTransactions.filter { it.hotelId == hotelId && !it.isDeleted }
 
-    // Matches:
-    // Group 1: Day (1..2 digits)
-    // Group 2: Optional Month (1..2 digits after ., /, or -)
-    // Group 3: Optional Year (2..4 digits after ., /, or -)
-    // Separator: any combination of spaces, '-', '–', '—', ':', '=', '>', '|', oreven direct transition when date has month/year
-    // Group 4: Prices expression (e.g. "60+50", "40", "60 + 50")
     val flexibleLineRegex = Regex(
         """^\s*(\d{1,2})(?:[./-](\d{1,2})(?:[./-](\d{2,4}))?)?\s*(?:[-–—:=>|]+\s*|\s+)(.+)$"""
     )
 
     for (rawLine in lines) {
-        // Normalize common OCR character substitutions
         val normalizedLine = rawLine
             .replace('—', '-')
             .replace('–', '-')

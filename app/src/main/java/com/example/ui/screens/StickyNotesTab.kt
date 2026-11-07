@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -35,11 +37,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -561,8 +573,8 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     var rearrangingNoteId by remember { mutableStateOf<Int?>(null) }
     var localNotesOrder by remember(notes) { mutableStateOf(notes) }
 
-    // Fast Simple Harmonic Oscillator (SHO) phase for floating cards (paused when heavy effects are disabled)
-    val disableHeavy = isHeavyEffectsDisabled()
+    // Fast Simple Harmonic Oscillator (SHO) phase for floating cards (paused when heavy effects are disabled OR when a note dialog is open)
+    val disableHeavy = isHeavyEffectsDisabled() || openedNote != null || isCreatingNewNote
     val shoPhaseState: State<Float> = if (disableHeavy) {
         remember { mutableFloatStateOf(0f) }
     } else {
@@ -576,6 +588,38 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             ),
             label = "sho_phase"
         )
+    }
+
+    // Custom Damper Slow-Motion Scroll Connection & Fling Behavior for smooth viscous scrolling
+    val damperNestedScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput) {
+                    // Absorb 28% of raw drag delta to create a smooth hydraulic damper feel
+                    return Offset(x = 0f, y = available.y * 0.28f)
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    val damperFlingBehavior = remember {
+        object : FlingBehavior {
+            override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
+                var velocity = (initialVelocity * 0.52f).coerceIn(-2800f, 2800f)
+                var lastTime = withFrameNanos { it }
+                while (kotlin.math.abs(velocity) > 18f) {
+                    val now = withFrameNanos { it }
+                    val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+                    lastTime = now
+                    val delta = velocity * dt
+                    val consumed = scrollBy(delta)
+                    if (kotlin.math.abs(consumed) < 0.1f) break
+                    // Exponential viscous damping
+                    velocity *= kotlin.math.exp(-4.2f * dt)
+                }
+                return 0f
+            }
+        }
     }
 
     BoxWithConstraints(
@@ -673,7 +717,8 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .nestedScroll(damperNestedScroll)
+                    .verticalScroll(rememberScrollState(), flingBehavior = damperFlingBehavior)
                     .padding(
                         start = horizontalPad,
                         end = horizontalPad,
@@ -754,7 +799,10 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             val cardTargetWidth = usableWidth * (cardWidthPercent / 100f)
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(damperNestedScroll),
+                flingBehavior = damperFlingBehavior,
                 contentPadding = PaddingValues(
                     start = 14.dp,
                     end = 14.dp,
@@ -879,15 +927,15 @@ private fun StickyFloatingCard(
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
 
     val shape = RoundedCornerShape(20.dp)
-    val (cleanedBody, envelope) = remember(note.bodyText, note.subtitle) {
+    val (cleanedBody, envelope) = remember(note.id, note.updatedAt, note.bodyText, note.subtitle) {
         parseNoteBodyAndEnvelope(note.bodyText, note.subtitle)
     }
     val subHeading = envelope.subHeading
     val pinIcon = envelope.pinIcon
     val tableData = envelope.table
 
-    val lineAlignments = remember(note.textAlignment) { parseLineAlignments(note.textAlignment) }
-    val attachmentsCount = remember(note.attachmentsJson) {
+    val lineAlignments = remember(note.id, note.updatedAt, note.textAlignment) { parseLineAlignments(note.textAlignment) }
+    val attachmentsCount = remember(note.id, note.updatedAt, note.attachmentsJson) {
         StickyAttachmentItem.listFromJson(note.attachmentsJson).size
     }
 
@@ -1051,28 +1099,8 @@ private fun StickyFloatingCard(
                         }
                     }
                 } else {
-                    // Synced Pin (📌) or Paperclip (📎) badge so card looks pinned to wall or clipped to hard paper
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isLight) Color.Black.copy(alpha = 0.05f)
-                                else Color.White.copy(alpha = 0.08f)
-                            )
-                            .border(
-                                0.8.dp,
-                                (if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder).copy(alpha = 0.35f),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = pinIcon,
-                            fontSize = 14.sp,
-                            modifier = Modifier.rotate(if (pinIcon == "📌") -12f else 8f)
-                        )
-                    }
+                    // Spacer so the title doesn't collide with the realistic 3D Push-Pin / Paperclip overlapping the top-right edge
+                    Spacer(modifier = Modifier.width(34.dp))
                 }
             }
 
@@ -1185,6 +1213,185 @@ private fun StickyFloatingCard(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        // REALISTIC 3D PUSH-PIN OR METALLIC GOLD PAPERCLIP OVERLAPPING TOP EDGE OF CARD
+        if (!isRearranging) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 10.dp)
+                    .offset(y = (-5).dp)
+                    .size(40.dp)
+            ) {
+                if (pinIcon == "📎") {
+                    StickyRealisticPaperclipCanvas(modifier = Modifier.fillMaxSize())
+                } else {
+                    StickyRealisticPushPinCanvas(modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Draws a realistic 3D Glossy Blue Push-Pin with angled plastic cylinder, flared collar,
+ * metallic needle piercing the paper, and realistic cast shadow on the note surface.
+ */
+@Composable
+private fun StickyRealisticPushPinCanvas(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        // 1. Cast shadow on paper surface (bottom-right of puncture point)
+        val puncture = Offset(w * 0.28f, h * 0.78f)
+        val shadowPath = Path().apply {
+            moveTo(puncture.x, puncture.y)
+            lineTo(w * 0.62f, h * 0.72f)
+            cubicTo(w * 0.88f, h * 0.65f, w * 0.95f, h * 0.85f, w * 0.72f, h * 0.92f)
+            cubicTo(w * 0.56f, h * 0.96f, w * 0.44f, h * 0.86f, puncture.x, puncture.y)
+            close()
+        }
+        drawPath(shadowPath, color = Color.Black.copy(alpha = 0.22f))
+
+        // 2. Metallic Steel Needle piercing into the card at ~32 deg angle
+        val collarCenter = Offset(w * 0.46f, h * 0.50f)
+        val needlePath = Path().apply {
+            moveTo(collarCenter.x - w * 0.05f, collarCenter.y - h * 0.02f)
+            lineTo(collarCenter.x + w * 0.05f, collarCenter.y + h * 0.04f)
+            lineTo(puncture.x, puncture.y)
+            close()
+        }
+        drawPath(
+            path = needlePath,
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFFF1F5F9), Color(0xFF94A3B8), Color(0xFF475569)),
+                start = collarCenter,
+                end = puncture
+            )
+        )
+        // Tiny dark puncture hole dot
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.35f),
+            radius = w * 0.03f,
+            center = puncture
+        )
+
+        // 3. Rotated 3D Blue Push-Pin Body (angled at 32 degrees like reference image)
+        rotate(degrees = 32f, pivot = collarCenter) {
+            // Lower Flared Collar Rim (Darker Royal Blue)
+            drawOval(
+                brush = Brush.linearGradient(
+                    colors = listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF1E3A8A)),
+                    start = Offset(collarCenter.x - w * 0.24f, collarCenter.y),
+                    end = Offset(collarCenter.x + w * 0.24f, collarCenter.y)
+                ),
+                topLeft = Offset(collarCenter.x - w * 0.23f, collarCenter.y - h * 0.11f),
+                size = Size(w * 0.46f, h * 0.22f)
+            )
+            // Collar Rim Specular Highlight
+            drawOval(
+                color = Color(0xFF38BDF8).copy(alpha = 0.55f),
+                topLeft = Offset(collarCenter.x - w * 0.21f, collarCenter.y - h * 0.10f),
+                size = Size(w * 0.42f, h * 0.18f),
+                style = Stroke(width = w * 0.025f)
+            )
+
+            // Tapered Cylindrical Middle Body
+            val topCenter = Offset(collarCenter.x, collarCenter.y - h * 0.26f)
+            val bodyPath = Path().apply {
+                moveTo(collarCenter.x - w * 0.13f, collarCenter.y - h * 0.01f)
+                lineTo(topCenter.x - w * 0.17f, topCenter.y)
+                lineTo(topCenter.x + w * 0.17f, topCenter.y)
+                lineTo(collarCenter.x + w * 0.13f, collarCenter.y - h * 0.01f)
+                close()
+            }
+            drawPath(
+                path = bodyPath,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF1D4ED8)),
+                    startX = collarCenter.x - w * 0.17f,
+                    endX = collarCenter.x + w * 0.17f
+                )
+            )
+
+            // Top Flared Cap Disc
+            drawOval(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF7DD3FC), Color(0xFF0284C7), Color(0xFF1E40AF)),
+                    center = Offset(topCenter.x - w * 0.04f, topCenter.y - h * 0.02f),
+                    radius = w * 0.24f
+                ),
+                topLeft = Offset(topCenter.x - w * 0.20f, topCenter.y - h * 0.10f),
+                size = Size(w * 0.40f, h * 0.20f)
+            )
+
+            // Glossy Inner Specular Oval on Top Cap
+            drawOval(
+                color = Color(0xFFE0F2FE).copy(alpha = 0.78f),
+                topLeft = Offset(topCenter.x - w * 0.11f, topCenter.y - h * 0.06f),
+                size = Size(w * 0.18f, h * 0.09f)
+            )
+        }
+    }
+}
+
+/**
+ * Draws a realistic 3D Metallic Gold/Copper Paperclip overlapping the top edge of the sticky card,
+ * complete with double wire loops, metallic sheen, and subtle drop shadow.
+ */
+@Composable
+private fun StickyRealisticPaperclipCanvas(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val center = Offset(w * 0.5f, h * 0.5f)
+
+        rotate(degrees = 16f, pivot = center) {
+            val strokeW = w * 0.075f
+            // 1. Soft drop shadow of the paperclip wire
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.20f),
+                topLeft = Offset(w * 0.30f + 2f, h * 0.08f + 3f),
+                size = Size(w * 0.40f, h * 0.82f),
+                cornerRadius = CornerRadius(w * 0.20f, w * 0.20f),
+                style = Stroke(width = strokeW, cap = StrokeCap.Round)
+            )
+            // 2. Outer metallic copper/gold loop
+            val goldBrush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFDE68A),
+                    Color(0xFFD97706),
+                    Color(0xFFB45309),
+                    Color(0xFFF59E0B),
+                    Color(0xFFFEF08A)
+                ),
+                start = Offset(w * 0.25f, h * 0.05f),
+                end = Offset(w * 0.75f, h * 0.95f)
+            )
+            drawRoundRect(
+                brush = goldBrush,
+                topLeft = Offset(w * 0.29f, h * 0.08f),
+                size = Size(w * 0.42f, h * 0.82f),
+                cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
+                style = Stroke(width = strokeW, cap = StrokeCap.Round)
+            )
+            // 3. Inner metallic loop (creates the classic double-loop paperclip silhouette)
+            drawRoundRect(
+                brush = goldBrush,
+                topLeft = Offset(w * 0.38f, h * 0.22f),
+                size = Size(w * 0.24f, h * 0.56f),
+                cornerRadius = CornerRadius(w * 0.12f, w * 0.12f),
+                style = Stroke(width = strokeW * 0.88f, cap = StrokeCap.Round)
+            )
+            // 4. Fine specular highlight along the top-left curve
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.55f),
+                topLeft = Offset(w * 0.29f, h * 0.08f),
+                size = Size(w * 0.42f, h * 0.82f),
+                cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
+                style = Stroke(width = strokeW * 0.25f, cap = StrokeCap.Round)
+            )
         }
     }
 }
@@ -1724,10 +1931,10 @@ fun StickyNoteFullScreenDialog(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // Center: Note Title in Top Bar (between Back button and Triple-Dot menu on both mobile & tablet!)
+                            // Center: Note Title Centered in Top Bar WITHOUT pin/paperclip icon
                             Box(
                                 modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.CenterStart
+                                contentAlignment = Alignment.Center
                             ) {
                                 if (isEditing) {
                                     BasicTextField(
@@ -1738,42 +1945,44 @@ fun StickyNoteFullScreenDialog(
                                             color = textColor,
                                             fontSize = 19.sp,
                                             fontWeight = FontWeight.Bold,
-                                            fontFamily = if (isBoldMode) ArchivoBlackFontFamily else AppFontFamily
+                                            fontFamily = if (isBoldMode) ArchivoBlackFontFamily else AppFontFamily,
+                                            textAlign = TextAlign.Center
                                         ),
                                         cursorBrush = SolidColor(effectiveAccent),
                                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                                         modifier = Modifier.fillMaxWidth(),
                                         decorationBox = { inner ->
-                                            if (title.isEmpty()) {
-                                                Text(
-                                                    text = if (isBn) "শিরোনাম লিখুন..." else "Title...",
-                                                    color = textColor.copy(alpha = 0.42f),
-                                                    fontSize = 19.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (title.isEmpty()) {
+                                                    Text(
+                                                        text = if (isBn) "শিরোনাম লিখুন..." else "Title...",
+                                                        color = textColor.copy(alpha = 0.42f),
+                                                        fontSize = 19.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                                inner()
                                             }
-                                            inner()
                                         }
                                     )
                                 } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = pinIcon,
-                                            fontSize = 16.sp,
-                                            modifier = Modifier.padding(end = 6.dp)
-                                        )
-                                        Text(
-                                            text = title.ifBlank { if (isBn) "শিরোনামহীন নোট" else "Untitled Note" },
-                                            color = textColor,
-                                            fontSize = 19.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = if (isBoldMode) ArchivoBlackFontFamily else AppFontFamily,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
+                                    Text(
+                                        text = title.ifBlank { if (isBn) "শিরোনামহীন নোট" else "Untitled Note" },
+                                        color = textColor,
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = if (isBoldMode) ArchivoBlackFontFamily else AppFontFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
 
@@ -1922,38 +2131,7 @@ fun StickyNoteFullScreenDialog(
                             }
                         }
 
-                        // Color Palette Picker Row shown cleanly under top bar ONLY in Edit Mode
-                        if (isEditing) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                STICKY_COLOR_PALETTES.forEach { p ->
-                                    val isSelected = p.index == colorIndex
-                                    val dotFill = if (p.index == 0) {
-                                        if (isLight) Color.White else Color(0xFF1E293B)
-                                    } else {
-                                        p.accentBorder
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(if (isSelected) 28.dp else 22.dp)
-                                            .clip(CircleShape)
-                                            .background(dotFill)
-                                            .border(
-                                                width = if (isSelected) 2.5.dp else 1.2.dp,
-                                                color = if (isSelected) textColor else p.accentBorder.copy(alpha = 0.7f),
-                                                shape = CircleShape
-                                            )
-                                            .clickable { colorIndex = p.index }
-                                    )
-                                }
-                            }
-                        }
+                        // Color palette selector has been moved to the bottom end line of the page content
                     }
                 },
                 bottomBar = {
@@ -2077,11 +2255,12 @@ fun StickyNoteFullScreenDialog(
                     }
                 }
             ) { innerPadding ->
+                val pageScrollState = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(pageScrollState)
                         .padding(horizontal = 22.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -2269,7 +2448,7 @@ fun StickyNoteFullScreenDialog(
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .defaultMinSize(minHeight = if (tableData != null) 140.dp else 260.dp),
+                                .defaultMinSize(minHeight = 120.dp),
                             decorationBox = { inner ->
                                 if (bodyField.text.isEmpty()) {
                                     Text(
@@ -2489,6 +2668,46 @@ fun StickyNoteFullScreenDialog(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Page Color Options placed at the bottom end line of the page content (centered horizontally, NOT inside the 8-icon bottom bar)
+                    if (isEditing) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                STICKY_COLOR_PALETTES.forEach { p ->
+                                    val isSelected = p.index == colorIndex
+                                    val dotFill = if (p.index == 0) {
+                                        if (isLight) Color.White else Color(0xFF1E293B)
+                                    } else {
+                                        p.accentBorder
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(if (isSelected) 30.dp else 24.dp)
+                                            .clip(CircleShape)
+                                            .background(dotFill)
+                                            .border(
+                                                width = if (isSelected) 2.5.dp else 1.2.dp,
+                                                color = if (isSelected) textColor else p.accentBorder.copy(alpha = 0.7f),
+                                                shape = CircleShape
+                                            )
+                                            .clickable { colorIndex = p.index }
+                                    )
                                 }
                             }
                         }
