@@ -543,6 +543,52 @@ fun buildFormattedStickyAnnotatedString(
     }
 }
 
+data class StickyCardPreviewModel(
+    val noteId: Int,
+    val updatedAt: Long,
+    val subHeading: String,
+    val pinIcon: String,
+    val tableData: StickyTableData?,
+    val truncatedBody: String,
+    val lineAlignments: Map<Int, String>,
+    val attachmentsCount: Int,
+    val tagsList: List<String>
+)
+
+private object StickyCardPreviewCache {
+    private val map = java.util.concurrent.ConcurrentHashMap<String, StickyCardPreviewModel>()
+
+    fun getOrCompute(note: StickyNoteEntity, maxPreviewLines: Int): StickyCardPreviewModel {
+        val key = "${note.id}_${note.updatedAt}_$maxPreviewLines"
+        map[key]?.let { return it }
+        val computed = compute(note, maxPreviewLines)
+        map[key] = computed
+        return computed
+    }
+
+    fun compute(note: StickyNoteEntity, maxPreviewLines: Int): StickyCardPreviewModel {
+        val (cleanedBody, envelope) = parseNoteBodyAndEnvelope(note.bodyText, note.subtitle)
+        val tableRows = envelope.table?.rows ?: 0
+        val maxLinesToKeep = (maxPreviewLines - minOf(tableRows, maxPreviewLines)).coerceAtLeast(1) + 1
+        val bodyLines = cleanedBody.lineSequence().take(maxLinesToKeep).joinToString("\n")
+        val truncatedBody = if (bodyLines.length > 340) bodyLines.substring(0, 340) + "…" else bodyLines
+        val alignments = parseLineAlignments(note.textAlignment).filterKeys { it < maxLinesToKeep }
+        val attCount = StickyAttachmentItem.listFromJson(note.attachmentsJson).size
+        val tags = if (note.tags.isBlank()) emptyList() else note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        return StickyCardPreviewModel(
+            noteId = note.id,
+            updatedAt = note.updatedAt,
+            subHeading = envelope.subHeading,
+            pinIcon = envelope.pinIcon,
+            tableData = envelope.table,
+            truncatedBody = truncatedBody,
+            lineAlignments = alignments,
+            attachmentsCount = attCount,
+            tagsList = tags
+        )
+    }
+}
+
 @Composable
 fun StickyNotesTab(viewModel: FinancialViewModel) {
     val allNotes by viewModel.allStickyNotes.collectAsStateWithLifecycle()
@@ -554,12 +600,24 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     val maxPreviewLines = LocalStickyPreviewLines.current.coerceIn(4, 10)
     val haptic = LocalHapticFeedback.current
 
-    val notes = remember(allNotes, selectedTag) {
+    // Pre-warm all card preview models on background thread so scrolling & opening the tab has zero UI-thread JSON/Regex work
+    var prewarmVersion by remember { mutableIntStateOf(0) }
+    LaunchedEffect(allNotes, maxPreviewLines) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            allNotes.forEach { note ->
+                StickyCardPreviewCache.getOrCompute(note, maxPreviewLines)
+            }
+        }
+        prewarmVersion++
+    }
+
+    val notes = remember(allNotes, selectedTag, prewarmVersion) {
         if (selectedTag == "ALL" || selectedTag.isBlank()) {
             allNotes
         } else {
             allNotes.filter { note ->
-                note.tags.split(",").map { it.trim() }.any { it.equals(selectedTag, ignoreCase = true) }
+                val cachedTags = StickyCardPreviewCache.getOrCompute(note, maxPreviewLines).tagsList
+                cachedTags.any { it.equals(selectedTag, ignoreCase = true) }
             }
         }
     }
@@ -693,7 +751,7 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             }
         } else if (isWallMode) {
-            // Tablet / Landscape Wall Mode: strictly fit all columns inside containerWidth
+            // Tablet / Landscape Wall Mode: Virtualized LazyColumn of multi-column rows so only visible rows are composed!
             val horizontalPad = 16.dp
             val colSpacing = 12.dp
             val usableWidth = (containerWidth - horizontalPad * 2).coerceAtLeast(240.dp)
@@ -706,88 +764,89 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             val widthFractionInCol = (0.78f + ((cardWidthPercent - 50) / 30f) * 0.22f).coerceIn(0.78f, 1.0f)
             val cardTargetWidth = (maxColWidth * widthFractionInCol).coerceAtMost(maxColWidth)
 
-            val columns = remember(localNotesOrder, columnCount) {
-                val cols = List(columnCount) { mutableListOf<Pair<Int, StickyNoteEntity>>() }
-                localNotesOrder.forEachIndexed { idx, note ->
-                    cols[idx % columnCount].add(idx to note)
-                }
-                cols
+            val chunkedRows = remember(localNotesOrder, columnCount) {
+                localNotesOrder.mapIndexed { idx, note -> idx to note }.chunked(columnCount)
             }
 
-            Row(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .nestedScroll(damperNestedScroll)
-                    .verticalScroll(rememberScrollState(), flingBehavior = damperFlingBehavior)
-                    .padding(
-                        start = horizontalPad,
-                        end = horizontalPad,
-                        top = 12.dp,
-                        bottom = 120.dp
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(colSpacing)
+                    .nestedScroll(damperNestedScroll),
+                flingBehavior = damperFlingBehavior,
+                contentPadding = PaddingValues(
+                    start = horizontalPad,
+                    end = horizontalPad,
+                    top = 12.dp,
+                    bottom = 120.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                columns.forEachIndexed { colIndex, colItems ->
-                    val columnTopOffset = remember(colIndex) {
-                        when (colIndex % 4) {
-                            0 -> 4.dp
-                            1 -> 28.dp
-                            2 -> 14.dp
-                            else -> 36.dp
-                        }
-                    }
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(top = columnTopOffset),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                itemsIndexed(
+                    items = chunkedRows,
+                    key = { rowIdx, rowItems -> "wall_row_${rowIdx}_${rowItems.firstOrNull()?.second?.id ?: 0}" }
+                ) { rowIdx, rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(colSpacing),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        colItems.forEach { (globalIdx, note) ->
-                            val colAlign = if (globalIdx % 2 == 0) Alignment.CenterStart else Alignment.CenterEnd
+                        for (colIndex in 0 until columnCount) {
+                            val pair = rowItems.getOrNull(colIndex)
+                            val staggeredTopOffset = when (colIndex % 4) {
+                                0 -> 2.dp
+                                1 -> 22.dp
+                                2 -> 12.dp
+                                else -> 28.dp
+                            }
                             Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = colAlign
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(top = staggeredTopOffset),
+                                contentAlignment = if (pair != null && pair.first % 2 == 0) Alignment.CenterStart else Alignment.CenterEnd
                             ) {
-                                StickyFloatingCard(
-                                    note = note,
-                                    index = globalIdx,
-                                    cardWidth = cardTargetWidth,
-                                    maxPreviewLines = maxPreviewLines,
-                                    shoPhaseProvider = { shoPhaseState.value },
-                                    isRearranging = rearrangingNoteId == note.id,
-                                    isBoldMode = isBoldMode,
-                                    isBn = isBn,
-                                    onTap = {
-                                        if (rearrangingNoteId != null) {
-                                            rearrangingNoteId = null
-                                        } else {
-                                            openedNote = note
-                                            openInEditMode = false
+                                if (pair != null) {
+                                    val (globalIdx, note) = pair
+                                    StickyFloatingCard(
+                                        note = note,
+                                        index = globalIdx,
+                                        cardWidth = cardTargetWidth,
+                                        maxPreviewLines = maxPreviewLines,
+                                        shoPhaseProvider = { shoPhaseState.value },
+                                        isRearranging = rearrangingNoteId == note.id,
+                                        isBoldMode = isBoldMode,
+                                        isBn = isBn,
+                                        onTap = {
+                                            if (rearrangingNoteId != null) {
+                                                rearrangingNoteId = null
+                                            } else {
+                                                openedNote = note
+                                                openInEditMode = false
+                                            }
+                                        },
+                                        onLongPressRearrange = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            rearrangingNoteId = note.id
+                                        },
+                                        onMovePrev = {
+                                            if (globalIdx > 0) {
+                                                val mutable = localNotesOrder.toMutableList()
+                                                val item = mutable.removeAt(globalIdx)
+                                                mutable.add(globalIdx - 1, item)
+                                                localNotesOrder = mutable
+                                                viewModel.reorderStickyNotes(mutable)
+                                            }
+                                        },
+                                        onMoveNext = {
+                                            if (globalIdx < localNotesOrder.lastIndex) {
+                                                val mutable = localNotesOrder.toMutableList()
+                                                val item = mutable.removeAt(globalIdx)
+                                                mutable.add(globalIdx + 1, item)
+                                                localNotesOrder = mutable
+                                                viewModel.reorderStickyNotes(mutable)
+                                            }
                                         }
-                                    },
-                                    onLongPressRearrange = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        rearrangingNoteId = note.id
-                                    },
-                                    onMovePrev = {
-                                        if (globalIdx > 0) {
-                                            val mutable = localNotesOrder.toMutableList()
-                                            val item = mutable.removeAt(globalIdx)
-                                            mutable.add(globalIdx - 1, item)
-                                            localNotesOrder = mutable
-                                            viewModel.reorderStickyNotes(mutable)
-                                        }
-                                    },
-                                    onMoveNext = {
-                                        if (globalIdx < localNotesOrder.lastIndex) {
-                                            val mutable = localNotesOrder.toMutableList()
-                                            val item = mutable.removeAt(globalIdx)
-                                            mutable.add(globalIdx + 1, item)
-                                            localNotesOrder = mutable
-                                            viewModel.reorderStickyNotes(mutable)
-                                        }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -927,17 +986,16 @@ private fun StickyFloatingCard(
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
 
     val shape = RoundedCornerShape(20.dp)
-    val (cleanedBody, envelope) = remember(note.id, note.updatedAt, note.bodyText, note.subtitle) {
-        parseNoteBodyAndEnvelope(note.bodyText, note.subtitle)
+    val previewModel = remember(note.id, note.updatedAt, maxPreviewLines) {
+        StickyCardPreviewCache.getOrCompute(note, maxPreviewLines)
     }
-    val subHeading = envelope.subHeading
-    val pinIcon = envelope.pinIcon
-    val tableData = envelope.table
-
-    val lineAlignments = remember(note.id, note.updatedAt, note.textAlignment) { parseLineAlignments(note.textAlignment) }
-    val attachmentsCount = remember(note.id, note.updatedAt, note.attachmentsJson) {
-        StickyAttachmentItem.listFromJson(note.attachmentsJson).size
-    }
+    val cleanedBody = previewModel.truncatedBody
+    val subHeading = previewModel.subHeading
+    val pinIcon = previewModel.pinIcon
+    val tableData = previewModel.tableData
+    val lineAlignments = previewModel.lineAlignments
+    val attachmentsCount = previewModel.attachmentsCount
+    val noteTags = previewModel.tagsList
 
     val tableRowsToDisplay = remember(tableData, maxPreviewLines) {
         if (tableData == null) 0 else minOf(tableData.rows, maxPreviewLines)
@@ -1117,19 +1175,15 @@ private fun StickyFloatingCard(
                 )
             }
 
-            // Tags chips if present
-            val noteTags = remember(note.tags) {
-                note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
-            }
+            // Tags chips if present (static non-scrolling preview up to 3 tags so cards don't allocate ScrollState)
             if (noteTags.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    noteTags.forEach { tag ->
+                    noteTags.take(3).forEach { tag ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = (if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder).copy(alpha = 0.16f)
@@ -1139,9 +1193,18 @@ private fun StickyFloatingCard(
                                 color = textColor.copy(alpha = 0.85f),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
+                    }
+                    if (noteTags.size > 3) {
+                        Text(
+                            text = "+${noteTags.size - 3}",
+                            color = textColor.copy(alpha = 0.65f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

@@ -698,31 +698,99 @@ class MeterReadingViewModel(
         bill: UtilityBill,
         newIsPaid: Boolean,
         note: String = bill.note,
-        paidAmount: Double? = null
+        paidAmount: Double? = null,
+        carryOverTargetBill: UtilityBill? = null
     ) {
         viewModelScope.launch {
             val normStart = minOf(bill.startDate, bill.endDate)
             val normEnd = maxOf(bill.startDate, bill.endDate)
             val totalBillAmt = bill.calculatedAmount.coerceAtLeast(0.0)
+            val oldRemaining = getBillRemainingUnpaid(bill)
             val resolvedPaidAmt = when {
                 paidAmount != null -> (Math.round(paidAmount.coerceIn(0.0, totalBillAmt) * 100.0) / 100.0)
                 newIsPaid -> totalBillAmt
                 else -> 0.0
             }
-            val resolvedIsPaid = resolvedPaidAmt >= (totalBillAmt - 0.01) && totalBillAmt > 0.0
-            val encodedTxId = "PAID_AMT:$resolvedPaidAmt"
-            repository.insertUtilityBill(
-                bill.copy(
-                    startDate = normStart,
-                    endDate = normEnd,
-                    isPaid = resolvedIsPaid,
-                    transactionId = encodedTxId,
-                    note = note.trim()
+            val newRemaining = (Math.round((totalBillAmt - resolvedPaidAmt).coerceAtLeast(0.0) * 100.0) / 100.0)
+
+            if (carryOverTargetBill != null && newRemaining >= 0.01) {
+                // Transfer residual balance into the chosen later month bill and settle source bill's remaining carry-over so it isn't double-counted
+                val targetFormat = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
+                val sourceLabel = targetFormat.format(java.util.Date(normEnd))
+                val targetLabel = targetFormat.format(java.util.Date(carryOverTargetBill.endDate))
+                val updatedTargetTotal = Math.round((carryOverTargetBill.calculatedAmount + newRemaining) * 100.0) / 100.0
+                val targetPaid = getBillPaidAmount(carryOverTargetBill)
+                val targetStillPaid = targetPaid >= (updatedTargetTotal - 0.01) && updatedTargetTotal > 0.0
+                val targetCarryNote = buildString {
+                    if (carryOverTargetBill.note.isNotBlank()) {
+                        append(carryOverTargetBill.note.trim())
+                        append(" • ")
+                    }
+                    append("+₹${String.format(java.util.Locale.US, "%.2f", newRemaining)} carried from $sourceLabel")
+                }
+                repository.insertUtilityBill(
+                    carryOverTargetBill.copy(
+                        calculatedAmount = updatedTargetTotal,
+                        isPaid = targetStillPaid,
+                        transactionId = "PAID_AMT:$targetPaid",
+                        note = targetCarryNote
+                    )
                 )
-            )
-            val startDay = getDayStart(normStart)
-            val endDay = getDayEnd(normEnd)
-            repository.updateReadingsPaidStatus(startDay, endDay, resolvedIsPaid)
+
+                val sourceMergedNote = buildString {
+                    if (note.isNotBlank()) {
+                        append(note.trim())
+                        append(" • ")
+                    }
+                    append("Paid ₹${String.format(java.util.Locale.US, "%.2f", resolvedPaidAmt)}, Residual ₹${String.format(java.util.Locale.US, "%.2f", newRemaining)} moved to $targetLabel")
+                }
+                repository.insertUtilityBill(
+                    bill.copy(
+                        startDate = normStart,
+                        endDate = normEnd,
+                        calculatedAmount = resolvedPaidAmt,
+                        isPaid = true,
+                        transactionId = "PAID_AMT:$resolvedPaidAmt",
+                        note = sourceMergedNote
+                    )
+                )
+                val startDay = getDayStart(normStart)
+                val endDay = getDayEnd(normEnd)
+                repository.updateReadingsPaidStatus(startDay, endDay, true)
+            } else {
+                val resolvedIsPaid = resolvedPaidAmt >= (totalBillAmt - 0.01) && totalBillAmt > 0.0
+                val encodedTxId = "PAID_AMT:$resolvedPaidAmt"
+                repository.insertUtilityBill(
+                    bill.copy(
+                        startDate = normStart,
+                        endDate = normEnd,
+                        isPaid = resolvedIsPaid,
+                        transactionId = encodedTxId,
+                        note = note.trim()
+                    )
+                )
+                val startDay = getDayStart(normStart)
+                val endDay = getDayEnd(normEnd)
+                repository.updateReadingsPaidStatus(startDay, endDay, resolvedIsPaid)
+            }
+        }
+    }
+
+    companion object {
+        private val _showDailyMeterUsageFlow = MutableStateFlow(true)
+        val showDailyMeterUsageFlow: StateFlow<Boolean> = _showDailyMeterUsageFlow.asStateFlow()
+
+        fun isDailyMeterUsageEnabled(context: android.content.Context): Boolean {
+            val p = context.getSharedPreferences("traker_utility_prefs", android.content.Context.MODE_PRIVATE)
+            val enabled = p.getBoolean("show_daily_meter_usage_graph", true)
+            _showDailyMeterUsageFlow.value = enabled
+            return enabled
+        }
+
+        fun setDailyMeterUsageEnabled(context: android.content.Context, enabled: Boolean) {
+            val p = context.getSharedPreferences("traker_utility_prefs", android.content.Context.MODE_PRIVATE)
+            p.edit().putBoolean("show_daily_meter_usage_graph", enabled).apply()
+            _showDailyMeterUsageFlow.value = enabled
         }
     }
 

@@ -1,122 +1,121 @@
-# Implementation Plan: UI Bounds, Bill Calculator, Sticky Notes Keep Upgrade, Granular Exports, Khata OCR Import & System Enhancements
+# Traker Performance, APK Size Reduction & 16-Point Feature Upgrade Plan
 
-## 1. Tablet & Letterbox Full-Screen Dialog Bounds Fix
-- **`DialogEdgeToEdge.kt`**:
-  - Fix the tablet/letterboxed overflow glitch where `getRealMetrics()` stretched dialogs across the entire physical display (`2560x1600`) even when the app was letterboxed or in compat/freeform bounds (`isInMultiWindowMode == false`).
-  - Prioritize `activity.window.decorView.width` and `activity.window.decorView.height` whenever `decor.width > 0 && decor.height > 0`, as `decorView` reflects the exact active window container dimensions across Android 8–15, tablet letterbox mode, split-screen, and freeform windows.
-  - Ensure triple-dot overflow menus and right-aligned action buttons inside Settings and sub-dialogs remain strictly within the app window.
+This plan reduces the compiled APK size from **~15 MB back to ~3.2 MB**, fixes Khata OCR and offline voice capture, makes Sticky Notes load instantaneously even with hundreds of notes, and implements all 16 requested UI, workflow, backup, and billing enhancements.
 
-## 2. Electricity Bill Calculator Logic & Hide Default Rate When Policies Exist
-- **Hide Default Rate (`UtilityConfigurationScreen.kt`)**:
-  - When one or more active rate policies (`rates.isNotEmpty()`) exist, hide the **Default Rate per Unit** input field in Service Parameters (showing only Fixed Service Charge, or only showing Default Rate as an initial fallback when no rate policies are configured).
-- **Exact Group-by-Group & Smooth Day-Interpolation Bill Calculation (`MeterReadingViewModel.kt`)**:
-  - Strictly calculate consumption between the selected **Start Date** (`startDay`) and **End Date** (`endDay`) without pulling in prior readings before `startDay` (removing the `Case 2` override that shifted `15 Aug (971.0)` back to `27 Jul (934.5)`).
-  - Use **day-based linear interpolation** (`dayStart` in days) for dates that fall between two recorded readings:
-    - Example: If `15 Aug = 971.0`, `17 Oct = 1091.0`, and `20 Oct = 1094.0`, then for `15 Aug` to `18 Oct`:
-      - Complete reading interval `15 Aug → 17 Oct` = `1091.0 - 971.0 = 120.0 kWh`.
-      - Incomplete interval `17 Oct → 18 Oct` = `((1094.0 - 1091.0) / 3 days) × (18 - 17) = 1.0 kWh`.
-      - Total = `121.0 kWh` (or cumulative interpolated reading `1092.0 - 971.0 = 121.0 kWh`).
-  - Group consumption strictly by rate-policy change boundaries (`effectiveDate` cutoffs falling within `[startDay, endDay]`):
-    - For uniform rate periods, compute directly from the interpolated reading at the group's start date to the interpolated reading at the group's end date.
-    - When a rate policy changes mid-period, split at the exact rate policy `effectiveDate` using day-level linear interpolation and compute each rate group's units and cost separately.
+---
 
-## 3. Sticky Notes Tab: Gesture Differentiation, Keep-Style Plain Editor, 8-Icon Bottom Toolbar, Custom Tags & Wobble Layout
-- **Scroll vs. 3-Second Long-Press Gesture Differentiation (`StickyNotesTab.kt`)**:
-  - Replace the gesture detector on `StickyFloatingCard` with a pointer input handler that tracks `touchSlop` movement without consuming move events: if the user scrolls/drags beyond `viewConfiguration.touchSlop` before 3,000 ms, cancel the long-press timer immediately so vertical and horizontal page scrolling is completely smooth and uninterrupted.
-- **Google Keep-Style Plain Editor & Viewer (No Subtitle, No Inner Cards)**:
-  - Remove the **Subtitle** field from the Sticky Note UI and remove the three separate card containers in the editor/viewer.
-  - Display **Title** and **Body** seamlessly on a plain Material 3 surface background (like Google Keep), with optional tag chips and media attachments.
-- **Single-Line 8-Icon Bottom Formatting Toolbar (Mobile & Tablet Optimized)**:
-  - Place all 8 formatting options in a single bottom bar using crisp icons only:
-    1. **Bold** (`*text*` — wraps current selection or inserts/toggles `*` markers at cursor)
-    2. **Italic** (`-text-` — wraps current selection or inserts/toggles `-` markers at cursor)
-    3. **Align Left**
-    4. **Align Center**
-    5. **Align Right**
-    6. **Align Justify**
-    7. **Insert Table** (opens interactive grid builder / inserts pipe table)
-    8. **Attach File** (attaches image/document)
-  - Track text selection (`TextFieldValue` with `TextRange` selection) in the editor so tapping **Bold** or **Italic** wraps the highlighted text or inserts paired markers at the cursor position immediately.
-- **Custom Tags & Fixed Right Search/Settings Top Bar**:
-  - Add a `tags: String` (comma-separated custom tags) field to `StickyNoteEntity` with migration/default support, allowing users to add/remove custom tags on any Sticky Note.
-  - Update the Sticky tab top bar: place a horizontally scrollable filter chip row on the left (`"All"`, `"{tag 1}"`, `"{tag 2}"`, ...) while keeping the **Search** and **Settings** icons fixed on the right.
-- **Continuous Wobbling Animation & Alternating / Unequal-Height Wall Arrangement**:
-  - Keep the gentle harmonic wobble (`shoPhase` rotation + bobbing) active on Sticky Note cards on the Sticky tab even when `disableHeavyEffects` is enabled for the rest of the app.
-  - **Mobile Portrait**: Arrange Sticky cards alternating leftward (`Alignment.Start`) and rightward (`Alignment.End`) down the column so the left/right zig-zag offset naturally reflects the configured card width percentage (`50%–80%`).
-  - **Tablet / Landscape Wall Mode**: Render a multi-column staggered wall where adjacent columns start at unequal top vertical offsets (e.g., staggered top spacers per column) so cards never align on a rigid top row while remaining horizontally and vertically scrollable.
+## User Review & Confirmed Decisions
 
-## 4. Bold Font (`Archivo Black` & `Archivo`) with Distinct Bold-in-Bold Support
-- **Font Installation & Typography (`app/src/main/res/font/`, `Type.kt`, `AppThemeProvider.kt`)**:
-  - Install **Archivo Black** (`archivo_black.ttf`) and **Archivo** (`archivo.ttf`) locally via `font-util`.
-  - When **Bold Text** mode is enabled in Settings:
-    - Apply `Archivo` Bold / `Archivo Black` across the app's typography scale AND provide `CompositionLocal` / style enforcement so composables with explicit `FontWeight.Normal` or `FontWeight.Medium` also render in bold typography.
-    - In Sticky Notes (`parseStickyFormattedText`), when Bold Mode is ON, regular note text uses `Archivo` Bold while `*bold*` spans use `Archivo Black` (`FontWeight.Black`) with a subtle size/letter-spacing boost and high-contrast emphasis so `*bold*` formatted spans are unmistakably bolder than normal text even when global Bold Mode is active.
+> [!IMPORTANT]
+> All three product decisions from our discussion have been locked in:
+> 1. **Historical Partial Bill Payment Residual Handling**:
+>    - If you edit the **most recent (just-previous) month's bill**, the remaining unpaid balance automatically carries forward into the ongoing/upcoming month since the next bill is not yet finalized.
+>    - If you edit an **older historical month** (e.g., editing August when September/October bills already exist), a mandatory **"Transfer Residual Balance To Month"** selector appears. Saving is only allowed once you pick which existing bill receives the residual amount, preventing misalignment across past months.
+>    - Displays the timely-payment reminder quote inside the dialog: *"“Timely settlement today buys peace of mind tomorrow — clear small dues early so future months stay effortless.”"*
+> 2. **Log Reading Page Interactive Electricity Graph**:
+>    - Placed at the top of the **Log Reading** tab (and toggleable from **Settings → Appearance**).
+>    - Combines a **Daily kWh Consumption Bar + Trend Line Chart** (highlighting whether daily usage is rising or falling versus your rolling average) with an interactive **Region Selector (Start Reading → End Reading)** that shows total $\Delta\text{ kWh}$ and exact split cost across multiple electricity rate policies.
+> 3. **Privacy-Safe GitHub Buttons & Concise Help/About Redesign**:
+>    - All personal names, `@suvadippatra` handles, emails, and raw URLs are removed from visible UI text.
+>    - Two clean buttons with embedded links are shown: **"Give a Star on GitHub"** (`https://github.com/suvadippatra/tracker/`) and **"New Issue or Request Feature"** (`https://github.com/suvadippatra/tracker/issues/new/choose`).
 
-## 5. Granular Daily-Use Exports, Settings Export & Duplicate Removal
-- **`DataBackupSettingsScreen.kt` & `SyncDialogs.kt`**:
-  - Remove the duplicate Full App Data export card so there is only one unified Full Backup option.
-  - Add a dedicated **Settings Only** export/import option (`SETTINGS` scope: exports theme, font settings, sticky width, utility parameters, and profile configuration).
-  - Upgrade **Specific Category Exports** for daily use:
-    - **Hotel Data**: Choose a specific Hotel (or All Hotels) AND choose the sub-category:
-      1. *Whole Hotel* (Info + Menu + Order History)
-      2. *Order History Only*
-      3. *Menu Items Only*
-      4. *Hotel Info Only*
-    - **Account / Extra Data**: Choose a specific Bank Account (or All Accounts) AND choose:
-      1. *Whole Account* (Account Info + Expense Transactions)
-      2. *Transactions History Only*
-      3. *Account Info Only*
-    - **Electricity Bill Data**: Choose *All Utility Data*, *Meter Readings Only*, *Generated Bills Only*, or *Rate Policies Only*.
+---
 
-## 6. Default Hotel & Default Account Selection + First-Item Tab Ordering
-- **`ProfileSettingsScreen.kt`, `HotelManagementTab.kt`, & `ExpenseTrackingTab.kt`**:
-  - Fix the Default Hotel selector in Account & Profile (`UserSettingsDialog` / `ProfileSettingsScreen.kt`) so all existing hotels are listed and selectable as Default Hotel, and add a matching **Default Bank Account** selector (`defaultAccountId` in `UserProfileEntity`).
-  - Sort the hotels list in `HotelManagementTab` and `HotelViewModel` so the user's **Default Hotel** always appears **first** (index 0) on launch, with remaining hotels accessible by scrolling right.
-  - Sort the bank accounts list in `ExpenseTrackingTab` and `ExpenseViewModel` so the user's **Default Bank Account** always appears **first** (index 0) on launch, with remaining accounts accessible by scrolling.
+## 1. Core Size, OCR, Voice & Sticky Notes Optimizations
 
-## 7. Recycle Bin Search & Full Deleted Entity Coverage (Including Electricity Rate Policies)
-- **`Entities.kt`, `Daos.kt`, `UtilityConfigurationScreen.kt`, & `BinScreen.kt`**:
-  - Add `isDeleted: Boolean = false` and `deletedAt: Long? = null` to `ElectricityRate`.
-  - When a rate policy is removed from `UtilityConfigurationScreen`, soft-delete it (`isDeleted = true`, `deletedAt = System.currentTimeMillis()`) instead of hard-deleting it.
-  - Add `"Bills"` and `"Rates"` tabs to `BinScreen.kt` so deleted Utility Bills and deleted Electricity Rate Policies appear in the Recycle Bin with full **Restore** and **Permanent Delete** functionality.
-  - Verify the Recycle Bin search bar filters across all 9 categories (`Hotels`, `Accounts`, `Menu`, `Meals`, `Expenses`, `Readings`, `Bills`, `Rates`, `Sticky`).
+### A. APK Size Reduction (~15 MB → ~3.2 MB) & Back Callback Warning Fix
+- **Why APK Size Jumped**: `com.google.mlkit:text-recognition:16.0.1` bundles ~3 MB of native C++ OCR libraries across 4 CPU ABIs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) = **~12 MB**.
+- **Solution**:
+  - Replace the bundled artifact with **Google Play Services Unbundled ML Kit** (`com.google.android.gms:play-services-mlkit-text-recognition:19.0.1`, ~250 KB), which uses the shared OCR engine already present in Android's Google Play Services.
+  - Add `<meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="ocr" />` and `android:enableOnBackInvokedCallback="true"` in `AndroidManifest.xml` (resolving the `WindowOnBackDispatcher` warning).
 
-## 8. Meal Record Ledger Expressive Icons & Transaction History Two-Mode Toggle
-- **Meal Record Ledger (`HotelManagementTab.kt`)**:
-  - Replace the `"Day •"` and `"Night •"` text prefixes on meal ledger cards with expressive **Sun** (`Icons.Default.WbSunny`) and **Moon** (`Icons.Default.NightsStay`) icons and spacious, easy-to-scan item formatting.
-- **Transaction History Two-Mode Toggle (`ExpenseTrackingTab.kt`)**:
-  - Add a clean mode toggle in the Transaction History header/filter bar allowing the user to switch between:
-    1. **Keep Each Apart**: Lists every individual transaction record separately in chronological order.
-    2. **Merge Daily Transactions**: Groups and merges transactions occurring on the same calendar day into a consolidated daily summary card with expandable item breakdown.
+### B. Khata Book Scanner Fix (Printed & Handwritten Text)
+- **EXIF Orientation Auto-Correction**: Read `ExifInterface` orientation when decoding gallery/camera images and rotate the `Bitmap` upright before displaying and before running ML Kit / optical recognition.
+- **Full-Resolution Camera Capture**: Replace low-res `TakePicturePreview()` with full-resolution `ActivityResultContracts.TakePicture()` backed by a temporary `FileProvider` cache file (downsampled cleanly to 1600px).
+- **Raw Printed Text Preservation**: Always populate the Step 1 editor box with **all recognized lines** (including general printed text) instead of discarding lines that don't immediately match `Date - Price`, and apply the smart handwritten date/price normalizer when transitioning to Step 2.
 
-## 9. Menu Item Modification History & Historical Price Integrity
-- **`Entities.kt`, `Daos.kt`, `HotelViewModel.kt`, & `HotelManagementTab.kt`**:
-  - Create a `MenuModificationHistoryEntity` table (`id`, `menuItemId`, `hotelId`, `itemName`, `oldPrice`, `newPrice`, `oldType`, `newType`, `modifiedAt`) that automatically logs a history entry whenever a menu item's price, name, or meal type is edited.
-  - Add a **"Modification History"** option/button on menu items in the Menu Management screen to view the chronological timeline of price and detail changes.
-  - Ensure historical `MealTransaction` records strictly preserve their recorded `totalCost` and `itemsSummary` from the time of ordering and are never retroactively altered when a menu item's price is updated.
+### C. Reliable Voice Recording + Automatic Speech-to-Text Synthesis (Item 13)
+- **Record First, Synthesize Automatically**:
+  - Available on **both** the **Add Transaction** screen and the **UPI Auto-Detected Payment Popup**.
+  - When you record a voice note (which is 100% reliable even in noisy places or when in a hurry), the audio file (`.m4a`) is always saved safely as a voice attachment **while simultaneously running `SpeechRecognizer` synthesis** (with automatic fallback from `bn-IN` / `en-IN` → `en-US` → device default locale) to populate the text note automatically.
+  - Includes a one-tap shortcut to Android's **Offline Speech Recognition Settings** if an offline language pack is missing.
 
-## 10. "Scan Khata to Import" (Handwritten Khata OCR & Menu Combination Matcher)
-- **`KhataScannerDialog.kt` & `DataBackupSettingsScreen.kt`**:
-  - Add a **"Scan Khata to Import"** card in Data & Backups (and Hotel Menu/Ledger import actions) supporting both **Camera Capture** and **Gallery Image Picker**.
-  - **Safe Downsampling & Native OCR Pipeline**:
-    - Decode and downsample high-resolution images on `Dispatchers.IO` (capping max dimension to `1600px` with `inSampleSize`) so large photos never cause OOM or UI freezes.
-    - Process the image using on-device text recognition / handwriting line extraction with graceful error handling (if native recognition fails or finds no text, display a clear message and allow immediate manual line entry or retry without hanging).
-  - **Step 1 — Split-Screen Side-by-Side Verification**:
-    - Display the captured Khata photo on one half and the editable recognized text lines (`dd/mm/yy -> price1 + price2`) on the other half so the user can visually compare and edit any line before matching.
-  - **Step 2 — Date Collision Check & Separate Price-to-Menu Combination Matcher**:
-    - Parse each line into a **Date** (highlighting dates that already have existing meal entries in the database) and **separate Dish Prices** separated by `+` (e.g. `60+40` is evaluated as a `₹60` dish entry and a `₹40` dish entry).
-    - For each price value (e.g., `60`, then `40`), compute all valid combinations of the selected hotel's menu items that sum to that exact price:
-      - **1 exact combination**: Auto-select the menu item/combination.
-      - **2 to 4 combinations**: Display the 2–4 guessed combinations as interactive chips for one-tap selection.
-      - **More than 4 combinations (or 0 matches)**: Provide a direct menu item picker/selector so the user can choose the exact dish(es).
-    - Confirming imports all matched entries directly into the selected hotel's meal ledger for the respective dates.
+### D. Sticky Notes Instant Loading (<30ms for 500+ Notes)
+- **Background Pre-Computation (`Dispatchers.Default`)**: Pre-parse each `StickyNoteEntity` in `FinancialViewModel` into a lightweight `StickyCardPreviewUiModel` (title, sub-heading, pin/clip type, tag list, first 4 table rows, and truncated 250-char formatted preview `AnnotatedString`). Zero JSON or regex parsing runs on the UI thread during composition.
+- **Tablet & Mobile Lazy Virtualization**: Replace the non-lazy `Row + verticalScroll` on Tablet/Wall mode with a virtualized `LazyColumn` of multi-column staggered rows so only the 6–10 visible cards on screen are composed.
+- **Lightweight Gesture Handling**: Use native `combinedClickable` for single-tap (open) and long-press (rearrange mode) so scrolling is never blocked and per-card coroutine overhead is eliminated.
 
-## 11. GitHub Privacy Audit, Editable App Version & Public Knowledge/Repos Reference List
-- **Zero Personal Data / Secret Exposure Audit**:
-  - Audit all source and configuration files to verify no personal phone numbers, UPI IDs, emails, or API keys exist in tracked files.
-- **Centralized Editable App Version (`UserProfileEntity`, `AboutSettingsScreen.kt`, `SettingsScreen.kt`)**:
-  - Add `appVersion: String = "2.4.0"` to `UserProfileEntity` and provide an edit action in the About page so changing the version in one place automatically updates the Settings footer, About page badge, and backup metadata.
-- **Public Knowledge, Open-Source Repositories & Databases Reference List**:
-  - Add a dedicated **"Open-Source Repositories, Libraries & Public Knowledge References"** section in `AboutSettingsScreen.kt` (and `LegalInfoDialog`) listing Android Jetpack Compose, Material Design 3, Room SQLite Database, ZXing QR Engine, Google Fonts (`Archivo Black`, `Montserrat`), and public mathematical/interpolation models used in the app.
-- **Bilingual Help & User Guide Update**:
-  - Update the built-in Help & User Guide (both English and বাংলা) in `AboutSettingsScreen.kt` and `SettingsScreen.kt` to document every new feature and improvement.
+---
+
+## 2. All 16 User Experience & Functional Enhancements
+
+1. **Extras Tab Two-Column Tablet Layout**:
+   - On tablets and landscape screens (`maxWidth >= 600.dp`), arrange Bank Account cards and Transaction History items in a responsive **2-column grid**, matching the Hotel Management tab.
+2. **Hide "View Attachment" When No Attachment Exists**:
+   - In Transaction History cards and popups, only display the attachment badge/button when `attachmentUri` (or voice note URI) is actually present.
+3. **Direct Transaction History Editing & Compact Card Layout**:
+   - Add **"Edit Transaction"** to every Transaction History item (via tap or the 3-dot `⋮` menu), opening the transaction editor pre-filled with existing values, category, account, and attachments—matching Hotel Meal History editing.
+   - Redesign the Transaction History card to optimize horizontal and vertical density: compact category icon badge on the left, single-row title + category/account pill in the center, and right-aligned price + 3-dot action menu.
+4. **First-Name Only on Greetings & Lock Screen**:
+   - Extract `userProfile.name.trim().substringBefore(" ")` so both the top greeting (*"Good Morning, FirstName"*) and the Lock Screen welcome header display only your first name.
+5. **Broader Monthly Payment Reminder Popup & Edit Saved Reminders**:
+   - Expand the Monthly Payment Reminder dialog width (`fillMaxWidth(0.94f).widthIn(max = 560.dp)`) for comfortable reading.
+   - Add an **Edit (`✏️`)** action on every saved reminder in the list so you can load it back into the form, modify its heading/amount/day/time/account, and save changes in place.
+6. **Enhanced UPI Payment Auto-Detection + Settings Master Toggle**:
+   - Improve notification & SMS pattern matching for amount (`₹`, `Rs`, `INR`), counterparty (`paid to`, `sent to`, `VPA`), and bank/app source.
+   - Add a **UPI Payment Auto-Detection** switch inside **Settings** (synced with the Extras page) so you can turn background detection ON or OFF anytime.
+7. **Partial Bill Payment Residual Selector & Timely Payment Quote (Electricity & Hotel Bills)**:
+   - Support partial ("Paid Amount Edit") payments on both **Electricity Bills** and **Hotel Monthly Bills**.
+   - Enforce the confirmed rule: if editing the **just-previous month**, carry the residual forward automatically to the current unfinalized period; if editing an **older month**, require selecting the target month bill to receive the residual balance before saving.
+   - Display the motivational quote banner encouraging timely payments to avoid future stress.
+8. **ZIP Archive (`.zip`) Export & Import with Media Attachments**:
+   - In `DataBackupSettingsScreen`, alongside `JSON Copy/Paste` and `QR Send/Receive`, add **"Export as ZIP Archive (.zip)"** and **"Import from ZIP Archive (.zip)"** for every export category (Universal Transfer, Hotel Data, Electricity Data, Transactions/Extras, Sticky Notes, and Settings).
+   - The `.zip` archive packages `backup_data.json` together with an `attachments/` folder containing all referenced images, receipts, voice recordings, and documents, and restores them automatically on import.
+9. **QR Code Send Auto-Stop After 5 Rounds**:
+   - In `QrExportStreamDialog`, count completed cycles (`1..N`). Automatically pause after **5 full rounds** and rest on Frame `1 / N`, showing a **"Play 5 More Rounds"** button if the user wishes to transmit again.
+10. **Extras Top Hero Balance Card Landscape/Tablet Optimization**:
+    - On wide/landscape screens, switch the Extras Hero Balance card to a balanced **2-pane horizontal layout** (Left: Total Available Balance + Income/Expense pills; Right: Monthly Reminder button + UPI Auto-Detect status + Filter actions) so it takes minimal vertical height.
+11. **Redesigned, Concise About & Help Section**:
+    - Keep the top App Icon & Version card unchanged.
+    - Replace the repetitive long-form text walls below it with a sleek, scannable grid of **short 1-sentence feature cards**, a compact **Open-Source Libraries** chip list, and the two privacy-safe GitHub buttons.
+12. **GitHub Actions One-Step Version Bump & Update-Compatible APK**:
+    - Update `app/build.gradle.kts` to read `-PappVersionName` and `-PappVersionCode` properties.
+    - Update `.github/workflows/android_release.yml` so when you enter `tag_name` (e.g., `v0.0.2`) on the GitHub Actions workflow page, it automatically passes `-PappVersionName=0.0.2` and a monotonically increasing `-PappVersionCode` (computed from the semantic version + `github.run_number`) while signing with the consistent keystore (`debug.keystore.base64`). Downloaded APKs will install directly as an **Update** over existing installations without uninstalling.
+13. **Voice Memo + STT Synthesis in UPI Auto-Popup**:
+    - Add a built-in Voice Recorder + Auto-STT synthesis bar directly inside `UpiAutoDetectedPaymentPopupDialog`.
+14. **Privacy-Safe Embedded GitHub Links**:
+    - Remove all developer name / `@suvadippatra` strings from visible UI and dialogs.
+    - Add **"Star on GitHub"** (`https://github.com/suvadippatra/tracker/`) and **"New Issue or Request Feature"** (`https://github.com/suvadippatra/tracker/issues/new/choose`) buttons using `LocalUriHandler.current.openUri(...)` without showing raw URLs.
+15. **Daily Meter Reading Change Toggle (Appearance Settings) + Interactive Log Reading Graph**:
+    - Add a toggle in **Settings → Appearance**: *"Show Daily Meter Usage Rate & Consumption Graph"*.
+    - Add an interactive **Consumption Trend & Region Analyzer Graph** at the top of the **Log Reading** page:
+      - Visualizes daily `kWh/day` consumption bars + smooth trend line so you can immediately see if today's usage is higher or lower than previous days.
+      - Allows selecting any **Start Date/Reading** and **End Date/Reading** region on the chart to inspect total reading difference ($\Delta\text{ kWh}$) and exact multi-rate cost breakdown when the selected region spans 2+ electricity rate policies.
+16. **Settings → "View Another Tools" Full-Screen Page**:
+    - Add a **"View Another Tools"** item in the main Settings screen that opens an edge-to-edge full-screen page with a clean top bar and empty canvas ready for future tool cards.
+
+---
+
+## 3. Technical Architecture & Data Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         TRAKER ANDROID ARCHITECTURE                          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  1. APK SIZE & BUILD PIPELINE (.github/workflows/android_release.yml)        │
+│     • Unbundled Play Services ML Kit OCR (~250 KB vs 12 MB bundled)          │
+│     • tag_name (e.g. v0.0.2) ──► -PappVersionName & -PappVersionCode         │
+│     • Consistent Keystore ──► Direct In-Place APK Update on Device           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  2. BACKGROUND PRE-COMPUTATION & MEDIA ZIP ENGINE                            │
+│     • Room SQLite (v36) ──► Dispatchers.Default ──► StickyCardPreviewUiModel │
+│     • ZIP Exporter/Importer (java.util.zip)                                  │
+│       └── Bundles backup_data.json + /attachments/* (Images, Voice, Files)   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  3. ADAPTIVE UI & INTERACTIVE ANALYTICS                                      │
+│     • Extras Tab: Adaptive 2-Column Tablet Grid + Landscape Hero Card        │
+│     • Log Reading Tab: Daily kWh Trend Graph + Multi-Rate Region Selector    │
+│     • Electricity & Hotel Bills: Partial Payment + Target Month Selector     │
+│     • UPI Listener + Voice Recorder: Saves .m4a + Synthesizes Text via STT   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```

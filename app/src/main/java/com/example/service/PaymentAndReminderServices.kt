@@ -36,14 +36,37 @@ data class DetectedUpiPayment(
 )
 
 object DetectedUpiPaymentBus {
+    private const val PREFS_NAME = "traker_upi_detect_prefs"
+    private const val KEY_AUTO_DETECT_ENABLED = "upi_auto_detect_enabled"
+
     private val _pendingPayments = MutableStateFlow<List<DetectedUpiPayment>>(emptyList())
     val pendingPayments: StateFlow<List<DetectedUpiPayment>> = _pendingPayments.asStateFlow()
 
+    private val _isAutoDetectEnabledFlow = MutableStateFlow(true)
+    val isAutoDetectEnabledFlow: StateFlow<Boolean> = _isAutoDetectEnabledFlow.asStateFlow()
+
     private val recentSignatures = LinkedHashMap<String, Long>()
 
+    fun syncEnabledState(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean(KEY_AUTO_DETECT_ENABLED, true)
+        _isAutoDetectEnabledFlow.value = enabled
+        return enabled
+    }
+
+    fun setAutoDetectEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_AUTO_DETECT_ENABLED, enabled).apply()
+        _isAutoDetectEnabledFlow.value = enabled
+        if (!enabled) {
+            _pendingPayments.value = emptyList()
+        }
+    }
+
     fun postDetectedPayment(payment: DetectedUpiPayment) {
+        if (!_isAutoDetectEnabledFlow.value) return
         val now = System.currentTimeMillis()
-        val sig = "${payment.packageName}|${payment.amount}|${payment.transactionType}|${payment.counterparty.lowercase(Locale.ROOT)}"
+        val sig = "${payment.amount}|${payment.transactionType}|${payment.counterparty.lowercase(Locale.ROOT).take(12)}"
         synchronized(recentSignatures) {
             val prev = recentSignatures[sig]
             if (prev != null && (now - prev) < 45_000L) return
@@ -89,6 +112,23 @@ object DetectedUpiPaymentBus {
             context.startActivity(intent)
         }
     }
+
+    fun openOfflineSpeechSettings(context: Context) {
+        val intents = listOf(
+            Intent("com.google.android.voicesearch.INSTALL_VOICE_DATA"),
+            Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
+            Intent("com.android.settings.TTS_SETTINGS"),
+            Intent(Settings.ACTION_SETTINGS)
+        )
+        for (i in intents) {
+            val ok = runCatching {
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(i)
+                true
+            }.getOrDefault(false)
+            if (ok) break
+        }
+    }
 }
 
 class PaymentNotificationListenerService : NotificationListenerService() {
@@ -106,7 +146,15 @@ class PaymentNotificationListenerService : NotificationListenerService() {
             "com.mobikwik_new" to "MobiKwik",
             "com.freecharge.android" to "Freecharge",
             "com.csam.icici.bank.imobile" to "iMobile Pay",
-            "com.sbi.lotusintouch" to "YONO SBI"
+            "com.sbi.lotusintouch" to "YONO SBI",
+            "com.naviapp" to "Navi UPI",
+            "money.super.payments" to "super.money",
+            "indwin.c3.shareapp" to "Slice UPI",
+            "money.jupiter" to "Jupiter",
+            "com.epifi.paisa" to "Fi Money",
+            "com.google.android.apps.messaging" to "Bank SMS Alert",
+            "com.android.mms" to "Bank SMS Alert",
+            "com.samsung.android.messaging" to "Bank SMS Alert"
         )
 
         private val AMOUNT_REGEX = Regex(
@@ -115,23 +163,27 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         )
 
         fun parseUpiNotification(packageName: String, title: String, text: String): DetectedUpiPayment? {
+            if (packageName == "com.tracker.suva" || packageName == "com.example") return null
+
+            val combined = "$title $text".trim()
+            if (combined.length < 6) return null
+            val lower = combined.lowercase(Locale.ROOT)
+
             val appName = SUPPORTED_UPI_PACKAGES[packageName] ?: when {
                 packageName.contains("paisa", ignoreCase = true) || packageName.contains("gpay", ignoreCase = true) -> "Google Pay"
                 packageName.contains("phonepe", ignoreCase = true) -> "PhonePe"
                 packageName.contains("paytm", ignoreCase = true) -> "Paytm"
                 packageName.contains("bharatpe", ignoreCase = true) -> "BharatPe"
                 packageName.contains("upi", ignoreCase = true) -> "UPI App"
+                packageName.contains("messaging", ignoreCase = true) || packageName.contains("mms", ignoreCase = true) || packageName.contains("sms", ignoreCase = true) -> "Bank SMS Alert"
+                lower.contains("upi") && (lower.contains("debited") || lower.contains("credited") || lower.contains("paid") || lower.contains("sent")) -> "UPI / Bank Alert"
                 else -> return null
             }
 
-            val combined = "$title $text".trim()
-            if (combined.length < 5) return null
-
-            val lower = combined.lowercase(Locale.ROOT)
-            val isPaid = lower.contains("paid") || lower.contains("sent") || lower.contains("debited") || lower.contains("payment of")
-            val isReceived = lower.contains("received") || lower.contains("credited") || lower.contains("added to your")
+            val isPaid = lower.contains("paid") || lower.contains("sent") || lower.contains("debited") || lower.contains("payment of") || lower.contains("spent") || lower.contains("trf to")
+            val isReceived = lower.contains("received") || lower.contains("credited") || lower.contains("added to your") || lower.contains("deposited")
             if (!isPaid && !isReceived) return null
-            if (lower.contains("failed") || lower.contains("declined") || lower.contains("pending") || lower.contains("request")) return null
+            if (lower.contains("failed") || lower.contains("declined") || lower.contains("pending") || lower.contains("request") || lower.contains("otp") || lower.contains("due on")) return null
 
             val match = AMOUNT_REGEX.find(combined) ?: return null
             val rawAmt = match.groupValues[1].replace(",", "")
@@ -141,7 +193,7 @@ class PaymentNotificationListenerService : NotificationListenerService() {
             val txType = if (isReceived && !isPaid) "INCOME" else "EXPENSE"
 
             var counterparty = ""
-            val toFromRegex = Regex("""(?:to|from)\s+([A-Za-z0-9 .&_'-]{2,36})""", RegexOption.IGNORE_CASE)
+            val toFromRegex = Regex("""(?:paid to|sent to|trf to|to vpa|received from|from|to)\s+([A-Za-z0-9 .@&_'-]{2,38})""", RegexOption.IGNORE_CASE)
             val cpMatch = toFromRegex.find(combined)
             if (cpMatch != null) {
                 counterparty = cpMatch.groupValues[1]
@@ -149,11 +201,18 @@ class PaymentNotificationListenerService : NotificationListenerService() {
                     .substringBefore(" via ")
                     .substringBefore(" using ")
                     .substringBefore(" Ref")
+                    .substringBefore(" UTR")
                     .substringBefore(" UPI")
+                    .substringBefore(" Avl")
                     .trim()
             }
             if (counterparty.isBlank()) {
-                counterparty = title.replace(AMOUNT_REGEX, "").replace("Paid", "", ignoreCase = true).trim().ifBlank { "$appName Payment" }
+                counterparty = title
+                    .replace(AMOUNT_REGEX, "")
+                    .replace("Paid", "", ignoreCase = true)
+                    .replace("Sent", "", ignoreCase = true)
+                    .trim()
+                    .ifBlank { "$appName Payment" }
             }
 
             return DetectedUpiPayment(
@@ -171,6 +230,7 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
         runCatching {
+            if (!DetectedUpiPaymentBus.syncEnabledState(applicationContext)) return
             val pkg = sbn.packageName ?: return
             val extras = sbn.notification?.extras ?: return
             val title = extras.getCharSequence("android.title")?.toString() ?: ""

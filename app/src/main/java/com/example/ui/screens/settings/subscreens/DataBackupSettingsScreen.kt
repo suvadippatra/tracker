@@ -115,6 +115,7 @@ fun DataBackupSettingsScreen(
 
     // Pending file export payload & mime
     var pendingExportContent by remember { mutableStateOf<String?>(null) }
+    var pendingZipCsvContent by remember { mutableStateOf<String?>(null) }
     var pendingImportDataType by remember { mutableStateOf<BackupDataType?>(null) }
 
     // File Save Launchers (SAF)
@@ -160,7 +161,70 @@ fun DataBackupSettingsScreen(
         }
     }
 
-    // File Import Launcher (OpenDocument)
+    val saveZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri != null && (pendingExportContent != null || pendingZipCsvContent != null)) {
+            val jsonPayload = pendingExportContent
+            val csvPayload = pendingZipCsvContent
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    var mediaCount = 0
+                    context.contentResolver.openOutputStream(uri)?.use { rawOs ->
+                        java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(rawOs)).use { zos ->
+                            if (!jsonPayload.isNullOrBlank()) {
+                                val entry = java.util.zip.ZipEntry("backup_data.json")
+                                zos.putNextEntry(entry)
+                                zos.write(jsonPayload.toByteArray(Charsets.UTF_8))
+                                zos.closeEntry()
+                            }
+                            if (!csvPayload.isNullOrBlank()) {
+                                val entry = java.util.zip.ZipEntry("backup_data.csv")
+                                zos.putNextEntry(entry)
+                                zos.write(csvPayload.toByteArray(Charsets.UTF_8))
+                                zos.closeEntry()
+                            }
+
+                            // Bundle referenced or stored local media files in filesDir/attachments
+                            val combinedText = (jsonPayload ?: "") + "\n" + (csvPayload ?: "")
+                            val attachmentsDir = java.io.File(context.filesDir, "attachments")
+                            val addedNames = mutableSetOf<String>()
+
+                            if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
+                                attachmentsDir.listFiles()?.forEach { file ->
+                                    if (file.isFile && file.canRead()) {
+                                        // Include file if referenced in payload OR if exporting full/hotel/wallet/transaction backup
+                                        if (combinedText.contains(file.name) || combinedText.isNotBlank()) {
+                                            val entryName = "attachments/${file.name}"
+                                            if (addedNames.add(entryName)) {
+                                                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                                file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
+                                                zos.closeEntry()
+                                                mediaCount++
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context,
+                            "ZIP archive saved ($mediaCount media attachment(s) included)",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "ZIP save failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    // File Import Launcher (OpenDocument - supports .zip, .json, .csv)
     val openFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -168,12 +232,76 @@ fun DataBackupSettingsScreen(
             val targetType = pendingImportDataType ?: BackupDataType.FULL_BACKUP
             coroutineScope.launch(Dispatchers.IO) {
                 try {
-                    val text = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                    if (!text.isNullOrBlank()) {
-                        viewModel.importUniversal(text, targetType, selectedHotelId) { outcome ->
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes == null || bytes.isEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Selected file is empty", Toast.LENGTH_SHORT).show()
+                        }
+                        return@launch
+                    }
+
+                    // Check for ZIP magic header PK\x03\x04
+                    val isZip = bytes.size >= 4 &&
+                        bytes[0] == 0x50.toByte() &&
+                        bytes[1] == 0x4B.toByte() &&
+                        bytes[2] == 0x03.toByte() &&
+                        bytes[3] == 0x04.toByte()
+
+                    val extractedText: String?
+                    var restoredMediaCount = 0
+
+                    if (isZip) {
+                        val attachmentsDir = java.io.File(context.filesDir, "attachments").apply {
+                            if (!exists()) mkdirs()
+                        }
+                        var jsonEntryText: String? = null
+                        var csvEntryText: String? = null
+
+                        java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                val name = entry.name
+                                if (!entry.isDirectory) {
+                                    when {
+                                        name.endsWith("backup_data.json", ignoreCase = true) || name.endsWith(".json", ignoreCase = true) -> {
+                                            jsonEntryText = zis.readBytes().toString(Charsets.UTF_8)
+                                        }
+                                        name.endsWith("backup_data.csv", ignoreCase = true) || name.endsWith(".csv", ignoreCase = true) -> {
+                                            csvEntryText = zis.readBytes().toString(Charsets.UTF_8)
+                                        }
+                                        name.startsWith("attachments/") -> {
+                                            val cleanFileName = java.io.File(name).name
+                                            if (cleanFileName.isNotBlank()) {
+                                                val outFile = java.io.File(attachmentsDir, cleanFileName)
+                                                java.io.FileOutputStream(outFile).use { fos ->
+                                                    zis.copyTo(fos)
+                                                }
+                                                restoredMediaCount++
+                                            }
+                                        }
+                                    }
+                                }
+                                zis.closeEntry()
+                                entry = zis.nextEntry
+                            }
+                        }
+
+                        // Rewrite any old device /data/user/0/.../files/attachments/<file> paths to this device's attachmentsDir
+                        val rawPayload = jsonEntryText ?: csvEntryText
+                        extractedText = rawPayload?.replace(
+                            Regex("""/data/[^\s"\[\],;]+/files/attachments/([A-Za-z0-9_.\-]+)"""),
+                            "${attachmentsDir.absolutePath}/$1"
+                        )
+                    } else {
+                        extractedText = bytes.toString(Charsets.UTF_8)
+                    }
+
+                    if (!extractedText.isNullOrBlank()) {
+                        viewModel.importUniversal(extractedText, targetType, selectedHotelId) { outcome ->
                             when (outcome) {
                                 is ImportOutcome.Success -> {
-                                    Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                                    val suffix = if (restoredMediaCount > 0) " (+$restoredMediaCount media files restored)" else ""
+                                    Toast.makeText(context, outcome.message + suffix, Toast.LENGTH_LONG).show()
                                 }
                                 is ImportOutcome.Error -> {
                                     Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
@@ -182,7 +310,7 @@ fun DataBackupSettingsScreen(
                         }
                     } else {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Selected file is empty", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "No valid backup data found in file", Toast.LENGTH_SHORT).show()
                         }
                     }
                 } catch (e: Exception) {
@@ -983,6 +1111,25 @@ fun DataBackupSettingsScreen(
                         fontSize = 13.sp
                     )
 
+                    // 0. ZIP Archive Export (Bundles JSON/CSV + all attached media files)
+                    ExportOptionRow(
+                        icon = Icons.Default.Share,
+                        title = "Save as ZIP Archive (.zip + Media)",
+                        subtitle = "Bundles backup data along with attached images, receipts & voice notes",
+                        accentColor = AccentGreen,
+                        onClick = {
+                            val cur = type
+                            activeDataTypeForExport = null
+                            viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
+                                viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
+                                    pendingExportContent = json
+                                    pendingZipCsvContent = csv
+                                    saveZipLauncher.launch("${cur.name.lowercase()}_with_media.zip")
+                                }
+                            }
+                        }
+                    )
+
                     // 1. File Export (JSON)
                     ExportOptionRow(
                         icon = Icons.Default.Storage,
@@ -1086,17 +1233,31 @@ fun DataBackupSettingsScreen(
                         fontSize = 13.sp
                     )
 
+                    // 0. Import ZIP Archive (.zip with Media/Attachments)
+                    ExportOptionRow(
+                        icon = Icons.Default.Share,
+                        title = "Import ZIP Archive (.zip + Media)",
+                        subtitle = "Restores data along with all bundled images, receipts & audio",
+                        accentColor = AccentGreen,
+                        onClick = {
+                            val cur = type
+                            pendingImportDataType = cur
+                            activeDataTypeForImport = null
+                            openFileLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                        }
+                    )
+
                     // 1. File Import
                     ExportOptionRow(
                         icon = Icons.Default.Storage,
-                        title = "Import from File",
-                        subtitle = "Pick a .csv or .json file from storage",
+                        title = "Import from File (.json / .csv / .zip)",
+                        subtitle = "Pick a .json, .csv, or .zip backup file from storage",
                         accentColor = AccentCyan,
                         onClick = {
                             val cur = type
                             pendingImportDataType = cur
                             activeDataTypeForImport = null
-                            openFileLauncher.launch(arrayOf("*/*", "application/json", "text/csv", "text/comma-separated-values", "text/plain"))
+                            openFileLauncher.launch(arrayOf("*/*", "application/zip", "application/json", "text/csv", "text/comma-separated-values", "text/plain"))
                         }
                     )
 

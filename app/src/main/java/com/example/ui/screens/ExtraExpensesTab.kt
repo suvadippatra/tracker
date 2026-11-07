@@ -174,6 +174,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
 
     var selectedExpenseIdForAttachments by remember { mutableStateOf<Int?>(null) }
+    var editingExpense by remember { mutableStateOf<com.example.data.model.ExtraExpenseEntity?>(null) }
     var showDetailedHistory by remember { mutableStateOf(false) }
 
     val quickActionTrigger by viewModel.quickActionTrigger.collectAsStateWithLifecycle()
@@ -346,8 +347,8 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         LaunchedEffect(showDetailedHistory) {
             viewModel.registerSubScreen("DetailedHistory", showDetailedHistory)
         }
-        LaunchedEffect(showAddExpense) {
-            viewModel.registerSubScreen("AddExpense", showAddExpense)
+        LaunchedEffect(showAddExpense, editingExpense) {
+            viewModel.registerSubScreen("AddExpense", showAddExpense || editingExpense != null)
         }
 
         if (showDetailedHistory) {
@@ -355,157 +356,268 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                 viewModel = viewModel,
                 onDismiss = { showDetailedHistory = false }
             )
-        } else if (showAddExpense) {
+        } else if (showAddExpense || editingExpense != null) {
             AddTransactionScreen(
                 viewModel = viewModel,
-                onDismiss = { showAddExpense = false }
+                onDismiss = {
+                    showAddExpense = false
+                    editingExpense = null
+                },
+                editingExpense = editingExpense
             )
         } else {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                LazyColumn(
+            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+            val isWideScreen = configuration.screenWidthDp >= 600
+            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+            val heroCardContent: @Composable () -> Unit = {
+                Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .widthIn(max = 840.dp)
-                        .padding(horizontal = 12.dp)
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 10.dp)
+                        .clickable { showDetailedHistory = true }
                 ) {
-                item {
-                    // Hero Balance Card with split Income and Expense indications
-                    // Move this to top as requested
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 12.dp)
-                            .clickable { showDetailedHistory = true } // Open detailed history on click
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 22.dp
                     ) {
-                        GlassCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = 24.dp
-                        ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Total Available Balance",
-                            color = AppTextColor().copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        RollingNumberText(
-                            value = totalBalance,
-                            prefix = "₹",
-                            style = TextStyle(
-                                color = AppTextColor(),
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Total Income Row
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color(0x1F00E676), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowUpward,
-                                        contentDescription = "Income",
-                                        tint = AccentGreen,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text("Income", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
-                                    RollingNumberText(
-                                        value = totalIncome,
-                                        prefix = "₹",
-                                        style = TextStyle(
-                                            color = AccentGreen,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    )
-                                }
-                            }
-
-                            // Divider Line
-                            Box(
+                        if (isWideScreen || isLandscape) {
+                            // Optimized Horizontal Hero Layout for Landscape & Tablet (#10)
+                            Column(
                                 modifier = Modifier
-                                    .width(1.dp)
-                                    .height(30.dp)
-                                    .background(AppTextColor().copy(alpha = 0.1f))
-                            )
-
-                            // Total Expense Row
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color(0x1FFF4081), CircleShape),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDownward,
-                                        contentDescription = "Expense",
-                                        tint = AccentPink,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text("Expense", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
-                                    RollingNumberText(
-                                        value = totalExpense,
-                                        prefix = "₹",
-                                        style = TextStyle(
-                                            color = AccentPink,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (prefLanguage == "bn") "মোট উপলব্ধ ব্যালেন্স" else "Total Available Balance",
+                                            color = AppTextColor().copy(alpha = 0.6f),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium
                                         )
-                                    )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        RollingNumberText(
+                                            value = totalBalance,
+                                            prefix = "₹",
+                                            style = TextStyle(
+                                                color = AppTextColor(),
+                                                fontSize = 26.sp,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .background(Color(0x1F00E676), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ArrowUpward,
+                                                    contentDescription = "Income",
+                                                    tint = AccentGreen,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text("Income", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
+                                                RollingNumberText(
+                                                    value = totalIncome,
+                                                    prefix = "₹",
+                                                    style = TextStyle(
+                                                        color = AccentGreen,
+                                                        fontSize = 13.5.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                )
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .width(1.dp)
+                                                .height(26.dp)
+                                                .background(AppTextColor().copy(alpha = 0.12f))
+                                        )
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .background(Color(0x1FFF4081), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ArrowDownward,
+                                                    contentDescription = "Expense",
+                                                    tint = AccentPink,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text("Expense", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
+                                                RollingNumberText(
+                                                    value = totalExpense,
+                                                    prefix = "₹",
+                                                    style = TextStyle(
+                                                        color = AccentPink,
+                                                        fontSize = 13.5.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                ExtrasTopHeroReminderAndUpiRow(
+                                    accounts = accounts,
+                                    prefLanguage = prefLanguage,
+                                    viewModel = viewModel
+                                )
+                            }
+                        } else {
+                            // Standard Portrait Mobile Hero Layout
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Total Available Balance",
+                                    color = AppTextColor().copy(alpha = 0.6f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                RollingNumberText(
+                                    value = totalBalance,
+                                    prefix = "₹",
+                                    style = TextStyle(
+                                        color = AppTextColor(),
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.1f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(Color(0x1F00E676), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowUpward,
+                                                contentDescription = "Income",
+                                                tint = AccentGreen,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text("Income", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
+                                            RollingNumberText(
+                                                value = totalIncome,
+                                                prefix = "₹",
+                                                style = TextStyle(
+                                                    color = AccentGreen,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .height(30.dp)
+                                            .background(AppTextColor().copy(alpha = 0.1f))
+                                    )
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(Color(0x1FFF4081), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDownward,
+                                                contentDescription = "Expense",
+                                                tint = AccentPink,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text("Expense", color = AppTextColor().copy(alpha = 0.5f), fontSize = 10.sp)
+                                            RollingNumberText(
+                                                value = totalExpense,
+                                                prefix = "₹",
+                                                style = TextStyle(
+                                                    color = AccentPink,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 0.5.dp)
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                ExtrasTopHeroReminderAndUpiRow(
+                                    accounts = accounts,
+                                    prefLanguage = prefLanguage,
+                                    viewModel = viewModel
+                                )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 0.5.dp)
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Top Card Action Bar: Monthly Payment Reminder & UPI Auto-Detect Status
-                        ExtrasTopHeroReminderAndUpiRow(
-                            accounts = accounts,
-                            prefLanguage = prefLanguage,
-                            viewModel = viewModel
-                        )
                     }
                 }
             }
-        }
 
-        item {
+            val accountsCarouselSectionContent: @Composable () -> Unit = {
+
             // ACCOUNT BANKING METALLIC CAROUSEL
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
@@ -1304,248 +1416,197 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                     onEdit = { editingAccount = selectedAccount }
                 )
             }
-        }
+            } // end accountsCarouselSectionContent
 
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
+            val categoryChipsContent: @Composable () -> Unit = {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(allCategoryNames, key = { it }, contentType = { "category_filter" }) { cat ->
+                        val isSelected = activeCategoryFilter == cat
+                        val chipBg = if (isSelected) AppAccentColor().copy(alpha = 0.15f) else Color.Transparent
+                        val chipBorder = if (isSelected) AppAccentColor() else AppTextColor().copy(alpha = 0.2f)
+                        val chipText = if (isSelected) AppAccentColor() else AppTextColor().copy(alpha = 0.6f)
 
-            // Horizontal Scrollable Category Chips for Quick Filter
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(allCategoryNames, key = { it }, contentType = { "category_filter" }) { cat ->
-                    val isSelected = activeCategoryFilter == cat
-                    val chipBg = if (isSelected) AppAccentColor().copy(alpha = 0.15f) else Color.Transparent
-                    val chipBorder = if (isSelected) AppAccentColor() else AppTextColor().copy(alpha = 0.2f)
-                    val chipText = if (isSelected) AppAccentColor() else AppTextColor().copy(alpha = 0.6f)
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(chipBg)
-                            .border(1.dp, chipBorder, RoundedCornerShape(50))
-                            .clickable { activeCategoryFilter = cat }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = cat,
-                            color = chipText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(chipBg)
+                                .border(1.dp, chipBorder, RoundedCornerShape(50))
+                                .clickable { activeCategoryFilter = cat }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = cat,
+                                color = chipText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        val displayCount = if (filteredExpenses.size >= 5) 4 else filteredExpenses.size
-        val itemsToDisplay = filteredExpenses.take(displayCount)
-
-        if (filteredExpenses.isEmpty()) {
-            item {
-                EmptyStateCard(message = if (activeCategoryFilter == "All") "No transactions registered yet." else "No transactions found in category '$activeCategoryFilter'")
+            val displayCount = if (isWideScreen) {
+                if (filteredExpenses.size >= 9) 8 else filteredExpenses.size
+            } else {
+                if (filteredExpenses.size >= 5) 4 else filteredExpenses.size
             }
-        } else {
-            items(itemsToDisplay, key = { it.id }, contentType = { "expense_item" }) { exp ->
-                val sourceAccountName = accounts.find { it.id == exp.bankAccountId }?.name ?: "Unknown Account"
-                val (categoryIcon, categoryColor) = getCategoryIconAndColor(exp.category, exp.type)
+            val itemsToDisplay = filteredExpenses.take(displayCount)
 
-                GlassCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 5.dp),
-                    cornerRadius = 18.dp
-                ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                val isWide = maxWidth >= 600.dp
+                if (isWide) {
+                    // WIDESCREEN TABLET TWO-COLUMN STRUCTURE (Matching Hotel Tab #1)
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                        // Left Column: Hero Balance Card + Extras Accounts Carousel + Account Info
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .fillMaxHeight(),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 156.dp)
                         ) {
-                            // Category Icon wrapped in a circular tonal container
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .background(categoryColor.copy(alpha = 0.15f), CircleShape)
-                                    .border(1.dp, categoryColor.copy(alpha = 0.3f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = categoryIcon,
-                                    contentDescription = null,
-                                    tint = categoryColor,
-                                    modifier = Modifier.size(20.dp)
+                            item { heroCardContent() }
+                            item {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                accountsCarouselSectionContent()
+                            }
+                        }
+
+                        // Right Column: Category Filter + Recent Transactions + View History
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1.0f)
+                                .fillMaxHeight(),
+                            contentPadding = PaddingValues(top = 12.dp, bottom = 156.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = if (prefLanguage == "bn") "সাম্প্রতিক লেনদেন" else "Recent Transactions",
+                                    color = AppTextColor(),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 2.dp)
+                                )
+                                categoryChipsContent()
+                            }
+
+                            if (filteredExpenses.isEmpty()) {
+                                item {
+                                    EmptyStateCard(
+                                        message = if (activeCategoryFilter == "All") "No transactions registered yet."
+                                        else "No transactions found in category '$activeCategoryFilter'"
+                                    )
+                                }
+                            } else {
+                                items(itemsToDisplay, key = { it.id }, contentType = { "expense_item" }) { exp ->
+                                    val sourceAccountName = accounts.find { it.id == exp.bankAccountId }?.name ?: "Unknown Account"
+                                    CompactExpenseCard(
+                                        exp = exp,
+                                        sourceAccountName = sourceAccountName,
+                                        viewModel = viewModel,
+                                        onViewAttachments = { selectedExpenseIdForAttachments = exp.id },
+                                        onEdit = { editingExpense = exp },
+                                        onDelete = { viewModel.deleteExtraExpense(exp) }
+                                    )
+                                }
+                                if (expenses.isNotEmpty()) {
+                                    item {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        GlassButton(
+                                            onClick = { showDetailedHistory = true },
+                                            modifier = Modifier.fillMaxWidth().testTag("view_history_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.History,
+                                                contentDescription = "History",
+                                                tint = AppAccentColor()
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (userProfile?.language == "bn") "ইতিহাস দেখুন" else "View History",
+                                                color = AppTextColor(),
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // MOBILE SINGLE-COLUMN STRUCTURE
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = 840.dp)
+                            .padding(horizontal = 12.dp)
+                    ) {
+                        item { heroCardContent() }
+                        item { accountsCarouselSectionContent() }
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            categoryChipsContent()
+                        }
+
+                        if (filteredExpenses.isEmpty()) {
+                            item {
+                                EmptyStateCard(
+                                    message = if (activeCategoryFilter == "All") "No transactions registered yet."
+                                    else "No transactions found in category '$activeCategoryFilter'"
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = exp.name,
-                                    color = AppTextColor(),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                        } else {
+                            items(itemsToDisplay, key = { it.id }, contentType = { "expense_item" }) { exp ->
+                                val sourceAccountName = accounts.find { it.id == exp.bankAccountId }?.name ?: "Unknown Account"
+                                CompactExpenseCard(
+                                    exp = exp,
+                                    sourceAccountName = sourceAccountName,
+                                    viewModel = viewModel,
+                                    onViewAttachments = { selectedExpenseIdForAttachments = exp.id },
+                                    onEdit = { editingExpense = exp },
+                                    onDelete = { viewModel.deleteExtraExpense(exp) }
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                ) {
-                                    val tagBg = if (exp.type == "INCOME") Color(0x1F00E676) else Color(0x1FFF4081)
-                                    val tagText = if (exp.type == "INCOME") AccentGreen else AccentPink
-                                    Box(
-                                        modifier = Modifier
-                                            .background(tagBg, RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            }
+
+                            if (expenses.isNotEmpty()) {
+                                item {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    GlassButton(
+                                        onClick = { showDetailedHistory = true },
+                                        modifier = Modifier.fillMaxWidth().testTag("view_history_button")
                                     ) {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = "History",
+                                            tint = AppAccentColor()
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = exp.category,
-                                            color = tagText,
-                                            fontSize = 9.sp,
+                                            text = if (userProfile?.language == "bn") "ইতিহাস দেখুন" else "View History",
+                                            color = AppTextColor(),
+                                            fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = sourceAccountName,
-                                        color = AppAccentColor(),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = " • ${Formatters.formatShortDate(exp.timestamp)}",
-                                        color = AppTextColor().copy(alpha = 0.4f),
-                                        fontSize = 10.sp
-                                    )
-                                }
-
-                                // Display Custom Notes if present
-                                if (exp.notes.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = exp.notes,
-                                        color = AppTextColor().copy(alpha = 0.5f),
-                                        fontSize = 11.sp,
-                                        fontStyle = FontStyle.Italic
-                                    )
-                                }
-                                
-                                // Always show attachment icon if there are attachments
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable {
-                                        selectedExpenseIdForAttachments = exp.id
-                                    }
-                                ) {
-                                    Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "View Attachments",
-                                        color = AccentGold,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textDecoration = TextDecoration.Underline
-                                    )
                                 }
                             }
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            val amountColor = if (exp.type == "INCOME") AccentGreen else AccentPink
-                            val amountPrefix = if (exp.type == "INCOME") "+₹" else "-₹"
-
-                            RollingNumberText(
-                                value = exp.amount,
-                                prefix = amountPrefix,
-                                style = TextStyle(
-                                    color = amountColor,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            
-                            var showExpMenu by remember { mutableStateOf(false) }
-                            var showDeleteDialog by remember { mutableStateOf(false) }
-
-                            if (showDeleteDialog) {
-                                com.example.ui.components.Tier1DeleteDialog(
-                                    itemTitle = exp.name,
-                                    onConfirm = { viewModel.deleteExtraExpense(exp) },
-                                    onDismiss = { showDeleteDialog = false }
-                                )
-                            }
-                            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                                IconButton(
-                                    onClick = { showExpMenu = true },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "Options",
-                                        tint = AppTextColor().copy(alpha = 0.5f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showExpMenu,
-                                    onDismissRequest = { showExpMenu = false },
-                                    modifier = Modifier.background(getDialogBackground())
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Delete Transaction", color = AccentPink, fontWeight = FontWeight.Medium) },
-                                        onClick = {
-                                            showExpMenu = false
-                                            showDeleteDialog = true
-                                        }
-                                    )
-                                }
-                            }
+                        item {
+                            Spacer(modifier = Modifier.height(156.dp))
                         }
                     }
                 }
-            }
-
-            if (expenses.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    GlassButton(
-                        onClick = { showDetailedHistory = true },
-                        modifier = Modifier.fillMaxWidth().testTag("view_history_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "History",
-                            tint = AppAccentColor()
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (userProfile.language == "bn") "ইতিহাস দেখুন" else "View History",
-                            color = AppTextColor(),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(156.dp))
-        }
-    }
 
     // Unified Bottom-end floating button across tabs
     if (accounts.isNotEmpty()) {
@@ -2102,6 +2163,8 @@ fun ExtraExpenseDetailedHistoryScreen(
     
     var searchQuery by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf<Int?>(null) }
+    var editingHistoryExpense by remember { mutableStateOf<ExtraExpenseEntity?>(null) }
+    var viewingAttachmentExpenseId by remember { mutableStateOf<Int?>(null) }
     
     var monthOffset by remember { mutableStateOf(0) }
     val monthFormat = remember { Formatters.getSimpleDateFormat("MMMM yyyy") }
@@ -2416,12 +2479,31 @@ fun ExtraExpenseDetailedHistoryScreen(
                                             dayItems.forEach { item ->
                                                 val accName = accounts.find { it.id == item.bankAccountId }?.name ?: "Account"
                                                 val isInc = item.type.equals("INCOME", ignoreCase = true)
-                                                Text(
-                                                    text = "• ${item.name} (${item.category} • $accName): ${if (isInc) "+" else "-"}₹${item.amount.toInt()}",
-                                                    color = AppSecondaryTextColor(),
-                                                    fontSize = 11.sp,
-                                                    modifier = Modifier.padding(top = 2.dp)
-                                                )
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 3.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "• ${item.name} (${item.category} • $accName): ${if (isInc) "+" else "-"}₹${item.amount.toInt()}",
+                                                        color = AppSecondaryTextColor(),
+                                                        fontSize = 11.sp,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    IconButton(
+                                                        onClick = { editingHistoryExpense = item },
+                                                        modifier = Modifier.size(22.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Edit,
+                                                            contentDescription = "Edit Transaction",
+                                                            tint = AppAccentColor(),
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -2456,12 +2538,14 @@ fun ExtraExpenseDetailedHistoryScreen(
                             ) {
                                 items(filteredExpenses, key = { it.id }, contentType = { "past_expense_item" }) { expense ->
                                     val account = accounts.find { it.id == expense.bankAccountId }
-                                    TransactionItem(
-                                        expense = expense,
-                                        accountName = account?.name ?: "Unknown",
+                                    CompactExpenseCard(
+                                        exp = expense,
+                                        sourceAccountName = account?.name ?: "Unknown",
+                                        viewModel = viewModel,
+                                        onViewAttachments = { viewingAttachmentExpenseId = expense.id },
+                                        onEdit = { editingHistoryExpense = expense },
                                         onDelete = { viewModel.deleteExtraExpense(expense) }
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                                 item {
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -2490,76 +2574,246 @@ fun ExtraExpenseDetailedHistoryScreen(
                         }
                     }
                 }
+
+                if (viewingAttachmentExpenseId != null) {
+                    AttachmentViewerDialog(
+                        expenseId = viewingAttachmentExpenseId!!,
+                        viewModel = viewModel,
+                        onDismiss = { viewingAttachmentExpenseId = null }
+                    )
+                }
+
+                if (editingHistoryExpense != null) {
+                    AddTransactionScreen(
+                        viewModel = viewModel,
+                        onDismiss = { editingHistoryExpense = null },
+                        editingExpense = editingHistoryExpense
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun TransactionItem(
-    expense: ExtraExpenseEntity,
-    accountName: String,
+fun CompactExpenseCard(
+    exp: ExtraExpenseEntity,
+    sourceAccountName: String,
+    viewModel: FinancialViewModel,
+    onViewAttachments: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val (categoryIcon, categoryColor) = getCategoryIconAndColor(exp.category, exp.type)
+    val expAttachments by viewModel.getAttachmentsForExpense(exp.id).collectAsState(initial = emptyList())
+    val hasAttachments = expAttachments.isNotEmpty() || !exp.receiptUri.isNullOrBlank()
+    val isIncome = exp.type.equals("INCOME", ignoreCase = true)
+    val amountColor = if (isIncome) AccentGreen else AccentPink
+    val amountPrefix = if (isIncome) "+₹" else "-₹"
 
-    if (showDeleteConfirm) {
+    var showExpMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
         com.example.ui.components.Tier1DeleteDialog(
-            itemTitle = expense.name,
-            onConfirm = { onDelete(); showDeleteConfirm = false },
-            onDismiss = { showDeleteConfirm = false }
+            itemTitle = exp.name,
+            onConfirm = {
+                showDeleteDialog = false
+                onDelete()
+            },
+            onDismiss = { showDeleteDialog = false }
         )
     }
 
-    val isIncome = expense.type == "INCOME" 
-    
-    GlassCard(cornerRadius = 16.dp) {
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        cornerRadius = 16.dp
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Top
         ) {
+            // Compact 34.dp Category Icon on Left
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(if (isIncome) Color(0x1F00E676) else Color(0x1FFF4081), CircleShape),
+                    .padding(top = 2.dp)
+                    .size(34.dp)
+                    .background(categoryColor.copy(alpha = 0.15f), CircleShape)
+                    .border(1.dp, categoryColor.copy(alpha = 0.3f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                    imageVector = categoryIcon,
                     contentDescription = null,
-                    tint = if (isIncome) AccentGreen else AccentPink,
-                    modifier = Modifier.size(20.dp)
+                    tint = categoryColor,
+                    modifier = Modifier.size(17.dp)
                 )
             }
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Unified Content Area using full horizontal width
             Column(modifier = Modifier.weight(1f)) {
-                Text(expense.name, fontWeight = FontWeight.Bold, color = AppTextColor())
-                Text("$accountName • ${expense.category}", fontSize = 10.sp, color = AppTextColor().copy(alpha = 0.5f))
-                Text(Formatters.formatDateTime(expense.timestamp), fontSize = 10.sp, color = AppTextColor().copy(alpha = 0.4f))
-            }
-            
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "${if (isIncome) "+" else "-"}₹${expense.amount}",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp,
-                    color = if (isIncome) AccentGreen else AccentPink
-                )
-                
-                var showMenu by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.MoreVert, null, tint = AppTextColor().copy(alpha = 0.5f))
+                // Top Row: Title on Left + Price & 3-Dot Menu on Right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = exp.name,
+                        color = AppTextColor(),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RollingNumberText(
+                            value = exp.amount,
+                            prefix = amountPrefix,
+                            style = TextStyle(
+                                color = amountColor,
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                            IconButton(
+                                onClick = { showExpMenu = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = AppTextColor().copy(alpha = 0.55f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showExpMenu,
+                                onDismissRequest = { showExpMenu = false },
+                                modifier = Modifier.background(getDialogBackground())
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit Transaction", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        showExpMenu = false
+                                        onEdit()
+                                    }
+                                )
+                                if (hasAttachments) {
+                                    DropdownMenuItem(
+                                        text = { Text("View Attachments (${expAttachments.size.coerceAtLeast(1)})", color = AccentGold, fontWeight = FontWeight.Medium) },
+                                        leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null, tint = AccentGold, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            showExpMenu = false
+                                            onViewAttachments()
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Delete Transaction", color = AccentPink, fontWeight = FontWeight.Medium) },
+                                    leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = AccentPink, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        showExpMenu = false
+                                        showDeleteDialog = true
+                                    }
+                                )
+                            }
+                        }
                     }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, modifier = Modifier.background(getDialogBackground())) {
-                        DropdownMenuItem(
-                            text = { Text("Move to Bin", color = AccentPink) },
-                            onClick = { showMenu = false; showDeleteConfirm = true },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = AccentPink) }
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Second Compact Row: Category Pill + Account + Date + Conditional Attachment Badge
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val tagBg = if (isIncome) Color(0x1F00E676) else Color(0x1FFF4081)
+                        val tagText = if (isIncome) AccentGreen else AccentPink
+                        Box(
+                            modifier = Modifier
+                                .background(tagBg, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                        ) {
+                            Text(
+                                text = exp.category,
+                                color = tagText,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = sourceAccountName,
+                            color = AppAccentColor(),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = " • ${Formatters.formatShortDate(exp.timestamp)}",
+                            color = AppTextColor().copy(alpha = 0.45f),
+                            fontSize = 10.sp,
+                            maxLines = 1
                         )
                     }
+
+                    // Show View Attachments button ONLY when attachments exist (#2)
+                    if (hasAttachments) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(AccentGold.copy(alpha = 0.12f))
+                                .clickable { onViewAttachments() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = "View Attachments",
+                                tint = AccentGold,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "View Attachment",
+                                color = AccentGold,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Optional Compact Note Line
+                if (exp.notes.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = exp.notes,
+                        color = AppTextColor().copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        fontStyle = FontStyle.Italic,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -2684,8 +2938,11 @@ private fun ExtrasTopHeroReminderAndUpiRow(
             detected = activeUpiPayment,
             accounts = accounts,
             isBn = isBn,
-            onSaveTransaction = { title, amt, accId, txType, cat, note, screenshotUri ->
-                val attachList = if (!screenshotUri.isNullOrBlank()) listOf(screenshotUri to "IMAGE") else emptyList()
+            onSaveTransaction = { title, amt, accId, txType, cat, note, screenshotUri, voiceUri ->
+                val attachList = buildList {
+                    if (!screenshotUri.isNullOrBlank()) add(screenshotUri to "IMAGE")
+                    if (!voiceUri.isNullOrBlank()) add(voiceUri to "VOICE")
+                }
                 viewModel.saveExtraExpense(
                     name = title,
                     amount = amt,
@@ -2708,12 +2965,13 @@ private fun ExtrasTopHeroReminderAndUpiRow(
     if (showUpiSetupInfoModal) {
         val hasTelephony = remember { com.example.service.DetectedUpiPaymentBus.hasTelephonyOrSimSupport(context) }
         val isCapable = remember { com.example.service.DetectedUpiPaymentBus.isDeviceCapableOfUpiDetection(context) }
+        val isMasterAutoDetectEnabled by com.example.service.DetectedUpiPaymentBus.isAutoDetectEnabledFlow.collectAsStateWithLifecycle()
         AlertDialog(
             onDismissRequest = { showUpiSetupInfoModal = false },
             containerColor = getDialogBackground(),
             title = {
                 Text(
-                    text = if (isBn) "UPI পেমেন্ট অটো-ডিটেকশন" else "UPI Payment Auto-Detection",
+                    text = if (isBn) "UPI ও ব্যাংক পেমেন্ট অটো-ডিটেকশন" else "UPI & Bank Payment Auto-Detection",
                     color = AppTextColor(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp
@@ -2723,12 +2981,43 @@ private fun ExtrasTopHeroReminderAndUpiRow(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = if (isBn)
-                            "Google Pay, PhonePe, Paytm, BharatPe বা BHIM-এ পেমেন্ট সম্পন্ন হলে নোটিফিকেশন থেকে স্বয়ংক্রিয়ভাবে পরিমাণ শনাক্ত করে পপআপ দেখাবে।"
+                            "Google Pay, PhonePe, Paytm, BharatPe, BHIM বা ব্যাংক এসএমএস নোটিফিকেশন থেকে পেমেন্ট সম্পন্ন হলে স্বয়ংক্রিয়ভাবে পরিমাণ শনাক্ত করে পপআপ দেখাবে।"
                         else
-                            "Legally detects completed UPI payment notifications from Google Pay, PhonePe, Paytm, BharatPe, BHIM & Amazon Pay and automatically pops up a quick-save card with screenshot attachment support.",
+                            "Automatically detects completed payments from Google Pay, PhonePe, Paytm, BharatPe, BHIM, Amazon Pay, Cred, WhatsApp Pay & Bank SMS notifications and pops up a quick-save card with Screenshot, Voice Memo & STT support.",
                         color = AppSecondaryTextColor(),
                         fontSize = 12.5.sp
                     )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppTextColor().copy(alpha = 0.05f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isBn) "অটো-ডিটেকশন পপআপ চালু" else "Auto-Detect Popup Enabled",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isListenerActive) "System Notification Access: Granted" else "System Notification Access: Not Enabled",
+                                    color = if (isListenerActive) AccentGreen else AccentGold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Switch(
+                                checked = isMasterAutoDetectEnabled,
+                                onCheckedChange = { com.example.service.DetectedUpiPaymentBus.setAutoDetectEnabled(context, it) }
+                            )
+                        }
+                    }
                     if (!hasTelephony) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -2828,7 +3117,7 @@ private fun UpiAutoDetectedPaymentPopupDialog(
     detected: com.example.service.DetectedUpiPayment,
     accounts: List<com.example.data.model.BankAccountEntity>,
     isBn: Boolean,
-    onSaveTransaction: (title: String, amount: Double, accountId: Int, type: String, category: String, note: String, screenshotUri: String?) -> Unit,
+    onSaveTransaction: (title: String, amount: Double, accountId: Int, type: String, category: String, note: String, screenshotUri: String?, voiceUri: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -2839,6 +3128,94 @@ private fun UpiAutoDetectedPaymentPopupDialog(
     var note by remember(detected.id) { mutableStateOf("Auto-detected from ${detected.appName}: ${detected.rawText}") }
     var selectedAccountId by remember(accounts) { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
     var screenshotUri by remember(detected.id) { mutableStateOf<String?>(null) }
+    var voiceUri by remember(detected.id) { mutableStateOf<String?>(null) }
+    var isRecordingVoice by remember { mutableStateOf(false) }
+    val recorderRef = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                recorderRef.value?.apply { stop(); release() }
+            } catch (_: Exception) {}
+            recorderRef.value = null
+        }
+    }
+
+    val sttLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        if (res.resultCode == android.app.Activity.RESULT_OK) {
+            val text = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim().orEmpty()
+            if (text.isNotEmpty()) {
+                title = text.take(45)
+                note = if (note.isBlank()) text else "$note\nVoice Note: $text"
+            }
+        }
+    }
+
+    fun launchUpiStt() {
+        val lang = if (isBn) "bn-IN" else "en-IN"
+        runCatching {
+            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang)
+                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (isBn) "পেমেন্টের বিবরণ বলুন..." else "Speak payment purpose...")
+            }
+            sttLauncher.launch(intent)
+        }.onFailure {
+            runCatching {
+                val fallback = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.US.toLanguageTag())
+                }
+                sttLauncher.launch(fallback)
+            }.onFailure {
+                com.example.service.DetectedUpiPaymentBus.openOfflineSpeechSettings(context)
+            }
+        }
+    }
+
+    fun startUpiVoiceRecord() {
+        try {
+            val dir = File(context.filesDir, "attachments").apply { mkdirs() }
+            val outFile = File(dir, "UPI_VOICE_${System.currentTimeMillis()}.m4a")
+            val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) android.media.MediaRecorder(context) else android.media.MediaRecorder()
+            r.apply {
+                setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+                setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+                setAudioEncodingBitRate(64000)
+                setAudioSamplingRate(22050)
+                setMaxDuration(120_000)
+                setOutputFile(outFile.absolutePath)
+                prepare()
+                start()
+            }
+            recorderRef.value = r
+            voiceUri = Uri.fromFile(outFile).toString()
+            isRecordingVoice = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            isRecordingVoice = false
+        }
+    }
+
+    fun stopUpiVoiceRecord(alsoSynthesizeText: Boolean = false) {
+        try {
+            recorderRef.value?.apply { stop(); release() }
+        } catch (_: Exception) {}
+        recorderRef.value = null
+        isRecordingVoice = false
+        if (alsoSynthesizeText) {
+            launchUpiStt()
+        }
+    }
+
+    val micPermLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startUpiVoiceRecord()
+    }
 
     val screenshotPicker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -2882,6 +3259,11 @@ private fun UpiAutoDetectedPaymentPopupDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text(if (isBn) "বিবরণ / শিরোনাম" else "What was this payment for?") },
+                    trailingIcon = {
+                        IconButton(onClick = { launchUpiStt() }) {
+                            Icon(Icons.Default.Mic, contentDescription = "Dictate Title", tint = AccentGreen)
+                        }
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2916,25 +3298,64 @@ private fun UpiAutoDetectedPaymentPopupDialog(
                         }
                     }
                 }
-                OutlinedButton(
-                    onClick = { screenshotPicker.launch("image/*") },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+
+                // Screenshot & Voice Memo Attachment Row (#13)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Image, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (screenshotUri != null) "Screenshot Attached (Tap to Change)" else "Attach Payment Screenshot (≤2MB)",
-                        color = AppAccentColor(),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    OutlinedButton(
+                        onClick = { screenshotPicker.launch("image/*") },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (screenshotUri != null) "Image Added" else "Screenshot",
+                            color = AppAccentColor(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (isRecordingVoice) {
+                                stopUpiVoiceRecord(alsoSynthesizeText = true)
+                            } else {
+                                micPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (isRecordingVoice) Icons.Default.StopCircle else Icons.Default.Mic,
+                            contentDescription = null,
+                            tint = if (isRecordingVoice) AccentPink else AccentGreen,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = when {
+                                isRecordingVoice -> "Stop + STT"
+                                voiceUri != null -> "Voice Saved"
+                                else -> "Record Voice"
+                            },
+                            color = if (isRecordingVoice) AccentPink else AccentGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    if (isRecordingVoice) stopUpiVoiceRecord(alsoSynthesizeText = false)
                     val amt = amountStr.toDoubleOrNull() ?: detected.amount
                     val accId = if (selectedAccountId != 0) selectedAccountId else (accounts.firstOrNull()?.id ?: 0)
                     onSaveTransaction(
@@ -2944,7 +3365,8 @@ private fun UpiAutoDetectedPaymentPopupDialog(
                         txType,
                         category,
                         note,
-                        screenshotUri
+                        screenshotUri,
+                        voiceUri
                     )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
@@ -2953,7 +3375,10 @@ private fun UpiAutoDetectedPaymentPopupDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = {
+                if (isRecordingVoice) stopUpiVoiceRecord(alsoSynthesizeText = false)
+                onDismiss()
+            }) {
                 Text(if (isBn) "উপেক্ষা করুন" else "Ignore", color = AppSecondaryTextColor())
             }
         }
@@ -2971,6 +3396,7 @@ private fun MonthlyPaymentReminderDialog(
     val reminders by com.example.service.MonthlyReminderManager.remindersFlow.collectAsStateWithLifecycle()
     val dueReminders by com.example.service.MonthlyReminderManager.dueRemindersFlow.collectAsStateWithLifecycle()
 
+    var editingReminderId by remember { mutableStateOf<String?>(null) }
     var heading by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
@@ -2985,6 +3411,10 @@ private fun MonthlyPaymentReminderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.94f)
+            .widthIn(max = 560.dp),
         containerColor = getDialogBackground(),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -3001,7 +3431,7 @@ private fun MonthlyPaymentReminderDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -3052,12 +3482,35 @@ private fun MonthlyPaymentReminderDialog(
                     }
                 }
 
-                Text(
-                    text = if (isBn) "নতুন মাসিক রিমাইন্ডার যোগ করুন:" else "Create New Monthly Reminder:",
-                    color = AppTextColor(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (editingReminderId != null) {
+                            if (isBn) "রিমাইন্ডার সম্পাদনা করুন:" else "Edit Monthly Reminder:"
+                        } else {
+                            if (isBn) "নতুন মাসিক রিমাইন্ডার যোগ করুন:" else "Create New Monthly Reminder:"
+                        },
+                        color = if (editingReminderId != null) AppAccentColor() else AppTextColor(),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (editingReminderId != null) {
+                        TextButton(
+                            onClick = {
+                                editingReminderId = null
+                                heading = ""
+                                description = ""
+                                amountStr = ""
+                                selectedAccountId = null
+                            }
+                        ) {
+                            Text(if (isBn) "বাতিল" else "Cancel Edit", color = AccentPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = heading,
@@ -3166,7 +3619,9 @@ private fun MonthlyPaymentReminderDialog(
                             return@Button
                         }
                         val accObj = accounts.find { it.id.toString() == selectedAccountId }
+                        val existingRem = reminders.find { it.id == editingReminderId }
                         val newRem = com.example.service.MonthlyPaymentReminder(
+                            id = editingReminderId ?: java.util.UUID.randomUUID().toString(),
                             heading = heading.trim(),
                             description = description.trim(),
                             amount = amountStr.toDoubleOrNull()?.takeIf { it > 0.0 },
@@ -3174,21 +3629,43 @@ private fun MonthlyPaymentReminderDialog(
                             accountName = accObj?.name,
                             dayOfMonth = dayOfMonth,
                             hourOfDay = hourOfDay,
-                            minute = minute
+                            minute = minute,
+                            isEnabled = existingRem?.isEnabled ?: true,
+                            lastTriggeredMonthKey = existingRem?.lastTriggeredMonthKey ?: ""
                         )
                         com.example.service.MonthlyReminderManager.addOrUpdateReminder(context, newRem)
+                        val wasEditing = editingReminderId != null
+                        editingReminderId = null
                         heading = ""
                         description = ""
                         amountStr = ""
-                        android.widget.Toast.makeText(context, "Monthly reminder saved for Day $dayOfMonth!", android.widget.Toast.LENGTH_SHORT).show()
+                        selectedAccountId = null
+                        android.widget.Toast.makeText(
+                            context,
+                            if (wasEditing) "Monthly reminder updated!" else "Monthly reminder saved for Day $dayOfMonth!",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = if (editingReminderId != null) Icons.Default.Check else Icons.Default.Add,
+                        contentDescription = null,
+                        tint = AppOnAccentColor(),
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isBn) "রিমাইন্ডার সেভ করুন" else "Add Monthly Reminder", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (editingReminderId != null) {
+                            if (isBn) "রিমাইন্ডার আপডেট করুন" else "Update Monthly Reminder"
+                        } else {
+                            if (isBn) "রিমাইন্ডার সেভ করুন" else "Add Monthly Reminder"
+                        },
+                        color = AppOnAccentColor(),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 if (reminders.isNotEmpty()) {
@@ -3204,7 +3681,10 @@ private fun MonthlyPaymentReminderDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(AppTextColor().copy(alpha = 0.05f))
+                                .background(
+                                    if (editingReminderId == item.id) AppAccentColor().copy(alpha = 0.14f)
+                                    else AppTextColor().copy(alpha = 0.05f)
+                                )
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -3219,11 +3699,31 @@ private fun MonthlyPaymentReminderDialog(
                                 }
                                 Text(details, color = AppSecondaryTextColor(), fontSize = 11.sp)
                             }
-                            IconButton(
-                                onClick = { com.example.service.MonthlyReminderManager.deleteReminder(context, item.id) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Reminder", tint = AccentPink, modifier = Modifier.size(18.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        editingReminderId = item.id
+                                        heading = item.heading
+                                        description = item.description
+                                        amountStr = item.amount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: ""
+                                        selectedAccountId = item.accountId
+                                        dayOfMonth = item.dayOfMonth
+                                        hourOfDay = item.hourOfDay
+                                        minute = item.minute
+                                    },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Reminder", tint = AppAccentColor(), modifier = Modifier.size(17.dp))
+                                }
+                                IconButton(
+                                    onClick = {
+                                        if (editingReminderId == item.id) editingReminderId = null
+                                        com.example.service.MonthlyReminderManager.deleteReminder(context, item.id)
+                                    },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Reminder", tint = AccentPink, modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }

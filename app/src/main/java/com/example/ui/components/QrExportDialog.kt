@@ -57,8 +57,11 @@ fun QrExportStreamDialog(
     // Initially paused so user can align scanner before starting stream
     var isPaused by remember { mutableStateOf(true) }
     var hasStarted by remember { mutableStateOf(false) }
+    var framesPlayedInRun by remember { mutableIntStateOf(0) }
+    var completedFiveRounds by remember { mutableStateOf(false) }
 
     val cycleSize = encoder.k + 2
+    val maxFramesForFiveRounds = cycleSize * 5
 
     val optimalFps = remember(encoder.k) {
         when {
@@ -85,10 +88,20 @@ fun QrExportStreamDialog(
         }
     }
 
-    LaunchedEffect(isPaused, packetIndex, fps) {
+    LaunchedEffect(isPaused, packetIndex, fps, framesPlayedInRun) {
         if (!isPaused) {
             delay((1000f / fps).toLong())
-            packetIndex++
+            val nextPlayed = framesPlayedInRun + 1
+            if (nextPlayed >= maxFramesForFiveRounds) {
+                // Completed 5 full rounds: return to beginning frame (0) and pause
+                packetIndex = 0
+                framesPlayedInRun = 0
+                isPaused = true
+                completedFiveRounds = true
+            } else {
+                framesPlayedInRun = nextPlayed
+                packetIndex++
+            }
         }
     }
 
@@ -118,10 +131,12 @@ fun QrExportStreamDialog(
     }
 
     val cyclePos = packetIndex % cycleSize
+    val currentRound = (framesPlayedInRun / cycleSize).coerceIn(0, 4) + 1
     val frameLabel = when {
-        cyclePos == 0 -> "INIT Header"
-        cyclePos <= encoder.k -> "Chunk $cyclePos / ${encoder.k}"
-        else -> "Recovery Packet"
+        completedFiveRounds && isPaused -> "5 Rounds Done • Reset at Frame 1"
+        cyclePos == 0 -> "INIT Header (Round $currentRound/5)"
+        cyclePos <= encoder.k -> "Chunk $cyclePos/${encoder.k} (Round $currentRound/5)"
+        else -> "Recovery Packet (Round $currentRound/5)"
     }
 
     Dialog(
@@ -323,8 +338,11 @@ fun QrExportStreamDialog(
 
                                     Button(
                                         onClick = {
-                                            if (!hasStarted) {
+                                            if (!hasStarted || completedFiveRounds) {
                                                 hasStarted = true
+                                                completedFiveRounds = false
+                                                packetIndex = 0
+                                                framesPlayedInRun = 0
                                                 isPaused = false
                                             } else {
                                                 isPaused = !isPaused
@@ -345,7 +363,8 @@ fun QrExportStreamDialog(
                                         Spacer(Modifier.width(8.dp))
                                         Text(
                                             text = when {
-                                                !hasStarted -> "Start QR Stream"
+                                                !hasStarted -> "Start QR Stream (5 Rounds)"
+                                                completedFiveRounds && isPaused -> "Start Again (5 Rounds)"
                                                 isPaused -> "Resume Stream"
                                                 else -> "Pause Stream"
                                             },
@@ -524,8 +543,11 @@ fun QrExportStreamDialog(
 
                                         Button(
                                             onClick = {
-                                                if (!hasStarted) {
+                                                if (!hasStarted || completedFiveRounds) {
                                                     hasStarted = true
+                                                    completedFiveRounds = false
+                                                    packetIndex = 0
+                                                    framesPlayedInRun = 0
                                                     isPaused = false
                                                 } else {
                                                     isPaused = !isPaused
@@ -548,7 +570,8 @@ fun QrExportStreamDialog(
                                             Spacer(Modifier.width(8.dp))
                                             Text(
                                                 text = when {
-                                                    !hasStarted -> "Start QR Frames"
+                                                    !hasStarted -> "Start QR Frames (5 Rounds)"
+                                                    completedFiveRounds && isPaused -> "Start Again (5 Rounds)"
                                                     isPaused -> "Resume Frames"
                                                     else -> "Pause Stream"
                                                 },

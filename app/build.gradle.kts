@@ -17,8 +17,10 @@ android {
     applicationId = "com.tracker.suva"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "0.0.1"
+    val propVersionCode = project.findProperty("appVersionCode")?.toString()?.trim()?.toIntOrNull()
+    val propVersionName = project.findProperty("appVersionName")?.toString()?.trim()?.removePrefix("v")?.removePrefix("V")?.takeIf { it.isNotBlank() }
+    versionCode = propVersionCode ?: 2
+    versionName = propVersionName ?: "0.0.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     ndk {

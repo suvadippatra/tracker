@@ -753,6 +753,66 @@ class FinancialViewModel(
         }
     }
 
+    fun updateExtraExpense(
+        originalExpense: ExtraExpenseEntity,
+        name: String,
+        amount: Double,
+        bankAccountId: Int,
+        timestamp: Long,
+        receiptUri: String?,
+        type: String = "EXPENSE",
+        category: String = "General",
+        notes: String = "",
+        attachments: List<Pair<String, String>> = emptyList()
+    ) {
+        val accounts = allBankAccounts.value
+        val selectedAccount = accounts.find { it.id == bankAccountId } ?: return
+
+        viewModelScope.launch {
+            // 1. Revert original expense impact on its bank account
+            val oldAccount = accounts.find { it.id == originalExpense.bankAccountId }
+            val revertChange = if (originalExpense.type == "INCOME") -originalExpense.amount else originalExpense.amount
+            val newChange = if (type == "INCOME") amount else -amount
+
+            if (oldAccount != null && oldAccount.id == selectedAccount.id) {
+                val updatedAcc = selectedAccount.copy(balance = selectedAccount.balance + revertChange + newChange)
+                repository.updateBankAccount(updatedAcc)
+            } else {
+                if (oldAccount != null) {
+                    repository.updateBankAccount(oldAccount.copy(balance = oldAccount.balance + revertChange))
+                }
+                repository.updateBankAccount(selectedAccount.copy(balance = selectedAccount.balance + newChange))
+            }
+
+            // 2. Update the expense record itself
+            val updatedExpense = originalExpense.copy(
+                timestamp = timestamp,
+                name = name,
+                amount = amount,
+                bankAccountId = bankAccountId,
+                receiptUri = receiptUri,
+                type = type,
+                category = category,
+                notes = notes
+            )
+            repository.insertExpense(updatedExpense)
+
+            // 3. Replace attachments for this expense
+            repository.deleteAttachmentsForExpense(originalExpense.id)
+            attachments.forEach { (uriString, attType) ->
+                val secureUri = copyToInternalStorage(uriString, attType)
+                repository.insertAttachment(
+                    com.example.data.model.AttachmentEntity(
+                        expenseId = originalExpense.id,
+                        uri = secureUri,
+                        type = attType
+                    )
+                )
+            }
+            updateWidgets()
+        }
+    }
+
     private fun copyToInternalStorage(uriString: String, type: String): String {
         if (uriString.startsWith("file:///android_asset/") || uriString.startsWith("content://")) {
             try {

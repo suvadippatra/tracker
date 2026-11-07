@@ -1863,6 +1863,7 @@ fun MealHistoryModal(
         HotelMonthlyPaymentDialog(
             hotelName = activeHotel?.name ?: "Hotel",
             monthName = currentDisplayMonth,
+            monthOffset = monthOffset,
             grandTotal = grandTotal,
             existingPayment = currentMonthPayment,
             language = userProfile.language,
@@ -1887,6 +1888,7 @@ fun MealHistoryModal(
 fun HotelMonthlyPaymentDialog(
     hotelName: String,
     monthName: String,
+    monthOffset: Int = 0,
     grandTotal: Double,
     existingPayment: HotelPaymentEntity?,
     language: String,
@@ -2045,6 +2047,22 @@ fun HotelMonthlyPaymentDialog(
                     HorizontalDivider(color = getGlassBorder().copy(alpha = 0.5f), thickness = 0.5.dp)
 
                     // Scrollable Body
+                    val enteredAmtVal = if (isPaidSelected) (amountText.toDoubleOrNull() ?: 0.0) else 0.0
+                    val residualUnpaid = (grandTotal - enteredAmtVal).coerceAtLeast(0.0)
+                    val laterMonthOptions = remember(monthOffset) {
+                        if (monthOffset <= -2) {
+                            val fmt = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                            ((monthOffset + 1)..0).map { off ->
+                                val c = Calendar.getInstance().apply {
+                                    set(Calendar.DAY_OF_MONTH, 1)
+                                    add(Calendar.MONTH, off)
+                                }
+                                fmt.format(c.time)
+                            }
+                        } else emptyList()
+                    }
+                    var selectedResidualTargetMonth by remember(monthOffset) { mutableStateOf<String?>(null) }
+
                     Column(
                         modifier = Modifier
                             .weight(1f, fill = false)
@@ -2053,6 +2071,38 @@ fun HotelMonthlyPaymentDialog(
                             .padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Timely Payment Motivational Quote Banner
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AppAccentColor().copy(alpha = 0.10f),
+                            border = BorderStroke(0.8.dp, AppAccentColor().copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = AppAccentColor(),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (language == "bn") {
+                                        "“সময়মতো বিল পরিশোধ ভবিষ্যতের মানসিক চাপ কমায় — আজকের ছোট বকেয়া মিটিয়ে রাখলে আগামী মাসগুলো থাকে নিশ্চিন্ত ও সহজ।”"
+                                    } else {
+                                        "“Timely settlement today buys peace of mind tomorrow — clear small dues early so future months stay effortless.”"
+                                    },
+                                    color = AppTextColor(),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+
                         // Bill Summary Badge
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -2290,6 +2340,80 @@ fun HotelMonthlyPaymentDialog(
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
+
+                                if (residualUnpaid >= 1.0 && enteredAmtVal > 0.0) {
+                                    if (laterMonthOptions.isNotEmpty()) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(AccentPink.copy(alpha = 0.08f))
+                                                .border(1.dp, AccentPink.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                                .padding(10.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = if (language == "bn") {
+                                                    "বাকি ₹${residualUnpaid.toInt()} কোন মাসে যুক্ত করবেন তা নির্বাচন করুন (বাধ্যতামূলক):"
+                                                } else {
+                                                    "Choose which month receives the residual ₹${residualUnpaid.toInt()} (Required):"
+                                                },
+                                                color = AccentPink,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            laterMonthOptions.forEach { mLabel ->
+                                                val isChosen = selectedResidualTargetMonth == mLabel
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (isChosen) AppAccentColor().copy(alpha = 0.16f) else AppTextColor().copy(alpha = 0.04f),
+                                                    border = BorderStroke(1.dp, if (isChosen) AppAccentColor() else AppTextColor().copy(alpha = 0.15f)),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable { selectedResidualTargetMonth = mLabel }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        RadioButton(
+                                                            selected = isChosen,
+                                                            onClick = { selectedResidualTargetMonth = mLabel },
+                                                            modifier = Modifier.size(18.dp),
+                                                            colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = mLabel,
+                                                            color = AppTextColor(),
+                                                            fontSize = 12.sp,
+                                                            fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = AppPrimaryBlueColor().copy(alpha = 0.10f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = if (language == "bn") {
+                                                    "বাকি ₹${residualUnpaid.toInt()} চলমান মাসের হিসাবে স্বয়ংক্রিয়ভাবে যুক্ত থাকবে।"
+                                                } else {
+                                                    "Recent month — residual ₹${residualUnpaid.toInt()} automatically carries forward to the ongoing month."
+                                                },
+                                                color = AppPrimaryBlueColor(),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(10.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -2499,8 +2623,21 @@ fun HotelMonthlyPaymentDialog(
                         Button(
                             onClick = {
                                 val amt = if (isPaidSelected) (amountText.toDoubleOrNull() ?: grandTotal) else 0.0
+                                val rem = (grandTotal - amt).coerceAtLeast(0.0)
+                                if (isPaidSelected && amt > 0.0 && rem >= 1.0 && laterMonthOptions.isNotEmpty() && selectedResidualTargetMonth == null) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (language == "bn") "অনুগ্রহ করে বাকি টাকা কোন মাসে যুক্ত করবেন তা নির্বাচন করুন" else "Please choose which month receives the residual balance",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@Button
+                                }
                                 val combinedNote = buildString {
                                     append(noteText.trim())
+                                    if (selectedResidualTargetMonth != null && rem >= 1.0) {
+                                        if (isNotEmpty()) append(" • ")
+                                        append("Residual ₹${rem.toInt()} carried to $selectedResidualTargetMonth")
+                                    }
                                     if (attachmentUri.isNotBlank()) {
                                         if (isNotEmpty()) append(" ")
                                         append("[IMG:$attachmentUri]")

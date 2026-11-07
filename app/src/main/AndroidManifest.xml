@@ -21,6 +21,7 @@
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"
+        android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -54,6 +55,9 @@
         <meta-data
             android:name="android.max_aspect"
             android:value="2.4" />
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
     
         <receiver android:name=".widget.HotelWidgetProvider" android:exported="true" android:label="@string/widget_label_hotel">
             <intent-filter>

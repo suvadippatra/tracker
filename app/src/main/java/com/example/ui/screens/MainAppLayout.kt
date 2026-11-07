@@ -544,7 +544,8 @@ fun GlassHeader(
                             .padding(vertical = 2.dp, horizontal = 4.dp)
                     ) {
                         Column {
-                            if (userProfile.name.isNotBlank()) {
+                            val firstName = userProfile.name.trim().substringBefore(" ")
+                            if (firstName.isNotBlank()) {
                                 Text(
                                     text = greeting,
                                     color = AppSecondaryTextColor(),
@@ -553,7 +554,7 @@ fun GlassHeader(
                                     letterSpacing = 0.3.sp
                                 )
                                 Text(
-                                    text = userProfile.name,
+                                    text = firstName,
                                     color = appAccent,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
@@ -626,7 +627,8 @@ fun GlassHeader(
                             .padding(4.dp)
                     ) {
                         Column {
-                            if (userProfile.name.isNotBlank()) {
+                            val firstName = userProfile.name.trim().substringBefore(" ")
+                            if (firstName.isNotBlank()) {
                                 Text(
                                     text = greeting,
                                     color = AppTextColor(),
@@ -635,7 +637,7 @@ fun GlassHeader(
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
-                                    text = userProfile.name,
+                                    text = firstName,
                                     color = AppAccentColor(),
                                     fontSize = 26.sp,
                                     fontWeight = FontWeight.ExtraBold,

@@ -203,35 +203,75 @@ fun KhataScannerDialog(
         }
     }
 
-    // Camera capture
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bmp ->
-        if (bmp != null) {
+    // Full-resolution Camera capture using FileProvider URI + fallback to preview
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val processDecodedKhataBitmap: (Bitmap, String) -> Unit = { decodedBmp, sourceLabel ->
+        scope.launch {
+            isProcessingImage = true
+            errorMessage = null
+            scanSummaryStatus = null
+            try {
+                capturedBitmap = decodedBmp
+                val scannedLines = withContext(Dispatchers.Default) {
+                    runHybridKhataOcr(decodedBmp)
+                }
+                if (scannedLines.isNotEmpty()) {
+                    extractedText = scannedLines.joinToString("\n")
+                    scanSummaryStatus = "OCR detected ${scannedLines.size} line(s) from $sourceLabel. Review or edit below."
+                } else {
+                    errorMessage = "Could not detect clear text from this $sourceLabel. You can tap 'Paste / Google Lens Text' or type the lines below."
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to process $sourceLabel: ${e.localizedMessage}"
+            } finally {
+                isProcessingImage = false
+            }
+        }
+    }
+
+    val fullResCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = pendingCameraUri
+        if (success && uri != null) {
             scope.launch {
                 isProcessingImage = true
-                errorMessage = null
-                scanSummaryStatus = null
-                try {
-                    val safeBmp = withContext(Dispatchers.Default) {
-                        resizeBitmapSafely(bmp, 1440)
-                    }
-                    capturedBitmap = safeBmp
-                    val scannedLines = withContext(Dispatchers.Default) {
-                        runHybridKhataOcr(safeBmp)
-                    }
-                    if (scannedLines.isNotEmpty()) {
-                        extractedText = scannedLines.joinToString("\n")
-                        scanSummaryStatus = "ML Kit + Handwriting OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
-                    } else {
-                        errorMessage = "Could not automatically isolate clear Date - Price rows from this image. You can inspect the full uncropped image above and type/adjust the lines below."
-                    }
-                } catch (e: Exception) {
-                    errorMessage = "Failed to process camera image: ${e.localizedMessage}"
-                } finally {
+                val decoded = withContext(Dispatchers.IO) {
+                    decodeSampledBitmapFromUri(context.contentResolver, uri, 1600)
+                }
+                if (decoded != null) {
+                    processDecodedKhataBitmap(decoded, "camera photo")
+                } else {
                     isProcessingImage = false
+                    errorMessage = "Could not decode captured camera image."
                 }
             }
+        }
+    }
+
+    val launchFullResCamera: () -> Unit = {
+        try {
+            val photoFile = java.io.File(context.cacheDir, "khata_scan_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            pendingCameraUri = uri
+            fullResCameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            errorMessage = "Unable to launch camera: ${e.localizedMessage}"
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchFullResCamera()
+        } else {
+            Toast.makeText(context, "Camera permission is required to capture Khata pages", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -244,28 +284,14 @@ fun KhataScannerDialog(
                 isProcessingImage = true
                 errorMessage = null
                 scanSummaryStatus = null
-                try {
-                    val decoded = withContext(Dispatchers.IO) {
-                        decodeSampledBitmapFromUri(context.contentResolver, uri, 1440)
-                    }
-                    if (decoded != null) {
-                        capturedBitmap = decoded
-                        val scannedLines = withContext(Dispatchers.Default) {
-                            runHybridKhataOcr(decoded)
-                        }
-                        if (scannedLines.isNotEmpty()) {
-                            extractedText = scannedLines.joinToString("\n")
-                            scanSummaryStatus = "ML Kit + Handwriting OCR detected ${scannedLines.size} Khata line(s). Review or edit below."
-                        } else {
-                            errorMessage = "Could not automatically isolate clear Date - Price rows from this photo. You can view the full uncropped photo above and type/edit lines below."
-                        }
-                    } else {
-                        errorMessage = "Unable to decode selected image safely."
-                    }
-                } catch (e: Exception) {
-                    errorMessage = "Image loading failed: ${e.localizedMessage}"
-                } finally {
+                val decoded = withContext(Dispatchers.IO) {
+                    decodeSampledBitmapFromUri(context.contentResolver, uri, 1600)
+                }
+                if (decoded != null) {
+                    processDecodedKhataBitmap(decoded, "selected photo")
+                } else {
                     isProcessingImage = false
+                    errorMessage = "Unable to decode selected image safely."
                 }
             }
         }
@@ -449,7 +475,17 @@ fun KhataScannerDialog(
                                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
                                             Button(
-                                                onClick = { cameraLauncher.launch(null) },
+                                                onClick = {
+                                                    val hasCamPerm = androidx.core.content.ContextCompat.checkSelfPermission(
+                                                        context,
+                                                        android.Manifest.permission.CAMERA
+                                                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                    if (hasCamPerm) {
+                                                        launchFullResCamera()
+                                                    } else {
+                                                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                                    }
+                                                },
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .height(46.dp),
@@ -1221,7 +1257,29 @@ private fun decodeSampledBitmapFromUri(
         this.inPreferredConfig = Bitmap.Config.ARGB_8888
     }
     val raw = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOpts) } ?: return null
-    return resizeBitmapSafely(raw, reqMaxDim)
+
+    // Read EXIF orientation so rotated camera/gallery photos are always turned upright before OCR!
+    val rotationDegrees = try {
+        resolver.openInputStream(uri)?.use { stream ->
+            val exif = android.media.ExifInterface(stream)
+            when (exif.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        } ?: 0f
+    } catch (_: Exception) {
+        0f
+    }
+
+    val oriented = if (rotationDegrees != 0f) {
+        val matrix = android.graphics.Matrix().apply { postRotate(rotationDegrees) }
+        Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+    } else {
+        raw
+    }
+    return resizeBitmapSafely(oriented, reqMaxDim)
 }
 
 /**
@@ -1231,7 +1289,7 @@ private fun decodeSampledBitmapFromUri(
  *   as well as day-only rows (`17 - 60+40`).
  */
 private fun analyzeHandwrittenKhataBitmap(bitmap: Bitmap): List<String> {
-    val procBmp = resizeBitmapSafely(bitmap, 900)
+    val procBmp = resizeBitmapSafely(bitmap, 1360)
     val w = procBmp.width
     val h = procBmp.height
     if (w < 60 || h < 60) return emptyList()
@@ -1717,11 +1775,35 @@ private fun countEnclosedHoles(
  * Runs Google ML Kit on-device Text Recognition first, repairs handwritten OCR errors via
  * [normalizeMessyKhataOcrLine], and falls back to [analyzeHandwrittenKhataBitmap] if needed.
  */
-private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
-    val mlKitLines = runCatching {
+private fun enhanceBitmapContrastForOcr(source: Bitmap): Bitmap {
+    val w = source.width
+    val h = source.height
+    val pixels = IntArray(w * h)
+    source.getPixels(pixels, 0, w, 0, 0, w, h)
+    for (i in pixels.indices) {
+        val c = pixels[i]
+        val r = (c shr 16) and 0xFF
+        val g = (c shr 8) and 0xFF
+        val b = c and 0xFF
+        val lum = (r * 299 + g * 587 + b * 114) / 1000
+        // Stretch contrast around midpoint 165 so blue/black ink stands out crisply against ruled paper
+        val stretched = when {
+            lum < 145 -> (lum * 0.45f).toInt().coerceIn(0, 255)
+            lum > 185 -> 255
+            else -> ((lum - 145) * 4 + 65).coerceIn(0, 255)
+        }
+        pixels[i] = (0xFF shl 24) or (stretched shl 16) or (stretched shl 8) or stretched
+    }
+    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    out.setPixels(pixels, 0, w, 0, 0, w, h)
+    return out
+}
+
+private suspend fun runSingleMlKitPass(bitmap: Bitmap, rotationDegrees: Int): List<String> {
+    return runCatching {
         suspendCancellableCoroutine<List<String>> { cont ->
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            val image = InputImage.fromBitmap(bitmap, 0)
+            val image = InputImage.fromBitmap(bitmap, rotationDegrees)
             recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val rawVisualLines = visionText.textBlocks
@@ -1730,7 +1812,6 @@ private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
                         .map { it.text.trim() }
                         .filter { it.isNotEmpty() }
 
-                    // Merge horizontally adjacent fragments on the same vertical row if ML Kit split a date and price into 2 blocks
                     val visualElements = visionText.textBlocks
                         .flatMap { it.lines }
                         .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
@@ -1764,7 +1845,10 @@ private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
                     }
 
                     val candidateLines = (if (mergedRows.isNotEmpty()) mergedRows else rawVisualLines)
-                        .map { normalizeMessyKhataOcrLine(it) }
+                        .map { line ->
+                            val normalized = normalizeMessyKhataOcrLine(line)
+                            if (normalized.isNotBlank()) normalized else line.trim()
+                        }
                         .filter { it.isNotBlank() }
 
                     if (cont.isActive) cont.resume(candidateLines)
@@ -1774,11 +1858,31 @@ private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
                 }
         }
     }.getOrDefault(emptyList())
+}
 
-    if (mlKitLines.isNotEmpty()) {
-        return mlKitLines
+/**
+ * Runs Google ML Kit Text Recognition across upright, contrast-enhanced, and rotated orientations,
+ * preserves all printed & handwritten lines, repairs Khata OCR artifacts via [normalizeMessyKhataOcrLine],
+ * and falls back to [analyzeHandwrittenKhataBitmap] if Play Services OCR model is still initializing.
+ */
+private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
+    // 1. Primary upright ML Kit pass
+    val primaryLines = runSingleMlKitPass(bitmap, 0)
+    if (primaryLines.isNotEmpty()) return primaryLines
+
+    // 2. Contrast-enhanced ML Kit pass (greatly improves faint ink & ruled-notebook contrast)
+    val contrastBmp = enhanceBitmapContrastForOcr(bitmap)
+    val contrastLines = runSingleMlKitPass(contrastBmp, 0)
+    if (contrastLines.isNotEmpty()) return contrastLines
+
+    // 3. Check 90° and 270° in case screenshot/photo lacked EXIF orientation tags
+    for (rot in listOf(90, 270)) {
+        val rotLines = runSingleMlKitPass(bitmap, rot)
+        if (rotLines.isNotEmpty()) return rotLines
     }
-    return analyzeHandwrittenKhataBitmap(bitmap).map { normalizeMessyKhataOcrLine(it) }
+
+    // 4. Pure-Kotlin optical recognizer fallback
+    return analyzeHandwrittenKhataBitmap(bitmap).map { normalizeMessyKhataOcrLine(it) }.filter { it.isNotBlank() }
 }
 
 /**

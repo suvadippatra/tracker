@@ -1,6 +1,6 @@
 {
-  "summary": "Comprehensive implementation plan covering tablet/letterbox window bounds fix, exact day-level linear interpolation and rate-group bill calculation, Sticky Notes Keep-style editor with 8-icon bottom toolbar, custom tags & staggered wobble layout, granular & settings exports, default Hotel/Account ordering, Recycle Bin search & rate policy restoration, Archivo Black bold font hierarchy, Meal Ledger & Transaction History toggles, Menu Modification History, Scan Khata to Import OCR & dish matcher, and editable App Version with public reference credits.",
-  "updatedAt": "2026-11-05T19:06:32.841910736Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Comprehensive implementation plan covering APK size reduction (15MB to ~3.2MB via unbundled Play Services ML Kit), Khata Scanner EXIF & full-res camera fix, Sticky Notes background pre-computation & tablet lazy grid, Extras tablet 2-column layout, Transaction History direct edit & compact cards, First-Name greetings, broader editable Monthly Reminders, UPI Auto-Detection settings toggle & voice memo synthesis, Partial Bill Payment target-month selector with quote, ZIP archive export/import with media attachments, 5-round QR stream auto-stop, concise About & Help redesign with privacy-safe embedded GitHub buttons, GitHub Actions in-place APK update versioning, interactive Log Reading consumption & rate-region graph with Appearance toggle, and the View Another Tools screen.",
+  "updatedAt":  "2026-11-07T20:21:14.486989459Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

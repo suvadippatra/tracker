@@ -62,7 +62,7 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Prepare Environment and Keystore
+      - name: Prepare Environment, Keystore, and Dynamic APK Version
         run: |
           touch .env
           touch .env.example
@@ -83,14 +83,29 @@ jobs:
           fi
           mkdir -p dist-outputs
 
+          RAW_TAG="${{ inputs.tag_name }}"
+          CLEAN_VER=$(echo "$RAW_TAG" | sed -E 's/^[vV]//' | tr -d '[:space:]')
+          if [ -z "$CLEAN_VER" ]; then
+            CLEAN_VER="0.0.2"
+          fi
+          MAJOR=$(echo "$CLEAN_VER" | cut -d. -f1 | grep -E '^[0-9]+$' || echo 0)
+          MINOR=$(echo "$CLEAN_VER" | cut -d. -f2 | grep -E '^[0-9]+$' || echo 0)
+          PATCH=$(echo "$CLEAN_VER" | cut -d. -f3 | grep -E '^[0-9]+$' || echo 1)
+          RUN_NO="${{ github.run_number }}"
+          if [ -z "$RUN_NO" ]; then RUN_NO=1; fi
+          COMPUTED_CODE=$(( MAJOR * 1000000 + MINOR * 10000 + PATCH * 100 + RUN_NO + 10 ))
+          echo "APP_VERSION_NAME=$CLEAN_VER" >> $GITHUB_ENV
+          echo "APP_VERSION_CODE=$COMPUTED_CODE" >> $GITHUB_ENV
+          echo "Resolved APK versionName=$CLEAN_VER, versionCode=$COMPUTED_CODE"
+
       - name: Build Android App Bundle (AAB)
         if: ${{ inputs.build_target == 'all' || inputs.build_target == 'aab' }}
         run: |
           if [ "${{ inputs.build_variant }}" = "debug" ]; then
-            gradle :app:bundleDebug -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:bundleDebug -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/bundle/debug -name "*.aab" -exec cp {} dist-outputs/traker-debug.aab \;
           else
-            gradle :app:bundleRelease -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:bundleRelease -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/bundle/release -name "*.aab" -exec cp {} dist-outputs/traker-release.aab \;
           fi
 
@@ -98,10 +113,10 @@ jobs:
         if: ${{ inputs.build_target == 'all' || inputs.build_target == 'universal-apk' }}
         run: |
           if [ "${{ inputs.build_variant }}" = "debug" ]; then
-            gradle :app:assembleDebug -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleDebug -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/debug -name "*.apk" -exec cp {} dist-outputs/traker-universal-debug.apk \;
           else
-            gradle :app:assembleRelease -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleRelease -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/release -name "*.apk" -exec cp {} dist-outputs/traker-universal-release.apk \;
           fi
 
@@ -109,10 +124,10 @@ jobs:
         if: ${{ inputs.build_target == 'all' || inputs.build_target == 'arm64-v8a-apk' }}
         run: |
           if [ "${{ inputs.build_variant }}" = "debug" ]; then
-            gradle :app:assembleDebug -PabiTarget=arm64-v8a -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleDebug -PabiTarget=arm64-v8a -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/debug -name "*.apk" -exec cp {} dist-outputs/traker-arm64-v8a-debug.apk \;
           else
-            gradle :app:assembleRelease -PabiTarget=arm64-v8a -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
+            gradle :app:assembleRelease -PabiTarget=arm64-v8a -PappVersionName="$APP_VERSION_NAME" -PappVersionCode="$APP_VERSION_CODE" -Dksp.useKSP2=true -x lint --max-workers=2 --no-daemon --no-configuration-cache --stacktrace
             find app/build/outputs/apk/release -name "*.apk" -exec cp {} dist-outputs/traker-arm64-v8a-release.apk \;
           fi
 

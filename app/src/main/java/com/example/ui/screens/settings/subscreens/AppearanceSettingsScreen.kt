@@ -360,7 +360,28 @@ fun AppearanceSettingsScreen(
 
         // 6. Utility & Rates Config
         item {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            LaunchedEffect(Unit) {
+                com.example.ui.viewmodel.MeterReadingViewModel.isDailyMeterUsageEnabled(context)
+            }
+            val showDailyMeterUsage by com.example.ui.viewmodel.MeterReadingViewModel.showDailyMeterUsageFlow.collectAsStateWithLifecycle()
+
             PixelSettingsGroup(title = if (prefLanguage == "bn") "ইউটিলিটি ও মিটার সেটিংস" else "Utility & Billing Configuration") {
+                PixelSettingsSwitchItem(
+                    icon = Icons.Default.ElectricMeter,
+                    title = if (prefLanguage == "bn") "দৈনিক মিটার রিডিং পরিবর্তন ও গ্রাফ" else "Daily Meter Reading Change & Graph",
+                    subtitle = if (prefLanguage == "bn") {
+                        "লগ রিডিং পেজে প্রতিদিনের ইউনিট পরিবর্তন (units/day) এবং ইন্টারেক্টিভ গ্রাফ দেখান"
+                    } else {
+                        "Show daily unit change (units/day) and interactive rate-region consumption graph on Log Reading page"
+                    },
+                    checked = showDailyMeterUsage,
+                    onCheckedChange = { enabled ->
+                        com.example.ui.viewmodel.MeterReadingViewModel.setDailyMeterUsageEnabled(context, enabled)
+                    },
+                    showDivider = true
+                )
+
                 PixelSettingsItem(
                     icon = Icons.Default.ElectricMeter,
                     title = if (prefLanguage == "bn") "মিটার রিডিং ও বিল কনফিগারেশন" else "Meter Reading & Rates Config",

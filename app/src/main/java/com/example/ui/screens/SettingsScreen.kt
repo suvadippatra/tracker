@@ -127,6 +127,7 @@ fun SettingsScreen(
                                     "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
                                     "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
                                     "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
+                                    "other_tools" -> if (isBn) "অন্যান্য টুলস" else "View Another Tools"
                                     else -> "Settings"
                                 },
                                 fontSize = 21.sp,
@@ -177,6 +178,7 @@ fun SettingsScreen(
                                 "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
                                 "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
                                 "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                                "other_tools" -> AnotherToolsBlankScreen(onBack = { currentScreen = "main" })
                             }
                         }
                     }
@@ -276,16 +278,67 @@ fun SettingsMainList(
         }
 
         item {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            LaunchedEffect(Unit) {
+                com.example.service.DetectedUpiPaymentBus.syncEnabledState(context)
+            }
+            val upiAutoDetectEnabled by com.example.service.DetectedUpiPaymentBus.isAutoDetectEnabledFlow.collectAsStateWithLifecycle()
+            val hasNotifPermission = remember(upiAutoDetectEnabled) {
+                com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)
+            }
+
+            PixelSettingsGroup(title = if (prefLanguage == "bn") "স্মার্ট অটোমেশন ও টুলস" else "Smart Automation & Tools") {
+                PixelSettingsSwitchItem(
+                    icon = Icons.Default.Notifications,
+                    title = if (prefLanguage == "bn") "UPI পেমেন্ট অটো-ডিটেক্ট পপআপ" else "UPI Payment Auto-Detection",
+                    subtitle = if (hasNotifPermission) {
+                        if (prefLanguage == "bn") "পেমেন্ট বা ব্যাংক এসএমএস থেকে স্বয়ংক্রিয়ভাবে পপআপ দেখাবে" else "Auto-detects UPI & bank SMS payment alerts"
+                    } else {
+                        if (prefLanguage == "bn") "নোটিফিকেশন অ্যাক্সেস চালু করতে সুইচ অন করুন" else "Toggle ON to grant Notification Access for UPI alerts"
+                    },
+                    checked = upiAutoDetectEnabled && hasNotifPermission,
+                    onCheckedChange = { enabled ->
+                        com.example.service.DetectedUpiPaymentBus.setAutoDetectEnabled(context, enabled)
+                        if (enabled && !com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)) {
+                            com.example.service.DetectedUpiPaymentBus.openNotificationListenerSettings(context)
+                        }
+                    },
+                    showDivider = true
+                )
+                PixelSettingsItem(
+                    icon = Icons.Default.Build,
+                    title = if (prefLanguage == "bn") "অন্যান্য টুলস দেখুন (View Another Tools)" else "View Another Tools",
+                    subtitle = if (prefLanguage == "bn") "অতিরিক্ত ইউটিলিটি ও টুলসের পেজ খুলুন" else "Open workspace for additional tools & utilities",
+                    onClick = { onNavigate("other_tools") }
+                )
+            }
+        }
+
+        item {
             PixelSettingsGroup(title = if (prefLanguage == "bn") "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help") {
                 PixelSettingsItem(
                     icon = Icons.Default.Info,
                     title = if (prefLanguage == "bn") "অ্যাপ পরিচিতি, ব্যবহারবিধি (Help) ও আইনি তথ্য" else "About Traker, Help Guide & Legal",
-                    subtitle = if (prefLanguage == "bn") "সম্পূর্ণ ব্যবহারবিধি (Help), সংস্করণ, লাইসেন্স ও ডেভেলপার তথ্য" else "Built-in Help & User Guide, version info, licenses & privacy",
+                    subtitle = if (prefLanguage == "bn") "সংক্ষিপ্ত গাইড, সংস্করণ, লাইসেন্স ও গোপনীয়তা" else "Quick guide, version info, licenses & privacy",
                     onClick = { onNavigate("about") }
                 )
             }
         }
     }
+}
+
+@Composable
+fun AnotherToolsBlankScreen(
+    onBack: () -> Unit
+) {
+    androidx.activity.compose.BackHandler(enabled = true) { onBack() }
+    // Full-screen blank canvas ready for future tool cards
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .testTag("another_tools_blank_screen")
+    )
 }
 
 @Composable
@@ -745,107 +798,70 @@ fun LegalInfoDialog(
 
     val content = when (type) {
         "info" -> if (prefLanguage == "bn") """
-            Traker v$appVersion (3D Pin/Clip Sticky Notes, ML Kit + Google Lens Khata OCR, UPI Auto-Detect, Voice STT & Partial Bill Carry-Over)
-            ডেভেলপার: @suvadippatra (GitHub)
-            © ২০২৬ @suvadippatra. সর্বস্বত্ব সংরক্ষিত।
+            Traker v$appVersion • ১০০% অফলাইন স্মার্ট ফিন্যান্স, হোটেল খাতা ও বিদ্যুৎ বিল ট্র্যাকার
 
-            ───────────────────────────
-            📖 সম্পূর্ণ ব্যবহারবিধি ও গাইড (User Guide)
-            ───────────────────────────
+            ১. হোটেল খাতা ও অফলাইন OCR:
+            • প্রতিদিনের খাবার হিসাব রাখুন এবং ক্যামেরা বা গ্যালারি থেকে মুদ্রিত/হাতের লেখার খাতা স্ক্যান করুন।
+            • মাসিক পেমেন্ট স্ট্যাটাসে আংশিক পেমেন্ট বা রসিদ সংযুক্ত করে সরাসরি শেয়ার করুন।
 
-            ১. 📌 "Sticky" ট্যাব: ৩ডি পুশ-পিন ও পেপারক্লিপ গ্রাফিক্স, ড্যাম্পার স্ক্রল ও বটম কালার ডটস
-            • বাস্তবসম্মত ৩ডি পুশ-পিন ও পেপারক্লিপ: স্টিকি কার্ডের ওপরে কাস্টম ক্যানভাসে আঁকা ৩ডি নীল পুশ-পিন বা মেটালিক গোল্ড/কপার পেপারক্লিপ গ্রাফিক্স কার্ডের কোণা ছুঁয়ে থাকে।
-            • জিরো-ল্যাগ ও ড্যাম্পার স্ক্রল: নোট ক্যাশিং ও স্মার্ট অ্যানিমেশন পজের কারণে পেজ ও নোট তৎক্ষণাৎ খোলে এবং স্ক্রলিংয়ে ধীরগতির ড্যাম্পার ইফেক্ট দেয়।
-            • মাঝখানে শিরোনাম ও নিচে কালার ডটস: নোট খুললে টপ বারে পিন আইকন ছাড়াই শিরোনামটি ঠিক মাঝখানে দেখায় এবং পেজের রঙ পরিবর্তনের ডটগুলো স্ক্রলযোগ্য পেজের একদম নিচের লাইনে মাঝখানে থাকে।
+            ২. এক্সট্রা ট্রানজাকশন, UPI পপআপ ও ভয়েস মেমো:
+            • ট্রানজাকশন হিস্ট্রি থেকে সরাসরি যেকোনো এন্ট্রি এডিট করুন।
+            • অপ্ট-ইন UPI ও ব্যাংক এসএমএস ডিটেক্টর পেমেন্ট সম্পন্ন হলে স্বয়ংক্রিয় পপআপ দেখায়, যেখানে ভয়েস মেমো রেকর্ড ও স্পিচ-টু-টেক্সট (STT) ব্যবহার করা যায়।
 
-            ২. 📷 "Scan Khata to Import" (Google ML Kit + Google Lens পেস্ট ও হাতের লেখা অটো-রিপেয়ার)
-            • অন-ডিভাইস ML Kit ও Google Lens পেস্ট: খাতার ছবি থেকে সরাসরি টেক্সট পড়ার পাশাপাশি Step 1-এ "Paste / Google Lens Text" বাটন রয়েছে।
-            • হাতের লেখার ভুল সংশোধন: `6p 10 ( 26 -> 70 + 20`, `H1of2645`, `(9/16) / 26 -> 60 + 50`, `13/10/26201-`, `31/10/26-401-`-এর মতো অস্পষ্ট বা ভাঙা OCR লাইন স্বয়ংক্রিয়ভাবে সঠিক তারিখ ও দামে (`01 Oct` থেকে `31 Oct`) রূপান্তরিত হয়।
+            ৩. বিদ্যুৎ বিল গ্রাফ ও আংশিক পেমেন্ট:
+            • Log Reading পেজে দৈনিক ইউনিট ব্যবহার ও মাল্টি-রেট রিজিওন গ্রাফ দেখুন।
+            • পুরনো বা সাম্প্রতিক বিলে আংশিক পেমেন্ট করলে বকেয়া টাকা পরবর্তী মাসের বিলে স্থানান্তর করুন।
 
-            ৩. 🔔 ইউপিআই পেমেন্ট অটো-পপআপ, মাসিক রিমাইন্ডার, ভয়েস টাইপিং (STT) ও QR জুম
-            • আইনি UPI পেমেন্ট ডিটেক্টর: Google Pay, PhonePe, Paytm, BHIM ইত্যাদিতে পেমেন্ট সম্পন্ন হলে স্বয়ংক্রিয়ভাবে পপআপ খুলে পেমেন্টের কারণ, ক্যাটাগরি, ব্যাংক অ্যাকাউন্ট ও স্ক্রিনশট (<= 2MB) সেভ করার সুযোগ দেয়।
-            • মাসিক পেমেন্ট রিমাইন্ডার ও ভয়েস STT: Extras পেজের ওপরে "Monthly Reminder" বাটন এবং Add Transaction পেজে API কী ছাড়াই বাংলা ও ইংরেজি ভয়েস স্পিচ-টু-টেক্সট (STT) যুক্ত করা হয়েছে।
-            • QR Send পিঞ্চ-টু-জুম ও সিঙ্ক সাইজ: QR Send পেজে দুই আঙুলে পিঞ্চ করে পূর্ণ প্রস্থ/উচ্চতা পর্যন্ত জুম করা যায় এবং Universal Transfer কার্ডে মোট ট্রান্সফারযোগ্য ডেটার সাইজ দেখা যায়।
-
-            ৪. ⚡ বিদ্যুৎ বিলের আংশিক পেমেন্ট ("Paid Amount Edit") ও হোটেল মাসিক বিল এক্সপোর্ট
-            • বিদ্যুৎ বিলের ইতিহাসে "Mark as Unpaid & Note"-এর পরিবর্তে "Paid Amount Edit" যুক্ত করা হয়েছে। আংশিক বা অর্ধেক বিল পরিশোধ করলে বাকি অপরিশোধিত টাকা স্বয়ংক্রিয়ভাবে পরের মাসের বিলে যোগ (Carry-Forward) হয়।
-            • হোটেলের মাসিক বিলের "Payment Status" পপআপে সরাসরি এক্সপোর্ট/শেয়ার বাটন এবং নতুন ডিজাইনের অ্যাকাউন্ট কার্ড যুক্ত করা হয়েছে।
-
-            👨‍💻 ডেভেলপার ও ওপেন সোর্স:
-            GitHub: @suvadippatra (https://github.com/suvadippatra)
-            লাইসেন্স: Apache License 2.0
+            ৪. ZIP মিডিয়া ব্যাকআপ ও ৫-রাউন্ড QR:
+            • ছবি, রসিদ ও অডিওসহ সম্পূর্ণ ডেটা .zip আর্কাইভে এক্সপোর্ট ও ইমপোর্ট করুন।
+            • QR Send স্ট্রিম ৫ রাউন্ড পূর্ণ হলে স্বয়ংক্রিয়ভাবে থেমে যায়।
         """.trimIndent() else """
-            Traker v$appVersion (3D Pin/Clip Sticky Notes, ML Kit + Google Lens Khata OCR, UPI Auto-Detect, Voice STT & Partial Bill Carry-Over)
-            Developed by @suvadippatra (GitHub)
-            © 2026 @suvadippatra. All rights reserved.
+            Traker v$appVersion • 100% Offline Smart Finance, Hotel Khata & Utility Tracker
 
-            ───────────────────────────
-            📖 COMPLETE USER GUIDE & LATEST FEATURES
-            ───────────────────────────
+            1. Hotel Khata & Offline OCR:
+            • Log daily meals, scan printed or handwritten khata pages offline (with EXIF auto-rotate & contrast boost), and share monthly bill status with receipt images.
 
-            1. 📌 "STICKY" TAB: 3D PUSH-PIN & PAPERCLIP GRAPHICS, DAMPER SCROLL & BOTTOM COLOR DOTS
-            • Realistic 3D Push-Pin & Paperclip: Sticky cards render custom vector Canvas 3D glossy Blue Push-Pins (with cast shadow) and Metallic Gold/Copper Paperclips overlapping the top-right edge of each note.
-            • Instant Load & Damper Scroll: Parsed note models are cached in memory and background wobble pauses while viewing/editing a note, eliminating open/click lag. Scrolling uses a smooth slow-motion damper effect.
-            • Centered Top-Bar Heading & Bottom Color Dots: Inside an opened note, the Heading is centered in the top bar without any pin/clip icon, first-tap edit jump is fixed, and page color dots sit centered at the bottom end line of the scrollable page content.
+            2. Extras, UPI Auto-Popup & Voice Memo:
+            • Edit any transaction directly from history or the 3-dot menu.
+            • Opt-in UPI & bank alert detector opens a quick-save popup with Voice Memo recording and offline Speech-to-Text synthesis.
 
-            2. 📷 "SCAN KHATA TO IMPORT" (GOOGLE ML KIT + GOOGLE LENS PASTE & HANDWRITTEN OCR REPAIR)
-            • Hybrid ML Kit + Google Lens Paste: Runs on-device Google ML Kit Text Recognition (`com.google.mlkit:text-recognition:16.0.1`) and provides a one-tap "Paste / Google Lens Text" button on Step 1.
-            • Handwritten Error Normalizer: Automatically repairs real-world handwritten OCR artifacts such as `6p 10 ( 26 -> 70 + 20`, `H1of2645`, `(9/16) / 26 -> 60 + 50`, `11/10/2640/`, `13/10/26201-`, and `31/10/26-401-` into exact dates and dish prices.
+            3. Electricity Graph & Partial Bill Carry-Over:
+            • Inspect daily kWh usage trends and multi-rate regions on the Log Reading graph.
+            • Edit partial bill payments and carry forward residual balances to your chosen month.
 
-            3. 🔔 LEGAL UPI PAYMENT AUTO-POPUP, MONTHLY REMINDERS, VOICE STT & QR PINCH-TO-ZOOM
-            • Opt-In UPI Auto-Detection: Detects completed payment notifications from Google Pay, PhonePe, Paytm, BharatPe, BHIM, etc., and automatically opens a popup in Traker to record purpose, category, account, and screenshot (<= 2MB).
-            • Monthly Payment Reminders & Native Voice STT: Schedule recurring monthly bill/rent reminders from the Extras hero card, and dictate transaction notes in English or Bengali using native keyless Android Speech-to-Text (`SpeechRecognizer`).
-            • QR Pinch-to-Zoom & Transfer Size Badge: Pinch with two fingers on the QR Send screen to zoom up to full screen width/height, and verify exact byte/record sync size on the Universal Transfer card.
-
-            4. ⚡ ELECTRICITY BILL "PAID AMOUNT EDIT" (PARTIAL CARRY-OVER) & HOTEL STATUS EXPORT
-            • Recorded Bill History replaces "Mark as Unpaid & Note" with "Paid Amount Edit" (with Full 100%, Half 50%, and Unpaid presets). Entering a partial payment automatically carries forward the remaining unpaid balance into the next month's bill calculation.
-            • Hotel Monthly Bill "Payment Status" dialog includes a direct Export/Share button, and Account Cards on the Extras page match the Hotel Card layout with inline Init/Inc/Exp breakdown.
-
-            👨‍💻 Developer & Open Source:
-            GitHub: @suvadippatra (https://github.com/suvadippatra)
-            License: Apache License 2.0
+            4. ZIP Media Backup & 5-Round QR Stream:
+            • Export and import .zip archives bundling JSON/CSV data with all attached images and audio memos.
+            • QR Send streams automatically stop after 5 complete rounds.
         """.trimIndent()
         "license" -> if (prefLanguage == "bn") """
             এই অ্যাপ্লিকেশনটি Apache License 2.0 এর অধীনে লাইসেন্সপ্রাপ্ত।
             
-            ব্যবহৃত ওপেন-সোর্স লাইব্রেরি ও ডাটাবেস:
-            - Android Jetpack Compose & Material Design 3
-            - Google ML Kit Text Recognition (com.google.mlkit:text-recognition:16.0.1)
-            - Android SpeechRecognizer & NotificationListenerService APIs
-            - AndroidX Room SQLite Database (Schema v36)
-            - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
-            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression)
-            - Kotlin Coroutines & Flow
-            - ZXing QR Engine & CameraX
-            - Coil Image Loader
+            ব্যবহৃত ওপেন-সোর্স লাইব্রেরি ও ইঞ্জিন:
+            • Android Jetpack Compose & Material Design 3
+            • Google Play Services ML Kit Text Recognition (v19.0.1 Unbundled)
+            • Android SpeechRecognizer, MediaRecorder & NotificationListenerService
+            • AndroidX Room SQLite Database & Java ZIP Archive Stream
+            • ZXing QR Engine, CameraX, ExifInterface & Coil
         """.trimIndent() else """
-            This application is licensed under the Apache License 2.0.
+            Licensed under the Apache License 2.0.
             
-            Open-source repositories, databases & assets used:
-            - Android Jetpack Compose & Material Design 3
-            - Google ML Kit Text Recognition (com.google.mlkit:text-recognition:16.0.1)
-            - Android SpeechRecognizer & NotificationListenerService APIs
-            - AndroidX Room SQLite Database (Schema v36)
-            - Google Fonts: Archivo Black & Archivo (SIL OFL 1.1)
-            - Android Graphics Bitmap & ExifInterface (<=2MB Auto-Compression)
-            - Kotlin Coroutines & Flow
-            - ZXing QR Engine & CameraX
-            - Coil Image Loader
+            Open-source libraries & system engines used:
+            • Android Jetpack Compose & Material Design 3
+            • Google Play Services ML Kit Text Recognition (v19.0.1 Unbundled)
+            • Android SpeechRecognizer, MediaRecorder & NotificationListenerService
+            • AndroidX Room SQLite Database & Java ZIP Archive Stream
+            • ZXing QR Engine, CameraX, ExifInterface & Coil
         """.trimIndent()
         "privacy" -> if (prefLanguage == "bn") """
-            আপনার প্রাইভেসি আমাদের কাছে সবচেয়ে গুরুত্বপূর্ণ।
-            
             Traker একটি ১০০% অফলাইন-ফার্স্ট অ্যাপ্লিকেশন:
-            ১. আপনার সমস্ত তথ্য শুধুমাত্র আপনার ডিভাইসের রুম ডাটাবেসে সংরক্ষিত থাকে।
-            ২. কোনো আর্থিক তথ্য বা ব্যক্তিগত ডেটা কোনো সার্ভারে পাঠানো হয় না।
-            ৩. গিটহাব বা পাবলিক সোর্স কোডে কোনো ব্যক্তিগত তথ্য বা API কী রাখা হয়নি।
+            • সমস্ত তথ্য ও মিডিয়া শুধুমাত্র আপনার ডিভাইসের লোকাল স্টোরেজে সংরক্ষিত থাকে।
+            • কোনো আর্থিক বা ব্যক্তিগত ডেটা কোনো বাহ্যিক সার্ভারে পাঠানো হয় না।
+            • সোর্স কোডে কোনো ব্যক্তিগত পরিচয় বা গোপন API কী সংরক্ষিত নেই।
         """.trimIndent() else """
-            Your privacy is our priority.
-            
-            Traker is a 100% OFFLINE-FIRST application:
-            1. All your data is stored locally on your device in Room SQLite.
-            2. No financial or personal data is transmitted to any external server.
-            3. Zero personal information, secrets, or API keys are exposed in the repository source code.
+            Traker is a 100% offline-first application:
+            • All records and media attachments remain strictly on your device.
+            • Zero financial or personal data is transmitted to any external server.
+            • Zero personal identifiers, secrets, or API keys are embedded in the source code.
         """.trimIndent()
         else -> ""
     }

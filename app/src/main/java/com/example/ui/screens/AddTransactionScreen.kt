@@ -74,7 +74,8 @@ fun copyUriToLocalFile(context: Context, uri: Uri, prefix: String): Uri {
 @Composable
 fun AddTransactionScreen(
     viewModel: FinancialViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    editingExpense: com.example.data.model.ExtraExpenseEntity? = null
 ) {
     val accounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
     val userCategories by viewModel.allCategories.collectAsStateWithLifecycle()
@@ -86,24 +87,59 @@ fun AddTransactionScreen(
     val customBgUri = userProfile?.customBgUri ?: ""
     val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
-    var name by remember { mutableStateOf("") }
-    var amountStr by remember { mutableStateOf("") }
+    var name by remember(editingExpense?.id) { mutableStateOf(editingExpense?.name ?: "") }
+    var amountStr by remember(editingExpense?.id) {
+        mutableStateOf(
+            editingExpense?.amount?.let {
+                if (it % 1.0 == 0.0) it.toLong().toString() else it.toString()
+            } ?: ""
+        )
+    }
     var showAmountKeyboard by remember { mutableStateOf(false) }
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
-    var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var selectedAccountId by remember(editingExpense?.id) {
+        mutableStateOf(editingExpense?.bankAccountId ?: accounts.firstOrNull()?.id ?: 0)
+    }
+    var timestamp by remember(editingExpense?.id) {
+        mutableStateOf(editingExpense?.timestamp ?: System.currentTimeMillis())
+    }
     
-    var type by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
-    var category by remember { mutableStateOf("General") }
-    var notes by remember { mutableStateOf("") }
-    var attachments by remember { mutableStateOf(listOf<Pair<Uri, String>>()) } // uri to type
+    var type by remember(editingExpense?.id) { mutableStateOf(editingExpense?.type ?: "EXPENSE") } // "EXPENSE" or "INCOME"
+    var category by remember(editingExpense?.id) { mutableStateOf(editingExpense?.category ?: "General") }
+    var notes by remember(editingExpense?.id) { mutableStateOf(editingExpense?.notes ?: "") }
+    var attachments by remember(editingExpense?.id) { mutableStateOf(listOf<Pair<Uri, String>>()) } // uri to type
     var previewImageUri by remember { mutableStateOf<String?>(null) }
+
+    val existingAttachments by remember(editingExpense?.id) {
+        if (editingExpense != null) {
+            viewModel.getAttachmentsForExpense(editingExpense.id)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
+
+    var loadedInitialAttachments by remember(editingExpense?.id) { mutableStateOf(false) }
+    LaunchedEffect(existingAttachments, editingExpense?.id) {
+        if (editingExpense != null && !loadedInitialAttachments && existingAttachments.isNotEmpty()) {
+            loadedInitialAttachments = true
+            attachments = existingAttachments.map { Uri.parse(it.uri) to it.type }
+        }
+    }
 
     var showAccountDropdown by remember { mutableStateOf(false) }
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
-    val hasUnsavedChanges = name.isNotBlank() || amountStr.isNotBlank() || notes.isNotBlank() || attachments.isNotEmpty()
+    val hasUnsavedChanges = if (editingExpense != null) {
+        name != editingExpense.name ||
+            (amountStr.toDoubleOrNull() ?: 0.0) != editingExpense.amount ||
+            notes != editingExpense.notes ||
+            selectedAccountId != editingExpense.bankAccountId ||
+            type != editingExpense.type ||
+            category != editingExpense.category
+    } else {
+        name.isNotBlank() || amountStr.isNotBlank() || notes.isNotBlank() || attachments.isNotEmpty()
+    }
     val handleBack = {
         if (hasUnsavedChanges) {
             showDiscardDialog = true
@@ -169,25 +205,40 @@ fun AddTransactionScreen(
         }
     }
 
-    fun launchSpeechToText(langTag: String = sttLang) {
-        runCatching {
+    fun launchSpeechToText(langTag: String = sttLang, preferOffline: Boolean = false) {
+        val primaryAttempt = runCatching {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, langTag)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langTag)
-                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, langTag)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                if (preferOffline && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                }
                 putExtra(
                     RecognizerIntent.EXTRA_PROMPT,
-                    if (langTag.startsWith("bn")) "বাংলায় বলুন (Speak in Bengali)..." else "Speak in English..."
+                    if (langTag.startsWith("bn")) "বাংলায় বলুন বা অফলাইন ভয়েস ব্যবহার করুন..." else "Speak clearly (Offline/Online STT supported)..."
                 )
             }
             sttLauncher.launch(intent)
-        }.onFailure {
-            android.widget.Toast.makeText(
-                context,
-                if (isBengali) "এই ডিভাইসে ভয়েস টাইপিং উপলব্ধ নেই" else "Speech-to-Text service is not available on this device",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+        }
+        if (primaryAttempt.isFailure) {
+            // Fallback to default English (en-US / device default) without strict locale lock
+            runCatching {
+                val fallbackIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US.toLanguageTag())
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak in English...")
+                }
+                sttLauncher.launch(fallbackIntent)
+            }.onFailure {
+                android.widget.Toast.makeText(
+                    context,
+                    if (isBengali) "ভয়েস টাইপিং উপলব্ধ নেই। অফলাইন প্যাক ডাউনলোড করুন।" else "Speech-to-Text not available. Opening Offline Voice settings...",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                com.example.service.DetectedUpiPaymentBus.openOfflineSpeechSettings(context)
+            }
         }
     }
 
@@ -358,7 +409,9 @@ fun AddTransactionScreen(
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
-                                        text = if (isBengali) {
+                                        text = if (editingExpense != null) {
+                                            if (isBengali) "লেনদেন সম্পাদনা করুন" else "Edit Transaction"
+                                        } else if (isBengali) {
                                             if (type == "EXPENSE") "খরচ যোগ করুন" else "আয় যোগ করুন"
                                         } else {
                                             if (type == "EXPENSE") "Add Expense" else "Add Income"
@@ -392,17 +445,32 @@ fun AddTransactionScreen(
                                                     return@GlassButton
                                                 }
                                             }
-                                            viewModel.saveExtraExpense(
-                                                name = name,
-                                                amount = amt,
-                                                bankAccountId = accId,
-                                                timestamp = timestamp,
-                                                receiptUri = null,
-                                                type = type,
-                                                category = category,
-                                                notes = notes,
-                                                attachments = attachments.map { it.first.toString() to it.second }
-                                            )
+                                            if (editingExpense != null) {
+                                                viewModel.updateExtraExpense(
+                                                    originalExpense = editingExpense,
+                                                    name = name,
+                                                    amount = amt,
+                                                    bankAccountId = accId,
+                                                    timestamp = timestamp,
+                                                    receiptUri = editingExpense.receiptUri,
+                                                    type = type,
+                                                    category = category,
+                                                    notes = notes,
+                                                    attachments = attachments.map { it.first.toString() to it.second }
+                                                )
+                                            } else {
+                                                viewModel.saveExtraExpense(
+                                                    name = name,
+                                                    amount = amt,
+                                                    bankAccountId = accId,
+                                                    timestamp = timestamp,
+                                                    receiptUri = null,
+                                                    type = type,
+                                                    category = category,
+                                                    notes = notes,
+                                                    attachments = attachments.map { it.first.toString() to it.second }
+                                                )
+                                            }
                                             onDismiss()
                                         },
                                         cornerRadius = 10.dp,
@@ -410,7 +478,11 @@ fun AddTransactionScreen(
                                         modifier = Modifier.testTag("save_transaction_button")
                                     ) {
                                         Text(
-                                            text = if (isBengali) "সংরক্ষণ" else "Save",
+                                            text = if (editingExpense != null) {
+                                                if (isBengali) "আপডেট" else "Update"
+                                            } else {
+                                                if (isBengali) "সংরক্ষণ" else "Save"
+                                            },
                                             color = AppTextColor(),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
@@ -760,14 +832,22 @@ fun AddTransactionScreen(
                                             ) {
                                                 Surface(
                                                     onClick = {
-                                                        sttLang = if (sttLang == "en-IN") "bn-IN" else "en-IN"
+                                                        sttLang = when (sttLang) {
+                                                            "en-IN" -> "en-US"
+                                                            "en-US" -> "bn-IN"
+                                                            else -> "en-IN"
+                                                        }
                                                     },
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AppAccentColor().copy(alpha = 0.14f),
                                                     border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f))
                                                 ) {
                                                     Text(
-                                                        text = if (sttLang == "bn-IN") "ভাষা: বাংলা" else "Lang: EN",
+                                                        text = when (sttLang) {
+                                                            "bn-IN" -> "ভাষা: বাংলা"
+                                                            "en-US" -> "Lang: EN-US"
+                                                            else -> "Lang: EN-IN"
+                                                        },
                                                         color = AppAccentColor(),
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
@@ -775,7 +855,32 @@ fun AddTransactionScreen(
                                                     )
                                                 }
                                                 Surface(
-                                                    onClick = { launchSpeechToText(sttLang) },
+                                                    onClick = { com.example.service.DetectedUpiPaymentBus.openOfflineSpeechSettings(context) },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = AccentGold.copy(alpha = 0.14f),
+                                                    border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.35f))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Settings,
+                                                            contentDescription = "Offline Speech Packs",
+                                                            tint = AccentGold,
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                        Text(
+                                                            text = if (isBengali) "অফলাইন" else "Offline",
+                                                            color = AccentGold,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                                Surface(
+                                                    onClick = { launchSpeechToText(sttLang, preferOffline = false) },
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AccentGreen.copy(alpha = 0.16f),
                                                     border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f))
@@ -914,20 +1019,43 @@ fun AddTransactionScreen(
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                 }
-                                                TextButton(
-                                                    onClick = {
-                                                        stopRecording(
-                                                            context = context,
-                                                            recorder = mediaRecorder,
-                                                            setRecording = { isRecording = it },
-                                                            currentUri = { currentVoiceUri },
-                                                            onComplete = { recordedUri ->
-                                                                 attachments = attachments + (recordedUri to "VOICE")
-                                                            }
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    TextButton(
+                                                        onClick = {
+                                                            stopRecording(
+                                                                context = context,
+                                                                recorder = mediaRecorder,
+                                                                setRecording = { isRecording = it },
+                                                                currentUri = { currentVoiceUri },
+                                                                onComplete = { recordedUri ->
+                                                                    attachments = attachments + (recordedUri to "VOICE")
+                                                                    launchSpeechToText(sttLang, preferOffline = false)
+                                                                }
+                                                            )
+                                                        }
+                                                    ) {
+                                                        Text(
+                                                            text = if (isBengali) "থামান ও টেক্সট করুন" else "Stop + Synthesize Text",
+                                                            color = AccentGreen,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 11.5.sp
                                                         )
                                                     }
-                                                ) {
-                                                    Text(if (isBengali) "থামান" else "Stop", color = AccentPink, fontWeight = FontWeight.Bold)
+                                                    TextButton(
+                                                        onClick = {
+                                                            stopRecording(
+                                                                context = context,
+                                                                recorder = mediaRecorder,
+                                                                setRecording = { isRecording = it },
+                                                                currentUri = { currentVoiceUri },
+                                                                onComplete = { recordedUri ->
+                                                                     attachments = attachments + (recordedUri to "VOICE")
+                                                                }
+                                                            )
+                                                        }
+                                                    ) {
+                                                        Text(if (isBengali) "থামান" else "Stop", color = AccentPink, fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
                                             }
                                         }

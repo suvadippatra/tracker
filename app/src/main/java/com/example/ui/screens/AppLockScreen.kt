@@ -143,8 +143,9 @@ fun AppLockScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        val firstName = userName.trim().substringBefore(" ")
         Text(
-            text = if (language == "bn") "${userName.ifBlank { "ব্যবহারকারী" }} এর পকেট লক করা আছে" else "${userName.ifBlank { "User" }}'s Pocket is Locked",
+            text = if (language == "bn") "${firstName.ifBlank { "ব্যবহারকারী" }} এর পকেট লক করা আছে" else "${firstName.ifBlank { "User" }}'s Pocket is Locked",
             color = AppTextColor(),
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold

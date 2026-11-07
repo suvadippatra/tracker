@@ -261,6 +261,12 @@ fun DailyReadingInputScreen(
     isLight: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        MeterReadingViewModel.isDailyMeterUsageEnabled(context)
+    }
+    val showDailyUsage by MeterReadingViewModel.showDailyMeterUsageFlow.collectAsStateWithLifecycle()
+
     val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
     val initialReading = latestMeterReading?.totalReading ?: 0.0
     
@@ -319,6 +325,19 @@ fun DailyReadingInputScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 156.dp)
     ) {
+        if (showDailyUsage && successState.readings.size >= 2) {
+            item(key = "daily_kwh_usage_graph") {
+                DailyMeterUsageAndRateRegionGraph(
+                    viewModel = viewModel,
+                    readings = successState.readings,
+                    rates = successState.rates,
+                    bills = successState.bills,
+                    language = language,
+                    currency = currency
+                )
+            }
+        }
+
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
@@ -501,7 +520,7 @@ fun DailyReadingInputScreen(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
-                                if (item.perDayUsageText != null) {
+                                if (showDailyUsage && item.perDayUsageText != null) {
                                     Text(
                                         text = item.perDayUsageText,
                                         color = AppAccentColor(),
@@ -769,10 +788,22 @@ fun BillSummaryScreen(
         )
     }
 
+    var selectedCarryOverTargetBillId by remember(billToEditStatus) { mutableStateOf<String?>(null) }
+
     if (billToEditStatus != null) {
+        val context = androidx.compose.ui.platform.LocalContext.current
         val targetBill = billToEditStatus!!
         val parsedEnteredPaid = editingPaidAmountText.toDoubleOrNull()?.coerceIn(0.0, targetBill.calculatedAmount.coerceAtLeast(0.0)) ?: 0.0
         val remainingCarryOver = (targetBill.calculatedAmount - parsedEnteredPaid).coerceAtLeast(0.0)
+        val laterBills = remember(targetBill, successState.bills) {
+            successState.bills
+                .filter { it.id != targetBill.id && it.endDate > targetBill.endDate }
+                .sortedBy { it.endDate }
+        }
+        val isOlderHistoricalMonth = laterBills.isNotEmpty()
+        val chosenTargetBill = laterBills.find { it.id == selectedCarryOverTargetBillId }
+        val monthShortFormat = remember { SimpleDateFormat("dd MMM yy", Locale.getDefault()) }
+
         AlertDialog(
             onDismissRequest = { billToEditStatus = null },
             containerColor = getDialogBackground(),
@@ -792,6 +823,38 @@ fun BillSummaryScreen(
                         .verticalScroll(rememberScrollState())
                         .imePadding()
                 ) {
+                    // Timely payment motivational quote banner
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppAccentColor().copy(alpha = 0.10f),
+                        border = BorderStroke(0.8.dp, AppAccentColor().copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = AppAccentColor(),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = if (language == "bn") {
+                                    "“সময়মতো বিল পরিশোধ ভবিষ্যতের মানসিক চাপ কমায় — আজকের ছোট বকেয়া মিটিয়ে রাখলে আগামী মাসগুলো থাকে নিশ্চিন্ত ও সহজ।”"
+                                } else {
+                                    "“Timely settlement today buys peace of mind tomorrow — clear small dues early so future months stay effortless.”"
+                                },
+                                color = AppTextColor(),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -806,7 +869,7 @@ fun BillSummaryScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${if (language == "bn") "পরবর্তী বিলে যোগ হবে (বাকি):" else "Unpaid Carry-Forward to Next Bill:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, remainingCarryOver)}",
+                            text = "${if (language == "bn") "পরবর্তী বিলে যোগ হবে (বাকি):" else "Unpaid Carry-Forward Balance:"} ${String.format(Locale.getDefault(), "%s %.2f", currency, remainingCarryOver)}",
                             color = if (remainingCarryOver >= 0.01) AccentPink else AppPaidTextColor(),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -912,6 +975,95 @@ fun BillSummaryScreen(
                         }
                     }
 
+                    // Residual balance target month selector for older historical months vs recent month
+                    if (remainingCarryOver >= 0.01) {
+                        if (isOlderHistoricalMonth) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AccentPink.copy(alpha = 0.08f))
+                                    .border(1.dp, AccentPink.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = if (language == "bn") {
+                                        "বাকি ${String.format(Locale.getDefault(), "%s %.2f", currency, remainingCarryOver)} কোন মাসের বিলে যুক্ত করবেন তা নির্বাচন করুন (বাধ্যতামূলক):"
+                                    } else {
+                                        "Select which later month bill receives the residual ${String.format(Locale.getDefault(), "%s %.2f", currency, remainingCarryOver)} (Required):"
+                                    },
+                                    color = AccentPink,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                laterBills.forEach { candidate ->
+                                    val isChosen = candidate.id == selectedCarryOverTargetBillId
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isChosen) AppAccentColor().copy(alpha = 0.18f) else AppTextColor().copy(alpha = 0.04f),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isChosen) AppAccentColor() else AppTextColor().copy(alpha = 0.15f)
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { selectedCarryOverTargetBillId = candidate.id }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                RadioButton(
+                                                    selected = isChosen,
+                                                    onClick = { selectedCarryOverTargetBillId = candidate.id },
+                                                    modifier = Modifier.size(20.dp),
+                                                    colors = RadioButtonDefaults.colors(selectedColor = AppAccentColor())
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "${monthShortFormat.format(Date(candidate.startDate))} – ${monthShortFormat.format(Date(candidate.endDate))}",
+                                                    color = AppTextColor(),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            }
+                                            Text(
+                                                text = String.format(Locale.getDefault(), "%s %.0f", currency, candidate.calculatedAmount),
+                                                color = AppAccentColor(),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = AppPrimaryBlueColor().copy(alpha = 0.10f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = if (language == "bn") {
+                                        "এটি সর্বশেষ মাসের বিল — বাকি টাকা স্বয়ংক্রিয়ভাবে চলমান মাসের বিলে যুক্ত হবে।"
+                                    } else {
+                                        "Most recent bill — residual balance will automatically carry forward to the ongoing month."
+                                    },
+                                    color = AppPrimaryBlueColor(),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = editingStatusNote,
                         onValueChange = { editingStatusNote = it },
@@ -935,11 +1087,21 @@ fun BillSummaryScreen(
                 TextButton(
                     onClick = {
                         val paidVal = editingPaidAmountText.toDoubleOrNull()?.coerceIn(0.0, targetBill.calculatedAmount.coerceAtLeast(0.0)) ?: 0.0
+                        val remVal = (targetBill.calculatedAmount - paidVal).coerceAtLeast(0.0)
+                        if (remVal >= 0.01 && isOlderHistoricalMonth && chosenTargetBill == null) {
+                            android.widget.Toast.makeText(
+                                context,
+                                if (language == "bn") "অনুগ্রহ করে বাকি টাকা কোন মাসের বিলে যোগ হবে তা নির্বাচন করুন" else "Please choose which month receives the residual balance",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            return@TextButton
+                        }
                         viewModel.updateBillPaymentStatus(
                             bill = targetBill,
                             newIsPaid = paidVal >= (targetBill.calculatedAmount - 0.01),
                             note = editingStatusNote,
-                            paidAmount = paidVal
+                            paidAmount = paidVal,
+                            carryOverTargetBill = chosenTargetBill
                         )
                         billToEditStatus = null
                     }
@@ -1783,3 +1945,314 @@ fun BillSummaryScreen(
         }
     }
 }
+
+private data class DailyUsagePoint(
+    val index: Int,
+    val startDate: Long,
+    val endDate: Long,
+    val startReading: Double,
+    val endReading: Double,
+    val deltaUnits: Double,
+    val unitsPerDay: Double,
+    val label: String
+)
+
+@Composable
+fun DailyMeterUsageAndRateRegionGraph(
+    viewModel: MeterReadingViewModel,
+    readings: List<MeterReading>,
+    rates: List<com.example.data.model.ElectricityRate>,
+    bills: List<UtilityBill>,
+    language: String,
+    currency: String
+) {
+    val sortedAsc = remember(readings) { readings.sortedBy { it.readingDate } }
+    val dateFmt = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+
+    val points = remember(sortedAsc) {
+        val list = mutableListOf<DailyUsagePoint>()
+        for (i in 1 until sortedAsc.size) {
+            val prev = sortedAsc[i - 1]
+            val curr = sortedAsc[i]
+            val delta = (curr.totalReading - prev.totalReading).coerceAtLeast(0.0)
+            val days = ((curr.readingDate - prev.readingDate).toDouble() / (24.0 * 3600.0 * 1000.0)).coerceAtLeast(0.25)
+            val perDay = Math.round((delta / days) * 100.0) / 100.0
+            list.add(
+                DailyUsagePoint(
+                    index = i - 1,
+                    startDate = prev.readingDate,
+                    endDate = curr.readingDate,
+                    startReading = prev.totalReading,
+                    endReading = curr.totalReading,
+                    deltaUnits = Math.round(delta * 100.0) / 100.0,
+                    unitsPerDay = perDay,
+                    label = dateFmt.format(Date(curr.readingDate))
+                )
+            )
+        }
+        list.takeLast(10)
+    }
+
+    if (points.isEmpty()) return
+
+    var selectedStartIdx by remember(points.size) { mutableIntStateOf(0) }
+    var selectedEndIdx by remember(points.size) { mutableIntStateOf(points.lastIndex) }
+
+    val safeStart = minOf(selectedStartIdx, selectedEndIdx).coerceIn(0, points.lastIndex)
+    val safeEnd = maxOf(selectedStartIdx, selectedEndIdx).coerceIn(0, points.lastIndex)
+
+    val selectedStartPoint = points[safeStart]
+    val selectedEndPoint = points[safeEnd]
+    val fixedCharge by viewModel.fixedServiceCharge.collectAsStateWithLifecycle()
+
+    val regionCalc = remember(selectedStartPoint, selectedEndPoint, sortedAsc, rates, fixedCharge, bills) {
+        viewModel.calculateDetailedBill(
+            start = selectedStartPoint.startDate,
+            end = selectedEndPoint.endDate,
+            sortedReadings = sortedAsc,
+            rates = rates,
+            fixedCharge = 0.0,
+            bills = bills
+        )
+    }
+
+    val latestPerDay = points.last().unitsPerDay
+    val prevPerDay = if (points.size >= 2) points[points.size - 2].unitsPerDay else latestPerDay
+    val isDecreasing = latestPerDay <= prevPerDay
+    val trendDelta = Math.round(kotlin.math.abs(latestPerDay - prevPerDay) * 100.0) / 100.0
+    val maxUnitsPerDay = (points.maxOfOrNull { it.unitsPerDay } ?: 1.0).coerceAtLeast(0.5)
+
+    val accentColor = AppAccentColor()
+    val textColor = AppTextColor()
+    val secondaryColor = AppSecondaryTextColor()
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Top Title + Trend Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (language == "bn") "দৈনিক বিদ্যুৎ ব্যবহার ও রেট রিজিওন গ্রাফ" else "Daily Usage & Rate Region Graph",
+                        color = textColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (language == "bn") "বার ট্যাপ করে যেকোনো সময়ের ইউনিট ও রেট দেখুন" else "Tap bars to inspect reading difference & rate policies",
+                        color = secondaryColor,
+                        fontSize = 11.sp
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = if (isDecreasing) AppPaidBgColor() else AppUnpaidBgColor()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isDecreasing) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                            contentDescription = null,
+                            tint = if (isDecreasing) AppPaidTextColor() else AppUnpaidTextColor(),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (isDecreasing) {
+                                if (language == "bn") "-$trendDelta/দিন" else "-$trendDelta u/d"
+                            } else {
+                                if (language == "bn") "+$trendDelta/দিন" else "+$trendDelta u/d"
+                            },
+                            color = if (isDecreasing) AppPaidTextColor() else AppUnpaidTextColor(),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Quick Region Presets
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val presets = listOf(
+                    Triple(
+                        if (language == "bn") "সর্বশেষ লগ" else "Latest Interval",
+                        points.lastIndex,
+                        points.lastIndex
+                    ),
+                    Triple(
+                        if (language == "bn") "শেষ ৫ লগ" else "Last 5 Logs",
+                        (points.size - 5).coerceAtLeast(0),
+                        points.lastIndex
+                    ),
+                    Triple(
+                        if (language == "bn") "সম্পূর্ণ গ্রাফ" else "Full Graph",
+                        0,
+                        points.lastIndex
+                    )
+                )
+                presets.forEach { (title, pStart, pEnd) ->
+                    val isSelected = safeStart == pStart && safeEnd == pEnd
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSelected) accentColor.copy(alpha = 0.18f) else textColor.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, if (isSelected) accentColor else Color.Transparent),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                selectedStartIdx = pStart
+                                selectedEndIdx = pEnd
+                            }
+                    ) {
+                        Text(
+                            text = title,
+                            color = if (isSelected) accentColor else textColor,
+                            fontSize = 10.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            // Interactive Bar + Line Chart
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(132.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(textColor.copy(alpha = 0.03f))
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                points.forEachIndexed { idx, pt ->
+                    val inSelectedRange = idx in safeStart..safeEnd
+                    val heightFraction = (pt.unitsPerDay / maxUnitsPerDay).toFloat().coerceIn(0.12f, 1f)
+                    val barColor = when {
+                        idx == safeStart || idx == safeEnd -> accentColor
+                        inSelectedRange -> accentColor.copy(alpha = 0.65f)
+                        else -> textColor.copy(alpha = 0.18f)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                if (selectedStartIdx == selectedEndIdx && selectedStartIdx != idx) {
+                                    selectedEndIdx = idx
+                                } else {
+                                    selectedStartIdx = idx
+                                    selectedEndIdx = idx
+                                }
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Text(
+                            text = String.format(Locale.getDefault(), "%.1f", pt.unitsPerDay),
+                            color = if (inSelectedRange) accentColor else secondaryColor,
+                            fontSize = 9.sp,
+                            fontWeight = if (inSelectedRange) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.72f)
+                                .fillMaxHeight(heightFraction * 0.72f)
+                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 3.dp, bottomEnd = 3.dp))
+                                .background(barColor)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = pt.label,
+                            color = if (inSelectedRange) textColor else secondaryColor,
+                            fontSize = 8.5.sp,
+                            fontWeight = if (inSelectedRange) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Selected Region Summary & Multi-Rate Breakdown
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accentColor.copy(alpha = 0.08f))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val regionUnits = Math.round((selectedEndPoint.endReading - selectedStartPoint.startReading).coerceAtLeast(0.0) * 100.0) / 100.0
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${dateFmt.format(Date(selectedStartPoint.startDate))} → ${dateFmt.format(Date(selectedEndPoint.endDate))}",
+                        color = textColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = String.format(Locale.getDefault(), "Δ %.2f kWh • %s %.2f", regionUnits, currency, regionCalc.totalCost),
+                        color = accentColor,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                Text(
+                    text = String.format(
+                        Locale.getDefault(),
+                        "Reading: %.2f kWh → %.2f kWh",
+                        selectedStartPoint.startReading,
+                        selectedEndPoint.endReading
+                    ),
+                    color = secondaryColor,
+                    fontSize = 11.sp
+                )
+                if (regionCalc.breakdown.size > 1) {
+                    HorizontalDivider(color = textColor.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 2.dp))
+                    regionCalc.breakdown.forEach { b ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${dateFmt.format(Date(b.periodStart))}–${dateFmt.format(Date(b.periodEnd))} (${String.format(Locale.getDefault(), "%.2f", b.units)} kWh @ $currency${b.ratePerUnit})",
+                                color = secondaryColor,
+                                fontSize = 10.5.sp
+                            )
+                            Text(
+                                text = String.format(Locale.getDefault(), "%s %.2f", currency, b.cost),
+                                color = textColor,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
