@@ -104,10 +104,10 @@ fun AboutSettingsScreen(
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.Share,
-                titleEn = "ZIP Media Backup, 5-Round QR & Fast Sticky Notes",
-                titleBn = "ZIP মিডিয়া ব্যাকআপ, QR ও ফাস্ট স্টিকি নোটস",
-                descEn = "Export/Import .zip archives carrying all attached images & audio, 5-round auto-stop QR stream, and instant virtualized Sticky Notes.",
-                descBn = "ছবি ও অডিওসহ .zip ব্যাকআপ, ৫-রাউন্ড অটো-স্টপ QR এবং দ্রুত লোডিং স্টিকি নোটস।"
+                titleEn = "ZIP Media Backup, 5-Round QR & Zero-Lag Sticky Notes",
+                titleBn = "ZIP মিডিয়া ব্যাকআপ, QR ও জিরো-ল্যাগ স্টিকি নোটস",
+                descEn = "Export/Import .zip archives carrying all attached images & audio, 5-round auto-stop QR stream, and background-prewarmed Sticky Notes with contiguous SpanStyle runs & drawWithCache vector pins.",
+                descBn = "ছবি ও অডিওসহ .zip ব্যাকআপ, ৫-রাউন্ড অটো-স্টপ QR এবং ব্যাকগ্রাউন্ড প্রি-ওয়ার্মড দ্রুত স্টিকি নোটস।"
             )
         )
     }
@@ -116,7 +116,7 @@ fun AboutSettingsScreen(
         listOf(
             PublicRepoReference(
                 name = "Jetpack Compose & Material 3",
-                category = "Adaptive Mobile/Tablet UI, Canvas Charts & Smooth Transitions",
+                category = "Adaptive Mobile/Tablet UI, drawWithCache Vector Graphics & Contiguous SpanStyle Text Engine",
                 license = "Apache 2.0",
                 urlOrSource = "androidx.compose.material3"
             ),

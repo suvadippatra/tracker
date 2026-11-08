@@ -102,31 +102,20 @@ fun TabContentArea(
     userProfile: com.example.data.model.UserProfileEntity?,
     onOpenUtilityConfig: () -> Unit
 ) {
-    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
-    AnimatedContent(
-        targetState = activeTab,
-        transitionSpec = {
-            val dur = if (fastMode) 90 else 150
-            fadeIn(animationSpec = tween(dur, easing = FastOutSlowInEasing)) togetherWith
-                fadeOut(animationSpec = tween(dur / 2, easing = FastOutLinearInEasing))
-        },
-        label = "tab_content_transition"
-    ) { tab ->
-        when (tab) {
-            "Hotels" -> HotelManagementTab(viewModel)
-            "Extras" -> ExtraExpensesTab(viewModel)
-            "Bill" -> {
-                userProfile?.let { profile ->
-                    BillTrackingTab(
-                        viewModel = meterViewModel,
-                        userProfile = profile,
-                        financialViewModel = viewModel,
-                        onOpenUtilityConfig = onOpenUtilityConfig
-                    )
-                }
+    when (activeTab) {
+        "Hotels" -> HotelManagementTab(viewModel)
+        "Extras" -> ExtraExpensesTab(viewModel)
+        "Bill" -> {
+            userProfile?.let { profile ->
+                BillTrackingTab(
+                    viewModel = meterViewModel,
+                    userProfile = profile,
+                    financialViewModel = viewModel,
+                    onOpenUtilityConfig = onOpenUtilityConfig
+                )
             }
-            "Sticky" -> StickyNotesTab(viewModel)
         }
+        "Sticky" -> StickyNotesTab(viewModel)
     }
 }
 
@@ -284,11 +273,8 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
         viewModel.registerSubScreen("UtilConfig", showUtilConfig)
     }
 
-    val stickyNotes by viewModel.allStickyNotes.collectAsStateWithLifecycle()
+    val allStickyTags by viewModel.allStickyTags.collectAsStateWithLifecycle()
     val selectedStickyTag by viewModel.selectedStickyTag.collectAsStateWithLifecycle()
-    val allStickyTags = remember(stickyNotes) {
-        stickyNotes.flatMap { it.tagList }.distinct()
-    }
     LaunchedEffect(allStickyTags, selectedStickyTag) {
         if (selectedStickyTag != "ALL" && selectedStickyTag !in allStickyTags) {
             viewModel.selectedStickyTag.value = "ALL"

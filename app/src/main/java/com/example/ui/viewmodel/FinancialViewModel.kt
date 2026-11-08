@@ -274,6 +274,18 @@ class FinancialViewModel(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.allStickyNotes
+        .map { notes ->
+            com.example.ui.screens.StickyCardPreviewCache.prewarmAll(notes, 6)
+            notes
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val allStickyTags: StateFlow<List<String>> = allStickyNotes
+        .map { notes ->
+            notes.flatMap { com.example.ui.screens.StickyCardPreviewCache.getOrCompute(it, 6).tagsList }.distinct()
+        }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val deletedStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.deletedStickyNotes
@@ -384,49 +396,57 @@ class FinancialViewModel(
 
     // Sticky Notes CRUD
     fun saveStickyNote(note: StickyNoteEntity, onSaved: ((Int) -> Unit)? = null) {
-        viewModelScope.launch {
-            if (note.id == 0) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val savedId = if (note.id == 0) {
                 val maxOrder = allStickyNotes.value.maxOfOrNull { it.sortOrder } ?: -1
-                val newId = repository.insertStickyNote(
-                    note.copy(
-                        sortOrder = maxOrder + 1,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                ).toInt()
-                onSaved?.invoke(newId)
+                val toInsert = note.copy(
+                    sortOrder = maxOrder + 1,
+                    updatedAt = now
+                )
+                val newId = repository.insertStickyNote(toInsert).toInt()
+                com.example.ui.screens.StickyCardPreviewCache.getOrCompute(toInsert.copy(id = newId), 6)
+                newId
             } else {
-                repository.updateStickyNote(note.copy(updatedAt = System.currentTimeMillis()))
-                onSaved?.invoke(note.id)
+                val toUpdate = note.copy(updatedAt = now)
+                repository.updateStickyNote(toUpdate)
+                com.example.ui.screens.StickyCardPreviewCache.getOrCompute(toUpdate, 6)
+                note.id
+            }
+            if (onSaved != null) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    onSaved.invoke(savedId)
+                }
             }
         }
     }
 
     fun softDeleteStickyNote(note: StickyNoteEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.softDeleteStickyNote(note.id)
         }
     }
 
     fun restoreStickyNote(note: StickyNoteEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.restoreStickyNote(note.id)
         }
     }
 
     fun deleteStickyNotePermanently(note: StickyNoteEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.deleteStickyNotePermanently(note)
         }
     }
 
     fun emptyDeletedStickyNotesPermanently() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.emptyDeletedStickyNotesPermanently()
         }
     }
 
     fun reorderStickyNotes(orderedNotes: List<StickyNoteEntity>) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val updated = orderedNotes.mapIndexed { index, note ->
                 note.copy(sortOrder = index)
             }

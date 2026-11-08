@@ -35,6 +35,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -365,6 +366,15 @@ fun parseNoteBodyAndEnvelope(rawBody: String, rawSubtitle: String): Pair<String,
  * - Applies per-line ParagraphStyle(textAlign = ...) so each sentence/line has its own alignment!
  * - Preserves 1:1 character length (`OffsetMapping.Identity`) so cursor placement never jumps.
  */
+private val STICKY_BOLD_REGEX = Regex("""\*([^\*\n]+)\*""")
+private val STICKY_ITALIC_REGEX = Regex("""_([^_\n]+)_""")
+
+/**
+ * VisualTransformation for Sticky Note editor:
+ * - Renders `*bold*` and `_italic_` inline
+ * - Applies per-line ParagraphStyle(textAlign = ...) so each sentence/line has its own alignment!
+ * - Preserves 1:1 character length (`OffsetMapping.Identity`) so cursor placement never jumps.
+ */
 class StickyFormattingVisualTransformation(
     private val isLight: Boolean,
     private val isBoldMode: Boolean,
@@ -374,80 +384,84 @@ class StickyFormattingVisualTransformation(
 ) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val raw = text.text
+        if (raw.isEmpty() || (!raw.contains('*') && !raw.contains('_') && lineAlignments.isEmpty())) {
+            return TransformedText(text, OffsetMapping.Identity)
+        }
         val markerColor = baseColor.copy(alpha = 0.28f)
         val boldSpanFont = if (isBoldMode) ArchivoBlackFontFamily else AppBoldFontFamily
 
         val styled = buildAnnotatedString {
             append(raw)
 
-            // Apply per-line ParagraphStyle alignment
-            var lineStart = 0
-            var lineIdx = 0
-            while (lineStart <= raw.length) {
-                val nextNewline = raw.indexOf('\n', lineStart)
-                val lineEnd = if (nextNewline == -1) raw.length else nextNewline + 1
-                val alignStr = lineAlignments[lineIdx] ?: "START"
-                if (alignStr != "START" && lineStart < lineEnd) {
+            if (lineAlignments.isNotEmpty()) {
+                var lineStart = 0
+                var lineIdx = 0
+                while (lineStart <= raw.length) {
+                    val nextNewline = raw.indexOf('\n', lineStart)
+                    val lineEnd = if (nextNewline == -1) raw.length else nextNewline + 1
+                    val alignStr = lineAlignments[lineIdx] ?: "START"
+                    if (alignStr != "START" && lineStart < lineEnd) {
+                        addStyle(
+                            style = ParagraphStyle(textAlign = mapStringToTextAlign(alignStr)),
+                            start = lineStart,
+                            end = lineEnd
+                        )
+                    }
+                    if (nextNewline == -1) break
+                    lineStart = nextNewline + 1
+                    lineIdx++
+                }
+            }
+
+            if (raw.contains('*')) {
+                STICKY_BOLD_REGEX.findAll(raw).forEach { match ->
+                    val fullRange = match.range
                     addStyle(
-                        style = ParagraphStyle(textAlign = mapStringToTextAlign(alignStr)),
-                        start = lineStart,
-                        end = lineEnd
+                        SpanStyle(color = markerColor, fontSize = 10.sp),
+                        fullRange.first,
+                        fullRange.first + 1
+                    )
+                    addStyle(
+                        SpanStyle(
+                            fontFamily = boldSpanFont,
+                            fontWeight = FontWeight.Black,
+                            fontSize = if (isBoldMode) 1.12.em else 1.05.em,
+                            color = if (isBoldMode) accentColor else baseColor,
+                            textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
+                        ),
+                        fullRange.first + 1,
+                        fullRange.last
+                    )
+                    addStyle(
+                        SpanStyle(color = markerColor, fontSize = 10.sp),
+                        fullRange.last,
+                        fullRange.last + 1
                     )
                 }
-                if (nextNewline == -1) break
-                lineStart = nextNewline + 1
-                lineIdx++
             }
 
-            // Style *bold* spans
-            val boldRegex = Regex("""\*([^\*\n]+)\*""")
-            boldRegex.findAll(raw).forEach { match ->
-                val fullRange = match.range
-                addStyle(
-                    SpanStyle(color = markerColor, fontSize = 10.sp),
-                    fullRange.first,
-                    fullRange.first + 1
-                )
-                addStyle(
-                    SpanStyle(
-                        fontFamily = boldSpanFont,
-                        fontWeight = FontWeight.Black,
-                        fontSize = if (isBoldMode) 1.12.em else 1.05.em,
-                        color = if (isBoldMode) accentColor else baseColor,
-                        textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
-                    ),
-                    fullRange.first + 1,
-                    fullRange.last
-                )
-                addStyle(
-                    SpanStyle(color = markerColor, fontSize = 10.sp),
-                    fullRange.last,
-                    fullRange.last + 1
-                )
-            }
-
-            // Style _italic_ spans
-            val italicRegex = Regex("""_([^_\n]+)_""")
-            italicRegex.findAll(raw).forEach { match ->
-                val fullRange = match.range
-                addStyle(
-                    SpanStyle(color = markerColor, fontSize = 10.sp),
-                    fullRange.first,
-                    fullRange.first + 1
-                )
-                addStyle(
-                    SpanStyle(
-                        fontStyle = FontStyle.Italic,
-                        color = baseColor.copy(alpha = 0.92f)
-                    ),
-                    fullRange.first + 1,
-                    fullRange.last
-                )
-                addStyle(
-                    SpanStyle(color = markerColor, fontSize = 10.sp),
-                    fullRange.last,
-                    fullRange.last + 1
-                )
+            if (raw.contains('_')) {
+                STICKY_ITALIC_REGEX.findAll(raw).forEach { match ->
+                    val fullRange = match.range
+                    addStyle(
+                        SpanStyle(color = markerColor, fontSize = 10.sp),
+                        fullRange.first,
+                        fullRange.first + 1
+                    )
+                    addStyle(
+                        SpanStyle(
+                            fontStyle = FontStyle.Italic,
+                            color = baseColor.copy(alpha = 0.92f)
+                        ),
+                        fullRange.first + 1,
+                        fullRange.last
+                    )
+                    addStyle(
+                        SpanStyle(color = markerColor, fontSize = 10.sp),
+                        fullRange.last,
+                        fullRange.last + 1
+                    )
+                }
             }
         }
 
@@ -455,9 +469,137 @@ class StickyFormattingVisualTransformation(
     }
 }
 
+data class StickyInlineSpan(
+    val start: Int,
+    val end: Int,
+    val isBold: Boolean
+)
+
+data class ParsedStickyFormattedText(
+    val plainText: String,
+    val inlineSpans: List<StickyInlineSpan>,
+    val lineParagraphRanges: List<Triple<Int, Int, String>>
+) {
+    val hasCustomFormatting: Boolean
+        get() = inlineSpans.isNotEmpty() || lineParagraphRanges.isNotEmpty()
+}
+
+fun parseStickyFormattedText(
+    rawText: String,
+    lineAlignments: Map<Int, String> = emptyMap()
+): ParsedStickyFormattedText {
+    if (rawText.isEmpty()) {
+        return ParsedStickyFormattedText("", emptyList(), emptyList())
+    }
+    if (!rawText.contains('*') && !rawText.contains('_') && lineAlignments.isEmpty()) {
+        return ParsedStickyFormattedText(rawText, emptyList(), emptyList())
+    }
+
+    val sb = StringBuilder(rawText.length)
+    val spans = ArrayList<StickyInlineSpan>(4)
+    val paraRanges = ArrayList<Triple<Int, Int, String>>(4)
+
+    val lines = rawText.split('\n')
+    for (lineIdx in lines.indices) {
+        val lineText = lines[lineIdx]
+        val paraStart = sb.length
+        var i = 0
+        val n = lineText.length
+        while (i < n) {
+            val ch = lineText[i]
+            if (ch == '*') {
+                val end = lineText.indexOf('*', i + 1)
+                if (end > i + 1) {
+                    val spanStart = sb.length
+                    sb.append(lineText, i + 1, end)
+                    val spanEnd = sb.length
+                    spans.add(StickyInlineSpan(spanStart, spanEnd, isBold = true))
+                    i = end + 1
+                    continue
+                }
+            } else if (ch == '_') {
+                val end = lineText.indexOf('_', i + 1)
+                if (end > i + 1) {
+                    val spanStart = sb.length
+                    sb.append(lineText, i + 1, end)
+                    val spanEnd = sb.length
+                    spans.add(StickyInlineSpan(spanStart, spanEnd, isBold = false))
+                    i = end + 1
+                    continue
+                }
+            }
+            sb.append(ch)
+            i++
+        }
+        if (lineIdx < lines.lastIndex) {
+            sb.append('\n')
+        }
+        val paraEnd = sb.length
+        val alignStr = lineAlignments[lineIdx]
+        if (alignStr != null && alignStr != "START" && paraStart < paraEnd) {
+            paraRanges.add(Triple(paraStart, paraEnd, alignStr))
+        }
+    }
+
+    return ParsedStickyFormattedText(
+        plainText = sb.toString(),
+        inlineSpans = spans,
+        lineParagraphRanges = paraRanges
+    )
+}
+
+fun buildAnnotatedFromParsedSticky(
+    parsed: ParsedStickyFormattedText,
+    isBoldMode: Boolean,
+    baseColor: Color,
+    accentColor: Color
+): AnnotatedString {
+    if (!parsed.hasCustomFormatting) {
+        return AnnotatedString(parsed.plainText)
+    }
+    val boldSpanFont = if (isBoldMode) ArchivoBlackFontFamily else AppBoldFontFamily
+    val regularFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
+    return buildAnnotatedString {
+        append(parsed.plainText)
+        for (span in parsed.inlineSpans) {
+            if (span.isBold) {
+                addStyle(
+                    style = SpanStyle(
+                        fontFamily = boldSpanFont,
+                        fontWeight = FontWeight.Black,
+                        fontSize = if (isBoldMode) 1.12.em else 1.05.em,
+                        color = if (isBoldMode) accentColor else baseColor,
+                        textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
+                    ),
+                    start = span.start,
+                    end = span.end
+                )
+            } else {
+                addStyle(
+                    style = SpanStyle(
+                        fontFamily = regularFont,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
+                        color = baseColor.copy(alpha = 0.92f)
+                    ),
+                    start = span.start,
+                    end = span.end
+                )
+            }
+        }
+        for ((pStart, pEnd, alignStr) in parsed.lineParagraphRanges) {
+            addStyle(
+                style = ParagraphStyle(textAlign = mapStringToTextAlign(alignStr)),
+                start = pStart,
+                end = pEnd
+            )
+        }
+    }
+}
+
 /**
  * Builds an AnnotatedString for viewer/card display that strips `*` and `_` markers
- * and applies per-line ParagraphStyle alignments.
+ * and applies per-line ParagraphStyle alignments with minimal SpanStyle runs.
  */
 @Composable
 fun buildFormattedStickyAnnotatedString(
@@ -467,79 +609,11 @@ fun buildFormattedStickyAnnotatedString(
     accentColor: Color,
     lineAlignments: Map<Int, String> = emptyMap()
 ): AnnotatedString {
-    val boldSpanFont = if (isBoldMode) ArchivoBlackFontFamily else AppBoldFontFamily
-    val regularFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
-
-    return remember(rawText, isBoldMode, baseColor, accentColor, lineAlignments) {
-        buildAnnotatedString {
-            val lines = rawText.split('\n')
-            lines.forEachIndexed { lineIdx, lineText ->
-                val paraStart = this.length
-                var i = 0
-                val n = lineText.length
-                while (i < n) {
-                    if (lineText[i] == '*') {
-                        val end = lineText.indexOf('*', i + 1)
-                        if (end > i + 1) {
-                            val content = lineText.substring(i + 1, end)
-                            pushStyle(
-                                SpanStyle(
-                                    fontFamily = boldSpanFont,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = if (isBoldMode) 1.12.em else 1.05.em,
-                                    color = if (isBoldMode) accentColor else baseColor,
-                                    textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
-                                )
-                            )
-                            append(content)
-                            pop()
-                            i = end + 1
-                            continue
-                        }
-                    }
-                    if (lineText[i] == '_') {
-                        val end = lineText.indexOf('_', i + 1)
-                        if (end > i + 1) {
-                            val content = lineText.substring(i + 1, end)
-                            pushStyle(
-                                SpanStyle(
-                                    fontFamily = regularFont,
-                                    fontStyle = FontStyle.Italic,
-                                    fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
-                                    color = baseColor.copy(alpha = 0.92f)
-                                )
-                            )
-                            append(content)
-                            pop()
-                            i = end + 1
-                            continue
-                        }
-                    }
-                    pushStyle(
-                        SpanStyle(
-                            fontFamily = regularFont,
-                            fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
-                            color = baseColor
-                        )
-                    )
-                    append(lineText[i])
-                    pop()
-                    i++
-                }
-                if (lineIdx < lines.lastIndex) {
-                    append('\n')
-                }
-                val paraEnd = this.length
-                val alignStr = lineAlignments[lineIdx] ?: "START"
-                if (alignStr != "START" && paraStart < paraEnd) {
-                    addStyle(
-                        style = ParagraphStyle(textAlign = mapStringToTextAlign(alignStr)),
-                        start = paraStart,
-                        end = paraEnd
-                    )
-                }
-            }
-        }
+    val parsed = remember(rawText, lineAlignments) {
+        parseStickyFormattedText(rawText, lineAlignments)
+    }
+    return remember(parsed, isBoldMode, baseColor, accentColor) {
+        buildAnnotatedFromParsedSticky(parsed, isBoldMode, baseColor, accentColor)
     }
 }
 
@@ -549,14 +623,20 @@ data class StickyCardPreviewModel(
     val subHeading: String,
     val pinIcon: String,
     val tableData: StickyTableData?,
-    val truncatedBody: String,
-    val lineAlignments: Map<Int, String>,
+    val parsedPreview: ParsedStickyFormattedText,
     val attachmentsCount: Int,
-    val tagsList: List<String>
+    val tagsList: List<String>,
+    val staticTiltDegrees: Float
 )
 
-private object StickyCardPreviewCache {
+internal object StickyCardPreviewCache {
     private val map = java.util.concurrent.ConcurrentHashMap<String, StickyCardPreviewModel>()
+
+    fun prewarmAll(notes: List<StickyNoteEntity>, previewLines: Int = 6) {
+        for (note in notes) {
+            getOrCompute(note, previewLines)
+        }
+    }
 
     fun getOrCompute(note: StickyNoteEntity, maxPreviewLines: Int): StickyCardPreviewModel {
         val key = "${note.id}_${note.updatedAt}_$maxPreviewLines"
@@ -573,18 +653,21 @@ private object StickyCardPreviewCache {
         val bodyLines = cleanedBody.lineSequence().take(maxLinesToKeep).joinToString("\n")
         val truncatedBody = if (bodyLines.length > 340) bodyLines.substring(0, 340) + "…" else bodyLines
         val alignments = parseLineAlignments(note.textAlignment).filterKeys { it < maxLinesToKeep }
+        val parsedPreview = parseStickyFormattedText(truncatedBody, alignments)
         val attCount = StickyAttachmentItem.listFromJson(note.attachmentsJson).size
         val tags = if (note.tags.isBlank()) emptyList() else note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val tiltAngles = floatArrayOf(-0.65f, 0.55f, -0.40f, 0.70f, -0.50f, 0.45f)
+        val staticTilt = tiltAngles[note.id.mod(tiltAngles.size)]
         return StickyCardPreviewModel(
             noteId = note.id,
             updatedAt = note.updatedAt,
             subHeading = envelope.subHeading,
             pinIcon = envelope.pinIcon,
             tableData = envelope.table,
-            truncatedBody = truncatedBody,
-            lineAlignments = alignments,
+            parsedPreview = parsedPreview,
             attachmentsCount = attCount,
-            tagsList = tags
+            tagsList = tags,
+            staticTiltDegrees = staticTilt
         )
     }
 }
@@ -600,18 +683,14 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     val maxPreviewLines = LocalStickyPreviewLines.current.coerceIn(4, 10)
     val haptic = LocalHapticFeedback.current
 
-    // Pre-warm all card preview models on background thread so scrolling & opening the tab has zero UI-thread JSON/Regex work
-    var prewarmVersion by remember { mutableIntStateOf(0) }
+    // Keep preview cache warm for custom preview lines setting on background thread without triggering redundant UI recomposition
     LaunchedEffect(allNotes, maxPreviewLines) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            allNotes.forEach { note ->
-                StickyCardPreviewCache.getOrCompute(note, maxPreviewLines)
-            }
+            StickyCardPreviewCache.prewarmAll(allNotes, maxPreviewLines)
         }
-        prewarmVersion++
     }
 
-    val notes = remember(allNotes, selectedTag, prewarmVersion) {
+    val notes = remember(allNotes, selectedTag, maxPreviewLines) {
         if (selectedTag == "ALL" || selectedTag.isBlank()) {
             allNotes
         } else {
@@ -631,71 +710,29 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     var rearrangingNoteId by remember { mutableStateOf<Int?>(null) }
     var localNotesOrder by remember(notes) { mutableStateOf(notes) }
 
-    // Fast Simple Harmonic Oscillator (SHO) phase for floating cards (paused when heavy effects are disabled OR when a note dialog is open)
-    val disableHeavy = isHeavyEffectsDisabled() || openedNote != null || isCreatingNewNote
-    val shoPhaseState: State<Float> = if (disableHeavy) {
-        remember { mutableFloatStateOf(0f) }
-    } else {
-        val infiniteTransition = rememberInfiniteTransition(label = "sticky_sho")
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = (2f * PI).toFloat(),
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 3200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "sho_phase"
-        )
-    }
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp.dp
+    val screenHeightDp = configuration.screenHeightDp.dp
+    val isTablet = screenWidthDp >= 600.dp
+    val containerWidth = if (isTablet) (screenWidthDp - 96.dp).coerceAtLeast(320.dp) else screenWidthDp
+    val isWallMode = screenWidthDp >= 600.dp || screenWidthDp > screenHeightDp
 
-    // Custom Damper Slow-Motion Scroll Connection & Fling Behavior for smooth viscous scrolling
-    val damperNestedScroll = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput) {
-                    // Absorb 28% of raw drag delta to create a smooth hydraulic damper feel
-                    return Offset(x = 0f, y = available.y * 0.28f)
-                }
-                return Offset.Zero
-            }
-        }
-    }
-    val damperFlingBehavior = remember {
-        object : FlingBehavior {
-            override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
-                var velocity = (initialVelocity * 0.52f).coerceIn(-2800f, 2800f)
-                var lastTime = withFrameNanos { it }
-                while (kotlin.math.abs(velocity) > 18f) {
-                    val now = withFrameNanos { it }
-                    val dt = ((now - lastTime) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
-                    lastTime = now
-                    val delta = velocity * dt
-                    val consumed = scrollBy(delta)
-                    if (kotlin.math.abs(consumed) < 0.1f) break
-                    // Exponential viscous damping
-                    velocity *= kotlin.math.exp(-4.2f * dt)
-                }
-                return 0f
-            }
-        }
-    }
-
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(rearrangingNoteId) {
+            .then(
                 if (rearrangingNoteId != null) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        rearrangingNoteId = null
+                    Modifier.pointerInput(rearrangingNoteId) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            rearrangingNoteId = null
+                        }
                     }
+                } else {
+                    Modifier
                 }
-            }
+            )
     ) {
-        val containerWidth = maxWidth
-        val containerHeight = maxHeight
-        val isWallMode = containerWidth >= 600.dp || containerWidth > containerHeight
-
         if (notes.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -751,7 +788,7 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             }
         } else if (isWallMode) {
-            // Tablet / Landscape Wall Mode: Virtualized LazyColumn of multi-column rows so only visible rows are composed!
+            // Tablet / Landscape Wall Mode: Virtualized LazyColumn of multi-column rows with native hardware-accelerated fling
             val horizontalPad = 16.dp
             val colSpacing = 12.dp
             val usableWidth = (containerWidth - horizontalPad * 2).coerceAtLeast(240.dp)
@@ -769,10 +806,7 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             }
 
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(damperNestedScroll),
-                flingBehavior = damperFlingBehavior,
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = horizontalPad,
                     end = horizontalPad,
@@ -783,8 +817,9 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             ) {
                 itemsIndexed(
                     items = chunkedRows,
-                    key = { rowIdx, rowItems -> "wall_row_${rowIdx}_${rowItems.firstOrNull()?.second?.id ?: 0}" }
-                ) { rowIdx, rowItems ->
+                    key = { rowIdx, rowItems -> "wall_row_${rowIdx}_${rowItems.firstOrNull()?.second?.id ?: 0}" },
+                    contentType = { _, _ -> "sticky_wall_row" }
+                ) { _, rowItems ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(colSpacing),
@@ -794,9 +829,9 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                             val pair = rowItems.getOrNull(colIndex)
                             val staggeredTopOffset = when (colIndex % 4) {
                                 0 -> 2.dp
-                                1 -> 22.dp
-                                2 -> 12.dp
-                                else -> 28.dp
+                                1 -> 14.dp
+                                2 -> 6.dp
+                                else -> 18.dp
                             }
                             Box(
                                 modifier = Modifier
@@ -811,7 +846,6 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                                         index = globalIdx,
                                         cardWidth = cardTargetWidth,
                                         maxPreviewLines = maxPreviewLines,
-                                        shoPhaseProvider = { shoPhaseState.value },
                                         isRearranging = rearrangingNoteId == note.id,
                                         isBoldMode = isBoldMode,
                                         isBn = isBn,
@@ -853,15 +887,12 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 }
             }
         } else {
-            // Mobile Portrait Mode: Alternating Leftward & Rightward arrangement controlled by cardWidthPercent
+            // Mobile Portrait Mode: Alternating Leftward & Rightward arrangement with native hardware-accelerated fling
             val usableWidth = (containerWidth - 28.dp).coerceAtLeast(220.dp)
             val cardTargetWidth = usableWidth * (cardWidthPercent / 100f)
 
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(damperNestedScroll),
-                flingBehavior = damperFlingBehavior,
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 14.dp,
                     end = 14.dp,
@@ -870,7 +901,11 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                itemsIndexed(localNotesOrder, key = { _, n -> n.id }) { idx, note ->
+                itemsIndexed(
+                    items = localNotesOrder,
+                    key = { _, n -> n.id },
+                    contentType = { _, _ -> "sticky_mobile_card" }
+                ) { idx, note ->
                     val isLeftward = idx % 2 == 0
                     val rowAlignment = if (isLeftward) Alignment.CenterStart else Alignment.CenterEnd
 
@@ -883,7 +918,6 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
                             index = idx,
                             cardWidth = cardTargetWidth,
                             maxPreviewLines = maxPreviewLines,
-                            shoPhaseProvider = { shoPhaseState.value },
                             isRearranging = rearrangingNoteId == note.id,
                             isBoldMode = isBoldMode,
                             isBn = isBn,
@@ -960,13 +994,13 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun StickyFloatingCard(
     note: StickyNoteEntity,
     index: Int,
     cardWidth: Dp,
     maxPreviewLines: Int,
-    shoPhaseProvider: () -> Float,
     isRearranging: Boolean,
     isBoldMode: Boolean,
     isBn: Boolean,
@@ -978,22 +1012,21 @@ private fun StickyFloatingCard(
     val isLight = isAppLightMode()
     val palette = getPaletteForIndex(note.colorIndex)
     val cardBg = if (isLight) palette.cardBgLight else palette.cardBgDark
+    val effectiveAccent = if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder
     val borderCol = if (isRearranging) AppAccentColor() else palette.accentBorder.copy(alpha = if (note.colorIndex == 0) 0.32f else 0.65f)
     val textColor = if (isLight) Color(0xFF1E293B) else Color(0xFFF8FAFC)
-    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
+    val regularFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
 
-    val phaseSeed = remember(note.id, index) { (note.id * 1.15f + index * 0.85f) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
 
     val shape = RoundedCornerShape(20.dp)
     val previewModel = remember(note.id, note.updatedAt, maxPreviewLines) {
         StickyCardPreviewCache.getOrCompute(note, maxPreviewLines)
     }
-    val cleanedBody = previewModel.truncatedBody
+    val parsedPreview = previewModel.parsedPreview
     val subHeading = previewModel.subHeading
     val pinIcon = previewModel.pinIcon
     val tableData = previewModel.tableData
-    val lineAlignments = previewModel.lineAlignments
     val attachmentsCount = previewModel.attachmentsCount
     val noteTags = previewModel.tagsList
 
@@ -1002,114 +1035,60 @@ private fun StickyFloatingCard(
     }
     val remainingTextLines = (maxPreviewLines - tableRowsToDisplay).coerceAtLeast(1)
 
-    // Outer container: stationary for text, handles single-tap (open view) and 3-sec hold (rearrange)
     Box(
         modifier = Modifier
             .width(cardWidth)
             .padding(horizontal = 4.dp, vertical = 6.dp)
-            .graphicsLayer {
+            .then(
                 if (isRearranging) {
-                    translationX = dragOffset.x
-                    translationY = dragOffset.y
-                    scaleX = 1.03f
-                    scaleY = 1.03f
-                }
-            }
-            .pointerInput(note.id, isRearranging) {
-                if (!isRearranging) {
-                    val touchSlopPx = viewConfiguration.touchSlop
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val downPos = down.position
-                        var longPressTriggered = false
-                        var movedOutOfBounds = false
-
-                        val holdResult = withTimeoutOrNull(3000L) {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (!change.pressed) {
-                                    return@withTimeoutOrNull false
-                                }
-                                val dist = (change.position - downPos).getDistance()
-                                if (dist > touchSlopPx) {
-                                    movedOutOfBounds = true
-                                    return@withTimeoutOrNull false
-                                }
-                            }
-                            false
+                    Modifier
+                        .graphicsLayer {
+                            translationX = dragOffset.x
+                            translationY = dragOffset.y
+                            scaleX = 1.02f
+                            scaleY = 1.02f
                         }
-
-                        if (holdResult == null && !movedOutOfBounds) {
-                            longPressTriggered = true
-                            onLongPressRearrange()
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.changes.none { it.pressed }) break
-                                event.changes.forEach { it.consume() }
-                            }
-                        } else if (!movedOutOfBounds && !longPressTriggered) {
-                            onTap()
+                        .pointerInput(note.id) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    if (dragOffset.y < -45f || dragOffset.x < -45f) {
+                                        onMovePrev()
+                                    } else if (dragOffset.y > 45f || dragOffset.x > 45f) {
+                                        onMoveNext()
+                                    }
+                                    dragOffset = Offset.Zero
+                                },
+                                onDragCancel = { dragOffset = Offset.Zero },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffset += dragAmount
+                                }
+                            )
                         }
-                    }
                 } else {
-                    detectDragGestures(
-                        onDragEnd = {
-                            if (dragOffset.y < -45f || dragOffset.x < -45f) {
-                                onMovePrev()
-                            } else if (dragOffset.y > 45f || dragOffset.x > 45f) {
-                                onMoveNext()
-                            }
-                            dragOffset = Offset.Zero
-                        },
-                        onDragCancel = { dragOffset = Offset.Zero },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            dragOffset += dragAmount
-                        }
+                    Modifier.combinedClickable(
+                        onClick = onTap,
+                        onLongClick = onLongPressRearrange
                     )
                 }
-            }
+            )
             .testTag("sticky_card_${note.id}")
     ) {
-        // BACKGROUND-ONLY WOBBLE LAYER: Only the background card surface moves/rotates in draw phase (0 recompositions!), keeping foreground text 100% still!
+        // Static low-cost card surface (0 FPS idle overhead, zero offscreen shadow rasterization lag)
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .graphicsLayer {
-                    if (!isRearranging) {
-                        val phase = shoPhaseProvider() + phaseSeed
-                        translationX = (sin(phase.toDouble()) * 4.5f).toFloat()
-                        translationY = (cos((phase * 1.15f).toDouble()) * 3.0f).toFloat()
-                        rotationZ = (sin((phase * 0.85f).toDouble()) * 1.15f).toFloat()
-                    }
-                }
-                .then(
-                    if (fastMode) {
-                        Modifier
-                            .clip(shape)
-                            .background(cardBg)
-                            .border(if (isRearranging) 2.5.dp else 1.2.dp, borderCol, shape)
-                    } else {
-                        Modifier
-                            .shadow(
-                                elevation = if (isRearranging) 12.dp else 4.dp,
-                                shape = shape,
-                                clip = true
-                            )
-                            .background(cardBg)
-                            .border(if (isRearranging) 2.5.dp else 1.2.dp, borderCol, shape)
-                    }
-                )
+                .clip(shape)
+                .background(cardBg)
+                .border(if (isRearranging) 2.5.dp else 1.2.dp, borderCol, shape)
         )
 
-        // FOREGROUND STATIONARY CONTENT LAYER: Text, tables, tags, and realistic Pin/Paperclip badge
+        // FOREGROUND CONTENT LAYER: Text, tables, tags, and realistic Pin/Paperclip badge
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // Top bar: Title + Synced Pin/Paperclip Badge (no Edit or Delete buttons on landing page)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1123,7 +1102,7 @@ private fun StickyFloatingCard(
                         modifier = Modifier
                             .size(9.dp)
                             .clip(CircleShape)
-                            .background(if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder)
+                            .background(effectiveAccent)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -1157,12 +1136,10 @@ private fun StickyFloatingCard(
                         }
                     }
                 } else {
-                    // Spacer so the title doesn't collide with the realistic 3D Push-Pin / Paperclip overlapping the top-right edge
                     Spacer(modifier = Modifier.width(34.dp))
                 }
             }
 
-            // Sub-heading right below title and before body text
             if (subHeading.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -1175,7 +1152,6 @@ private fun StickyFloatingCard(
                 )
             }
 
-            // Tags chips if present (static non-scrolling preview up to 3 tags so cards don't allocate ScrollState)
             if (noteTags.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
@@ -1186,7 +1162,7 @@ private fun StickyFloatingCard(
                     noteTags.take(3).forEach { tag ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = (if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder).copy(alpha = 0.16f)
+                            color = effectiveAccent.copy(alpha = 0.16f)
                         ) {
                             Text(
                                 text = "#$tag",
@@ -1211,50 +1187,67 @@ private fun StickyFloatingCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Body Preview with per-line alignment and Bold-in-Bold support
-            if (cleanedBody.isNotBlank() && remainingTextLines > 0) {
-                val annotated = buildFormattedStickyAnnotatedString(
-                    rawText = cleanedBody,
-                    isBoldMode = isBoldMode,
-                    baseColor = textColor.copy(alpha = 0.90f),
-                    accentColor = if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder,
-                    lineAlignments = lineAlignments
-                )
-                Text(
-                    text = annotated,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    maxLines = remainingTextLines,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            // Fast-path plain String Text when note has no inline bold/italic/alignment spans
+            if (parsedPreview.plainText.isNotBlank() && remainingTextLines > 0) {
+                val basePreviewColor = textColor.copy(alpha = 0.90f)
+                if (!parsedPreview.hasCustomFormatting) {
+                    Text(
+                        text = parsedPreview.plainText,
+                        color = basePreviewColor,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = regularFont,
+                        fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = remainingTextLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    val annotated = remember(parsedPreview, isBoldMode, basePreviewColor, effectiveAccent) {
+                        buildAnnotatedFromParsedSticky(
+                            parsed = parsedPreview,
+                            isBoldMode = isBoldMode,
+                            baseColor = basePreviewColor,
+                            accentColor = effectiveAccent
+                        )
+                    }
+                    Text(
+                        text = annotated,
+                        color = basePreviewColor,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = regularFont,
+                        fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = remainingTextLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
 
-            // Borderless Visual Table Preview
             if (tableData != null && tableRowsToDisplay > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 StickyTableCompactPreview(
                     table = tableData,
                     maxRows = tableRowsToDisplay,
-                    accentColor = if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder,
+                    accentColor = effectiveAccent,
                     textColor = textColor
                 )
             }
 
-            // Attachment indicator chip on card
             if (attachmentsCount > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background((if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder).copy(alpha = 0.15f))
+                        .background(effectiveAccent.copy(alpha = 0.15f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.AttachFile,
                         contentDescription = null,
-                        tint = if (note.colorIndex == 0) AppAccentColor() else palette.accentBorder,
+                        tint = effectiveAccent,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -1278,7 +1271,7 @@ private fun StickyFloatingCard(
             }
         }
 
-        // REALISTIC 3D PUSH-PIN OR METALLIC GOLD PAPERCLIP OVERLAPPING TOP EDGE OF CARD
+        // Cached 3D Push-Pin or Metallic Gold Paperclip overlapping top edge of card
         if (!isRearranging) {
             Box(
                 modifier = Modifier
@@ -1298,69 +1291,39 @@ private fun StickyFloatingCard(
 }
 
 /**
- * Draws a realistic 3D Glossy Blue Push-Pin with angled plastic cylinder, flared collar,
- * metallic needle piercing the paper, and realistic cast shadow on the note surface.
+ * Draws a realistic 3D Glossy Blue Push-Pin using drawWithCache so Paths and Brushes are allocated once per size.
  */
 @Composable
 private fun StickyRealisticPushPinCanvas(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        // 1. Cast shadow on paper surface (bottom-right of puncture point)
-        val puncture = Offset(w * 0.28f, h * 0.78f)
-        val shadowPath = Path().apply {
-            moveTo(puncture.x, puncture.y)
-            lineTo(w * 0.62f, h * 0.72f)
-            cubicTo(w * 0.88f, h * 0.65f, w * 0.95f, h * 0.85f, w * 0.72f, h * 0.92f)
-            cubicTo(w * 0.56f, h * 0.96f, w * 0.44f, h * 0.86f, puncture.x, puncture.y)
-            close()
-        }
-        drawPath(shadowPath, color = Color.Black.copy(alpha = 0.22f))
-
-        // 2. Metallic Steel Needle piercing into the card at ~32 deg angle
-        val collarCenter = Offset(w * 0.46f, h * 0.50f)
-        val needlePath = Path().apply {
-            moveTo(collarCenter.x - w * 0.05f, collarCenter.y - h * 0.02f)
-            lineTo(collarCenter.x + w * 0.05f, collarCenter.y + h * 0.04f)
-            lineTo(puncture.x, puncture.y)
-            close()
-        }
-        drawPath(
-            path = needlePath,
-            brush = Brush.linearGradient(
+    Spacer(
+        modifier = modifier.drawWithCache {
+            val w = size.width
+            val h = size.height
+            val puncture = Offset(w * 0.28f, h * 0.78f)
+            val shadowPath = Path().apply {
+                moveTo(puncture.x, puncture.y)
+                lineTo(w * 0.62f, h * 0.72f)
+                cubicTo(w * 0.88f, h * 0.65f, w * 0.95f, h * 0.85f, w * 0.72f, h * 0.92f)
+                cubicTo(w * 0.56f, h * 0.96f, w * 0.44f, h * 0.86f, puncture.x, puncture.y)
+                close()
+            }
+            val collarCenter = Offset(w * 0.46f, h * 0.50f)
+            val needlePath = Path().apply {
+                moveTo(collarCenter.x - w * 0.05f, collarCenter.y - h * 0.02f)
+                lineTo(collarCenter.x + w * 0.05f, collarCenter.y + h * 0.04f)
+                lineTo(puncture.x, puncture.y)
+                close()
+            }
+            val needleBrush = Brush.linearGradient(
                 colors = listOf(Color(0xFFF1F5F9), Color(0xFF94A3B8), Color(0xFF475569)),
                 start = collarCenter,
                 end = puncture
             )
-        )
-        // Tiny dark puncture hole dot
-        drawCircle(
-            color = Color.Black.copy(alpha = 0.35f),
-            radius = w * 0.03f,
-            center = puncture
-        )
-
-        // 3. Rotated 3D Blue Push-Pin Body (angled at 32 degrees like reference image)
-        rotate(degrees = 32f, pivot = collarCenter) {
-            // Lower Flared Collar Rim (Darker Royal Blue)
-            drawOval(
-                brush = Brush.linearGradient(
-                    colors = listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF1E3A8A)),
-                    start = Offset(collarCenter.x - w * 0.24f, collarCenter.y),
-                    end = Offset(collarCenter.x + w * 0.24f, collarCenter.y)
-                ),
-                topLeft = Offset(collarCenter.x - w * 0.23f, collarCenter.y - h * 0.11f),
-                size = Size(w * 0.46f, h * 0.22f)
+            val collarBrush = Brush.linearGradient(
+                colors = listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF1E3A8A)),
+                start = Offset(collarCenter.x - w * 0.24f, collarCenter.y),
+                end = Offset(collarCenter.x + w * 0.24f, collarCenter.y)
             )
-            // Collar Rim Specular Highlight
-            drawOval(
-                color = Color(0xFF38BDF8).copy(alpha = 0.55f),
-                topLeft = Offset(collarCenter.x - w * 0.21f, collarCenter.y - h * 0.10f),
-                size = Size(w * 0.42f, h * 0.18f),
-                style = Stroke(width = w * 0.025f)
-            )
-
-            // Tapered Cylindrical Middle Body
             val topCenter = Offset(collarCenter.x, collarCenter.y - h * 0.26f)
             val bodyPath = Path().apply {
                 moveTo(collarCenter.x - w * 0.13f, collarCenter.y - h * 0.01f)
@@ -1369,58 +1332,66 @@ private fun StickyRealisticPushPinCanvas(modifier: Modifier = Modifier) {
                 lineTo(collarCenter.x + w * 0.13f, collarCenter.y - h * 0.01f)
                 close()
             }
-            drawPath(
-                path = bodyPath,
-                brush = Brush.horizontalGradient(
-                    colors = listOf(Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF1D4ED8)),
-                    startX = collarCenter.x - w * 0.17f,
-                    endX = collarCenter.x + w * 0.17f
+            val bodyBrush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF1D4ED8)),
+                startX = collarCenter.x - w * 0.17f,
+                endX = collarCenter.x + w * 0.17f
+            )
+            val capBrush = Brush.radialGradient(
+                colors = listOf(Color(0xFF7DD3FC), Color(0xFF0284C7), Color(0xFF1E40AF)),
+                center = Offset(topCenter.x - w * 0.04f, topCenter.y - h * 0.02f),
+                radius = w * 0.24f
+            )
+            val strokeStyle = Stroke(width = w * 0.025f)
+
+            onDrawBehind {
+                drawPath(shadowPath, color = Color.Black.copy(alpha = 0.22f))
+                drawPath(path = needlePath, brush = needleBrush)
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.35f),
+                    radius = w * 0.03f,
+                    center = puncture
                 )
-            )
-
-            // Top Flared Cap Disc
-            drawOval(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF7DD3FC), Color(0xFF0284C7), Color(0xFF1E40AF)),
-                    center = Offset(topCenter.x - w * 0.04f, topCenter.y - h * 0.02f),
-                    radius = w * 0.24f
-                ),
-                topLeft = Offset(topCenter.x - w * 0.20f, topCenter.y - h * 0.10f),
-                size = Size(w * 0.40f, h * 0.20f)
-            )
-
-            // Glossy Inner Specular Oval on Top Cap
-            drawOval(
-                color = Color(0xFFE0F2FE).copy(alpha = 0.78f),
-                topLeft = Offset(topCenter.x - w * 0.11f, topCenter.y - h * 0.06f),
-                size = Size(w * 0.18f, h * 0.09f)
-            )
+                rotate(degrees = 32f, pivot = collarCenter) {
+                    drawOval(
+                        brush = collarBrush,
+                        topLeft = Offset(collarCenter.x - w * 0.23f, collarCenter.y - h * 0.11f),
+                        size = Size(w * 0.46f, h * 0.22f)
+                    )
+                    drawOval(
+                        color = Color(0xFF38BDF8).copy(alpha = 0.55f),
+                        topLeft = Offset(collarCenter.x - w * 0.21f, collarCenter.y - h * 0.10f),
+                        size = Size(w * 0.42f, h * 0.18f),
+                        style = strokeStyle
+                    )
+                    drawPath(path = bodyPath, brush = bodyBrush)
+                    drawOval(
+                        brush = capBrush,
+                        topLeft = Offset(topCenter.x - w * 0.20f, topCenter.y - h * 0.10f),
+                        size = Size(w * 0.40f, h * 0.20f)
+                    )
+                    drawOval(
+                        color = Color(0xFFE0F2FE).copy(alpha = 0.78f),
+                        topLeft = Offset(topCenter.x - w * 0.11f, topCenter.y - h * 0.06f),
+                        size = Size(w * 0.18f, h * 0.09f)
+                    )
+                }
+            }
         }
-    }
+    )
 }
 
 /**
- * Draws a realistic 3D Metallic Gold/Copper Paperclip overlapping the top edge of the sticky card,
- * complete with double wire loops, metallic sheen, and subtle drop shadow.
+ * Draws a realistic 3D Metallic Gold/Copper Paperclip using drawWithCache so Brushes/Strokes are allocated once per size.
  */
 @Composable
 private fun StickyRealisticPaperclipCanvas(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val center = Offset(w * 0.5f, h * 0.5f)
-
-        rotate(degrees = 16f, pivot = center) {
+    Spacer(
+        modifier = modifier.drawWithCache {
+            val w = size.width
+            val h = size.height
+            val center = Offset(w * 0.5f, h * 0.5f)
             val strokeW = w * 0.075f
-            // 1. Soft drop shadow of the paperclip wire
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.20f),
-                topLeft = Offset(w * 0.30f + 2f, h * 0.08f + 3f),
-                size = Size(w * 0.40f, h * 0.82f),
-                cornerRadius = CornerRadius(w * 0.20f, w * 0.20f),
-                style = Stroke(width = strokeW, cap = StrokeCap.Round)
-            )
-            // 2. Outer metallic copper/gold loop
             val goldBrush = Brush.linearGradient(
                 colors = listOf(
                     Color(0xFFFDE68A),
@@ -1432,31 +1403,44 @@ private fun StickyRealisticPaperclipCanvas(modifier: Modifier = Modifier) {
                 start = Offset(w * 0.25f, h * 0.05f),
                 end = Offset(w * 0.75f, h * 0.95f)
             )
-            drawRoundRect(
-                brush = goldBrush,
-                topLeft = Offset(w * 0.29f, h * 0.08f),
-                size = Size(w * 0.42f, h * 0.82f),
-                cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
-                style = Stroke(width = strokeW, cap = StrokeCap.Round)
-            )
-            // 3. Inner metallic loop (creates the classic double-loop paperclip silhouette)
-            drawRoundRect(
-                brush = goldBrush,
-                topLeft = Offset(w * 0.38f, h * 0.22f),
-                size = Size(w * 0.24f, h * 0.56f),
-                cornerRadius = CornerRadius(w * 0.12f, w * 0.12f),
-                style = Stroke(width = strokeW * 0.88f, cap = StrokeCap.Round)
-            )
-            // 4. Fine specular highlight along the top-left curve
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.55f),
-                topLeft = Offset(w * 0.29f, h * 0.08f),
-                size = Size(w * 0.42f, h * 0.82f),
-                cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
-                style = Stroke(width = strokeW * 0.25f, cap = StrokeCap.Round)
-            )
+            val outerStroke = Stroke(width = strokeW, cap = StrokeCap.Round)
+            val innerStroke = Stroke(width = strokeW * 0.88f, cap = StrokeCap.Round)
+            val highlightStroke = Stroke(width = strokeW * 0.25f, cap = StrokeCap.Round)
+
+            onDrawBehind {
+                rotate(degrees = 16f, pivot = center) {
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.20f),
+                        topLeft = Offset(w * 0.30f + 2f, h * 0.08f + 3f),
+                        size = Size(w * 0.40f, h * 0.82f),
+                        cornerRadius = CornerRadius(w * 0.20f, w * 0.20f),
+                        style = outerStroke
+                    )
+                    drawRoundRect(
+                        brush = goldBrush,
+                        topLeft = Offset(w * 0.29f, h * 0.08f),
+                        size = Size(w * 0.42f, h * 0.82f),
+                        cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
+                        style = outerStroke
+                    )
+                    drawRoundRect(
+                        brush = goldBrush,
+                        topLeft = Offset(w * 0.38f, h * 0.22f),
+                        size = Size(w * 0.24f, h * 0.56f),
+                        cornerRadius = CornerRadius(w * 0.12f, w * 0.12f),
+                        style = innerStroke
+                    )
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.55f),
+                        topLeft = Offset(w * 0.29f, h * 0.08f),
+                        size = Size(w * 0.42f, h * 0.82f),
+                        cornerRadius = CornerRadius(w * 0.21f, w * 0.21f),
+                        style = highlightStroke
+                    )
+                }
+            }
         }
-    }
+    )
 }
 
 @Composable
@@ -1561,8 +1545,15 @@ fun StickyNoteFullScreenDialog(
     val textColor = if (isLight) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val effectiveAccent = if (colorIndex == 0) AppAccentColor() else palette.accentBorder
 
+    val initialTableJson = remember(initialNote?.id) { initialEnvelope.table?.toJson() }
+    val serializedAlignments = remember(lineAlignments) { serializeLineAlignments(lineAlignments) }
+    val serializedTags = remember(tags) { tags.joinToString(",") }
+    val serializedTable = remember(tableData) { tableData?.toJson() }
+    val serializedAttachments = remember(attachments) { StickyAttachmentItem.listToJson(attachments) }
+
     val hasUnsavedChanges = remember(
-        title, subHeading, pinIcon, bodyField.text, colorIndex, lineAlignments, tags, tableData, attachments, initialNote
+        title, subHeading, pinIcon, bodyField.text, colorIndex,
+        serializedAlignments, serializedTags, serializedTable, serializedAttachments, initialNote
     ) {
         if (initialNote == null) {
             title.isNotBlank() || subHeading.isNotBlank() || bodyField.text.isNotBlank() || tableData != null || attachments.isNotEmpty()
@@ -1572,10 +1563,10 @@ fun StickyNoteFullScreenDialog(
                 pinIcon != initialEnvelope.pinIcon ||
                 bodyField.text != migratedBody ||
                 colorIndex != initialNote.colorIndex ||
-                serializeLineAlignments(lineAlignments) != initialNote.textAlignment ||
-                tags.joinToString(",") != initialNote.tags ||
-                tableData?.toJson() != initialEnvelope.table?.toJson() ||
-                StickyAttachmentItem.listToJson(attachments) != initialNote.attachmentsJson
+                serializedAlignments != initialNote.textAlignment ||
+                serializedTags != initialNote.tags ||
+                serializedTable != initialTableJson ||
+                serializedAttachments != initialNote.attachmentsJson
         }
     }
 
@@ -2524,20 +2515,48 @@ fun StickyNoteFullScreenDialog(
                             }
                         )
                     } else {
-                        val annotated = buildFormattedStickyAnnotatedString(
-                            rawText = bodyField.text.ifBlank { if (tableData == null && attachments.isEmpty() && subHeading.isBlank()) (if (isBn) "কোনো লেখা নেই" else "Empty note") else "" },
-                            isBoldMode = isBoldMode,
-                            baseColor = textColor,
-                            accentColor = effectiveAccent,
-                            lineAlignments = lineAlignments
-                        )
-                        if (annotated.text.isNotBlank()) {
-                            Text(
-                                text = annotated,
-                                fontSize = 16.sp,
-                                lineHeight = 24.sp,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        val rawDisplayBody = bodyField.text.ifBlank {
+                            if (tableData == null && attachments.isEmpty() && subHeading.isBlank()) {
+                                if (isBn) "কোনো লেখা নেই" else "Empty note"
+                            } else {
+                                ""
+                            }
+                        }
+                        if (rawDisplayBody.isNotBlank()) {
+                            val parsedFullBody = remember(rawDisplayBody, lineAlignments) {
+                                parseStickyFormattedText(rawDisplayBody, lineAlignments)
+                            }
+                            val baseNoteFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
+                            val baseNoteWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal
+                            if (!parsedFullBody.hasCustomFormatting) {
+                                Text(
+                                    text = parsedFullBody.plainText,
+                                    color = textColor,
+                                    fontSize = 16.sp,
+                                    lineHeight = 24.sp,
+                                    fontFamily = baseNoteFont,
+                                    fontWeight = baseNoteWeight,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                val annotated = remember(parsedFullBody, isBoldMode, textColor, effectiveAccent) {
+                                    buildAnnotatedFromParsedSticky(
+                                        parsed = parsedFullBody,
+                                        isBoldMode = isBoldMode,
+                                        baseColor = textColor,
+                                        accentColor = effectiveAccent
+                                    )
+                                }
+                                Text(
+                                    text = annotated,
+                                    color = textColor,
+                                    fontSize = 16.sp,
+                                    lineHeight = 24.sp,
+                                    fontFamily = baseNoteFont,
+                                    fontWeight = baseNoteWeight,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 
