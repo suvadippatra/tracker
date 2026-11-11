@@ -97,10 +97,10 @@ fun AboutSettingsScreen(
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.ElectricMeter,
-                titleEn = "Electricity Graph & Partial Bill Carry-Over",
-                titleBn = "বিদ্যুৎ গ্রাফ ও আংশিক বিল ক্যারি-ওভার",
-                descEn = "Interactive daily kWh & multi-rate region graph on Log Reading, plus partial bill payment with target-month residual transfer.",
-                descBn = "দৈনিক ইউনিট ও মাল্টি-রেট গ্রাফ এবং আংশিক বিল পেমেন্টে বকেয়া পরবর্তী মাসে স্থানান্তর।"
+                titleEn = "Electricity Log, Graph & Partial Bill Carry-Over",
+                titleBn = "বিদ্যুৎ রিডিং, গ্রাফ ও আংশিক বিল ক্যারি-ওভার",
+                descEn = "Quick dial reading entry card placed right above the interactive daily kWh & multi-rate region graph, plus partial bill payment with target-month residual transfer.",
+                descBn = "রিডিং এন্ট্রি কার্ডের ঠিক নিচেই দৈনিক ইউনিট ও মাল্টি-রেট গ্রাফ এবং আংশিক বিল পেমেন্টে বকেয়া স্থানান্তর।"
             ),
             HelpGuideQuickItem(
                 icon = Icons.Default.Share,

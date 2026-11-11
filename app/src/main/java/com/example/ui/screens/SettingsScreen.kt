@@ -332,13 +332,21 @@ fun AnotherToolsBlankScreen(
     onBack: () -> Unit
 ) {
     androidx.activity.compose.BackHandler(enabled = true) { onBack() }
-    // Full-screen blank canvas ready for future tool cards
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .testTag("another_tools_blank_screen")
-    )
+            .padding(24.dp)
+            .testTag("another_tools_blank_screen"),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "It's not ready for now",
+            color = AppSecondaryTextColor(),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
 }
 
 @Composable

@@ -325,20 +325,7 @@ fun DailyReadingInputScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 156.dp)
     ) {
-        if (showDailyUsage && successState.readings.size >= 2) {
-            item(key = "daily_kwh_usage_graph") {
-                DailyMeterUsageAndRateRegionGraph(
-                    viewModel = viewModel,
-                    readings = successState.readings,
-                    rates = successState.rates,
-                    bills = successState.bills,
-                    language = language,
-                    currency = currency
-                )
-            }
-        }
-
-        item {
+        item(key = "log_daily_meter_reading_card") {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
@@ -438,6 +425,19 @@ fun DailyReadingInputScreen(
                         )
                     }
                 }
+            }
+        }
+
+        if (showDailyUsage && successState.readings.size >= 2) {
+            item(key = "daily_kwh_usage_graph") {
+                DailyMeterUsageAndRateRegionGraph(
+                    viewModel = viewModel,
+                    readings = successState.readings,
+                    rates = successState.rates,
+                    bills = successState.bills,
+                    language = language,
+                    currency = currency
+                )
             }
         }
 
