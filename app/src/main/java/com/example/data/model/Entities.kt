@@ -36,7 +36,7 @@ data class UserProfileEntity(
     val isBoldTextEnabled: Boolean = false,
     val stickyCardWidthPercent: Int = 80,
     val stickyPreviewLines: Int = 10,
-    val appVersion: String = "2.4.0"
+    val appVersion: String = com.example.BuildConfig.VERSION_NAME
 )
 
 @Entity(tableName = "hotels", indices = [Index("isDeleted")])

@@ -315,8 +315,15 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        @Volatile
+        private var APP_CONTEXT: Context? = null
+
+        fun getAppContext(): Context? = APP_CONTEXT
+
         fun getDatabase(context: Context): AppDatabase {
+            APP_CONTEXT = context.applicationContext
             return INSTANCE ?: synchronized(this) {
+                APP_CONTEXT = context.applicationContext
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,

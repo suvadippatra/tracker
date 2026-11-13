@@ -446,6 +446,7 @@ fun GlassTextField(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
@@ -515,6 +516,7 @@ fun GlassTextField(
                 fontFamily = activeFontFamily
             ),
             singleLine = singleLine,
+            maxLines = maxLines,
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             visualTransformation = visualTransformation,
@@ -699,32 +701,35 @@ fun FullScreenQRPreviewDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
-                        .fillMaxWidth(0.88f)
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White)
-                        .padding(16.dp),
+                        .weight(1f)
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    coil.compose.AsyncImage(
-                        model = qrUri,
-                        contentDescription = "Full Screen QR Code",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                    )
+                    val qrSide = minOf(maxWidth * 0.88f, maxHeight * 0.92f).coerceAtLeast(120.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(qrSide)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = qrUri,
+                            contentDescription = "Full Screen QR Code",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
                 }
-
-                Spacer(modifier = Modifier.weight(1f))
 
                 Text(
                     text = "Tap anywhere or press back to close",
                     color = Color.White.copy(alpha = 0.65f),
                     fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 12.dp)
                 )
             }
         }

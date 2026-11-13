@@ -364,7 +364,7 @@ fun UnifiedAccountDialog(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var accName by remember(account) { mutableStateOf(account?.name ?: "") }
-    var accBal by remember(account) { mutableStateOf(account?.let { if (it.initialBalance != 0.0) it.initialBalance.toString() else it.balance.toString() } ?: "") }
+    var accBal by remember(account) { mutableStateOf(account?.initialBalance?.toString() ?: "") }
     var details by remember(account) { mutableStateOf(account?.details ?: "") }
     var notes by remember(account) { mutableStateOf(account?.notes ?: "") }
     var phoneNumber by remember(account) { mutableStateOf(account?.phoneNumber ?: "") }
@@ -499,7 +499,7 @@ fun UnifiedAccountDialog(
                             )
                         }
 
-                        if (account != null && accountsCount > 1 && onDelete != null) {
+                        if (account != null && onDelete != null) {
                             Spacer(modifier = Modifier.width(4.dp))
                             var showTopMenu by remember { mutableStateOf(false) }
                             Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
@@ -792,7 +792,7 @@ fun UnifiedAccountDialog(
 fun LegalInfoDialog(
     type: String,
     prefLanguage: String,
-    appVersion: String = "0.0.1",
+    appVersion: String = com.example.BuildConfig.VERSION_NAME,
     onDismiss: () -> Unit
 ) {
     androidx.activity.compose.BackHandler { onDismiss() }
@@ -846,7 +846,7 @@ fun LegalInfoDialog(
             
             ব্যবহৃত ওপেন-সোর্স লাইব্রেরি ও ইঞ্জিন:
             • Android Jetpack Compose & Material Design 3
-            • Google Play Services ML Kit Text Recognition (v19.0.1 Unbundled)
+            • Google ML Kit Text Recognition (v16.0.1 Bundled Offline)
             • Android SpeechRecognizer, MediaRecorder & NotificationListenerService
             • AndroidX Room SQLite Database & Java ZIP Archive Stream
             • ZXing QR Engine, CameraX, ExifInterface & Coil
@@ -855,7 +855,7 @@ fun LegalInfoDialog(
             
             Open-source libraries & system engines used:
             • Android Jetpack Compose & Material Design 3
-            • Google Play Services ML Kit Text Recognition (v19.0.1 Unbundled)
+            • Google ML Kit Text Recognition (v16.0.1 Bundled Offline)
             • Android SpeechRecognizer, MediaRecorder & NotificationListenerService
             • AndroidX Room SQLite Database & Java ZIP Archive Stream
             • ZXing QR Engine, CameraX, ExifInterface & Coil

@@ -181,6 +181,7 @@ data class MergePlan(
 class SyncEngine(private val db: AppDatabase) {
 
     private val hotelDao = db.hotelDao()
+    private val hotelPaymentDao = db.hotelPaymentDao()
     private val menuDao = db.menuDao()
     private val transactionDao = db.transactionDao()
     private val bankAccountDao = db.bankAccountDao()
@@ -312,6 +313,9 @@ class SyncEngine(private val db: AppDatabase) {
                 phoneNumber = hObj.optString("phoneNumber", ""),
                 location = hObj.optString("location", ""),
                 upiId = hObj.optString("upiId", ""),
+                qrCodeUri = com.example.data.QrMediaCodec.resolveImportedQrUri(hObj, com.example.data.AppDatabase.getAppContext()),
+                notes = hObj.optString("notes", ""),
+                whatsappNumber = hObj.optString("whatsappNumber", ""),
                 importedFrom = senderName
             )
             hotels.add(hotel)
@@ -330,6 +334,9 @@ class SyncEngine(private val db: AppDatabase) {
                         phoneNumber = hObj.optString("phoneNumber", ""),
                         location = hObj.optString("location", ""),
                         upiId = hObj.optString("upiId", ""),
+                        qrCodeUri = com.example.data.QrMediaCodec.resolveImportedQrUri(hObj, com.example.data.AppDatabase.getAppContext()),
+                        notes = hObj.optString("notes", ""),
+                        whatsappNumber = hObj.optString("whatsappNumber", ""),
                         importedFrom = senderName
                     )
                 )
@@ -391,7 +398,7 @@ class SyncEngine(private val db: AppDatabase) {
                     balance = bal,
                     initialBalance = bObj.optDouble("initialBalance", bal),
                     details = bObj.optString("details", ""),
-                    qrCodeUri = bObj.optString("qrCodeUri", ""),
+                    qrCodeUri = com.example.data.QrMediaCodec.resolveImportedQrUri(bObj, com.example.data.AppDatabase.getAppContext()),
                     upiId = bObj.optString("upiId", ""),
                     accountNumber = bObj.optString("accountNumber", ""),
                     ifsc = bObj.optString("ifsc", ""),
@@ -414,7 +421,7 @@ class SyncEngine(private val db: AppDatabase) {
                         balance = bal,
                         initialBalance = bObj.optDouble("initialBalance", bal),
                         details = bObj.optString("details", ""),
-                        qrCodeUri = bObj.optString("qrCodeUri", ""),
+                        qrCodeUri = com.example.data.QrMediaCodec.resolveImportedQrUri(bObj, com.example.data.AppDatabase.getAppContext()),
                         upiId = bObj.optString("upiId", ""),
                         accountNumber = bObj.optString("accountNumber", ""),
                         ifsc = bObj.optString("ifsc", ""),
@@ -461,7 +468,7 @@ class SyncEngine(private val db: AppDatabase) {
                         ifscCode = oObj.optString("ifscCode", oObj.optString("ifsc", "")),
                         branchName = oObj.optString("branchName", oObj.optString("branch", "")),
                         upiId = oObj.optString("upiId", ""),
-                        qrCodeUri = oObj.optString("qrCodeUri", ""),
+                        qrCodeUri = com.example.data.QrMediaCodec.resolveImportedQrUri(oObj, com.example.data.AppDatabase.getAppContext()),
                         details = oObj.optString("details", ""),
                         importedFrom = senderName
                     )
@@ -501,7 +508,8 @@ class SyncEngine(private val db: AppDatabase) {
                         calculatedAmount = uObj.optDouble("calculatedAmount", 0.0),
                         dueDate = uObj.optLong("dueDate", endDate),
                         isPaid = uObj.optBoolean("isPaid", true),
-                        transactionId = uObj.optString("transactionId", "").ifBlank { null }
+                        transactionId = uObj.optString("transactionId", "").ifBlank { null },
+                        note = uObj.optString("note", "")
                     )
                 )
             }
@@ -1136,6 +1144,20 @@ class SyncEngine(private val db: AppDatabase) {
             }
         }
 
+        val existingPayments = hotelPaymentDao.getAllPaymentsSync().filter { payment -> !payment.isDeleted }
+        val updatedHotelPayments = previousAnalysis.directNewHotelPayments.toMutableList()
+        payload.hotelPayments.forEach { impPay ->
+            if (!previousAnalysis.autoLinkedHotelIds.containsKey(impPay.hotelId) && finalHotelMap.containsKey(impPay.hotelId)) {
+                val mappedHotelId = finalHotelMap[impPay.hotelId]!!
+                val alreadyExists = existingPayments.any { existing ->
+                    existing.hotelId == mappedHotelId && existing.year == impPay.year && existing.month == impPay.month
+                }
+                if (!alreadyExists) {
+                    updatedHotelPayments.add(impPay.copy(id = 0, hotelId = mappedHotelId))
+                }
+            }
+        }
+
         previousAnalysis.copy(
             autoLinkedHotelIds = finalHotelMap,
             autoLinkedBankIds = finalBankMap,
@@ -1147,7 +1169,8 @@ class SyncEngine(private val db: AppDatabase) {
             directNewBankAccounts = directNewBankAccounts,
             directNewMenus = directNewMenus,
             directNewMeals = directNewMeals,
-            directNewExpenses = directNewExpenses
+            directNewExpenses = directNewExpenses,
+            directNewHotelPayments = updatedHotelPayments
         )
     }
 

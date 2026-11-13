@@ -121,10 +121,10 @@ fun AboutSettingsScreen(
                 urlOrSource = "androidx.compose.material3"
             ),
             PublicRepoReference(
-                name = "Google Play Services ML Kit Text Recognition",
-                category = "Unbundled Offline OCR (v19.0.1) with Multi-Pass & Contrast Filter",
+                name = "Google ML Kit Text Recognition",
+                category = "Bundled Offline OCR (v16.0.1) with Multi-Pass & Contrast Filter",
                 license = "Android SDK License",
-                urlOrSource = "play-services-mlkit-text-recognition"
+                urlOrSource = "com.google.mlkit:text-recognition"
             ),
             PublicRepoReference(
                 name = "Android SpeechRecognizer, MediaRecorder & NotificationListener",

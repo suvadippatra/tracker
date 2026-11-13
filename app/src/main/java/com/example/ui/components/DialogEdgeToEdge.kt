@@ -123,87 +123,122 @@ fun DialogEdgeToEdge() {
             insetsController.isAppearanceLightStatusBars = isLight
             insetsController.isAppearanceLightNavigationBars = isLight
 
+            var lastTargetW = -1
+            var lastTargetH = -1
+            var fixAttemptCount = 0
+            var isEnforcing = false
+
             fun enforceFullScreenHierarchy() {
-                val (targetWidth, targetHeight) = getTargetDimensions()
-                if (targetWidth <= 0 || targetHeight <= 0) return
-
-                val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
-                val fullWidthDp = ceil(targetWidth / density).toInt()
-                val fullHeightDp = ceil(targetHeight / density).toInt()
-                val targetFontScale = com.example.ui.theme.ThemePreferences.getFontScale(context)
-
+                if (isEnforcing) return
+                isEnforcing = true
                 try {
-                    view.context.resources.configuration.screenWidthDp = fullWidthDp
-                    view.context.resources.configuration.screenHeightDp = fullHeightDp
-                    view.context.resources.configuration.fontScale = targetFontScale
-                    (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
-                        cfg.screenWidthDp = fullWidthDp
-                        cfg.screenHeightDp = fullHeightDp
-                        cfg.fontScale = targetFontScale
-                    }
-                    window.context.resources.configuration.screenWidthDp = fullWidthDp
-                    window.context.resources.configuration.screenHeightDp = fullHeightDp
-                    window.context.resources.configuration.fontScale = targetFontScale
-                    usePlatformDefaultWidthField?.setBoolean(dialogLayoutView, true)
-                } catch (_: Exception) {}
+                    val (targetWidth, targetHeight) = getTargetDimensions()
+                    if (targetWidth <= 0 || targetHeight <= 0) return
 
-                val winParams = window.attributes
-                if (winParams.width != targetWidth || winParams.height != targetHeight ||
-                    winParams.gravity != (Gravity.TOP or Gravity.START) || winParams.dimAmount != 0f
-                ) {
-                    winParams.width = targetWidth
-                    winParams.height = targetHeight
-                    winParams.gravity = Gravity.TOP or Gravity.START
-                    winParams.x = 0
-                    winParams.y = 0
-                    winParams.dimAmount = 0f
-                    winParams.horizontalMargin = 0f
-                    winParams.verticalMargin = 0f
-                    window.attributes = winParams
-                    window.setLayout(targetWidth, targetHeight)
-                }
-
-                var curr: View? = view
-                while (curr != null) {
-                    if (curr !== view) {
-                        if (curr.paddingLeft != 0 || curr.paddingTop != 0 ||
-                            curr.paddingRight != 0 || curr.paddingBottom != 0
-                        ) {
-                            curr.setPadding(0, 0, 0, 0)
-                        }
-                        curr.fitsSystemWindows = false
-                        curr.background = null
-                        curr.outlineProvider = null
-                        curr.clipToOutline = false
-                        if (curr is ViewGroup) {
-                            curr.clipChildren = false
-                            curr.clipToPadding = false
-                        }
+                    if (targetWidth != lastTargetW || targetHeight != lastTargetH) {
+                        lastTargetW = targetWidth
+                        lastTargetH = targetHeight
+                        fixAttemptCount = 0
                     }
-                    val lp = curr.layoutParams
-                    if (lp != null) {
-                        var changed = false
-                        if (lp.width != targetWidth) {
-                            lp.width = targetWidth
-                            changed = true
+
+                    val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
+                    val fullWidthDp = ceil(targetWidth / density).toInt()
+                    val fullHeightDp = ceil(targetHeight / density).toInt()
+                    val targetFontScale = com.example.ui.theme.ThemePreferences.getFontScale(context)
+
+                    try {
+                        val vCfg = view.context.resources.configuration
+                        if (vCfg.screenWidthDp != fullWidthDp || vCfg.screenHeightDp != fullHeightDp || vCfg.fontScale != targetFontScale) {
+                            vCfg.screenWidthDp = fullWidthDp
+                            vCfg.screenHeightDp = fullHeightDp
+                            vCfg.fontScale = targetFontScale
                         }
-                        if (lp.height != targetHeight) {
-                            lp.height = targetHeight
-                            changed = true
-                        }
-                        if (lp is ViewGroup.MarginLayoutParams) {
-                            if (lp.leftMargin != 0 || lp.topMargin != 0 ||
-                                lp.rightMargin != 0 || lp.bottomMargin != 0
-                            ) {
-                                lp.setMargins(0, 0, 0, 0)
-                                changed = true
+                        (view.parent as? View)?.context?.resources?.configuration?.let { cfg ->
+                            if (cfg.screenWidthDp != fullWidthDp || cfg.screenHeightDp != fullHeightDp || cfg.fontScale != targetFontScale) {
+                                cfg.screenWidthDp = fullWidthDp
+                                cfg.screenHeightDp = fullHeightDp
+                                cfg.fontScale = targetFontScale
                             }
                         }
-                        if (changed) {
-                            curr.layoutParams = lp
+                        val wCfg = window.context.resources.configuration
+                        if (wCfg.screenWidthDp != fullWidthDp || wCfg.screenHeightDp != fullHeightDp || wCfg.fontScale != targetFontScale) {
+                            wCfg.screenWidthDp = fullWidthDp
+                            wCfg.screenHeightDp = fullHeightDp
+                            wCfg.fontScale = targetFontScale
                         }
+                        if (usePlatformDefaultWidthField != null && dialogLayoutView != null && !usePlatformDefaultWidthField.getBoolean(dialogLayoutView)) {
+                            usePlatformDefaultWidthField.setBoolean(dialogLayoutView, true)
+                        }
+                    } catch (_: Exception) {}
+
+                    val winParams = window.attributes
+                    if (winParams.width != targetWidth || winParams.height != targetHeight ||
+                        winParams.gravity != (Gravity.TOP or Gravity.START) || winParams.dimAmount != 0f
+                    ) {
+                        winParams.width = targetWidth
+                        winParams.height = targetHeight
+                        winParams.gravity = Gravity.TOP or Gravity.START
+                        winParams.x = 0
+                        winParams.y = 0
+                        winParams.dimAmount = 0f
+                        winParams.horizontalMargin = 0f
+                        winParams.verticalMargin = 0f
+                        window.attributes = winParams
+                        window.setLayout(targetWidth, targetHeight)
                     }
-                    curr = curr.parent as? View
+
+                    var curr: View? = view
+                    while (curr != null) {
+                        if (curr !== view) {
+                            if (curr.paddingLeft != 0 || curr.paddingTop != 0 ||
+                                curr.paddingRight != 0 || curr.paddingBottom != 0
+                            ) {
+                                curr.setPadding(0, 0, 0, 0)
+                            }
+                            if (curr.fitsSystemWindows) {
+                                curr.fitsSystemWindows = false
+                            }
+                            if (curr.background != null) {
+                                curr.background = null
+                            }
+                            if (curr.outlineProvider != null) {
+                                curr.outlineProvider = null
+                            }
+                            if (curr.clipToOutline) {
+                                curr.clipToOutline = false
+                            }
+                            if (curr is ViewGroup) {
+                                if (curr.clipChildren) curr.clipChildren = false
+                                if (curr.clipToPadding) curr.clipToPadding = false
+                            }
+                        }
+                        val lp = curr.layoutParams
+                        if (lp != null) {
+                            var changed = false
+                            if (lp.width != targetWidth) {
+                                lp.width = targetWidth
+                                changed = true
+                            }
+                            if (lp.height != targetHeight) {
+                                lp.height = targetHeight
+                                changed = true
+                            }
+                            if (lp is ViewGroup.MarginLayoutParams) {
+                                if (lp.leftMargin != 0 || lp.topMargin != 0 ||
+                                    lp.rightMargin != 0 || lp.bottomMargin != 0
+                                ) {
+                                    lp.setMargins(0, 0, 0, 0)
+                                    changed = true
+                                }
+                            }
+                            if (changed) {
+                                curr.layoutParams = lp
+                            }
+                        }
+                        curr = curr.parent as? View
+                    }
+                } finally {
+                    isEnforcing = false
                 }
             }
 
@@ -223,7 +258,12 @@ fun DialogEdgeToEdge() {
             enforceFullScreenHierarchy()
 
             val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+                if (isEnforcing) return@OnGlobalLayoutListener
                 val (tW, tH) = getTargetDimensions()
+                if (tW != lastTargetW || tH != lastTargetH) {
+                    fixAttemptCount = 0
+                }
+                if (fixAttemptCount >= 3) return@OnGlobalLayoutListener
                 val decor = window.decorView
                 val parentView = view.parent as? View
                 val needsFix = decor.width != tW ||
@@ -232,6 +272,7 @@ fun DialogEdgeToEdge() {
                     decor.paddingTop != 0 ||
                     (parentView != null && (parentView.paddingBottom != 0 || parentView.paddingTop != 0))
                 if (needsFix) {
+                    fixAttemptCount++
                     enforceFullScreenHierarchy()
                 }
             }

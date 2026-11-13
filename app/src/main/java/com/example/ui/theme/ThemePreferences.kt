@@ -107,14 +107,16 @@ object ThemePreferences {
                 disableHeavyEffects = disableHeavyEffects,
                 isBoldTextEnabled = isBoldText,
                 stickyCardWidthPercent = stickyWidth,
-                stickyPreviewLines = stickyLines
+                stickyPreviewLines = stickyLines,
+                appVersion = com.example.BuildConfig.VERSION_NAME
             )
         } catch (_: Exception) {
             UserProfileEntity(
                 bgPreset = "Default",
                 themeMode = "Auto",
                 enableLiquidGlassTheme = false,
-                disableHeavyEffects = true
+                disableHeavyEffects = true,
+                appVersion = com.example.BuildConfig.VERSION_NAME
             )
         }
     }

@@ -250,6 +250,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
     } else {
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         val isWide = maxWidth >= 600.dp
+        val columnMaxHeight = maxHeight
 
         if (isWide) {
             // WIDESCREEN TABLET LAYOUT: Two columns side-by-side
@@ -623,8 +624,8 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                         if (transactions.isEmpty()) {
                             EmptyStateCard(message = "No meal logs registered yet.")
                         } else {
-                            val displayCount = if (transactions.size >= 7) 6 else transactions.size
-                            val itemsToDisplay = transactions.take(displayCount)
+                            val tabletFitCount = ((columnMaxHeight - 200.dp) / 76.dp).toInt().coerceAtLeast(6)
+                            val itemsToDisplay = transactions.take(minOf(transactions.size, tabletFitCount))
 
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -1178,12 +1179,12 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         val context = androidx.compose.ui.platform.LocalContext.current
         com.example.ui.components.QrScannerDialog(
             onDismiss = { showQrScanner = false },
-            onSuccess = { payload: ByteArray, key: ByteArray, iv: ByteArray ->
+            onSuccess = { payload: ByteArray, key: ByteArray, iv: ByteArray, scannedQrUris: Map<String, String> ->
                 showQrScanner = false
-                viewModel.importHotelViaQr(payload, key, iv) { result ->
+                viewModel.importHotelViaQr(payload, key, iv, scannedPaymentQrUris = scannedQrUris) { result ->
                     when (result) {
                         is com.example.data.ImportResult.Success -> {
-                            android.widget.Toast.makeText(context, "Hotel imported successfully!", android.widget.Toast.LENGTH_LONG).show()
+                            android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
                         }
                         is com.example.data.ImportResult.Error -> {
                             android.widget.Toast.makeText(context, "Import failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()

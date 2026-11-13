@@ -53,7 +53,7 @@ class DataTransferManager(private val db: AppDatabase) {
     // JSON EXPORTS
     // ==========================================
 
-    suspend fun exportWholeHotelJson(hotelId: Int): String = withContext(Dispatchers.IO) {
+    suspend fun exportWholeHotelJson(hotelId: Int, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val hotel = hotelDao.getHotelByIdSync(hotelId) ?: throw IllegalArgumentException("Hotel not found")
         val menus = menuDao.getMenusForHotelSync(hotelId)
         val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
@@ -75,6 +75,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 put("location", hotel.location)
                 put("upiId", hotel.upiId)
                 put("qrCodeUri", hotel.qrCodeUri)
+                QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), hotel.qrCodeUri, includeQrPayloads = includeQrMedia)
                 put("notes", hotel.notes)
                 put("whatsappNumber", hotel.whatsappNumber)
             })
@@ -118,7 +119,7 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString()
     }
 
-    suspend fun exportHotelInfoJson(hotelId: Int): String = withContext(Dispatchers.IO) {
+    suspend fun exportHotelInfoJson(hotelId: Int, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val hotel = hotelDao.getHotelByIdSync(hotelId) ?: throw IllegalArgumentException("Hotel not found")
         val root = JSONObject().apply {
             put("version", 3)
@@ -132,6 +133,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 put("location", hotel.location)
                 put("upiId", hotel.upiId)
                 put("qrCodeUri", hotel.qrCodeUri)
+                QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), hotel.qrCodeUri, includeQrPayloads = includeQrMedia)
                 put("notes", hotel.notes)
                 put("whatsappNumber", hotel.whatsappNumber)
             })
@@ -208,9 +210,9 @@ class DataTransferManager(private val db: AppDatabase) {
         }
     }
 
-    suspend fun exportWalletWholeJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+    suspend fun exportWalletWholeJson(bankAccountId: Int? = null, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         if (bankAccountId != null) {
-            return@withContext exportSingleBankAccountJson(bankAccountId)
+            return@withContext exportSingleBankAccountJson(bankAccountId, includeQrMedia = includeQrMedia)
         }
         val accounts = bankAccountDao.getAllBankAccountsSync()
         val expenses = extraExpenseDao.getAllExpensesSync()
@@ -223,9 +225,11 @@ class DataTransferManager(private val db: AppDatabase) {
                 bankArr.put(JSONObject().apply {
                     put("id", b.id)
                     put("name", b.name)
-                    put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
+                    put("initialBalance", b.initialBalance)
+                    put("balance", b.balance)
                     put("details", b.details)
                     put("qrCodeUri", b.qrCodeUri)
+                    QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), b.qrCodeUri, includeQrPayloads = includeQrMedia)
                     put("upiId", b.upiId)
                     put("accountNumber", b.accountNumber)
                     put("ifsc", b.ifsc)
@@ -255,7 +259,7 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString()
     }
 
-    suspend fun exportBankAccountsJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
+    suspend fun exportBankAccountsJson(bankAccountId: Int? = null, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val accounts = if (bankAccountId != null) {
             bankAccountDao.getBankAccountByIdSync(bankAccountId)?.let { listOf(it) } ?: emptyList()
         } else {
@@ -269,10 +273,13 @@ class DataTransferManager(private val db: AppDatabase) {
             val arr = JSONArray()
             accounts.forEach { a ->
                 arr.put(JSONObject().apply {
+                    put("id", a.id)
                     put("name", a.name)
-                    put("initialBalance", if (a.initialBalance != 0.0 || a.balance == 0.0) a.initialBalance else a.balance)
+                    put("initialBalance", a.initialBalance)
+                    put("balance", a.balance)
                     put("details", a.details)
                     put("qrCodeUri", a.qrCodeUri)
+                    QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), a.qrCodeUri, includeQrPayloads = includeQrMedia)
                     put("upiId", a.upiId)
                     put("accountNumber", a.accountNumber)
                     put("ifsc", a.ifsc)
@@ -288,7 +295,7 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString()
     }
 
-    suspend fun exportSingleBankAccountJson(bankAccountId: Int): String = withContext(Dispatchers.IO) {
+    suspend fun exportSingleBankAccountJson(bankAccountId: Int, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val account = bankAccountDao.getBankAccountByIdSync(bankAccountId) ?: throw IllegalArgumentException("Bank account not found")
         val expenses = extraExpenseDao.getAllExpensesSync().filter { it.bankAccountId == bankAccountId }
         val root = JSONObject().apply {
@@ -298,9 +305,11 @@ class DataTransferManager(private val db: AppDatabase) {
             put("bankAccount", JSONObject().apply {
                 put("id", account.id)
                 put("name", account.name)
-                put("initialBalance", if (account.initialBalance != 0.0 || account.balance == 0.0) account.initialBalance else account.balance)
+                put("initialBalance", account.initialBalance)
+                put("balance", account.balance)
                 put("details", account.details)
                 put("qrCodeUri", account.qrCodeUri)
+                QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), account.qrCodeUri, includeQrPayloads = includeQrMedia)
                 put("upiId", account.upiId)
                 put("accountNumber", account.accountNumber)
                 put("ifsc", account.ifsc)
@@ -384,6 +393,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("dueDate", b.dueDate)
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
+                    put("note", b.note)
                 })
             }
             put("utilityBills", billArr)
@@ -448,6 +458,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("dueDate", b.dueDate)
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
+                    put("note", b.note)
                 })
             }
             put("utilityBills", arr)
@@ -511,7 +522,7 @@ class DataTransferManager(private val db: AppDatabase) {
         root.toString(2)
     }
 
-    suspend fun exportFullBackupJson(): String = withContext(Dispatchers.IO) {
+    suspend fun exportFullBackupJson(includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val hotels = hotelDao.getAllHotelsSync()
         val menus = menuDao.getAllMenuItemsSync()
         val transactions = transactionDao.getAllTransactionsSync()
@@ -560,6 +571,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("location", h.location)
                     put("upiId", h.upiId)
                     put("qrCodeUri", h.qrCodeUri)
+                    QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), h.qrCodeUri, includeQrPayloads = includeQrMedia)
                     put("notes", h.notes)
                     put("whatsappNumber", h.whatsappNumber)
                 })
@@ -608,9 +620,11 @@ class DataTransferManager(private val db: AppDatabase) {
                 bankArr.put(JSONObject().apply {
                     put("id", b.id)
                     put("name", b.name)
-                    put("initialBalance", if (b.initialBalance != 0.0 || b.balance == 0.0) b.initialBalance else b.balance)
+                    put("initialBalance", b.initialBalance)
+                    put("balance", b.balance)
                     put("details", b.details)
                     put("qrCodeUri", b.qrCodeUri)
+                    QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), b.qrCodeUri, includeQrPayloads = includeQrMedia)
                     put("upiId", b.upiId)
                     put("accountNumber", b.accountNumber)
                     put("ifsc", b.ifsc)
@@ -641,6 +655,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 val ownerArr = JSONArray()
                 ownerAccounts.forEach { oa ->
                     ownerArr.put(JSONObject().apply {
+                        put("id", oa.id)
                         put("ownerName", oa.ownerName)
                         put("ownerMobile", oa.ownerMobile)
                         put("accountName", oa.accountName)
@@ -649,6 +664,7 @@ class DataTransferManager(private val db: AppDatabase) {
                         put("branchName", oa.branchName)
                         put("upiId", oa.upiId)
                         put("qrCodeUri", oa.qrCodeUri)
+                        QrMediaCodec.appendQrDataToJson(this, AppDatabase.getAppContext(), oa.qrCodeUri, includeQrPayloads = includeQrMedia)
                         put("details", oa.details)
                         put("notes", oa.notes)
                         put("whatsappNumber", oa.whatsappNumber)
@@ -700,6 +716,7 @@ class DataTransferManager(private val db: AppDatabase) {
                     put("dueDate", b.dueDate)
                     put("isPaid", b.isPaid)
                     put("transactionId", b.transactionId ?: "")
+                    put("note", b.note)
                 })
             }
             put("utilityBills", billArr)
@@ -1015,7 +1032,7 @@ class DataTransferManager(private val db: AppDatabase) {
         val bills = meterDao.getAllUtilityBillsSync()
         val rates = meterDao.getAllElectricityRatesSync().sortedBy { it.effectiveDate }
         val sb = StringBuilder()
-        sb.append("Bill ID,Billing Start Date,Billing End Date,Total Units,Effective Rate (₹/unit),Calculated Amount (₹),Due Date,Payment Status,Transaction Reference,Variable Rate Breakdown,Start Timestamp,End Timestamp,Due Timestamp\n")
+        sb.append("Bill ID,Billing Start Date,Billing End Date,Total Units,Effective Rate (₹/unit),Calculated Amount (₹),Due Date,Payment Status,Transaction Reference,Variable Rate Breakdown,Start Timestamp,End Timestamp,Due Timestamp,Note\n")
         bills.forEach { b ->
             val startStr = dateOnlyFormat.format(Date(b.startDate))
             val endStr = dateOnlyFormat.format(Date(b.endDate))
@@ -1023,7 +1040,7 @@ class DataTransferManager(private val db: AppDatabase) {
             val status = if (b.isPaid) "Paid" else "Pending"
             val avgRate = if (b.totalUnits > 0) String.format(Locale.US, "%.2f", b.calculatedAmount / b.totalUnits) else "0.00"
             val rateBreakdown = generateRateBreakdownString(b.startDate, b.endDate, b.totalUnits, rates)
-            sb.append("\"${escapeCsv(b.id)}\",\"$startStr\",\"$endStr\",${b.totalUnits},$avgRate,${b.calculatedAmount},\"$dueStr\",$status,\"${escapeCsv(b.transactionId ?: "")}\",\"${escapeCsv(rateBreakdown)}\",${b.startDate},${b.endDate},${b.dueDate}\n")
+            sb.append("\"${escapeCsv(b.id)}\",\"$startStr\",\"$endStr\",${b.totalUnits},$avgRate,${b.calculatedAmount},\"$dueStr\",$status,\"${escapeCsv(b.transactionId ?: "")}\",\"${escapeCsv(rateBreakdown)}\",${b.startDate},${b.endDate},${b.dueDate},\"${escapeCsv(b.note)}\"\n")
         }
         sb.toString()
     }
@@ -1046,6 +1063,77 @@ class DataTransferManager(private val db: AppDatabase) {
         sb.append("Name,Contact,Currency,Language,Theme Mode,Text Size,Bold Text,Sticky Card Width %,Sticky Preview Lines,App Version\n")
         sb.append("\"${escapeCsv(p.name)}\",\"${escapeCsv(p.contact)}\",\"${escapeCsv(p.currencySymbol)}\",\"${escapeCsv(p.language)}\",\"${escapeCsv(p.themeMode)}\",\"${escapeCsv(p.textSize)}\",${p.isBoldTextEnabled},${p.stickyCardWidthPercent},${p.stickyPreviewLines},\"${escapeCsv(p.appVersion)}\"\n")
         sb.toString()
+    }
+
+    fun injectScannedPaymentQrsIntoJson(jsonString: String, scannedQrMap: Map<String, String>): String {
+        if (scannedQrMap.isEmpty()) return jsonString
+        return try {
+            val root = JSONObject(jsonString.trim())
+            val grouped = mutableMapOf<Pair<String, Int>, MutableList<Pair<Int, String>>>()
+
+            scannedQrMap.forEach { (key, uri) ->
+                if (uri.isNotBlank()) {
+                    val parts = key.split(":")
+                    val entityType = parts.getOrNull(0)?.uppercase() ?: return@forEach
+                    val origId = parts.getOrNull(1)?.toIntOrNull() ?: return@forEach
+                    val slotIdx = parts.getOrNull(2)?.toIntOrNull() ?: 0
+                    grouped.getOrPut(entityType to origId) { mutableListOf() }.add(slotIdx to uri)
+                }
+            }
+
+            fun resolvedUriFor(type: String, id: Int): String? {
+                val list = grouped[type to id] ?: return null
+                return list.sortedBy { it.first }.joinToString(",") { it.second }.ifBlank { null }
+            }
+
+            root.optJSONObject("hotel")?.let { hObj ->
+                val hid = hObj.optInt("id", -1)
+                val uri = resolvedUriFor("HOTEL", hid)
+                    ?: if (grouped.keys.count { it.first == "HOTEL" } == 1) {
+                        grouped.entries.firstOrNull { it.key.first == "HOTEL" }
+                            ?.value?.sortedBy { it.first }?.joinToString(",") { it.second }
+                    } else null
+                if (!uri.isNullOrBlank()) hObj.put("qrCodeUri", uri)
+            }
+
+            root.optJSONArray("hotels")?.let { hArr ->
+                for (i in 0 until hArr.length()) {
+                    val hObj = hArr.optJSONObject(i) ?: continue
+                    val uri = resolvedUriFor("HOTEL", hObj.optInt("id", -1))
+                    if (!uri.isNullOrBlank()) hObj.put("qrCodeUri", uri)
+                }
+            }
+
+            root.optJSONObject("bankAccount")?.let { bObj ->
+                val bid = bObj.optInt("id", -1)
+                val uri = resolvedUriFor("BANK", bid)
+                    ?: if (grouped.keys.count { it.first == "BANK" } == 1) {
+                        grouped.entries.firstOrNull { it.key.first == "BANK" }
+                            ?.value?.sortedBy { it.first }?.joinToString(",") { it.second }
+                    } else null
+                if (!uri.isNullOrBlank()) bObj.put("qrCodeUri", uri)
+            }
+
+            root.optJSONArray("bankAccounts")?.let { bArr ->
+                for (i in 0 until bArr.length()) {
+                    val bObj = bArr.optJSONObject(i) ?: continue
+                    val uri = resolvedUriFor("BANK", bObj.optInt("id", -1))
+                    if (!uri.isNullOrBlank()) bObj.put("qrCodeUri", uri)
+                }
+            }
+
+            root.optJSONArray("ownerAccounts")?.let { oArr ->
+                for (i in 0 until oArr.length()) {
+                    val oObj = oArr.optJSONObject(i) ?: continue
+                    val uri = resolvedUriFor("OWNER", oObj.optInt("id", -1))
+                    if (!uri.isNullOrBlank()) oObj.put("qrCodeUri", uri)
+                }
+            }
+
+            root.toString()
+        } catch (_: Exception) {
+            jsonString
+        }
     }
 
     // ==========================================
@@ -1162,7 +1250,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                     phoneNumber = hObj.optString("phoneNumber", ""),
                                     location = hObj.optString("location", ""),
                                     upiId = hObj.optString("upiId", ""),
-                                    qrCodeUri = hObj.optString("qrCodeUri", ""),
+                                    qrCodeUri = QrMediaCodec.resolveImportedQrUri(hObj, AppDatabase.getAppContext()),
                                     notes = hObj.optString("notes", ""),
                                     whatsappNumber = hObj.optString("whatsappNumber", "")
                                 )
@@ -1257,7 +1345,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                 balance = if (item.has("balance")) bal else initBal,
                                 initialBalance = initBal,
                                 details = item.optString("details", ""),
-                                qrCodeUri = item.optString("qrCodeUri", ""),
+                                qrCodeUri = QrMediaCodec.resolveImportedQrUri(item, AppDatabase.getAppContext()),
                                 upiId = item.optString("upiId", ""),
                                 accountNumber = item.optString("accountNumber", ""),
                                 ifsc = item.optString("ifsc", ""),
@@ -1323,7 +1411,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                     ifscCode = item.optString("ifscCode", ""),
                                     branchName = item.optString("branchName", ""),
                                     upiId = item.optString("upiId", ""),
-                                    qrCodeUri = item.optString("qrCodeUri", ""),
+                                    qrCodeUri = QrMediaCodec.resolveImportedQrUri(item, AppDatabase.getAppContext()),
                                     details = item.optString("details", item.optString("notes", "")),
                                     notes = item.optString("notes", ""),
                                     whatsappNumber = item.optString("whatsappNumber", ""),
@@ -1411,7 +1499,8 @@ class DataTransferManager(private val db: AppDatabase) {
                                     calculatedAmount = item.getDouble("calculatedAmount"),
                                     dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                     isPaid = item.optBoolean("isPaid", true),
-                                    transactionId = item.optString("transactionId", "").ifBlank { null }
+                                    transactionId = item.optString("transactionId", "").ifBlank { null },
+                                    note = item.optString("note", "")
                                 )
                             )
                         }
@@ -1451,8 +1540,21 @@ class DataTransferManager(private val db: AppDatabase) {
                         }
                     }
 
+                    val paidHotelMonths = root.optJSONArray("hotelPayments")?.length() ?: 0
+                    val paidBills = root.optJSONArray("utilityBills")?.let { arr ->
+                        (0 until arr.length()).count { arr.getJSONObject(it).optBoolean("isPaid", false) }
+                    } ?: 0
+                    val paidReadings = root.optJSONArray("meterReadings")?.let { arr ->
+                        (0 until arr.length()).count { arr.getJSONObject(it).optBoolean("isPaid", false) }
+                    } ?: 0
+                    val psidParts = mutableListOf<String>()
+                    if (paidHotelMonths > 0) psidParts.add("$paidHotelMonths hotel paid month(s)")
+                    if (paidBills > 0) psidParts.add("$paidBills paid bill(s)")
+                    if (paidReadings > 0) psidParts.add("$paidReadings paid reading(s)")
+                    val psidInfo = if (psidParts.isNotEmpty()) " • Paid status: ${psidParts.joinToString(", ")}" else ""
+
                     return@withContext ImportOutcome.Success(
-                        message = "Full application backup restored successfully ($totalCount records)",
+                        message = "Full application backup restored ($totalCount records$psidInfo)",
                         count = totalCount
                     )
                 }
@@ -1465,7 +1567,7 @@ class DataTransferManager(private val db: AppDatabase) {
                         phoneNumber = hObj.optString("phoneNumber", ""),
                         location = hObj.optString("location", ""),
                         upiId = hObj.optString("upiId", ""),
-                        qrCodeUri = hObj.optString("qrCodeUri", ""),
+                        qrCodeUri = QrMediaCodec.resolveImportedQrUri(hObj, AppDatabase.getAppContext()),
                         notes = hObj.optString("notes", ""),
                         whatsappNumber = hObj.optString("whatsappNumber", "")
                     )
@@ -1516,6 +1618,7 @@ class DataTransferManager(private val db: AppDatabase) {
                         txCount = list.size
                     }
 
+                    var paidMonthCount = 0
                     if (root.has("hotelPayments")) {
                         val payArr = root.getJSONArray("hotelPayments")
                         val payList = mutableListOf<HotelPaymentEntity>()
@@ -1535,11 +1638,13 @@ class DataTransferManager(private val db: AppDatabase) {
                             )
                         }
                         hotelPaymentDao.insertPayments(payList)
+                        paidMonthCount = payList.size
                     }
 
+                    val paidSuffix = if (paidMonthCount > 0) " • $paidMonthCount paid month(s)" else ""
                     return@withContext ImportOutcome.Success(
-                        message = "Hotel '${newHotel.name}' created with $menuCount menus and $txCount orders",
-                        count = menuCount + txCount,
+                        message = "Hotel '${newHotel.name}' created with $menuCount menus, $txCount orders$paidSuffix",
+                        count = menuCount + txCount + paidMonthCount,
                         newHotelId = newHotelId
                     )
                 }
@@ -1631,7 +1736,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                 balance = if (item.has("balance")) bal else initBal,
                                 initialBalance = initBal,
                                 details = item.optString("details", ""),
-                                qrCodeUri = item.optString("qrCodeUri", ""),
+                                qrCodeUri = QrMediaCodec.resolveImportedQrUri(item, AppDatabase.getAppContext()),
                                 upiId = item.optString("upiId", ""),
                                 accountNumber = item.optString("accountNumber", ""),
                                 ifsc = item.optString("ifsc", ""),
@@ -1692,7 +1797,7 @@ class DataTransferManager(private val db: AppDatabase) {
                         balance = if (bObj.has("balance")) bal else initBal,
                         initialBalance = initBal,
                         details = bObj.optString("details", ""),
-                        qrCodeUri = bObj.optString("qrCodeUri", ""),
+                        qrCodeUri = QrMediaCodec.resolveImportedQrUri(bObj, AppDatabase.getAppContext()),
                         upiId = bObj.optString("upiId", ""),
                         accountNumber = bObj.optString("accountNumber", ""),
                         ifsc = bObj.optString("ifsc", ""),
@@ -1746,7 +1851,7 @@ class DataTransferManager(private val db: AppDatabase) {
                                 balance = bal,
                                 initialBalance = initBal,
                                 details = item.optString("details", ""),
-                                qrCodeUri = item.optString("qrCodeUri", ""),
+                                qrCodeUri = QrMediaCodec.resolveImportedQrUri(item, AppDatabase.getAppContext()),
                                 upiId = item.optString("upiId", ""),
                                 accountNumber = item.optString("accountNumber", ""),
                                 ifsc = item.optString("ifsc", ""),
@@ -1821,7 +1926,8 @@ class DataTransferManager(private val db: AppDatabase) {
                                     calculatedAmount = item.getDouble("calculatedAmount"),
                                     dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                     isPaid = item.optBoolean("isPaid", true),
-                                    transactionId = item.optString("transactionId", "").ifBlank { null }
+                                    transactionId = item.optString("transactionId", "").ifBlank { null },
+                                    note = item.optString("note", "")
                                 )
                             )
                         }
@@ -1859,8 +1965,14 @@ class DataTransferManager(private val db: AppDatabase) {
                             }
                         }
                     }
+                    val paidBillCount = root.optJSONArray("utilityBills")?.let { arr ->
+                        (0 until arr.length()).count { arr.getJSONObject(it).optBoolean("isPaid", false) }
+                    } ?: 0
+                    val paidReadCount = root.optJSONArray("meterReadings")?.let { arr ->
+                        (0 until arr.length()).count { arr.getJSONObject(it).optBoolean("isPaid", false) }
+                    } ?: 0
                     return@withContext ImportOutcome.Success(
-                        message = "Imported electricity data ($totalCount readings & bills)",
+                        message = "Imported electricity data ($totalCount items • $paidReadCount paid readings, $paidBillCount paid bills)",
                         count = totalCount
                     )
                 }
@@ -1897,8 +2009,9 @@ class DataTransferManager(private val db: AppDatabase) {
                             }
                         }
                     }
+                    val paidCount = list.count { it.isPaid }
                     return@withContext ImportOutcome.Success(
-                        message = "Imported ${list.size} meter readings",
+                        message = "Imported ${list.size} meter readings ($paidCount paid)",
                         count = list.size
                     )
                 }
@@ -1917,7 +2030,8 @@ class DataTransferManager(private val db: AppDatabase) {
                                 calculatedAmount = item.getDouble("calculatedAmount"),
                                 dueDate = item.optLong("dueDate", item.getLong("endDate")),
                                 isPaid = item.optBoolean("isPaid", true),
-                                transactionId = item.optString("transactionId", "").ifBlank { null }
+                                transactionId = item.optString("transactionId", "").ifBlank { null },
+                                note = item.optString("note", "")
                             )
                         )
                     }
@@ -1937,8 +2051,9 @@ class DataTransferManager(private val db: AppDatabase) {
                             }
                         }
                     }
+                    val paidCount = list.count { it.isPaid }
                     return@withContext ImportOutcome.Success(
-                        message = "Imported ${list.size} electricity bills",
+                        message = "Imported ${list.size} electricity bills ($paidCount paid)",
                         count = list.size
                     )
                 }
@@ -2659,6 +2774,7 @@ class DataTransferManager(private val db: AppDatabase) {
                 val due = parseTimestamp(cols.getOrElse(12) { "" }, cols.getOrElse(6) { "" })
                 val isPaid = parseBoolean(cols.getOrElse(7) { "false" }, default = false)
                 val txnId = cols.getOrElse(8) { "" }
+                val note = cols.getOrElse(13) { "" }
 
                 list.add(
                     UtilityBill(
@@ -2669,7 +2785,8 @@ class DataTransferManager(private val db: AppDatabase) {
                         calculatedAmount = amount,
                         dueDate = if (due > 0) due else end,
                         isPaid = isPaid,
-                        transactionId = txnId.ifBlank { null }
+                        transactionId = txnId.ifBlank { null },
+                        note = note
                     )
                 )
             } else {

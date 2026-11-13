@@ -813,18 +813,19 @@ fun AddTransactionScreen(
                                         }
                                     }
 
-                                    // Notes + Built-in Free Speech-to-Text (English & Bengali)
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Compact Notes + Built-in Free Speech-to-Text (English & Bengali)
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = if (isBengali) "নোট ও ভয়েস টেক্সট (STT)" else "Notes & Voice-to-Text (STT)",
-                                                color = AppTextColor().copy(alpha = 0.65f),
+                                                text = if (isBengali) "নোট ও ভয়েস" else "Notes",
+                                                color = AppTextColor().copy(alpha = 0.72f),
                                                 fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
                                             )
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -840,42 +841,39 @@ fun AddTransactionScreen(
                                                     },
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AppAccentColor().copy(alpha = 0.14f),
-                                                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f))
+                                                    border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f)),
+                                                    modifier = Modifier.height(30.dp)
                                                 ) {
-                                                    Text(
-                                                        text = when (sttLang) {
-                                                            "bn-IN" -> "ভাষা: বাংলা"
-                                                            "en-US" -> "Lang: EN-US"
-                                                            else -> "Lang: EN-IN"
-                                                        },
-                                                        color = AppAccentColor(),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                    )
+                                                    Box(
+                                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = when (sttLang) {
+                                                                "bn-IN" -> "বাং"
+                                                                "en-US" -> "US"
+                                                                else -> "EN"
+                                                            },
+                                                            color = AppAccentColor(),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
+                                                        )
+                                                    }
                                                 }
                                                 Surface(
                                                     onClick = { com.example.service.DetectedUpiPaymentBus.openOfflineSpeechSettings(context) },
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AccentGold.copy(alpha = 0.14f),
-                                                    border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.35f))
+                                                    border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.35f)),
+                                                    modifier = Modifier.size(30.dp)
                                                 ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                                    ) {
+                                                    Box(contentAlignment = Alignment.Center) {
                                                         Icon(
                                                             imageVector = Icons.Default.Settings,
                                                             contentDescription = "Offline Speech Packs",
                                                             tint = AccentGold,
-                                                            modifier = Modifier.size(13.dp)
-                                                        )
-                                                        Text(
-                                                            text = if (isBengali) "অফলাইন" else "Offline",
-                                                            color = AccentGold,
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold
+                                                            modifier = Modifier.size(14.dp)
                                                         )
                                                     }
                                                 }
@@ -883,10 +881,11 @@ fun AddTransactionScreen(
                                                     onClick = { launchSpeechToText(sttLang, preferOffline = false) },
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AccentGreen.copy(alpha = 0.16f),
-                                                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f))
+                                                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f)),
+                                                    modifier = Modifier.height(30.dp)
                                                 ) {
                                                     Row(
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        modifier = Modifier.padding(horizontal = 9.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                                     ) {
@@ -897,10 +896,11 @@ fun AddTransactionScreen(
                                                             modifier = Modifier.size(14.dp)
                                                         )
                                                         Text(
-                                                            text = if (isBengali) "ভয়েস টাইপ" else "Dictate (STT)",
+                                                            text = if (isBengali) "STT" else "STT",
                                                             color = AccentGreen,
                                                             fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1
                                                         )
                                                     }
                                                 }
@@ -912,6 +912,7 @@ fun AddTransactionScreen(
                                             label = { Text(if (isBengali) "নোট (ঐচ্ছিক)" else "Notes (Optional)") },
                                             modifier = Modifier.fillMaxWidth(),
                                             singleLine = false,
+                                            maxLines = 3,
                                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                                         )
                                     }

@@ -1000,6 +1000,21 @@ private fun MeterReadingConflictCard(
                             dateFormat.format(Date(conflict.localReading.readingDate)),
                             style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 10.sp)
                         )
+                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            color = (if (conflict.localReading.isPaid) AccentGreen else AccentRed).copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (conflict.localReading.isPaid) "PAID" else "UNPAID",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (conflict.localReading.isPaid) AccentGreen else AccentRed,
+                                    fontSize = 10.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1029,6 +1044,21 @@ private fun MeterReadingConflictCard(
                             dateFormat.format(Date(conflict.importedReading.readingDate)),
                             style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 10.sp)
                         )
+                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            color = (if (conflict.importedReading.isPaid) AccentGreen else AccentRed).copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (conflict.importedReading.isPaid) "PAID" else "UNPAID",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (conflict.importedReading.isPaid) AccentGreen else AccentRed,
+                                    fontSize = 10.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1051,6 +1081,18 @@ private fun UtilityBillConflictCard(
     dateFormat: SimpleDateFormat,
     onDecisionChanged: (ConflictResolution) -> Unit
 ) {
+    fun billStatusLabel(bill: com.example.data.model.UtilityBill): Pair<String, Color> {
+        val paidAmt = bill.transactionId?.removePrefix("PAID_AMT:")?.toDoubleOrNull()
+        return when {
+            bill.isPaid -> "PAID" to AccentGreen
+            paidAmt != null && paidAmt > 0.0 -> {
+                val due = (bill.calculatedAmount - paidAmt).coerceAtLeast(0.0)
+                "PARTIAL (Paid ₹${paidAmt.toInt()} • Due ₹${due.toInt()})" to AccentGold
+            }
+            else -> "UNPAID" to AccentRed
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1073,6 +1115,9 @@ private fun UtilityBillConflictCard(
 
             Spacer(Modifier.height(12.dp))
 
+            val (localStatusText, localStatusColor) = billStatusLabel(conflict.localBill)
+            val (impStatusText, impStatusColor) = billStatusLabel(conflict.importedBill)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1094,6 +1139,30 @@ private fun UtilityBillConflictCard(
                             "₹${String.format(Locale.getDefault(), "%.2f", conflict.localBill.calculatedAmount)}",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary)
                         )
+                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            color = localStatusColor.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = localStatusText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = localStatusColor,
+                                    fontSize = 10.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (conflict.localBill.note.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = conflict.localBill.note,
+                                style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary, fontSize = 10.sp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -1114,6 +1183,30 @@ private fun UtilityBillConflictCard(
                             "₹${String.format(Locale.getDefault(), "%.2f", conflict.importedBill.calculatedAmount)}",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary)
                         )
+                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            color = impStatusColor.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = impStatusText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = impStatusColor,
+                                    fontSize = 10.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (conflict.importedBill.note.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = conflict.importedBill.note,
+                                style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary, fontSize = 10.sp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,7 +35,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,7 +75,9 @@ data class KhataPriceSegment(
     val price: Double,
     val guesses: List<MenuCombinationGuess>,
     val selectedGuessIndex: Int = 0,
-    val customDishName: String = ""
+    val customDishName: String = "",
+    val isCustomSelected: Boolean = false,
+    val customPriceText: String = if (price % 1.0 == 0.0) price.toInt().toString() else price.toString()
 )
 
 data class KhataDayEntry(
@@ -213,14 +218,16 @@ fun KhataScannerDialog(
             scanSummaryStatus = null
             try {
                 capturedBitmap = decodedBmp
-                val scannedLines = withContext(Dispatchers.Default) {
-                    runHybridKhataOcr(decodedBmp)
+                val ocrResult = withContext(Dispatchers.Default) {
+                    runHybridKhataOcrDetailed(decodedBmp)
                 }
-                if (scannedLines.isNotEmpty()) {
-                    extractedText = scannedLines.joinToString("\n")
-                    scanSummaryStatus = "OCR detected ${scannedLines.size} line(s) from $sourceLabel. Review or edit below."
+                if (ocrResult.lines.isNotEmpty()) {
+                    extractedText = ocrResult.lines.joinToString("\n")
+                    scanSummaryStatus = "OCR detected ${ocrResult.lines.size} line(s) from $sourceLabel. Review or edit below."
                 } else {
-                    errorMessage = "Could not detect clear text from this $sourceLabel. You can tap 'Paste / Google Lens Text' or type the lines below."
+                    errorMessage = ocrResult.errorDetail?.let { err ->
+                        "OCR error on $sourceLabel ($err). Tap 'Paste / Google Lens Text' or type lines below."
+                    } ?: "Could not detect clear text from this $sourceLabel. You can tap 'Paste / Google Lens Text' or type the lines below."
                 }
             } catch (e: Exception) {
                 errorMessage = "Failed to process $sourceLabel: ${e.localizedMessage}"
@@ -617,12 +624,16 @@ fun KhataScannerDialog(
                                                             .clickable {
                                                                 scope.launch {
                                                                     isProcessingImage = true
-                                                                    val rescanned = withContext(Dispatchers.Default) {
-                                                                        runHybridKhataOcr(bmp)
+                                                                    errorMessage = null
+                                                                    val rescanOutcome = withContext(Dispatchers.Default) {
+                                                                        runHybridKhataOcrDetailed(bmp)
                                                                     }
-                                                                    if (rescanned.isNotEmpty()) {
-                                                                        extractedText = rescanned.joinToString("\n")
-                                                                        scanSummaryStatus = "Re-scanned ${rescanned.size} line(s)."
+                                                                    if (rescanOutcome.lines.isNotEmpty()) {
+                                                                        extractedText = rescanOutcome.lines.joinToString("\n")
+                                                                        scanSummaryStatus = "Re-scanned ${rescanOutcome.lines.size} line(s)."
+                                                                    } else {
+                                                                        errorMessage = rescanOutcome.errorDetail?.let { "Re-scan OCR error: $it" }
+                                                                            ?: "Could not detect clear text on re-scan."
                                                                     }
                                                                     isProcessingImage = false
                                                                 }
@@ -1039,8 +1050,9 @@ fun KhataScannerDialog(
                                                             .background(getGlassIconButtonBg().copy(alpha = 0.65f))
                                                             .padding(10.dp)
                                                     ) {
+                                                        val formattedSegPrice = if (seg.price % 1.0 == 0.0) seg.price.toInt().toString() else String.format(Locale.US, "%.2f", seg.price)
                                                         Text(
-                                                            text = "Dish Price: ₹${seg.price.toInt()}",
+                                                            text = "Dish Price: ₹$formattedSegPrice",
                                                             color = AppTextColor(),
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
@@ -1051,18 +1063,14 @@ fun KhataScannerDialog(
 
                                                         if (topFourGuesses.isNotEmpty()) {
                                                             Text(
-                                                                text = if (topFourGuesses.size == 1) {
-                                                                    "Matched Menu Dish:"
-                                                                } else {
-                                                                    "Choose 1 of ${topFourGuesses.size} possible menu combinations for ₹${seg.price.toInt()}:"
-                                                                },
+                                                                text = "Choose detected combination or Custom Menu:",
                                                                 color = AppSecondaryTextColor(),
                                                                 fontSize = 11.sp
                                                             )
                                                             Spacer(modifier = Modifier.height(6.dp))
                                                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                                 topFourGuesses.forEachIndexed { gIdx, guess ->
-                                                                    val isSelected = seg.customDishName.isBlank() && seg.selectedGuessIndex == gIdx
+                                                                    val isSelected = !seg.isCustomSelected && seg.selectedGuessIndex == gIdx
                                                                     Row(
                                                                         modifier = Modifier
                                                                             .fillMaxWidth()
@@ -1074,9 +1082,15 @@ fun KhataScannerDialog(
                                                                                 RoundedCornerShape(8.dp)
                                                                             )
                                                                             .clickable {
+                                                                                val guessPriceText = if (guess.totalPrice % 1.0 == 0.0) guess.totalPrice.toInt().toString() else String.format(Locale.US, "%.2f", guess.totalPrice)
                                                                                 parsedEntries = parsedEntries.toMutableList().also { list ->
                                                                                     val updatedSegs = entry.segments.toMutableList()
-                                                                                    updatedSegs[segIdx] = seg.copy(selectedGuessIndex = gIdx, customDishName = "")
+                                                                                    updatedSegs[segIdx] = seg.copy(
+                                                                                        selectedGuessIndex = gIdx,
+                                                                                        isCustomSelected = false,
+                                                                                        price = guess.totalPrice,
+                                                                                        customPriceText = guessPriceText
+                                                                                    )
                                                                                     list[dayIdx] = entry.copy(segments = updatedSegs)
                                                                                 }
                                                                             }
@@ -1100,31 +1114,139 @@ fun KhataScannerDialog(
                                                                 }
                                                             }
                                                             Spacer(modifier = Modifier.height(6.dp))
-                                                        } else {
-                                                            Text(
-                                                                text = "No exact menu item matches ₹${seg.price.toInt()}. Enter custom dish name below:",
-                                                                color = AppSecondaryTextColor(),
-                                                                fontSize = 11.sp
-                                                            )
-                                                            Spacer(modifier = Modifier.height(6.dp))
                                                         }
 
-                                                        GlassTextField(
-                                                            value = seg.customDishName,
-                                                            onValueChange = { newName ->
-                                                                parsedEntries = parsedEntries.toMutableList().also { list ->
-                                                                    val updatedSegs = entry.segments.toMutableList()
-                                                                    updatedSegs[segIdx] = seg.copy(customDishName = newName)
-                                                                    list[dayIdx] = entry.copy(segments = updatedSegs)
-                                                                }
-                                                            },
-                                                            placeholder = {
-                                                                Text(
-                                                                    if (topFourGuesses.isNotEmpty()) "Or type custom dish name..."
-                                                                    else "Custom dish name (e.g. Special Meal)"
+                                                        // Explicit 5th option: Custom Menu / Manual (always available like exact meal record page)
+                                                        val isCustomCardSelected = seg.isCustomSelected || topFourGuesses.isEmpty()
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clip(RoundedCornerShape(8.dp))
+                                                                .background(if (isCustomCardSelected) accent.copy(alpha = 0.16f) else Color.Transparent)
+                                                                .border(
+                                                                    1.dp,
+                                                                    if (isCustomCardSelected) accent else AppTextColor().copy(alpha = 0.15f),
+                                                                    RoundedCornerShape(8.dp)
                                                                 )
+                                                                .clickable {
+                                                                    parsedEntries = parsedEntries.toMutableList().also { list ->
+                                                                        val updatedSegs = entry.segments.toMutableList()
+                                                                        val prefillDish = seg.customDishName.ifBlank {
+                                                                            topFourGuesses.getOrNull(seg.selectedGuessIndex)?.description ?: ""
+                                                                        }
+                                                                        updatedSegs[segIdx] = seg.copy(
+                                                                            isCustomSelected = true,
+                                                                            customDishName = prefillDish
+                                                                        )
+                                                                        list[dayIdx] = entry.copy(segments = updatedSegs)
+                                                                    }
+                                                                }
+                                                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                                                .testTag("khata_custom_menu_option_${dayIdx}_$segIdx"),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (isCustomCardSelected) Icons.Default.CheckCircle else Icons.Default.Edit,
+                                                                contentDescription = null,
+                                                                tint = if (isCustomCardSelected) accent else AppSecondaryTextColor(),
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Text(
+                                                                text = "Custom Menu / Manual",
+                                                                color = AppTextColor(),
+                                                                fontWeight = if (isCustomCardSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                fontSize = 12.sp
+                                                            )
+                                                        }
+
+                                                        if (hotelMenus.isNotEmpty()) {
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            Row(
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .horizontalScroll(rememberScrollState()),
+                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            ) {
+                                                                hotelMenus.forEach { menuItem ->
+                                                                    val menuTitle = menuItem.englishName.ifBlank { menuItem.banglaName }
+                                                                    val menuPriceStr = if (menuItem.price % 1.0 == 0.0) menuItem.price.toInt().toString() else String.format(Locale.US, "%.2f", menuItem.price)
+                                                                    val chipSelected = seg.isCustomSelected && seg.customDishName.equals(menuTitle, ignoreCase = true)
+                                                                    Surface(
+                                                                        shape = RoundedCornerShape(8.dp),
+                                                                        color = if (chipSelected) accent.copy(alpha = 0.2f) else AppTextColor().copy(alpha = 0.06f),
+                                                                        border = BorderStroke(
+                                                                            1.dp,
+                                                                            if (chipSelected) accent else AppTextColor().copy(alpha = 0.14f)
+                                                                        ),
+                                                                        modifier = Modifier.clickable {
+                                                                            parsedEntries = parsedEntries.toMutableList().also { list ->
+                                                                                val updatedSegs = entry.segments.toMutableList()
+                                                                                updatedSegs[segIdx] = seg.copy(
+                                                                                    isCustomSelected = true,
+                                                                                    customDishName = menuTitle,
+                                                                                    price = menuItem.price,
+                                                                                    customPriceText = menuPriceStr
+                                                                                )
+                                                                                list[dayIdx] = entry.copy(segments = updatedSegs)
+                                                                            }
+                                                                        }
+                                                                    ) {
+                                                                        Text(
+                                                                            text = "$menuTitle • ₹$menuPriceStr",
+                                                                            color = if (chipSelected) accent else AppTextColor(),
+                                                                            fontSize = 11.sp,
+                                                                            fontWeight = if (chipSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                                                        )
+                                                                    }
+                                                                }
                                                             }
-                                                        )
+                                                        }
+
+                                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                                        // Always visible Menu Name + Price textboxes
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            GlassTextField(
+                                                                value = seg.customDishName,
+                                                                onValueChange = { newName ->
+                                                                    parsedEntries = parsedEntries.toMutableList().also { list ->
+                                                                        val updatedSegs = entry.segments.toMutableList()
+                                                                        updatedSegs[segIdx] = seg.copy(
+                                                                            customDishName = newName,
+                                                                            isCustomSelected = true
+                                                                        )
+                                                                        list[dayIdx] = entry.copy(segments = updatedSegs)
+                                                                    }
+                                                                },
+                                                                placeholder = { Text("Menu / Dish name") },
+                                                                modifier = Modifier.weight(1.45f)
+                                                            )
+
+                                                            GlassTextField(
+                                                                value = seg.customPriceText,
+                                                                onValueChange = { newPriceText ->
+                                                                    val parsedVal = newPriceText.toDoubleOrNull()?.coerceAtLeast(0.0) ?: 0.0
+                                                                    parsedEntries = parsedEntries.toMutableList().also { list ->
+                                                                        val updatedSegs = entry.segments.toMutableList()
+                                                                        updatedSegs[segIdx] = seg.copy(
+                                                                            customPriceText = newPriceText,
+                                                                            price = parsedVal,
+                                                                            isCustomSelected = true
+                                                                        )
+                                                                        list[dayIdx] = entry.copy(segments = updatedSegs)
+                                                                    }
+                                                                },
+                                                                placeholder = { Text("₹ Price") },
+                                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                                modifier = Modifier.weight(0.85f)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1148,7 +1270,7 @@ fun KhataScannerDialog(
                                         var totalAmount = 0.0
                                         dayEntry.segments.forEach { seg ->
                                             totalAmount += seg.price
-                                            val chosenGuess = if (seg.customDishName.isBlank()) {
+                                            val chosenGuess = if (!seg.isCustomSelected && seg.customDishName.isBlank()) {
                                                 seg.guesses.getOrNull(seg.selectedGuessIndex)
                                             } else null
 
@@ -1775,6 +1897,47 @@ private fun countEnclosedHoles(
  * Runs Google ML Kit on-device Text Recognition first, repairs handwritten OCR errors via
  * [normalizeMessyKhataOcrLine], and falls back to [analyzeHandwrittenKhataBitmap] if needed.
  */
+private data class OcrScanOutcome(
+    val lines: List<String>,
+    val errorDetail: String? = null
+)
+
+private fun prepareBitmapForMlKit(source: Bitmap): Bitmap {
+    val safeBmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+        source.config == Bitmap.Config.HARDWARE
+    ) {
+        source.copy(Bitmap.Config.ARGB_8888, false)
+    } else if (source.config != Bitmap.Config.ARGB_8888) {
+        source.copy(Bitmap.Config.ARGB_8888, false)
+    } else {
+        source
+    }
+
+    val minDim = min(safeBmp.width, safeBmp.height).coerceAtLeast(1)
+    val maxDim = max(safeBmp.width, safeBmp.height).coerceAtLeast(1)
+    val scaled = when {
+        minDim < 720 -> {
+            val scale = (720f / minDim.toFloat()).coerceAtMost(1800f / maxDim.toFloat()).coerceAtLeast(1f)
+            if (scale > 1.05f) {
+                val tw = (safeBmp.width * scale).roundToInt().coerceAtLeast(1)
+                val th = (safeBmp.height * scale).roundToInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(safeBmp, tw, th, true)
+            } else safeBmp
+        }
+        maxDim > 1800 -> resizeBitmapSafely(safeBmp, 1800)
+        else -> safeBmp
+    }
+
+    // Flatten onto crisp white canvas so transparent PNG screenshots still have high contrast for OCR
+    val out = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(out)
+    canvas.drawColor(android.graphics.Color.WHITE)
+    canvas.drawBitmap(scaled, 0f, 0f, null)
+    if (scaled !== safeBmp && scaled !== source) scaled.recycle()
+    if (safeBmp !== source) safeBmp.recycle()
+    return out
+}
+
 private fun enhanceBitmapContrastForOcr(source: Bitmap): Bitmap {
     val w = source.width
     val h = source.height
@@ -1799,9 +1962,17 @@ private fun enhanceBitmapContrastForOcr(source: Bitmap): Bitmap {
     return out
 }
 
-private suspend fun runSingleMlKitPass(bitmap: Bitmap, rotationDegrees: Int): List<String> {
+private fun isLikelyKhataNumericRow(line: String): Boolean {
+    val t = line.trim()
+    if (t.isEmpty()) return false
+    val digitCount = t.count { it.isDigit() }
+    val letterCount = t.count { it.isLetter() }
+    return digitCount >= 2 && (letterCount <= 4 || Regex("""^\s*(?:[HhTt]1|\d{1,2})[./\-oO0fFpP]""").containsMatchIn(t))
+}
+
+private suspend fun runSingleMlKitPass(bitmap: Bitmap, rotationDegrees: Int): OcrScanOutcome {
     return runCatching {
-        suspendCancellableCoroutine<List<String>> { cont ->
+        suspendCancellableCoroutine<OcrScanOutcome> { cont ->
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val image = InputImage.fromBitmap(bitmap, rotationDegrees)
             recognizer.process(image)
@@ -1844,45 +2015,96 @@ private suspend fun runSingleMlKitPass(bitmap: Bitmap, rotationDegrees: Int): Li
                         mergedRows.add(currentRowParts.sortedBy { it.first }.joinToString(" ") { it.second })
                     }
 
-                    val candidateLines = (if (mergedRows.isNotEmpty()) mergedRows else rawVisualLines)
+                    val rawFallbackLines = if (mergedRows.isNotEmpty()) {
+                        mergedRows
+                    } else if (rawVisualLines.isNotEmpty()) {
+                        rawVisualLines
+                    } else {
+                        visionText.text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                    }
+
+                    val candidateLines = rawFallbackLines
                         .map { line ->
-                            val normalized = normalizeMessyKhataOcrLine(line)
-                            if (normalized.isNotBlank()) normalized else line.trim()
+                            if (isLikelyKhataNumericRow(line)) {
+                                val normalized = normalizeMessyKhataOcrLine(line)
+                                if (normalized.isNotBlank()) normalized else line.trim()
+                            } else {
+                                line.trim()
+                            }
                         }
                         .filter { it.isNotBlank() }
 
-                    if (cont.isActive) cont.resume(candidateLines)
+                    runCatching { recognizer.close() }
+                    if (cont.isActive) cont.resume(OcrScanOutcome(candidateLines, null))
                 }
-                .addOnFailureListener {
-                    if (cont.isActive) cont.resume(emptyList())
+                .addOnFailureListener { exc ->
+                    runCatching { recognizer.close() }
+                    if (cont.isActive) cont.resume(OcrScanOutcome(emptyList(), exc.localizedMessage ?: exc.javaClass.simpleName))
                 }
         }
-    }.getOrDefault(emptyList())
+    }.getOrElse { exc ->
+        OcrScanOutcome(emptyList(), exc.localizedMessage ?: exc.javaClass.simpleName)
+    }
+}
+
+private suspend fun runHybridKhataOcrDetailed(bitmap: Bitmap): OcrScanOutcome {
+    val prepared = prepareBitmapForMlKit(bitmap)
+    var lastError: String? = null
+    val candidates = mutableListOf<List<String>>()
+
+    // 1. Primary upright ML Kit pass
+    val primary = runSingleMlKitPass(prepared, 0)
+    if (primary.errorDetail != null) lastError = primary.errorDetail
+    if (primary.lines.size >= 2) {
+        if (prepared !== bitmap) prepared.recycle()
+        return OcrScanOutcome(primary.lines, null)
+    }
+    if (primary.lines.isNotEmpty()) candidates.add(primary.lines)
+
+    // 2. Contrast-enhanced ML Kit pass (helps faint ink, ruled paper & low-contrast prints)
+    val contrastBmp = enhanceBitmapContrastForOcr(prepared)
+    val contrastRes = runSingleMlKitPass(contrastBmp, 0)
+    contrastBmp.recycle()
+    if (contrastRes.errorDetail != null) lastError = contrastRes.errorDetail
+    if (contrastRes.lines.size >= 2) {
+        if (prepared !== bitmap) prepared.recycle()
+        return OcrScanOutcome(contrastRes.lines, null)
+    }
+    if (contrastRes.lines.isNotEmpty()) candidates.add(contrastRes.lines)
+
+    // 3. Check 90°, 270°, 180° in case screenshot/photo lacked EXIF orientation tags
+    for (rot in listOf(90, 270, 180)) {
+        val rotRes = runSingleMlKitPass(prepared, rot)
+        if (rotRes.errorDetail != null) lastError = rotRes.errorDetail
+        if (rotRes.lines.isNotEmpty()) candidates.add(rotRes.lines)
+    }
+
+    if (prepared !== bitmap) prepared.recycle()
+
+    val bestMlKit = candidates.maxByOrNull { lines ->
+        lines.size * 10 + lines.sumOf { it.length }.coerceAtMost(200)
+    }.orEmpty()
+    if (bestMlKit.isNotEmpty()) {
+        return OcrScanOutcome(bestMlKit, null)
+    }
+
+    // 4. Pure-Kotlin optical recognizer fallback for numeric Khata rows
+    val fallbackLines = analyzeHandwrittenKhataBitmap(bitmap)
+        .map { normalizeMessyKhataOcrLine(it) }
+        .filter { it.isNotBlank() }
+    return if (fallbackLines.isNotEmpty()) {
+        OcrScanOutcome(fallbackLines, null)
+    } else {
+        OcrScanOutcome(emptyList(), lastError)
+    }
 }
 
 /**
- * Runs Google ML Kit Text Recognition across upright, contrast-enhanced, and rotated orientations,
- * preserves all printed & handwritten lines, repairs Khata OCR artifacts via [normalizeMessyKhataOcrLine],
- * and falls back to [analyzeHandwrittenKhataBitmap] if Play Services OCR model is still initializing.
+ * Runs bundled Google ML Kit Text Recognition across normalized, contrast-enhanced, and rotated orientations,
+ * preserves printed & handwritten text, and falls back to [analyzeHandwrittenKhataBitmap] if needed.
  */
 private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
-    // 1. Primary upright ML Kit pass
-    val primaryLines = runSingleMlKitPass(bitmap, 0)
-    if (primaryLines.isNotEmpty()) return primaryLines
-
-    // 2. Contrast-enhanced ML Kit pass (greatly improves faint ink & ruled-notebook contrast)
-    val contrastBmp = enhanceBitmapContrastForOcr(bitmap)
-    val contrastLines = runSingleMlKitPass(contrastBmp, 0)
-    if (contrastLines.isNotEmpty()) return contrastLines
-
-    // 3. Check 90° and 270° in case screenshot/photo lacked EXIF orientation tags
-    for (rot in listOf(90, 270)) {
-        val rotLines = runSingleMlKitPass(bitmap, rot)
-        if (rotLines.isNotEmpty()) return rotLines
-    }
-
-    // 4. Pure-Kotlin optical recognizer fallback
-    return analyzeHandwrittenKhataBitmap(bitmap).map { normalizeMessyKhataOcrLine(it) }.filter { it.isNotBlank() }
+    return runHybridKhataOcrDetailed(bitmap).lines
 }
 
 /**
@@ -2062,7 +2284,8 @@ fun parseKhataRawText(
             KhataPriceSegment(
                 price = priceVal,
                 guesses = guesses,
-                selectedGuessIndex = 0
+                selectedGuessIndex = 0,
+                isCustomSelected = guesses.isEmpty()
             )
         }
 

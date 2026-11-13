@@ -38,6 +38,11 @@ data class DetectedUpiPayment(
 object DetectedUpiPaymentBus {
     private const val PREFS_NAME = "traker_upi_detect_prefs"
     private const val KEY_AUTO_DETECT_ENABLED = "upi_auto_detect_enabled"
+    private const val KEY_PENDING_PAYMENTS = "pending_upi_payments_json"
+    private const val CHANNEL_UPI_DETECT = "traker_upi_auto_detect"
+
+    @Volatile
+    private var cachedAppContext: Context? = null
 
     private val _pendingPayments = MutableStateFlow<List<DetectedUpiPayment>>(emptyList())
     val pendingPayments: StateFlow<List<DetectedUpiPayment>> = _pendingPayments.asStateFlow()
@@ -47,24 +52,118 @@ object DetectedUpiPaymentBus {
 
     private val recentSignatures = LinkedHashMap<String, Long>()
 
+    private fun resolveContext(context: Context?): Context? {
+        if (context != null) {
+            cachedAppContext = context.applicationContext
+            return cachedAppContext
+        }
+        return cachedAppContext ?: runCatching { com.example.data.AppDatabase.getAppContext() }.getOrNull()
+    }
+
     fun syncEnabledState(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val ctx = resolveContext(context) ?: context
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val enabled = prefs.getBoolean(KEY_AUTO_DETECT_ENABLED, true)
         _isAutoDetectEnabledFlow.value = enabled
         return enabled
     }
 
+    fun loadPendingPayments(context: Context): List<DetectedUpiPayment> {
+        val ctx = resolveContext(context) ?: context
+        if (!syncEnabledState(ctx)) {
+            _pendingPayments.value = emptyList()
+            return emptyList()
+        }
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_PENDING_PAYMENTS, "[]") ?: "[]"
+        val loaded = mutableListOf<DetectedUpiPayment>()
+        runCatching {
+            val arr = JSONArray(raw)
+            val cutoff = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000L)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val ts = obj.optLong("timestamp", System.currentTimeMillis())
+                if (ts < cutoff) continue
+                val amt = obj.optDouble("amount", 0.0)
+                if (amt <= 0.0) continue
+                loaded.add(
+                    DetectedUpiPayment(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        appName = obj.optString("appName", "UPI"),
+                        packageName = obj.optString("packageName", ""),
+                        amount = amt,
+                        transactionType = obj.optString("transactionType", "EXPENSE"),
+                        counterparty = obj.optString("counterparty", ""),
+                        rawText = obj.optString("rawText", ""),
+                        timestamp = ts
+                    )
+                )
+            }
+        }
+        val merged = (loaded + _pendingPayments.value)
+            .distinctBy { it.id }
+            .sortedBy { it.timestamp }
+            .takeLast(10)
+        _pendingPayments.value = merged
+        return merged
+    }
+
+    private fun persistPendingPayments(context: Context?, list: List<DetectedUpiPayment>) {
+        val ctx = resolveContext(context) ?: return
+        val arr = JSONArray()
+        list.forEach { p ->
+            arr.put(JSONObject().apply {
+                put("id", p.id)
+                put("appName", p.appName)
+                put("packageName", p.packageName)
+                put("amount", p.amount)
+                put("transactionType", p.transactionType)
+                put("counterparty", p.counterparty)
+                put("rawText", p.rawText)
+                put("timestamp", p.timestamp)
+            })
+        }
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_PENDING_PAYMENTS, arr.toString())
+            .apply()
+    }
+
     fun setAutoDetectEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_AUTO_DETECT_ENABLED, enabled).apply()
+        val ctx = resolveContext(context) ?: context
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putBoolean(KEY_AUTO_DETECT_ENABLED, enabled)
+            if (!enabled) putString(KEY_PENDING_PAYMENTS, "[]")
+        }.apply()
         _isAutoDetectEnabledFlow.value = enabled
         if (!enabled) {
             _pendingPayments.value = emptyList()
+        } else {
+            ensureListenerBound(ctx)
+        }
+    }
+
+    fun ensureListenerBound(context: Context) {
+        val ctx = resolveContext(context) ?: context
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isNotificationListenerEnabled(ctx)) {
+            runCatching {
+                NotificationListenerService.requestRebind(
+                    ComponentName(ctx, PaymentNotificationListenerService::class.java)
+                )
+            }
         }
     }
 
     fun postDetectedPayment(payment: DetectedUpiPayment) {
+        postDetectedPayment(resolveContext(null), payment)
+    }
+
+    fun postDetectedPayment(context: Context?, payment: DetectedUpiPayment) {
+        val ctx = resolveContext(context)
+        if (ctx != null && !syncEnabledState(ctx)) return
         if (!_isAutoDetectEnabledFlow.value) return
+
         val now = System.currentTimeMillis()
         val sig = "${payment.amount}|${payment.transactionType}|${payment.counterparty.lowercase(Locale.ROOT).take(12)}"
         synchronized(recentSignatures) {
@@ -76,11 +175,70 @@ object DetectedUpiPaymentBus {
                 if (oldestKey != null) recentSignatures.remove(oldestKey)
             }
         }
-        _pendingPayments.value = (_pendingPayments.value + payment).takeLast(10)
+        if (ctx != null && _pendingPayments.value.isEmpty()) {
+            loadPendingPayments(ctx)
+        }
+        val updated = (_pendingPayments.value.filterNot { it.id == payment.id } + payment).takeLast(10)
+        _pendingPayments.value = updated
+        persistPendingPayments(ctx, updated)
+        if (ctx != null) {
+            showUpiDetectedNotification(ctx, payment)
+        }
     }
 
-    fun dismissPayment(id: String) {
-        _pendingPayments.value = _pendingPayments.value.filterNot { it.id == id }
+    fun dismissPayment(id: String, context: Context? = null) {
+        val ctx = resolveContext(context)
+        val updated = _pendingPayments.value.filterNot { it.id == id }
+        _pendingPayments.value = updated
+        persistPendingPayments(ctx, updated)
+        if (ctx != null) {
+            runCatching {
+                val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.cancel(id.hashCode())
+            }
+        }
+    }
+
+    private fun showUpiDetectedNotification(context: Context, payment: DetectedUpiPayment) {
+        runCatching {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val ch = NotificationChannel(
+                    CHANNEL_UPI_DETECT,
+                    "UPI & Bank Auto-Detection",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Quick notification when a UPI or bank payment is detected"
+                }
+                nm.createNotificationChannel(ch)
+            }
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                action = "OPEN_UPI_DETECT"
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            val pi = PendingIntent.getActivity(context, payment.id.hashCode(), openIntent, flags)
+
+            val verb = if (payment.transactionType == "INCOME") "Received" else "Paid"
+            val amtText = if (payment.amount % 1.0 == 0.0) {
+                "₹${payment.amount.toLong()}"
+            } else {
+                String.format(Locale.US, "₹%.2f", payment.amount)
+            }
+            val cpText = payment.counterparty.ifBlank { payment.appName }
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_UPI_DETECT)
+                .setSmallIcon(android.R.drawable.stat_notify_sync)
+                .setContentTitle("$verb $amtText • ${payment.appName}")
+                .setContentText("Tap to save record for $cpText (Add voice memo or screenshot)")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .build()
+
+            nm.notify(payment.id.hashCode(), notification)
+        }
     }
 
     fun isDeviceCapableOfUpiDetection(context: Context): Boolean {
@@ -162,28 +320,35 @@ class PaymentNotificationListenerService : NotificationListenerService() {
             RegexOption.IGNORE_CASE
         )
 
+        private val BANK_PACKAGE_KEYWORDS = listOf(
+            "bank", "hdfc", "sbi", "icici", "axis", "kotak", "pnb", "canara",
+            "union", "idfc", "indus", "yesbank", "messaging", "mms", "sms"
+        )
+
         fun parseUpiNotification(packageName: String, title: String, text: String): DetectedUpiPayment? {
             if (packageName == "com.tracker.suva" || packageName == "com.example") return null
 
             val combined = "$title $text".trim()
             if (combined.length < 6) return null
             val lower = combined.lowercase(Locale.ROOT)
+            val pkgLower = packageName.lowercase(Locale.ROOT)
 
             val appName = SUPPORTED_UPI_PACKAGES[packageName] ?: when {
-                packageName.contains("paisa", ignoreCase = true) || packageName.contains("gpay", ignoreCase = true) -> "Google Pay"
-                packageName.contains("phonepe", ignoreCase = true) -> "PhonePe"
-                packageName.contains("paytm", ignoreCase = true) -> "Paytm"
-                packageName.contains("bharatpe", ignoreCase = true) -> "BharatPe"
-                packageName.contains("upi", ignoreCase = true) -> "UPI App"
-                packageName.contains("messaging", ignoreCase = true) || packageName.contains("mms", ignoreCase = true) || packageName.contains("sms", ignoreCase = true) -> "Bank SMS Alert"
-                lower.contains("upi") && (lower.contains("debited") || lower.contains("credited") || lower.contains("paid") || lower.contains("sent")) -> "UPI / Bank Alert"
+                pkgLower.contains("paisa") || pkgLower.contains("gpay") -> "Google Pay"
+                pkgLower.contains("phonepe") -> "PhonePe"
+                pkgLower.contains("paytm") -> "Paytm"
+                pkgLower.contains("bharatpe") -> "BharatPe"
+                pkgLower.contains("upi") -> "UPI App"
+                BANK_PACKAGE_KEYWORDS.any { pkgLower.contains(it) } -> "Bank / SMS Alert"
+                (lower.contains("upi") || lower.contains("vpa") || lower.contains("a/c") || lower.contains("acct")) &&
+                    (lower.contains("debited") || lower.contains("credited") || lower.contains("paid") || lower.contains("sent") || lower.contains("received")) -> "UPI / Bank Alert"
                 else -> return null
             }
 
-            val isPaid = lower.contains("paid") || lower.contains("sent") || lower.contains("debited") || lower.contains("payment of") || lower.contains("spent") || lower.contains("trf to")
+            val isPaid = lower.contains("paid") || lower.contains("sent") || lower.contains("debited") || lower.contains("payment of") || lower.contains("spent") || lower.contains("trf to") || lower.contains("withdrawn")
             val isReceived = lower.contains("received") || lower.contains("credited") || lower.contains("added to your") || lower.contains("deposited")
             if (!isPaid && !isReceived) return null
-            if (lower.contains("failed") || lower.contains("declined") || lower.contains("pending") || lower.contains("request") || lower.contains("otp") || lower.contains("due on")) return null
+            if (lower.contains("failed") || lower.contains("declined") || lower.contains("pending") || lower.contains("request") || lower.contains("otp") || lower.contains("due on") || lower.contains("will be debited")) return null
 
             val match = AMOUNT_REGEX.find(combined) ?: return null
             val rawAmt = match.groupValues[1].replace(",", "")
@@ -226,6 +391,27 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         }
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        DetectedUpiPaymentBus.syncEnabledState(applicationContext)
+        DetectedUpiPaymentBus.loadPendingPayments(applicationContext)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        DetectedUpiPaymentBus.syncEnabledState(applicationContext)
+        DetectedUpiPaymentBus.loadPendingPayments(applicationContext)
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            runCatching {
+                requestRebind(ComponentName(this, PaymentNotificationListenerService::class.java))
+            }
+        }
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
@@ -234,12 +420,21 @@ class PaymentNotificationListenerService : NotificationListenerService() {
             val pkg = sbn.packageName ?: return
             val extras = sbn.notification?.extras ?: return
             val title = extras.getCharSequence("android.title")?.toString() ?: ""
-            val text = extras.getCharSequence("android.bigText")?.toString()
-                ?: extras.getCharSequence("android.text")?.toString()
-                ?: ""
-            val detected = parseUpiNotification(pkg, title, text)
+            val bigText = extras.getCharSequence("android.bigText")?.toString()
+            val plainText = extras.getCharSequence("android.text")?.toString()
+            val subText = extras.getCharSequence("android.subText")?.toString()
+            val textLines = extras.getCharSequenceArray("android.textLines")
+                ?.mapNotNull { it?.toString()?.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.joinToString(" ")
+            val combinedText = listOfNotNull(bigText, plainText, textLines, subText)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .joinToString(" ")
+            val detected = parseUpiNotification(pkg, title, combinedText)
             if (detected != null) {
-                DetectedUpiPaymentBus.postDetectedPayment(detected)
+                DetectedUpiPaymentBus.postDetectedPayment(applicationContext, detected)
             }
         }
     }

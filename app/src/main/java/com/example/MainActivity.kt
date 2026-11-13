@@ -35,6 +35,9 @@ class MainActivity : FragmentActivity() {
             isAppearanceLightNavigationBars = isInitialLight
         }
         com.example.service.MonthlyReminderManager.checkDueRemindersNow(this)
+        com.example.service.DetectedUpiPaymentBus.syncEnabledState(this)
+        com.example.service.DetectedUpiPaymentBus.loadPendingPayments(this)
+        com.example.service.DetectedUpiPaymentBus.ensureListenerBound(this)
 
         val initialAction = intent?.action ?: intent?.getStringExtra("action")
 
@@ -58,9 +61,18 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        com.example.service.DetectedUpiPaymentBus.syncEnabledState(this)
+        com.example.service.DetectedUpiPaymentBus.loadPendingPayments(this)
+        com.example.service.DetectedUpiPaymentBus.ensureListenerBound(this)
+        com.example.service.MonthlyReminderManager.checkDueRemindersNow(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        com.example.service.DetectedUpiPaymentBus.loadPendingPayments(this)
         val action = intent.action ?: intent.getStringExtra("action")
         if (action in listOf("ADD_EXPENSE", "ADD_MEAL_LOG", "ADD_HOTEL_TX", "ADD_HOTEL", "ADD_ACCOUNT")) {
             sharedViewModel?.triggerQuickAction(action!!)

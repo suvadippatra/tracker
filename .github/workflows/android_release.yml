@@ -29,12 +29,12 @@ on:
       tag_name:
         description: 'Tag name for the GitHub release (if create_release is enabled)'
         required: false
-        default: 'v0.0.1'
+        default: 'v0.0.2'
         type: string
       release_name:
         description: 'Name of the GitHub release'
         required: false
-        default: 'Traker v0.0.1 Release'
+        default: 'Traker v0.0.2 Release'
         type: string
 
 env:
@@ -84,13 +84,16 @@ jobs:
           mkdir -p dist-outputs
 
           RAW_TAG="${{ inputs.tag_name }}"
+          if [ -z "$RAW_TAG" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            RAW_TAG="${{ github.ref_name }}"
+          fi
           CLEAN_VER=$(echo "$RAW_TAG" | sed -E 's/^[vV]//' | tr -d '[:space:]')
           if [ -z "$CLEAN_VER" ]; then
             CLEAN_VER="0.0.2"
           fi
-          MAJOR=$(echo "$CLEAN_VER" | cut -d. -f1 | grep -E '^[0-9]+$' || echo 0)
-          MINOR=$(echo "$CLEAN_VER" | cut -d. -f2 | grep -E '^[0-9]+$' || echo 0)
-          PATCH=$(echo "$CLEAN_VER" | cut -d. -f3 | grep -E '^[0-9]+$' || echo 1)
+          MAJOR=$(echo "$CLEAN_VER" | cut -d. -f1 | sed -E 's/^([0-9]+).*/\1/; s/^$/0/; t; s/.*/0/' )
+          MINOR=$(echo "$CLEAN_VER" | cut -d. -f2 | sed -E 's/^([0-9]+).*/\1/; s/^$/0/; t; s/.*/0/' )
+          PATCH=$(echo "$CLEAN_VER" | cut -d. -f3 | sed -E 's/^([0-9]+).*/\1/; s/^$/0/; t; s/.*/0/' )
           RUN_NO="${{ github.run_number }}"
           if [ -z "$RUN_NO" ]; then RUN_NO=1; fi
           COMPUTED_CODE=$(( MAJOR * 1000000 + MINOR * 10000 + PATCH * 100 + RUN_NO + 10 ))

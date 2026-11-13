@@ -193,9 +193,26 @@ fun DataBackupSettingsScreen(
                             if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
                                 attachmentsDir.listFiles()?.forEach { file ->
                                     if (file.isFile && file.canRead()) {
-                                        // Include file if referenced in payload OR if exporting full/hotel/wallet/transaction backup
                                         if (combinedText.contains(file.name) || combinedText.isNotBlank()) {
                                             val entryName = "attachments/${file.name}"
+                                            if (addedNames.add(entryName)) {
+                                                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                                file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
+                                                zos.closeEntry()
+                                                mediaCount++
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Also bundle reconstructed/stored payment QR codes in filesDir/qr_codes
+                            val qrCodesDir = java.io.File(context.filesDir, "qr_codes")
+                            if (qrCodesDir.exists() && qrCodesDir.isDirectory) {
+                                qrCodesDir.listFiles()?.forEach { file ->
+                                    if (file.isFile && file.canRead()) {
+                                        if (combinedText.contains(file.name) || combinedText.isNotBlank()) {
+                                            val entryName = "qr_codes/${file.name}"
                                             if (addedNames.add(entryName)) {
                                                 zos.putNextEntry(java.util.zip.ZipEntry(entryName))
                                                 file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
@@ -254,6 +271,9 @@ fun DataBackupSettingsScreen(
                         val attachmentsDir = java.io.File(context.filesDir, "attachments").apply {
                             if (!exists()) mkdirs()
                         }
+                        val qrCodesDir = java.io.File(context.filesDir, "qr_codes").apply {
+                            if (!exists()) mkdirs()
+                        }
                         var jsonEntryText: String? = null
                         var csvEntryText: String? = null
 
@@ -279,6 +299,16 @@ fun DataBackupSettingsScreen(
                                                 restoredMediaCount++
                                             }
                                         }
+                                        name.startsWith("qr_codes/") -> {
+                                            val cleanFileName = java.io.File(name).name
+                                            if (cleanFileName.isNotBlank()) {
+                                                val outFile = java.io.File(qrCodesDir, cleanFileName)
+                                                java.io.FileOutputStream(outFile).use { fos ->
+                                                    zis.copyTo(fos)
+                                                }
+                                                restoredMediaCount++
+                                            }
+                                        }
                                     }
                                 }
                                 zis.closeEntry()
@@ -286,12 +316,17 @@ fun DataBackupSettingsScreen(
                             }
                         }
 
-                        // Rewrite any old device /data/user/0/.../files/attachments/<file> paths to this device's attachmentsDir
+                        // Rewrite any old device /data/.../files/attachments/<file> and /qr_codes/<file> paths to this device
                         val rawPayload = jsonEntryText ?: csvEntryText
-                        extractedText = rawPayload?.replace(
-                            Regex("""/data/[^\s"\[\],;]+/files/attachments/([A-Za-z0-9_.\-]+)"""),
-                            "${attachmentsDir.absolutePath}/$1"
-                        )
+                        extractedText = rawPayload
+                            ?.replace(
+                                Regex("""/data/[^\s"\[\],;]+/files/attachments/([A-Za-z0-9_.\-]+)"""),
+                                "${attachmentsDir.absolutePath}/$1"
+                            )
+                            ?.replace(
+                                Regex("""/data/[^\s"\[\],;]+/files/qr_codes/([A-Za-z0-9_.\-]+)"""),
+                                "${qrCodesDir.absolutePath}/$1"
+                            )
                     } else {
                         extractedText = bytes.toString(Charsets.UTF_8)
                     }
@@ -1615,9 +1650,16 @@ fun DataBackupSettingsScreen(
     if (showQrScanner) {
         QrScannerDialog(
             onDismiss = { showQrScanner = false },
-            onSuccess = { payload, key, iv ->
+            onSuccess = { payload, key, iv, scannedQrUris ->
                 showQrScanner = false
-                viewModel.importHotelViaQr(payload, key, iv, targetHotelId = selectedHotelId, targetBankAccountId = selectedAccountScopeId ?: 1) { result ->
+                viewModel.importHotelViaQr(
+                    payload = payload,
+                    key = key,
+                    iv = iv,
+                    targetHotelId = selectedHotelId,
+                    targetBankAccountId = selectedAccountScopeId ?: 1,
+                    scannedPaymentQrUris = scannedQrUris
+                ) { result ->
                     when (result) {
                         is ImportResult.Success -> {
                             Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()

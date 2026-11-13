@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.CircleShape
 
 
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 
 import androidx.compose.animation.*
@@ -112,6 +113,7 @@ fun BillTrackingTab(
             }
             is MeterReadingUiState.Success -> {
                 if (isWide) {
+                    val columnMaxHeight = maxHeight
                     // Responsive side-by-side layout for tablets / foldables
                     Row(
                         modifier = Modifier
@@ -126,7 +128,9 @@ fun BillTrackingTab(
                                 language = language,
                                 currency = currency,
                                 isLight = isLight,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                isWide = true,
+                                columnMaxHeight = columnMaxHeight
                             )
                         }
                         Box(modifier = Modifier.weight(1.2f)) {
@@ -138,7 +142,9 @@ fun BillTrackingTab(
                                 isLight = isLight,
                                 modifier = Modifier.fillMaxSize(),
                                 financialViewModel = financialViewModel,
-                                onOpenUtilityConfig = onOpenUtilityConfig
+                                onOpenUtilityConfig = onOpenUtilityConfig,
+                                isWide = true,
+                                columnMaxHeight = columnMaxHeight
                             )
                         }
                     }
@@ -259,7 +265,9 @@ fun DailyReadingInputScreen(
     language: String,
     currency: String,
     isLight: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isWide: Boolean = false,
+    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
@@ -313,10 +321,15 @@ fun DailyReadingInputScreen(
     }
 
     var showAllLogReadings by remember { mutableStateOf(false) }
+    val defaultLogLimit = if (isWide) {
+        ((columnMaxHeight - 360.dp) / 72.dp).toInt().coerceAtLeast(6)
+    } else {
+        4
+    }
 
-    val visibleLogItems = remember(displayItems, showAllLogReadings) {
+    val visibleLogItems = remember(displayItems, showAllLogReadings, defaultLogLimit) {
         derivedStateOf {
-            if (showAllLogReadings || displayItems.size <= 4) displayItems else displayItems.take(4)
+            if (showAllLogReadings || displayItems.size <= defaultLogLimit) displayItems else displayItems.take(defaultLogLimit)
         }
     }
 
@@ -656,7 +669,7 @@ fun DailyReadingInputScreen(
             }
         }
 
-        if (displayItems.size > 4) {
+        if (displayItems.size > defaultLogLimit) {
             item(key = "toggle_view_all_readings") {
                 Box(
                     modifier = Modifier
@@ -729,7 +742,9 @@ fun BillSummaryScreen(
     isLight: Boolean,
     modifier: Modifier = Modifier,
     financialViewModel: FinancialViewModel? = null,
-    onOpenUtilityConfig: () -> Unit = {}
+    onOpenUtilityConfig: () -> Unit = {},
+    isWide: Boolean = false,
+    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp
 ) {
     val formatter = remember { Formatters.getSimpleDateFormat("dd MMM, yyyy") }
     
@@ -1122,17 +1137,17 @@ fun BillSummaryScreen(
         return
     }
 
-    // Check if range includes paid session
+    // Check if range includes paid session (excluding the legal start boundary day itself, which is the previous paid endpoint)
     val paidSessionsInRange = remember(successState.readings, startMillis, endMillis) {
         val minTime = minOf(startMillis, endMillis)
         val maxTime = maxOf(startMillis, endMillis)
         val cal = Calendar.getInstance()
         cal.timeInMillis = minTime
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val calS = cal.timeInMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val startDayEnd = cal.timeInMillis
 
         cal.timeInMillis = maxTime
         cal.set(Calendar.HOUR_OF_DAY, 23)
@@ -1142,7 +1157,7 @@ fun BillSummaryScreen(
         val calE = cal.timeInMillis
 
         successState.readings.filter { reading ->
-            reading.isPaid && reading.readingDate in (calS + 1)..calE
+            reading.isPaid && reading.readingDate > startDayEnd && reading.readingDate <= calE
         }
     }
     val includesPaid = paidSessionsInRange.isNotEmpty()
@@ -1174,10 +1189,15 @@ fun BillSummaryScreen(
     }
 
     var showAllPaidBills by remember { mutableStateOf(false) }
+    val defaultBillLimit = if (isWide) {
+        ((columnMaxHeight - 380.dp) / 96.dp).toInt().coerceAtLeast(5)
+    } else {
+        4
+    }
 
-    val visiblePaidBillItems = remember(paidBillDisplayItems, showAllPaidBills) {
+    val visiblePaidBillItems = remember(paidBillDisplayItems, showAllPaidBills, defaultBillLimit) {
         derivedStateOf {
-            if (showAllPaidBills || paidBillDisplayItems.size <= 4) paidBillDisplayItems else paidBillDisplayItems.take(4)
+            if (showAllPaidBills || paidBillDisplayItems.size <= defaultBillLimit) paidBillDisplayItems else paidBillDisplayItems.take(defaultBillLimit)
         }
     }
 
@@ -1737,7 +1757,7 @@ fun BillSummaryScreen(
                 }
             }
 
-            if (paidBillDisplayItems.size > 4) {
+            if (paidBillDisplayItems.size > defaultBillLimit) {
                 item(key = "toggle_view_all_paid_bills") {
                     Box(
                         modifier = Modifier
@@ -1968,6 +1988,7 @@ fun DailyMeterUsageAndRateRegionGraph(
 ) {
     val sortedAsc = remember(readings) { readings.sortedBy { it.readingDate } }
     val dateFmt = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+    val barDateFmt = remember { SimpleDateFormat("d/M", Locale.getDefault()) }
 
     val points = remember(sortedAsc) {
         val list = mutableListOf<DailyUsagePoint>()
@@ -1986,7 +2007,7 @@ fun DailyMeterUsageAndRateRegionGraph(
                     endReading = curr.totalReading,
                     deltaUnits = Math.round(delta * 100.0) / 100.0,
                     unitsPerDay = perDay,
-                    label = dateFmt.format(Date(curr.readingDate))
+                    label = barDateFmt.format(Date(curr.readingDate))
                 )
             )
         }
@@ -1997,6 +2018,7 @@ fun DailyMeterUsageAndRateRegionGraph(
 
     var selectedStartIdx by remember(points.size) { mutableIntStateOf(0) }
     var selectedEndIdx by remember(points.size) { mutableIntStateOf(points.lastIndex) }
+    var awaitingFinalTouch by remember(points.size) { mutableStateOf(false) }
 
     val safeStart = minOf(selectedStartIdx, selectedEndIdx).coerceIn(0, points.lastIndex)
     val safeEnd = maxOf(selectedStartIdx, selectedEndIdx).coerceIn(0, points.lastIndex)
@@ -2033,25 +2055,21 @@ fun DailyMeterUsageAndRateRegionGraph(
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Top Title + Trend Badge
+            // Short minimalist title + Trend Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (language == "bn") "দৈনিক বিদ্যুৎ ব্যবহার ও রেট রিজিওন গ্রাফ" else "Daily Usage & Rate Region Graph",
-                        color = textColor,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (language == "bn") "বার ট্যাপ করে যেকোনো সময়ের ইউনিট ও রেট দেখুন" else "Tap bars to inspect reading difference & rate policies",
-                        color = secondaryColor,
-                        fontSize = 11.sp
-                    )
-                }
+                Text(
+                    text = if (language == "bn") "দৈনিক ব্যবহার" else "Daily Usage",
+                    color = textColor,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                )
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = if (isDecreasing) AppPaidBgColor() else AppUnpaidBgColor()
@@ -2075,69 +2093,23 @@ fun DailyMeterUsageAndRateRegionGraph(
                             },
                             color = if (isDecreasing) AppPaidTextColor() else AppUnpaidTextColor(),
                             fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
             }
 
-            // Quick Region Presets
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val presets = listOf(
-                    Triple(
-                        if (language == "bn") "সর্বশেষ লগ" else "Latest Interval",
-                        points.lastIndex,
-                        points.lastIndex
-                    ),
-                    Triple(
-                        if (language == "bn") "শেষ ৫ লগ" else "Last 5 Logs",
-                        (points.size - 5).coerceAtLeast(0),
-                        points.lastIndex
-                    ),
-                    Triple(
-                        if (language == "bn") "সম্পূর্ণ গ্রাফ" else "Full Graph",
-                        0,
-                        points.lastIndex
-                    )
-                )
-                presets.forEach { (title, pStart, pEnd) ->
-                    val isSelected = safeStart == pStart && safeEnd == pEnd
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) accentColor.copy(alpha = 0.18f) else textColor.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, if (isSelected) accentColor else Color.Transparent),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                selectedStartIdx = pStart
-                                selectedEndIdx = pEnd
-                            }
-                    ) {
-                        Text(
-                            text = title,
-                            color = if (isSelected) accentColor else textColor,
-                            fontSize = 10.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
-            // Interactive Bar + Line Chart
+            // Interactive Bar Chart (2-tap selection: initial touch -> final touch)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(132.dp)
+                    .height(136.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(textColor.copy(alpha = 0.03f))
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
                 points.forEachIndexed { idx, pt ->
@@ -2154,11 +2126,13 @@ fun DailyMeterUsageAndRateRegionGraph(
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(6.dp))
                             .clickable {
-                                if (selectedStartIdx == selectedEndIdx && selectedStartIdx != idx) {
-                                    selectedEndIdx = idx
-                                } else {
+                                if (!awaitingFinalTouch) {
                                     selectedStartIdx = idx
                                     selectedEndIdx = idx
+                                    awaitingFinalTouch = true
+                                } else {
+                                    selectedEndIdx = idx
+                                    awaitingFinalTouch = false
                                 }
                             },
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2169,7 +2143,8 @@ fun DailyMeterUsageAndRateRegionGraph(
                             color = if (inSelectedRange) accentColor else secondaryColor,
                             fontSize = 9.sp,
                             fontWeight = if (inSelectedRange) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Box(
@@ -2183,43 +2158,42 @@ fun DailyMeterUsageAndRateRegionGraph(
                         Text(
                             text = pt.label,
                             color = if (inSelectedRange) textColor else secondaryColor,
-                            fontSize = 8.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = if (inSelectedRange) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            softWrap = false
                         )
                     }
                 }
             }
 
-            // Selected Region Summary & Multi-Rate Breakdown
+            // Centered Selected Region Summary & Multi-Rate Breakdown
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(accentColor.copy(alpha = 0.08f))
                     .padding(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 val regionUnits = Math.round((selectedEndPoint.endReading - selectedStartPoint.startReading).coerceAtLeast(0.0) * 100.0) / 100.0
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${dateFmt.format(Date(selectedStartPoint.startDate))} → ${dateFmt.format(Date(selectedEndPoint.endDate))}",
-                        color = textColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = String.format(Locale.getDefault(), "Δ %.2f kWh • %s %.2f", regionUnits, currency, regionCalc.totalCost),
-                        color = accentColor,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
+                Text(
+                    text = "${dateFmt.format(Date(selectedStartPoint.startDate))} → ${dateFmt.format(Date(selectedEndPoint.endDate))}",
+                    color = textColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = String.format(Locale.getDefault(), "Δ %.2f kWh • %s %.2f", regionUnits, currency, regionCalc.totalCost),
+                    color = accentColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Text(
                     text = String.format(
                         Locale.getDefault(),
@@ -2228,25 +2202,23 @@ fun DailyMeterUsageAndRateRegionGraph(
                         selectedEndPoint.endReading
                     ),
                     color = secondaryColor,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 if (regionCalc.breakdown.size > 1) {
                     HorizontalDivider(color = textColor.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 2.dp))
                     regionCalc.breakdown.forEach { b ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${dateFmt.format(Date(b.periodStart))}–${dateFmt.format(Date(b.periodEnd))} (${String.format(Locale.getDefault(), "%.2f", b.units)} kWh @ $currency${b.ratePerUnit})",
+                                text = "${dateFmt.format(Date(b.periodStart))}–${dateFmt.format(Date(b.periodEnd))} (${String.format(Locale.getDefault(), "%.2f", b.units)} kWh @ $currency${b.ratePerUnit}) = ${String.format(Locale.getDefault(), "%s %.2f", currency, b.cost)}",
                                 color = secondaryColor,
-                                fontSize = 10.5.sp
-                            )
-                            Text(
-                                text = String.format(Locale.getDefault(), "%s %.2f", currency, b.cost),
-                                color = textColor,
                                 fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold
+                                textAlign = TextAlign.Center
                             )
                         }
                     }

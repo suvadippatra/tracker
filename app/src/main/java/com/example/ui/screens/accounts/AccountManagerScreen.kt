@@ -474,7 +474,7 @@ fun AccountEditorScreen(
 
     val context = LocalContext.current
     var accName by remember(account) { mutableStateOf(account?.name ?: "") }
-    var accBal by remember(account) { mutableStateOf(account?.let { if (it.initialBalance != 0.0) it.initialBalance.toString() else it.balance.toString() } ?: "") }
+    var accBal by remember(account) { mutableStateOf(account?.initialBalance?.toString() ?: "") }
     var details by remember(account) { mutableStateOf(account?.details ?: "") }
     var notes by remember(account) { mutableStateOf(account?.notes ?: "") }
     var phoneNumber by remember(account) { mutableStateOf(account?.phoneNumber ?: "") }

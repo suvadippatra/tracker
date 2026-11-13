@@ -307,9 +307,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
         // Asynchronous Calculations using remember & derivedStateOf
         val totalInitialBalance by remember(accounts) {
             derivedStateOf {
-                accounts.filter { !it.isDeleted }.sumOf {
-                    if (it.initialBalance != 0.0 || it.balance == 0.0) it.initialBalance else it.balance
-                }
+                accounts.filter { !it.isDeleted }.sumOf { it.initialBalance }
             }
         }
         val totalIncome by remember(expenses, accounts) {
@@ -630,32 +628,6 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = { showQrImportScanner = true },
-                        modifier = Modifier.size(32.dp).testTag("import_qr_account_header_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = "Import via QR",
-                            tint = AppAccentColor(),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = { showAddAccountDialog = true },
-                        modifier = Modifier.size(32.dp).testTag("add_account_header_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Account",
-                            tint = AppAccentColor(),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
             }
 
             if (accounts.isEmpty()) {
@@ -711,7 +683,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                         val account = accounts[page]
                         val accIncome = expenses.filter { it.bankAccountId == account.id && !it.isDeleted && it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
                         val accExpense = expenses.filter { it.bankAccountId == account.id && !it.isDeleted && it.type.equals("EXPENSE", ignoreCase = true) }.sumOf { it.amount }
-                        val accInitBal = if (account.initialBalance != 0.0 || account.balance == 0.0) account.initialBalance else account.balance
+                        val accInitBal = account.initialBalance
                         val computedAccBalance = accInitBal + accIncome - accExpense
 
                         var showAccountMenu by remember { mutableStateOf(false) }
@@ -870,6 +842,20 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                                         onClick = {
                                                             viewModel.setDefaultBankAccount(account.id)
                                                             showAccountMenu = false
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                if (prefLanguage == "bn") "অ্যাকাউন্ট মুছে ফেলুন" else "Delete Account",
+                                                                color = AccentPink,
+                                                                fontWeight = FontWeight.Medium
+                                                            )
+                                                        },
+                                                        modifier = Modifier.testTag("delete_account_menu_${account.id}"),
+                                                        onClick = {
+                                                            showAccountMenu = false
+                                                            showDeleteDialog = true
                                                         }
                                                     )
                                                 }
@@ -1450,15 +1436,15 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                 }
             }
 
-            val displayCount = if (isWideScreen) {
-                if (filteredExpenses.size >= 9) 8 else filteredExpenses.size
-            } else {
-                if (filteredExpenses.size >= 5) 4 else filteredExpenses.size
-            }
-            val itemsToDisplay = filteredExpenses.take(displayCount)
-
             BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 val isWide = maxWidth >= 600.dp
+                val displayCount = if (isWide) {
+                    val tabletFitCount = ((maxHeight - 210.dp) / 68.dp).toInt().coerceAtLeast(8)
+                    minOf(filteredExpenses.size, tabletFitCount)
+                } else {
+                    if (filteredExpenses.size >= 5) 4 else filteredExpenses.size
+                }
+                val itemsToDisplay = filteredExpenses.take(displayCount)
                 if (isWide) {
                     // WIDESCREEN TABLET TWO-COLUMN STRUCTURE (Matching Hotel Tab #1)
                     Row(
@@ -1657,9 +1643,9 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
     if (showQrImportScanner) {
         com.example.ui.components.QrScannerDialog(
             onDismiss = { showQrImportScanner = false },
-            onSuccess = { payload, key, iv ->
+            onSuccess = { payload, key, iv, scannedQrUris ->
                 showQrImportScanner = false
-                viewModel.importAccountViaQr(payload, key, iv) { result ->
+                viewModel.importAccountViaQr(payload, key, iv, scannedPaymentQrUris = scannedQrUris) { result ->
                     when (result) {
                         is com.example.data.ImportResult.Success -> {
                             android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
@@ -2931,37 +2917,6 @@ private fun ExtrasTopHeroReminderAndUpiRow(
         }
     }
 
-    // Automatically show popup when a UPI payment is detected OR when a monthly reminder is due
-    val activeUpiPayment = pendingUpiPayments.firstOrNull()
-    if (activeUpiPayment != null) {
-        UpiAutoDetectedPaymentPopupDialog(
-            detected = activeUpiPayment,
-            accounts = accounts,
-            isBn = isBn,
-            onSaveTransaction = { title, amt, accId, txType, cat, note, screenshotUri, voiceUri ->
-                val attachList = buildList {
-                    if (!screenshotUri.isNullOrBlank()) add(screenshotUri to "IMAGE")
-                    if (!voiceUri.isNullOrBlank()) add(voiceUri to "VOICE")
-                }
-                viewModel.saveExtraExpense(
-                    name = title,
-                    amount = amt,
-                    bankAccountId = accId,
-                    timestamp = activeUpiPayment.timestamp,
-                    receiptUri = screenshotUri,
-                    type = txType,
-                    category = cat,
-                    notes = note,
-                    attachments = attachList
-                )
-                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id)
-            },
-            onDismiss = {
-                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id)
-            }
-        )
-    }
-
     if (showUpiSetupInfoModal) {
         val hasTelephony = remember { com.example.service.DetectedUpiPaymentBus.hasTelephonyOrSimSupport(context) }
         val isCapable = remember { com.example.service.DetectedUpiPaymentBus.isDeviceCapableOfUpiDetection(context) }
@@ -3058,6 +3013,7 @@ private fun ExtrasTopHeroReminderAndUpiRow(
                             onClick = {
                                 showUpiSetupInfoModal = false
                                 com.example.service.DetectedUpiPaymentBus.postDetectedPayment(
+                                    context,
                                     com.example.service.DetectedUpiPayment(
                                         appName = "Google Pay",
                                         packageName = "com.google.android.apps.nbu.paisa.user",
@@ -3113,10 +3069,11 @@ private fun ExtrasTopHeroReminderAndUpiRow(
 }
 
 @Composable
-private fun UpiAutoDetectedPaymentPopupDialog(
+fun UpiAutoDetectedPaymentPopupDialog(
     detected: com.example.service.DetectedUpiPayment,
     accounts: List<com.example.data.model.BankAccountEntity>,
     isBn: Boolean,
+    defaultBankAccountId: Int? = null,
     onSaveTransaction: (title: String, amount: Double, accountId: Int, type: String, category: String, note: String, screenshotUri: String?, voiceUri: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -3126,7 +3083,13 @@ private fun UpiAutoDetectedPaymentPopupDialog(
     var txType by remember(detected.id) { mutableStateOf(detected.transactionType) }
     var category by remember(detected.id) { mutableStateOf(if (detected.transactionType == "INCOME") "Transfer" else "Shopping") }
     var note by remember(detected.id) { mutableStateOf("Auto-detected from ${detected.appName}: ${detected.rawText}") }
-    var selectedAccountId by remember(accounts) { mutableStateOf(accounts.firstOrNull()?.id ?: 0) }
+    var selectedAccountId by remember(accounts, defaultBankAccountId) {
+        mutableStateOf(
+            defaultBankAccountId?.takeIf { id -> accounts.any { it.id == id } }
+                ?: accounts.firstOrNull()?.id
+                ?: 0
+        )
+    }
     var screenshotUri by remember(detected.id) { mutableStateOf<String?>(null) }
     var voiceUri by remember(detected.id) { mutableStateOf<String?>(null) }
     var isRecordingVoice by remember { mutableStateOf(false) }

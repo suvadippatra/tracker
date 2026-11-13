@@ -208,7 +208,7 @@ class FinancialViewModel(
     // Streams from Repository (Eagerly shared for zero-delay tab/page transitions)
     val userProfile: StateFlow<UserProfileEntity> = repository.userProfile
         .map { profile ->
-            val p = profile ?: initialProfile
+            val p = (profile ?: initialProfile).copy(appVersion = com.example.BuildConfig.VERSION_NAME)
             com.example.ui.theme.ThemePreferences.save(getApplication(), p)
             p
         }
@@ -871,11 +871,26 @@ class FinancialViewModel(
         }
     }
 
-    fun importHotelViaQr(payload: ByteArray, key: ByteArray, iv: ByteArray, targetHotelId: Int = 1, targetBankAccountId: Int = 1, onResult: (com.example.data.ImportResult) -> Unit) {
+    fun importHotelViaQr(
+        payload: ByteArray,
+        key: ByteArray,
+        iv: ByteArray,
+        targetHotelId: Int = 1,
+        targetBankAccountId: Int = 1,
+        scannedPaymentQrUris: Map<String, String> = emptyMap(),
+        onResult: (com.example.data.ImportResult) -> Unit
+    ) {
         viewModelScope.launch {
             val db = com.example.data.AppDatabase.getDatabase(getApplication())
             val manager = com.example.data.QrImportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
-            val result = manager.importPayload(payload, key, iv, targetHotelId = targetHotelId, targetBankAccountId = targetBankAccountId)
+            val result = manager.importPayload(
+                encryptedPayload = payload,
+                keyBytes = key,
+                ivBytes = iv,
+                targetHotelId = targetHotelId,
+                targetBankAccountId = targetBankAccountId,
+                scannedPaymentQrUris = scannedPaymentQrUris
+            )
             if (result is com.example.data.ImportResult.Success && result.newHotelId > 0) {
                 activeHotelId.value = result.newHotelId
             }
@@ -883,11 +898,23 @@ class FinancialViewModel(
         }
     }
 
-    fun importAccountViaQr(payload: ByteArray, key: ByteArray, iv: ByteArray, onResult: (com.example.data.ImportResult) -> Unit) {
+    fun importAccountViaQr(
+        payload: ByteArray,
+        key: ByteArray,
+        iv: ByteArray,
+        scannedPaymentQrUris: Map<String, String> = emptyMap(),
+        onResult: (com.example.data.ImportResult) -> Unit
+    ) {
         viewModelScope.launch {
             val db = com.example.data.AppDatabase.getDatabase(getApplication())
             val manager = com.example.data.QrImportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
-            val result = manager.importPayload(payload, key, iv, targetBankAccountId = activeBankAccountId.value ?: 1)
+            val result = manager.importPayload(
+                encryptedPayload = payload,
+                keyBytes = key,
+                ivBytes = iv,
+                targetBankAccountId = activeBankAccountId.value ?: 1,
+                scannedPaymentQrUris = scannedPaymentQrUris
+            )
             onResult(result)
         }
     }
@@ -1248,8 +1275,16 @@ class FinancialViewModel(
                 clearSyncAnalysis()
                 val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.hotelPaymentsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size + plan.stickyNotesToInsert.size
                 val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
+                val paidHotelMonths = plan.hotelPaymentsToInsert.size
+                val paidBills = plan.billsToInsert.count { it.isPaid } + plan.billsToUpdate.count { it.isPaid }
+                val paidReadings = plan.readingsToInsert.count { it.isPaid } + plan.readingsToUpdate.count { it.isPaid }
+                val psidParts = mutableListOf<String>()
+                if (paidHotelMonths > 0) psidParts.add("$paidHotelMonths hotel paid month(s)")
+                if (paidBills > 0) psidParts.add("$paidBills paid bill(s)")
+                if (paidReadings > 0) psidParts.add("$paidReadings paid reading(s)")
+                val psidSuffix = if (psidParts.isNotEmpty()) " • Paid: ${psidParts.joinToString(", ")}" else ""
                 updateWidgets()
-                onResult(com.example.data.ImportOutcome.Success("Data synchronized successfully! ($totalInserted new records added, $totalUpdated records updated)", count = totalInserted + totalUpdated))
+                onResult(com.example.data.ImportOutcome.Success("Data synchronized ($totalInserted added, $totalUpdated updated$psidSuffix)", count = totalInserted + totalUpdated))
             } catch (e: Exception) {
                 _importUiFlowState.value = ImportUiFlowState.Idle
                 e.printStackTrace()
@@ -1522,22 +1557,26 @@ class FinancialViewModel(
         )
     }
     fun editVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch {
-        repository.updateBankAccount(account)
-        val linkedOwner = allOwnerAccounts.value.find { it.linkedBankAccountId == account.id && !it.isDeleted }
+        val netTxDelta = allExtraExpenses.value
+            .filter { it.bankAccountId == account.id && !it.isDeleted }
+            .sumOf { if (it.type.equals("INCOME", ignoreCase = true)) it.amount else -it.amount }
+        val syncedAccount = account.copy(balance = account.initialBalance + netTxDelta)
+        repository.updateBankAccount(syncedAccount)
+        val linkedOwner = allOwnerAccounts.value.find { it.linkedBankAccountId == syncedAccount.id && !it.isDeleted }
         if (linkedOwner != null) {
             repository.updateOwnerAccount(
                 linkedOwner.copy(
-                    accountName = account.name,
-                    details = account.details,
-                    qrCodeUri = account.qrCodeUri,
-                    upiId = account.upiId,
-                    accountNumber = account.accountNumber,
-                    ifscCode = account.ifsc,
-                    branchName = account.branchName,
-                    notes = account.notes,
-                    ownerMobile = account.phoneNumber.ifBlank { linkedOwner.ownerMobile },
-                    whatsappNumber = account.whatsappNumber,
-                    email = account.email
+                    accountName = syncedAccount.name,
+                    details = syncedAccount.details,
+                    qrCodeUri = syncedAccount.qrCodeUri,
+                    upiId = syncedAccount.upiId,
+                    accountNumber = syncedAccount.accountNumber,
+                    ifscCode = syncedAccount.ifsc,
+                    branchName = syncedAccount.branchName,
+                    notes = syncedAccount.notes,
+                    ownerMobile = syncedAccount.phoneNumber.ifBlank { linkedOwner.ownerMobile },
+                    whatsappNumber = syncedAccount.whatsappNumber,
+                    email = syncedAccount.email
                 )
             )
         }
@@ -1716,7 +1755,7 @@ class FinancialViewModel(
     }
 
     fun updateAppVersion(newVersion: String) = viewModelScope.launch {
-        val clean = newVersion.trim().ifBlank { "2.4.0" }
+        val clean = newVersion.trim().ifBlank { com.example.BuildConfig.VERSION_NAME }
         val current = userProfile.value ?: com.example.data.model.UserProfileEntity()
         val updated = current.copy(appVersion = clean)
         com.example.ui.theme.ThemePreferences.save(getApplication(), updated)

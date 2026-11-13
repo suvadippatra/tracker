@@ -427,6 +427,41 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
             onDismiss = { showUtilConfig = false }
         )
     }
+
+    val pendingUpiPayments by com.example.service.DetectedUpiPaymentBus.pendingPayments.collectAsStateWithLifecycle()
+    val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+    val globalContext = LocalContext.current
+    val activeUpiPayment = pendingUpiPayments.firstOrNull()
+    if (activeUpiPayment != null) {
+        val visibleAccounts = remember(allBankAccounts) { allBankAccounts.filter { !it.isDeleted } }
+        UpiAutoDetectedPaymentPopupDialog(
+            detected = activeUpiPayment,
+            accounts = visibleAccounts,
+            isBn = userProfile?.language == "bn",
+            defaultBankAccountId = userProfile?.defaultBankAccountId,
+            onSaveTransaction = { title, amt, accId, txType, cat, note, screenshotUri, voiceUri ->
+                val attachList = buildList {
+                    if (!screenshotUri.isNullOrBlank()) add(screenshotUri to "IMAGE")
+                    if (!voiceUri.isNullOrBlank()) add(voiceUri to "VOICE")
+                }
+                viewModel.saveExtraExpense(
+                    name = title,
+                    amount = amt,
+                    bankAccountId = accId,
+                    timestamp = activeUpiPayment.timestamp,
+                    receiptUri = screenshotUri,
+                    type = txType,
+                    category = cat,
+                    notes = note,
+                    attachments = attachList
+                )
+                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id, globalContext)
+            },
+            onDismiss = {
+                com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id, globalContext)
+            }
+        )
+    }
 }
 
 

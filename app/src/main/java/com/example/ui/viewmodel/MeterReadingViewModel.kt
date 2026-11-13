@@ -185,7 +185,12 @@ class MeterReadingViewModel(
             return if (isEndBoundary) {
                 sameDayReadings.maxOf { it.cumulativeReading }
             } else {
-                sameDayReadings.minOf { it.cumulativeReading }
+                val atOrBefore = sameDayReadings.filter { it.readingDate <= time + 60_000L }
+                if (time > timeDay && atOrBefore.isNotEmpty()) {
+                    atOrBefore.maxOf { it.cumulativeReading }
+                } else {
+                    sameDayReadings.minOf { it.cumulativeReading }
+                }
             }
         }
 
@@ -631,6 +636,7 @@ class MeterReadingViewModel(
                     val startDay = getDayStart(normStart)
                     val endDay = getDayEnd(normEnd)
                     repository.updateReadingsPaidStatus(startDay, endDay, true)
+                    resetToAutoDateRange(normEnd)
                 }
             } catch (e: Exception) {
                 // Handled
@@ -663,6 +669,15 @@ class MeterReadingViewModel(
         savedStateHandle["KEY_MANUAL_RANGE_SET"] = true
         calculationStartDate.value = start
         calculationEndDate.value = end
+    }
+
+    fun resetToAutoDateRange(explicitStart: Long? = null) {
+        isManualDateRangeSet = false
+        savedStateHandle["KEY_MANUAL_RANGE_SET"] = false
+        if (explicitStart != null) {
+            calculationStartDate.value = explicitStart
+        }
+        calculationEndDate.value = getEndOfDayMillis()
     }
 
     fun updateCalculationParameters(charge: Double, defaultRate: Double = defaultElectricityRate.value) {
@@ -757,6 +772,7 @@ class MeterReadingViewModel(
                 val startDay = getDayStart(normStart)
                 val endDay = getDayEnd(normEnd)
                 repository.updateReadingsPaidStatus(startDay, endDay, true)
+                resetToAutoDateRange()
             } else {
                 val resolvedIsPaid = resolvedPaidAmt >= (totalBillAmt - 0.01) && totalBillAmt > 0.0
                 val encodedTxId = "PAID_AMT:$resolvedPaidAmt"
@@ -772,6 +788,9 @@ class MeterReadingViewModel(
                 val startDay = getDayStart(normStart)
                 val endDay = getDayEnd(normEnd)
                 repository.updateReadingsPaidStatus(startDay, endDay, resolvedIsPaid)
+                if (resolvedIsPaid) {
+                    resetToAutoDateRange()
+                }
             }
         }
     }
@@ -812,6 +831,9 @@ class MeterReadingViewModel(
             val startDay = getDayStart(normStart)
             val endDay = getDayEnd(normEnd)
             repository.updateReadingsPaidStatus(startDay, endDay, newIsPaid)
+            if (newIsPaid) {
+                resetToAutoDateRange()
+            }
         }
     }
 
