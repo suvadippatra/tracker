@@ -302,96 +302,82 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                     
                     // Root Overlay Architecture (Layer 2)
                     val rootOverlay by viewModel.rootOverlayState.collectAsStateWithLifecycle()
-                    if (rootOverlay != com.example.ui.viewmodel.RootOverlayState.None) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            when (val state = rootOverlay) {
-                                is com.example.ui.viewmodel.RootOverlayState.AddMeal -> {
-                                    AddMealFlowModal(
-                                        viewModel = viewModel,
-                                        onDismiss = { viewModel.closeRootOverlay() }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.ManageMenu -> {
-                                    MenuManagementScreen(
-                                        hotel = state.hotel,
-                                        viewModel = viewModel,
-                                        onBack = {
-                                            if (state.returnToEditHotel) {
-                                                viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(state.hotel))
-                                            } else {
-                                                viewModel.closeRootOverlay()
-                                            }
+                    val fastOverlay = isHeavyEffectsDisabled() || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P
+
+                    @Composable
+                    fun RenderRootOverlay(state: com.example.ui.viewmodel.RootOverlayState) {
+                        when (state) {
+                            is com.example.ui.viewmodel.RootOverlayState.AddMeal -> {
+                                AddMealFlowModal(
+                                    viewModel = viewModel,
+                                    onDismiss = { viewModel.closeRootOverlay() }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.ManageMenu -> {
+                                MenuManagementScreen(
+                                    hotel = state.hotel,
+                                    viewModel = viewModel,
+                                    onBack = {
+                                        if (state.returnToEditHotel) {
+                                            viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(state.hotel))
+                                        } else {
+                                            viewModel.closeRootOverlay()
                                         }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.EditHotel -> {
-                                    EditHotelModal(
-                                        hotel = state.hotel,
-                                        viewModel = viewModel,
-                                        onDismiss = { viewModel.closeRootOverlay() },
-                                        onManageMenu = {
-                                            viewModel.showRootOverlay(
-                                                com.example.ui.viewmodel.RootOverlayState.ManageMenu(
-                                                    hotel = it,
-                                                    returnToEditHotel = true
-                                                )
+                                    }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.EditHotel -> {
+                                EditHotelModal(
+                                    hotel = state.hotel,
+                                    viewModel = viewModel,
+                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onManageMenu = {
+                                        viewModel.showRootOverlay(
+                                            com.example.ui.viewmodel.RootOverlayState.ManageMenu(
+                                                hotel = it,
+                                                returnToEditHotel = true
                                             )
-                                        }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.OwnerProfile -> {
-                                    OwnerProfileScreen(
-                                        viewModel = viewModel,
-                                        onDismiss = { viewModel.closeRootOverlay() }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.AccountManager -> {
-                                    AccountManagerScreen(
-                                        viewModel = viewModel,
-                                        onDismiss = { viewModel.closeRootOverlay() }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.AddOwnerAccount -> {
-                                    AddOwnerAccountDialog(
-                                        viewModel = viewModel,
-                                        account = state.account,
-                                        onDismiss = { viewModel.closeRootOverlay() },
-                                        onSave = { acc, bal, details -> 
-                                            // Handled internally in component
-                                        }
-                                    )
-                                }
-                                is com.example.ui.viewmodel.RootOverlayState.EditBankAccount -> {
-                                    AccountEditorScreen(
-                                        account = state.account,
-                                        prefLanguage = userProfile.language,
-                                        onDismiss = { viewModel.closeRootOverlay() },
-                                        onSave = { name, bal, details, upi, qr, accNum, ifsc, branch, notes, phone, whatsapp, email ->
-                                            if (state.account != null) {
-                                                viewModel.editVirtualAccount(
-                                                    state.account.copy(
-                                                        name = name,
-                                                        initialBalance = bal,
-                                                        balance = bal,
-                                                        details = details,
-                                                        upiId = upi,
-                                                        qrCodeUri = qr,
-                                                        accountNumber = accNum,
-                                                        ifsc = ifsc,
-                                                        branchName = branch,
-                                                        notes = notes,
-                                                        phoneNumber = phone,
-                                                        whatsappNumber = whatsapp,
-                                                        email = email
-                                                    )
-                                                )
-                                            } else {
-                                                viewModel.addVirtualAccount(
+                                        )
+                                    }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.OwnerProfile -> {
+                                OwnerProfileScreen(
+                                    viewModel = viewModel,
+                                    onDismiss = { viewModel.closeRootOverlay() }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.AccountManager -> {
+                                AccountManagerScreen(
+                                    viewModel = viewModel,
+                                    onDismiss = { viewModel.closeRootOverlay() }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.AddOwnerAccount -> {
+                                AddOwnerAccountDialog(
+                                    viewModel = viewModel,
+                                    account = state.account,
+                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onSave = { acc, bal, details ->
+                                        // Handled internally in component
+                                    }
+                                )
+                            }
+                            is com.example.ui.viewmodel.RootOverlayState.EditBankAccount -> {
+                                AccountEditorScreen(
+                                    account = state.account,
+                                    prefLanguage = userProfile.language,
+                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onSave = { name, bal, details, upi, qr, accNum, ifsc, branch, notes, phone, whatsapp, email ->
+                                        if (state.account != null) {
+                                            viewModel.editVirtualAccount(
+                                                state.account.copy(
                                                     name = name,
+                                                    initialBalance = bal,
                                                     balance = bal,
                                                     details = details,
-                                                    qrCodeUri = qr,
                                                     upiId = upi,
+                                                    qrCodeUri = qr,
                                                     accountNumber = accNum,
                                                     ifsc = ifsc,
                                                     branchName = branch,
@@ -400,18 +386,66 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                                     whatsappNumber = whatsapp,
                                                     email = email
                                                 )
-                                            }
-                                            viewModel.closeRootOverlay()
-                                        },
-                                        onDelete = state.account?.let { acc ->
-                                            {
-                                                viewModel.deleteVirtualAccount(acc)
-                                                viewModel.closeRootOverlay()
-                                            }
+                                            )
+                                        } else {
+                                            viewModel.addVirtualAccount(
+                                                name = name,
+                                                balance = bal,
+                                                details = details,
+                                                qrCodeUri = qr,
+                                                upiId = upi,
+                                                accountNumber = accNum,
+                                                ifsc = ifsc,
+                                                branchName = branch,
+                                                notes = notes,
+                                                phoneNumber = phone,
+                                                whatsappNumber = whatsapp,
+                                                email = email
+                                            )
                                         }
-                                    )
+                                        viewModel.closeRootOverlay()
+                                    },
+                                    onDelete = state.account?.let { acc ->
+                                        {
+                                            viewModel.deleteVirtualAccount(acc)
+                                            viewModel.closeRootOverlay()
+                                        }
+                                    }
+                                )
+                            }
+                            else -> Unit
+                        }
+                    }
+
+                    if (fastOverlay) {
+                        if (rootOverlay != com.example.ui.viewmodel.RootOverlayState.None) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                RenderRootOverlay(rootOverlay)
+                            }
+                        }
+                    } else {
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = rootOverlay,
+                            transitionSpec = {
+                                val entering = targetState != com.example.ui.viewmodel.RootOverlayState.None
+                                val exiting = targetState == com.example.ui.viewmodel.RootOverlayState.None
+                                when {
+                                    exiting -> androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(90)) togetherWith
+                                        (androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { it / 10 } +
+                                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+                                    entering -> (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(200)) { it / 10 } +
+                                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
+                                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100))
+                                    else -> androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
+                                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
                                 }
-                                else -> {}
+                            },
+                            label = "root_overlay_transition"
+                        ) { state ->
+                            if (state != com.example.ui.viewmodel.RootOverlayState.None) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    RenderRootOverlay(state)
+                                }
                             }
                         }
                     }

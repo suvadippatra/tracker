@@ -135,6 +135,12 @@ class FinancialRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun deleteMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity) {
+        withContext(Dispatchers.IO) {
+            menuDao.deleteMenuHistory(history)
+        }
+    }
+
     fun getTransactionsForHotel(hotelId: Int): Flow<List<HotelTransactionEntity>> {
         return transactionDao.getTransactionsForHotel(hotelId)
     }

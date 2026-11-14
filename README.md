@@ -97,9 +97,9 @@
 | **UI Framework** | Jetpack Compose + Material Design 3 (Dynamic & Liquid Glass Themes) |
 | **Architecture** | MVVM (ViewModel + Repository + Reactive Room Flows) |
 | **Local Database** | AndroidX Room SQLite (Schema v36) |
-| **On-Device OCR** | Google Play Services ML Kit Text Recognition (`play-services-mlkit-text-recognition:19.0.1`) |
 | **Camera & Media** | AndroidX CameraX, `ExifInterface`, Coil Image Loader, `MediaRecorder` / `MediaPlayer` |
-| **QR & Compression** | ZXing Core (`3.5.3`), GZIP Base64 Packet Framing, Java `ZipOutputStream` / `ZipInputStream` |
+| **QR & Serialization** | ZXing Core (`3.5.3`), GZIP Base64 Packet Framing, Java `ZipOutputStream` / `ZipInputStream` |
+| **Khata Import** | Google Lens / Clipboard Paste with Auto-Repair Normalization & Flexible Date Match |
 | **Compatibility** | Android 8.0 (API 26) through Android 15+ (API 36) |
 
 ---

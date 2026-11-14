@@ -121,39 +121,27 @@ fun OwnerProfileScreen(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
-                                ) {
-                                    Icon(Icons.Default.ChevronLeft, "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text("Owner Profile", color = AppTextColor(), fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                FilledTonalIconButton(
-                                    onClick = { showEditProfileDialog = true },
-                                    modifier = Modifier.size(40.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = AppAccentColor().copy(alpha = 0.15f),
-                                        contentColor = AppAccentColor()
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Edit, "Edit Profile", tint = AppAccentColor())
-                                }
+                            Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                com.example.ui.screens.settings.components.SettingsPageHeader(
+                                    title = "Owner Profile",
+                                    onBack = onDismiss,
+                                    trailingContent = {
+                                        FilledTonalIconButton(
+                                            onClick = { showEditProfileDialog = true },
+                                            modifier = Modifier.size(40.dp),
+                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = AppAccentColor().copy(alpha = 0.15f),
+                                                contentColor = AppAccentColor()
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Edit, "Edit Profile", tint = AppAccentColor())
+                                        }
+                                    }
+                                )
                             }
                         }
                     ) { padding ->
@@ -162,7 +150,7 @@ fun OwnerProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp + rememberSplitScreenSafeBottomPadding())
                 ) {
                     item {
                         // Profile Info Section
@@ -521,46 +509,27 @@ fun EditProfileDialog(
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .dialogSystemBarsPadding(extraTop = 8.dp)
                                 .imePadding(),
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0.dp),
                             topBar = {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    IconButton(
-                                        onClick = { handleBack() },
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(getGlassIconButtonBg(), CircleShape)
-                                            .bounceClick()
-                                    ) {
-                                        Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        "Edit Owner Profile",
-                                        color = AppTextColor(),
-                                        fontSize = 19.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                    com.example.ui.screens.settings.components.SettingsPageHeader(
+                                        title = "Edit Owner Profile",
+                                        onBack = { handleBack() },
+                                        trailingContent = {
+                                            FilledIconButton(
+                                                onClick = { onSave(name, contact, avatar, bankName, accNum, ifsc, branch, upi, qrUri) },
+                                                modifier = Modifier.size(40.dp),
+                                                colors = IconButtonDefaults.filledIconButtonColors(
+                                                    containerColor = AppAccentColor(),
+                                                    contentColor = AppOnAccentColor()
+                                                )
+                                            ) {
+                                                Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
+                                            }
+                                        }
                                     )
-                                    FilledIconButton(
-                                        onClick = { onSave(name, contact, avatar, bankName, accNum, ifsc, branch, upi, qrUri) },
-                                        modifier = Modifier.size(40.dp),
-                                        colors = IconButtonDefaults.filledIconButtonColors(
-                                            containerColor = AppAccentColor(),
-                                            contentColor = AppOnAccentColor()
-                                        )
-                                    ) {
-                                        Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
-                                    }
                                 }
                             }
                         ) { innerPadding ->
@@ -880,15 +849,20 @@ fun OwnerAccountCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = account.accountName.ifBlank { "Profile Account" },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = AppTextColor(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    Text(
+                        text = account.accountName.ifBlank { "Profile Account" },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = AppTextColor(),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         if (isDefault) {
                             Surface(
                                 color = if (isAppLightMode()) Color(0xFFFEF3C7) else Color(0xFF451A03),
@@ -900,7 +874,7 @@ fun OwnerAccountCard(
                                 ) {
                                     Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(10.dp))
                                     Spacer(modifier = Modifier.width(2.dp))
-                                    Text("Default", color = AccentGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text("Default", color = AccentGold, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                 }
                             }
                         }
@@ -922,8 +896,10 @@ fun OwnerAccountCard(
                                 Text(
                                     text = if (isLinkedToExtras) "Linked to Extras" else "Profile Only",
                                     color = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -1250,68 +1226,49 @@ fun AddOwnerAccountDialog(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (account == null) "Add Account" else "Edit Account Details",
-                                color = AppTextColor(),
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            FilledIconButton(
-                                onClick = {
-                                    val bal = initialBalanceStr.toDoubleOrNull() ?: 0.0
-                                    if (accountName.isNotBlank()) {
-                                        onSave(
-                                            OwnerAccountEntity(
-                                                id = account?.id ?: 0,
-                                                ownerName = ownerName,
-                                                accountName = accountName,
-                                                accountNumber = accountNumber,
-                                                ifscCode = ifscCode,
-                                                branchName = branchName,
-                                                upiId = upiId,
-                                                qrCodeUri = qrCodeUri
-                                            ),
-                                            bal,
-                                            details
-                                        )
-                                    } else {
-                                        android.widget.Toast.makeText(context, "Enter Account Name", android.widget.Toast.LENGTH_SHORT).show()
+                            Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                com.example.ui.screens.settings.components.SettingsPageHeader(
+                                    title = if (account == null) "Add Account" else "Edit Account Details",
+                                    onBack = onDismiss,
+                                    trailingContent = {
+                                        FilledIconButton(
+                                            onClick = {
+                                                val bal = initialBalanceStr.toDoubleOrNull() ?: 0.0
+                                                if (accountName.isNotBlank()) {
+                                                    onSave(
+                                                        OwnerAccountEntity(
+                                                            id = account?.id ?: 0,
+                                                            ownerName = ownerName,
+                                                            accountName = accountName,
+                                                            accountNumber = accountNumber,
+                                                            ifscCode = ifscCode,
+                                                            branchName = branchName,
+                                                            upiId = upiId,
+                                                            qrCodeUri = qrCodeUri
+                                                        ),
+                                                        bal,
+                                                        details
+                                                    )
+                                                } else {
+                                                    android.widget.Toast.makeText(context, "Enter Account Name", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            modifier = Modifier.size(40.dp),
+                                            colors = IconButtonDefaults.filledIconButtonColors(
+                                                containerColor = AppAccentColor(),
+                                                contentColor = AppOnAccentColor()
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
+                                        }
                                     }
-                                },
-                                modifier = Modifier.size(40.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = AppAccentColor(),
-                                    contentColor = AppOnAccentColor()
                                 )
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
                             }
                         }
-                    }
                 ) { innerPadding ->
                     Box(
                         modifier = Modifier
@@ -1493,142 +1450,90 @@ fun OwnerQRViewerDialog(
     val ownerName = userProfile.name.ifBlank { ownerAccount?.ownerName.orEmpty().ifBlank { "Owner Payment Details" } }
     val hasAnyPaymentDetails = qrUri.isNotBlank() || upiId.isNotBlank() || accNumber.isNotBlank() || bankLabel.isNotBlank()
 
-    androidx.activity.compose.BackHandler {
-        onDismiss()
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.92f))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.Center
-        ) {
+    if (!hasAnyPaymentDetails) {
+        androidx.activity.compose.BackHandler { onDismiss() }
+        Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .clickable { onDismiss() }
                     .statusBarsPadding()
                     .navigationBarsPadding(),
                 contentAlignment = Alignment.Center
             ) {
-                if (!hasAnyPaymentDetails) {
-                    GlassCard(
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .fillMaxWidth()
-                            .widthIn(max = 460.dp)
-                            .clickable(enabled = false) {},
-                        cornerRadius = 24.dp
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QrCodeScanner,
-                                contentDescription = null,
-                                tint = AppAccentColor(),
-                                modifier = Modifier.size(56.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "No Default Profile Payment Account",
-                                color = AppTextColor(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Add a payment account or UPI QR code in your Owner Profile and set it as Default to display it here when double-tapping the greeting.",
-                                color = AppSecondaryTextColor(),
-                                fontSize = 14.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Button(
-                                onClick = {
-                                    onDismiss()
-                                    onOpenOwnerProfile?.invoke()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Open Owner Profile", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                } else {
+                GlassCard(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth()
+                        .widthIn(max = 460.dp)
+                        .clickable(enabled = false) {},
+                    cornerRadius = 24.dp
+                ) {
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .widthIn(max = 460.dp)
-                            .clickable(enabled = false) {}
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = ownerName,
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = AppAccentColor(),
+                            modifier = Modifier.size(56.dp)
                         )
-                        if (bankLabel.isNotBlank()) {
-                            Text(
-                                text = "$bankLabel (Default Profile Account)",
-                                color = AccentGold,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                        }
-                        if (upiId.isNotBlank()) {
-                            Text(
-                                text = "UPI: $upiId",
-                                color = AppAccentColor(),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        if (accNumber.isNotBlank() || ifscCode.isNotBlank()) {
-                            Text(
-                                text = buildString {
-                                    if (accNumber.isNotBlank()) append("A/C: $accNumber")
-                                    if (accNumber.isNotBlank() && ifscCode.isNotBlank()) append(" • ")
-                                    if (ifscCode.isNotBlank()) append("IFSC: $ifscCode")
-                                },
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 13.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(bottom = 14.dp)
-                            )
-                        }
-                        if (qrUri.isNotBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = Color.White,
-                                shadowElevation = 12.dp,
-                                modifier = Modifier.padding(8.dp)
-                            ) {
-                                AsyncImage(
-                                    model = qrUri,
-                                    contentDescription = "Owner QR Code",
-                                    modifier = Modifier
-                                        .size(280.dp)
-                                        .padding(12.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No Default Profile Payment Account",
+                            color = AppTextColor(),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Add a payment account or UPI QR code in your Owner Profile and set it as Default to display it here when double-tapping the greeting.",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = {
+                                onDismiss()
+                                onOpenOwnerProfile?.invoke()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Open Owner Profile", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
+    } else {
+        MinimalistPaymentInfoDialog(
+            title = ownerName,
+            subtitle = bankLabel.takeIf { it.isNotBlank() },
+            badgeLabel = "Default Profile Account",
+            qrUriString = qrUri,
+            upiId = upiId,
+            detailRows = listOfNotNull(
+                accNumber.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem("Account No", it) },
+                ifscCode.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem("IFSC Code", it) },
+                ownerAccount?.branchName?.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem("Branch", it) }
+            ),
+            contactChips = listOfNotNull(
+                ownerAccount?.ownerMobile?.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Ph", it) },
+                ownerAccount?.whatsappNumber?.takeIf { it.isNotBlank() }?.let { PaymentContactChip("WA", it) },
+                ownerAccount?.email?.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Email", it, isEmail = true) }
+            ),
+            onDismiss = onDismiss,
+            onEdit = onOpenOwnerProfile?.let { openProfile ->
+                {
+                    onDismiss()
+                    openProfile()
+                }
+            }
+        )
     }
 }
 
@@ -1757,7 +1662,6 @@ fun SelectVisibleAccountsOnExtraDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewAccountDialog(
     viewModel: com.example.ui.viewmodel.FinancialViewModel,
@@ -1767,339 +1671,33 @@ fun ViewAccountDialog(
     onEdit: (() -> Unit)? = null,
     onShowQR: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-    val isBengali = prefLanguage == "bn"
-    var showFullScreenQR by remember { mutableStateOf(false) }
-
-    if (showFullScreenQR && account.qrCodeUri.isNotBlank()) {
-        FullScreenQRPreviewDialog(
-            qrUri = account.qrCodeUri,
-            title = account.accountName.ifBlank { "Account QR" },
-            upiId = account.upiId,
-            onDismiss = { showFullScreenQR = false }
-        )
-    }
-
     androidx.activity.compose.BackHandler(onBack = onDismiss)
-
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        com.example.ui.components.DialogEdgeToEdge()
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.65f))
-                .clickable(
-                    onClick = onDismiss,
-                    indication = null,
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .widthIn(max = 520.dp)
-                    .padding(vertical = 24.dp)
-                    .clickable(
-                        onClick = {},
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    ),
-                shape = RoundedCornerShape(24.dp),
-                color = getDialogBackground(),
-                shadowElevation = 10.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    // Header Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(AppAccentColor().copy(alpha = 0.16f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountBalance,
-                                    contentDescription = null,
-                                    tint = AppAccentColor(),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = if (isBengali) "অ্যাকাউন্টের বিবরণ" else "Account Details",
-                                color = AppTextColor(),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .bounceClick()
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Header Banner Card
-                    Surface(
-                        color = getSettingsItemBg(),
-                        shape = RoundedCornerShape(16.dp),
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(14.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = account.accountName.ifBlank { "Daily Transaction Account" },
-                                    color = AppTextColor(),
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = if (isBengali) "দৈনিক ট্রানজ্যাকশন অ্যাকাউন্টের বিবরণ" else "Daily Transaction Account Information",
-                                    color = AppSecondaryTextColor(),
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Info Card Group with Badged Header & Tap-To-Copy
-                    Surface(
-                        color = getSettingsItemBg(),
-                        shape = RoundedCornerShape(16.dp),
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            // Bank / Account Name
-                            AccountInfoDetailRow(
-                                icon = Icons.Default.AccountBalance,
-                                iconTint = AppAccentColor(),
-                                label = if (isBengali) "ব্যাংক / অ্যাকাউন্টের নাম" else "Bank / Account Name",
-                                value = account.accountName.ifBlank { "N/A" },
-                                onCopy = if (account.accountName.isNotBlank()) {
-                                    {
-                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.accountName))
-                                        android.widget.Toast.makeText(context, "Copied Bank Name", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } else null
-                            )
-
-                            HorizontalDivider(color = getGlassBorder())
-
-                            // Account Number
-                            AccountInfoDetailRow(
-                                icon = Icons.Default.AccountBalanceWallet,
-                                iconTint = Color(0xFFFFB74D),
-                                label = if (isBengali) "অ্যাকাউন্ট নম্বর" else "Account Number",
-                                value = account.accountNumber.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                onCopy = if (account.accountNumber.isNotBlank()) {
-                                    {
-                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.accountNumber))
-                                        android.widget.Toast.makeText(context, "Copied Account Number", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } else null
-                            )
-
-                            HorizontalDivider(color = getGlassBorder())
-
-                            // IFSC Code
-                            AccountInfoDetailRow(
-                                icon = Icons.Default.Apartment,
-                                iconTint = Color(0xFF81C784),
-                                label = if (isBengali) "আইএফএসসি কোড (IFSC)" else "IFSC Code",
-                                value = account.ifscCode.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                onCopy = if (account.ifscCode.isNotBlank()) {
-                                    {
-                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.ifscCode))
-                                        android.widget.Toast.makeText(context, "Copied IFSC Code", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } else null
-                            )
-
-                            HorizontalDivider(color = getGlassBorder())
-
-                            // UPI ID
-                            AccountInfoDetailRow(
-                                icon = Icons.Default.QrCode,
-                                iconTint = Color(0xFFBA68C8),
-                                label = if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID",
-                                value = account.upiId.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                actionIcon2 = if (account.qrCodeUri.isNotBlank()) Icons.Default.QrCodeScanner else null,
-                                onAction2 = if (account.qrCodeUri.isNotBlank()) { { showFullScreenQR = true } } else null,
-                                onCopy = if (account.upiId.isNotBlank()) {
-                                    {
-                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.upiId))
-                                        android.widget.Toast.makeText(context, "Copied UPI ID", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } else null
-                            )
-
-                            if (account.branchName.isNotBlank()) {
-                                HorizontalDivider(color = getGlassBorder())
-                                AccountInfoDetailRow(
-                                    icon = Icons.Default.LocationOn,
-                                    iconTint = Color(0xFF4FC3F7),
-                                    label = if (isBengali) " শাখা (Branch)" else "Branch Name",
-                                    value = account.branchName,
-                                    onCopy = {
-                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.branchName))
-                                        android.widget.Toast.makeText(context, "Copied Branch Name", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-
-                            if (!account.importedFrom.isNullOrBlank()) {
-                                HorizontalDivider(color = getGlassBorder())
-                                AccountInfoDetailRow(
-                                    icon = Icons.Default.Download,
-                                    iconTint = Color(0xFF64B5F6),
-                                    label = if (isBengali) "আমদানি করা হয়েছে" else "Import Source",
-                                    value = if (isBengali) "আমদানি করা হয়েছে: ${account.importedFrom}" else "Imported from: ${account.importedFrom}"
-                                )
-                            }
-                        }
-                    }
-
-                    // QR Code Card if available
-                    if (account.qrCodeUri.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Surface(
-                            color = getSettingsItemBg(),
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 2.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (isBengali) "কিউআর কোড (QR Code)" else "QR Code",
-                                        color = AppTextColor(),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    IconButton(
-                                        onClick = { showFullScreenQR = true },
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .background(AppAccentColor().copy(alpha = 0.12f), CircleShape)
-                                            .bounceClick()
-                                    ) {
-                                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Full Screen QR", tint = AppAccentColor(), modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color.White,
-                                    shadowElevation = 4.dp,
-                                    modifier = Modifier
-                                        .size(160.dp)
-                                        .clickable { showFullScreenQR = true }
-                                ) {
-                                    AsyncImage(
-                                        model = account.qrCodeUri,
-                                        contentDescription = "QR Code Preview",
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(8.dp),
-                                        contentScale = ContentScale.Fit
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = if (isBengali) "পূর্ণ স্ক্রিনে দেখতে ট্যাপ করুন" else "Tap to view in full screen",
-                                    color = AppSecondaryTextColor(),
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Action Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        if (account.qrCodeUri.isNotBlank()) {
-                            FilledTonalButton(
-                                onClick = { showFullScreenQR = true },
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = getSettingsItemBg(),
-                                    contentColor = AppTextColor()
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.QrCode, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("QR Code", color = AppTextColor(), fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-
-                        if (onEdit != null) {
-                            Button(
-                                onClick = { onDismiss(); onEdit() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = AppAccentColor(),
-                                    contentColor = AppOnAccentColor()
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppOnAccentColor(), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Edit", color = AppOnAccentColor(), fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
+    MinimalistPaymentInfoDialog(
+        title = account.accountName.ifBlank { account.ownerName.ifBlank { "Profile Account" } },
+        subtitle = account.ownerName.takeIf { it.isNotBlank() && it != account.accountName },
+        badgeLabel = if (account.linkedBankAccountId != null) "Linked to Extras" else "Profile Only",
+        qrUriString = account.qrCodeUri,
+        upiId = account.upiId,
+        detailRows = listOfNotNull(
+            account.accountNumber.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem(if (prefLanguage == "bn") "অ্যাকাউন্ট নং" else "Account No", it) },
+            account.ifscCode.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem("IFSC Code", it) },
+            account.branchName.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem(if (prefLanguage == "bn") "শাখা" else "Branch", it) },
+            account.importedFrom?.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem(if (prefLanguage == "bn") "ইম্পোর্ট উৎস" else "Imported From", it, copyable = false) }
+        ),
+        contactChips = listOfNotNull(
+            account.ownerMobile.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Ph", it) },
+            account.whatsappNumber.takeIf { it.isNotBlank() }?.let { PaymentContactChip("WA", it) },
+            account.email.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Email", it, isEmail = true) }
+        ),
+        notesText = account.notes.takeIf { it.isNotBlank() },
+        onDismiss = onDismiss,
+        onEdit = onEdit?.let { editFn ->
+            {
+                onDismiss()
+                editFn()
             }
         }
-    }
+    )
 }
 
 @Composable

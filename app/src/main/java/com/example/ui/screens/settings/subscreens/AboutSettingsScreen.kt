@@ -121,10 +121,10 @@ fun AboutSettingsScreen(
                 urlOrSource = "androidx.compose.material3"
             ),
             PublicRepoReference(
-                name = "Google ML Kit Text Recognition",
-                category = "Bundled Offline OCR (v16.0.1) with Multi-Pass & Contrast Filter",
-                license = "Android SDK License",
-                urlOrSource = "com.google.mlkit:text-recognition"
+                name = "ZXing & CameraX Optical Scanner",
+                category = "Lossless Matrix Reconstructor, Fountain QR Streaming & CameraX Viewfinder",
+                license = "Apache 2.0",
+                urlOrSource = "com.google.zxing:core / androidx.camera"
             ),
             PublicRepoReference(
                 name = "Android SpeechRecognizer, MediaRecorder & NotificationListener",
@@ -147,10 +147,17 @@ fun AboutSettingsScreen(
         )
     }
 
+    val aboutListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp),
+        state = aboutListState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = 120.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // 1. Hero Card with Static Non-Editable App Version Badge (UNCHANGED)

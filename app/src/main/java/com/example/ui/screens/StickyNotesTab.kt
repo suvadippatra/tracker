@@ -24,14 +24,21 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,6 +98,8 @@ import com.example.ui.theme.AppFontFamily
 import com.example.ui.theme.ArchivoBlackFontFamily
 import com.example.ui.theme.StickyBoldBaseFontFamily
 import com.example.ui.viewmodel.FinancialViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -387,7 +396,7 @@ class StickyFormattingVisualTransformation(
         if (raw.isEmpty() || (!raw.contains('*') && !raw.contains('_') && lineAlignments.isEmpty())) {
             return TransformedText(text, OffsetMapping.Identity)
         }
-        val markerColor = baseColor.copy(alpha = 0.28f)
+        val markerColor = baseColor.copy(alpha = 0.25f)
         val boldSpanFont = if (isBoldMode) ArchivoBlackFontFamily else AppBoldFontFamily
 
         val styled = buildAnnotatedString {
@@ -413,54 +422,80 @@ class StickyFormattingVisualTransformation(
                 }
             }
 
-            if (raw.contains('*')) {
-                STICKY_BOLD_REGEX.findAll(raw).forEach { match ->
-                    val fullRange = match.range
-                    addStyle(
-                        SpanStyle(color = markerColor, fontSize = 10.sp),
-                        fullRange.first,
-                        fullRange.first + 1
-                    )
-                    addStyle(
-                        SpanStyle(
-                            fontFamily = boldSpanFont,
-                            fontWeight = FontWeight.Black,
-                            fontSize = if (isBoldMode) 1.12.em else 1.05.em,
-                            color = if (isBoldMode) accentColor else baseColor,
-                            textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
-                        ),
-                        fullRange.first + 1,
-                        fullRange.last
-                    )
-                    addStyle(
-                        SpanStyle(color = markerColor, fontSize = 10.sp),
-                        fullRange.last,
-                        fullRange.last + 1
-                    )
-                }
-            }
+            if (raw.contains('*') || raw.contains('_')) {
+                var lineOffset = 0
+                val lines = raw.split('\n')
+                for (lineIdx in lines.indices) {
+                    val line = lines[lineIdx]
+                    val boldRanges = mutableListOf<IntRange>()
+                    val italicRanges = mutableListOf<IntRange>()
 
-            if (raw.contains('_')) {
-                STICKY_ITALIC_REGEX.findAll(raw).forEach { match ->
-                    val fullRange = match.range
-                    addStyle(
-                        SpanStyle(color = markerColor, fontSize = 10.sp),
-                        fullRange.first,
-                        fullRange.first + 1
-                    )
-                    addStyle(
-                        SpanStyle(
-                            fontStyle = FontStyle.Italic,
-                            color = baseColor.copy(alpha = 0.92f)
-                        ),
-                        fullRange.first + 1,
-                        fullRange.last
-                    )
-                    addStyle(
-                        SpanStyle(color = markerColor, fontSize = 10.sp),
-                        fullRange.last,
-                        fullRange.last + 1
-                    )
+                    var bi = 0
+                    while (bi < line.length) {
+                        if (line[bi] == '*') {
+                            val close = line.indexOf('*', bi + 1)
+                            if (close > bi + 1) {
+                                boldRanges.add(bi..close)
+                                bi = close + 1
+                                continue
+                            }
+                        }
+                        bi++
+                    }
+
+                    var ii = 0
+                    while (ii < line.length) {
+                        if (line[ii] == '_') {
+                            val close = line.indexOf('_', ii + 1)
+                            if (close > ii + 1) {
+                                italicRanges.add(ii..close)
+                                ii = close + 1
+                                continue
+                            }
+                        }
+                        ii++
+                    }
+
+                    // Apply Italic first, then Bold, then dim all outer/inner markers with uniform font size
+                    for (r in italicRanges) {
+                        val absStart = lineOffset + r.first
+                        val absEnd = lineOffset + r.last
+                        addStyle(
+                            SpanStyle(
+                                fontStyle = FontStyle.Italic,
+                                color = baseColor.copy(alpha = 0.92f)
+                            ),
+                            absStart + 1,
+                            absEnd
+                        )
+                    }
+                    for (r in boldRanges) {
+                        val absStart = lineOffset + r.first
+                        val absEnd = lineOffset + r.last
+                        addStyle(
+                            SpanStyle(
+                                fontFamily = boldSpanFont,
+                                fontWeight = FontWeight.Black,
+                                color = baseColor
+                            ),
+                            absStart + 1,
+                            absEnd
+                        )
+                    }
+                    for (r in italicRanges) {
+                        val absStart = lineOffset + r.first
+                        val absEnd = lineOffset + r.last
+                        addStyle(SpanStyle(color = markerColor), absStart, absStart + 1)
+                        addStyle(SpanStyle(color = markerColor), absEnd, absEnd + 1)
+                    }
+                    for (r in boldRanges) {
+                        val absStart = lineOffset + r.first
+                        val absEnd = lineOffset + r.last
+                        addStyle(SpanStyle(color = markerColor), absStart, absStart + 1)
+                        addStyle(SpanStyle(color = markerColor), absEnd, absEnd + 1)
+                    }
+
+                    lineOffset += line.length + 1
                 }
             }
         }
@@ -503,29 +538,48 @@ fun parseStickyFormattedText(
     for (lineIdx in lines.indices) {
         val lineText = lines[lineIdx]
         val paraStart = sb.length
+        var inBold = false
+        var boldStart = -1
+        var inItalic = false
+        var italicStart = -1
+
         var i = 0
         val n = lineText.length
         while (i < n) {
             val ch = lineText[i]
             if (ch == '*') {
-                val end = lineText.indexOf('*', i + 1)
-                if (end > i + 1) {
-                    val spanStart = sb.length
-                    sb.append(lineText, i + 1, end)
-                    val spanEnd = sb.length
-                    spans.add(StickyInlineSpan(spanStart, spanEnd, isBold = true))
-                    i = end + 1
+                if (inBold) {
+                    if (sb.length > boldStart) {
+                        spans.add(StickyInlineSpan(boldStart, sb.length, isBold = true))
+                    }
+                    inBold = false
+                    i++
                     continue
+                } else {
+                    val close = lineText.indexOf('*', i + 1)
+                    if (close > i + 1) {
+                        inBold = true
+                        boldStart = sb.length
+                        i++
+                        continue
+                    }
                 }
             } else if (ch == '_') {
-                val end = lineText.indexOf('_', i + 1)
-                if (end > i + 1) {
-                    val spanStart = sb.length
-                    sb.append(lineText, i + 1, end)
-                    val spanEnd = sb.length
-                    spans.add(StickyInlineSpan(spanStart, spanEnd, isBold = false))
-                    i = end + 1
+                if (inItalic) {
+                    if (sb.length > italicStart) {
+                        spans.add(StickyInlineSpan(italicStart, sb.length, isBold = false))
+                    }
+                    inItalic = false
+                    i++
                     continue
+                } else {
+                    val close = lineText.indexOf('_', i + 1)
+                    if (close > i + 1) {
+                        inItalic = true
+                        italicStart = sb.length
+                        i++
+                        continue
+                    }
                 }
             }
             sb.append(ch)
@@ -558,7 +612,6 @@ fun buildAnnotatedFromParsedSticky(
         return AnnotatedString(parsed.plainText)
     }
     val boldSpanFont = if (isBoldMode) ArchivoBlackFontFamily else AppBoldFontFamily
-    val regularFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
     return buildAnnotatedString {
         append(parsed.plainText)
         for (span in parsed.inlineSpans) {
@@ -567,9 +620,7 @@ fun buildAnnotatedFromParsedSticky(
                     style = SpanStyle(
                         fontFamily = boldSpanFont,
                         fontWeight = FontWeight.Black,
-                        fontSize = if (isBoldMode) 1.12.em else 1.05.em,
-                        color = if (isBoldMode) accentColor else baseColor,
-                        textDecoration = if (isBoldMode) TextDecoration.Underline else TextDecoration.None
+                        color = baseColor
                     ),
                     start = span.start,
                     end = span.end
@@ -577,9 +628,7 @@ fun buildAnnotatedFromParsedSticky(
             } else {
                 addStyle(
                     style = SpanStyle(
-                        fontFamily = regularFont,
                         fontStyle = FontStyle.Italic,
-                        fontWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal,
                         color = baseColor.copy(alpha = 0.92f)
                     ),
                     start = span.start,
@@ -595,6 +644,74 @@ fun buildAnnotatedFromParsedSticky(
             )
         }
     }
+}
+
+private fun remapLineAlignmentsOnEdit(
+    oldText: String,
+    newText: String,
+    alignments: Map<Int, String>
+): Map<Int, String> {
+    if (alignments.isEmpty() || oldText == newText) return alignments
+
+    var prefixLen = 0
+    val minLen = minOf(oldText.length, newText.length)
+    while (prefixLen < minLen && oldText[prefixLen] == newText[prefixLen]) {
+        prefixLen++
+    }
+
+    var suffixLen = 0
+    val maxSuffix = minOf(oldText.length - prefixLen, newText.length - prefixLen)
+    while (suffixLen < maxSuffix &&
+        oldText[oldText.length - 1 - suffixLen] == newText[newText.length - 1 - suffixLen]
+    ) {
+        suffixLen++
+    }
+
+    val oldMiddle = oldText.substring(prefixLen, oldText.length - suffixLen)
+    val newMiddle = newText.substring(prefixLen, newText.length - suffixLen)
+    val deletedNewlines = oldMiddle.count { it == '\n' }
+    val insertedNewlines = newMiddle.count { it == '\n' }
+    val delta = insertedNewlines - deletedNewlines
+    if (delta == 0) return alignments
+
+    val editStartLine = oldText.substring(0, prefixLen).count { it == '\n' }
+    val totalNewLines = newText.count { it == '\n' } + 1
+    val updated = mutableMapOf<Int, String>()
+
+    if (delta > 0) {
+        for ((idx, align) in alignments) {
+            if (idx < editStartLine) {
+                updated[idx] = align
+            } else if (idx == editStartLine) {
+                updated[idx] = align
+                if (newMiddle == "\n" && oldMiddle.isEmpty() && idx + 1 < totalNewLines) {
+                    updated[idx + 1] = align
+                }
+            } else {
+                val target = idx + delta
+                if (target < totalNewLines) updated[target] = align
+            }
+        }
+    } else {
+        val removedLines = -delta
+        for ((idx, align) in alignments) {
+            when {
+                idx < editStartLine -> updated[idx] = align
+                idx == editStartLine -> updated[idx] = align
+                idx > editStartLine + removedLines -> {
+                    val target = idx + delta
+                    if (target in 0 until totalNewLines) updated[target] = align
+                }
+            }
+        }
+        if (editStartLine !in updated) {
+            val mergedAlign = alignments[editStartLine + removedLines]
+            if (mergedAlign != null && editStartLine < totalNewLines) {
+                updated[editStartLine] = mergedAlign
+            }
+        }
+    }
+    return updated
 }
 
 /**
@@ -717,6 +834,13 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     val containerWidth = if (isTablet) (screenWidthDp - 96.dp).coerceAtLeast(320.dp) else screenWidthDp
     val isWallMode = screenWidthDp >= 600.dp || screenWidthDp > screenHeightDp
 
+    val stickyWallListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val stickyMobileListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -806,12 +930,13 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             }
 
             LazyColumn(
+                state = stickyWallListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = horizontalPad,
                     end = horizontalPad,
                     top = 12.dp,
-                    bottom = 120.dp
+                    bottom = 120.dp + LocalBottomBarInset.current + rememberSplitScreenSafeBottomPadding()
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -892,12 +1017,13 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             val cardTargetWidth = usableWidth * (cardWidthPercent / 100f)
 
             LazyColumn(
+                state = stickyMobileListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 14.dp,
                     end = 14.dp,
                     top = 12.dp,
-                    bottom = 120.dp
+                    bottom = 120.dp + LocalBottomBarInset.current + rememberSplitScreenSafeBottomPadding()
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -969,7 +1095,12 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 104.dp)
+                .padding(
+                    end = 20.dp,
+                    bottom = LocalBottomBarInset.current.let { inset ->
+                        if (inset > 0.dp) inset + 18.dp else 24.dp + rememberSplitScreenSafeBottomPadding()
+                    }
+                )
                 .size(58.dp)
                 .testTag("add_sticky_note_fab")
         ) {
@@ -1518,6 +1649,32 @@ fun StickyNoteFullScreenDialog(
     var lineAlignments by remember(initialNote?.id) {
         mutableStateOf(parseLineAlignments(initialNote?.textAlignment ?: "START"))
     }
+    val undoRedo = remember(initialNote?.id) { StickyUndoRedoController() }
+    var committedSnapshot by remember(initialNote?.id) {
+        mutableStateOf(StickyDraftSnapshot(TextFieldValue(text = migratedBody), parseLineAlignments(initialNote?.textAlignment ?: "START")))
+    }
+    var isApplyingHistory by remember(initialNote?.id) { mutableStateOf(false) }
+    val editorScope = rememberCoroutineScope()
+    val subHeadingFocusRequester = remember { FocusRequester() }
+    val bodyFocusRequester = remember { FocusRequester() }
+    val subHeadingBringIntoViewRequester = remember { BringIntoViewRequester() }
+    val bodyBringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(bodyField.text, lineAlignments) {
+        if (isApplyingHistory) {
+            isApplyingHistory = false
+            return@LaunchedEffect
+        }
+        delay(550)
+        val current = StickyDraftSnapshot(bodyField, lineAlignments)
+        if (current.textFieldValue.text != committedSnapshot.textFieldValue.text ||
+            current.lineAlignments != committedSnapshot.lineAlignments
+        ) {
+            undoRedo.pushSnapshot(committedSnapshot)
+            committedSnapshot = current
+        }
+    }
+
     var tags by remember(initialNote?.id) {
         mutableStateOf(
             initialNote?.tags?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
@@ -1574,10 +1731,11 @@ fun StickyNoteFullScreenDialog(
         overrideAttachments: List<StickyAttachmentItem> = attachments,
         overrideTable: StickyTableData? = tableData,
         overridePinIcon: String = pinIcon,
+        overrideBodyText: String = bodyField.text,
         exitEditAfterSave: Boolean = false,
         closeDialogAfterSave: Boolean = false
     ) {
-        val hasContent = title.isNotBlank() || subHeading.isNotBlank() || bodyField.text.isNotBlank() || overrideTable != null || overrideAttachments.isNotEmpty()
+        val hasContent = title.isNotBlank() || subHeading.isNotBlank() || overrideBodyText.isNotBlank() || overrideTable != null || overrideAttachments.isNotEmpty()
         if (!hasContent) {
             if (closeDialogAfterSave) onDismiss()
             else if (exitEditAfterSave) isEditing = false
@@ -1593,7 +1751,7 @@ fun StickyNoteFullScreenDialog(
             id = currentNoteId,
             title = title.trim(),
             subtitle = serializedSubtitle,
-            bodyText = bodyField.text,
+            bodyText = overrideBodyText,
             textAlignment = serializeLineAlignments(lineAlignments),
             colorIndex = colorIndex,
             tags = tags.joinToString(","),
@@ -1613,7 +1771,7 @@ fun StickyNoteFullScreenDialog(
     }
 
     fun handleBackRequest() {
-        if (isEditing && hasUnsavedChanges) {
+        if (hasUnsavedChanges) {
             showUnsavedWarning = true
         } else if (isEditing && initialNote != null) {
             isEditing = false
@@ -1881,32 +2039,74 @@ fun StickyNoteFullScreenDialog(
         }
     }
 
-    // Helper to wrap selected text in *...* or _..._
+    fun pushUndoCheckpointBeforeImmediateAction() {
+        val current = StickyDraftSnapshot(bodyField, lineAlignments)
+        if (current.textFieldValue.text != committedSnapshot.textFieldValue.text ||
+            current.lineAlignments != committedSnapshot.lineAlignments
+        ) {
+            undoRedo.pushSnapshot(committedSnapshot)
+        }
+        undoRedo.pushSnapshot(current)
+    }
+
+    // Helper to wrap OR cleanly unwrap selected text in *...* or _..._
     fun applyInlineFormatting(marker: String) {
+        pushUndoCheckpointBeforeImmediateAction()
         val text = bodyField.text
         val sel = bodyField.selection
         val start = sel.min.coerceIn(0, text.length)
         val end = sel.max.coerceIn(0, text.length)
-        if (start < end) {
+        val updatedField = if (start < end) {
             val selectedSub = text.substring(start, end)
-            val replacement = "$marker$selectedSub$marker"
-            val newText = text.replaceRange(start, end, replacement)
-            bodyField = TextFieldValue(
-                text = newText,
-                selection = TextRange(start + marker.length, end + marker.length)
-            )
+            if (selectedSub.startsWith(marker) && selectedSub.endsWith(marker) && selectedSub.length >= 2 * marker.length) {
+                val unwrapped = selectedSub.substring(marker.length, selectedSub.length - marker.length)
+                val newText = text.replaceRange(start, end, unwrapped)
+                TextFieldValue(
+                    text = newText,
+                    selection = TextRange(start, start + unwrapped.length)
+                )
+            } else if (
+                start >= marker.length &&
+                end + marker.length <= text.length &&
+                text.substring(start - marker.length, start) == marker &&
+                text.substring(end, end + marker.length) == marker
+            ) {
+                val newText = text.removeRange(end, end + marker.length)
+                    .removeRange(start - marker.length, start)
+                TextFieldValue(
+                    text = newText,
+                    selection = TextRange(start - marker.length, end - marker.length)
+                )
+            } else {
+                val replacement = "$marker$selectedSub$marker"
+                val newText = text.replaceRange(start, end, replacement)
+                TextFieldValue(
+                    text = newText,
+                    selection = TextRange(start + marker.length, end + marker.length)
+                )
+            }
         } else {
             val insertion = "$marker$marker"
             val newText = text.substring(0, start) + insertion + text.substring(start)
-            bodyField = TextFieldValue(
+            TextFieldValue(
                 text = newText,
                 selection = TextRange(start + marker.length)
             )
         }
+        bodyField = updatedField
+        committedSnapshot = StickyDraftSnapshot(updatedField, lineAlignments)
+    }
+
+    fun applyLinePrefixToggle(prefix: String) {
+        pushUndoCheckpointBeforeImmediateAction()
+        val updatedField = toggleLinePrefixAtSelection(bodyField, prefix)
+        bodyField = updatedField
+        committedSnapshot = StickyDraftSnapshot(updatedField, lineAlignments)
     }
 
     // Helper to apply alignment ONLY to the line(s) containing the current cursor/selection
     fun applyAlignmentToSelectedLines(alignMode: String) {
+        pushUndoCheckpointBeforeImmediateAction()
         val text = bodyField.text
         val selStart = bodyField.selection.min.coerceIn(0, text.length)
         val selEnd = bodyField.selection.max.coerceIn(0, text.length)
@@ -1931,6 +2131,7 @@ fun StickyNoteFullScreenDialog(
             lineIdx++
         }
         lineAlignments = updated
+        committedSnapshot = StickyDraftSnapshot(bodyField, updated)
     }
 
     val currentCursorLineAlignment = remember(bodyField.text, bodyField.selection, lineAlignments) {
@@ -1938,6 +2139,24 @@ fun StickyNoteFullScreenDialog(
         val cursor = bodyField.selection.min.coerceIn(0, text.length)
         val lineIdx = text.substring(0, cursor).count { it == '\n' }
         lineAlignments[lineIdx] ?: "START"
+    }
+    val isCursorBold = remember(bodyField) { isCursorInsideInlineMarker(bodyField, '*') }
+    val isCursorItalic = remember(bodyField) { isCursorInsideInlineMarker(bodyField, '_') }
+    val currentLineStartsWithChecklist = remember(bodyField) {
+        val text = bodyField.text
+        val cursor = bodyField.selection.min.coerceIn(0, text.length)
+        val lineStart = if (cursor == 0) 0 else (text.lastIndexOf('\n', cursor - 1) + 1)
+        val lineEndIdx = text.indexOf('\n', lineStart)
+        val line = text.substring(lineStart, if (lineEndIdx == -1) text.length else lineEndIdx)
+        line.startsWith(STICKY_CHECKBOX_UNCHECKED) || line.startsWith(STICKY_CHECKBOX_CHECKED)
+    }
+    val currentLineStartsWithBullet = remember(bodyField) {
+        val text = bodyField.text
+        val cursor = bodyField.selection.min.coerceIn(0, text.length)
+        val lineStart = if (cursor == 0) 0 else (text.lastIndexOf('\n', cursor - 1) + 1)
+        val lineEndIdx = text.indexOf('\n', lineStart)
+        val line = text.substring(lineStart, if (lineEndIdx == -1) text.length else lineEndIdx)
+        line.startsWith(STICKY_BULLET_PREFIX)
     }
 
     BackHandler {
@@ -1961,12 +2180,15 @@ fun StickyNoteFullScreenDialog(
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
-                    .dialogSystemBarsPadding(extraTop = 8.dp)
                     .imePadding(),
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .dialogSafeTopPadding(extraTop = 4.dp)
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2003,7 +2225,13 @@ fun StickyNoteFullScreenDialog(
                                             textAlign = TextAlign.Center
                                         ),
                                         cursorBrush = SolidColor(effectiveAccent),
-                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                        keyboardOptions = KeyboardOptions(
+                                            capitalization = KeyboardCapitalization.Sentences,
+                                            imeAction = ImeAction.Next
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                            onNext = { subHeadingFocusRequester.requestFocus() }
+                                        ),
                                         modifier = Modifier.fillMaxWidth(),
                                         decorationBox = { inner ->
                                             Box(
@@ -2042,7 +2270,23 @@ fun StickyNoteFullScreenDialog(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // Right: Save button (when editing) + Triple-Dot (⋮) Menu Button
+                            // Right: 1-tap Preview/Edit toggle (preserves unsaved draft) + Save button + More Menu
+                            IconButton(
+                                onClick = { isEditing = !isEditing },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(textColor.copy(alpha = 0.08f), CircleShape)
+                                    .testTag("sticky_note_mode_toggle_btn")
+                            ) {
+                                Icon(
+                                    imageVector = if (isEditing) Icons.Default.Visibility else Icons.Default.Edit,
+                                    contentDescription = if (isEditing) "Preview Note" else "Edit Note",
+                                    tint = textColor,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             if (isEditing) {
                                 FilledIconButton(
                                     onClick = {
@@ -2117,7 +2361,7 @@ fun StickyNoteFullScreenDialog(
                                             }
                                         )
                                     }
-                                    // 3. Show Preview
+                                    // 3. Show Preview (preserves draft state without discarding)
                                     DropdownMenuItem(
                                         text = {
                                             Text(
@@ -2129,9 +2373,7 @@ fun StickyNoteFullScreenDialog(
                                         leadingIcon = { Icon(Icons.Default.Visibility, contentDescription = null, tint = Color(0xFF10B981)) },
                                         onClick = {
                                             showMoreMenu = false
-                                            if (isEditing) {
-                                                persistCurrentDraft(exitEditAfterSave = true)
-                                            }
+                                            isEditing = false
                                         }
                                     )
                                     // 4. Attachment
@@ -2189,10 +2431,10 @@ fun StickyNoteFullScreenDialog(
                     }
                 },
                 bottomBar = {
-                    // Show 8-icon formatting toolbar ONLY in Editing Mode (never in Preview Mode)
+                    // Show rich notes formatting toolbar ONLY in Editing Mode (never in Preview Mode)
                     if (isEditing) {
                         Surface(
-                            color = if (isLight) Color.White.copy(alpha = 0.94f) else Color(0xFF1E293B).copy(alpha = 0.96f),
+                            color = if (isLight) Color.White.copy(alpha = 0.96f) else Color(0xFF1E293B).copy(alpha = 0.96f),
                             tonalElevation = 6.dp,
                             shadowElevation = 8.dp,
                             modifier = Modifier.fillMaxWidth()
@@ -2200,77 +2442,144 @@ fun StickyNoteFullScreenDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .dialogSafeBottomPadding(extraBottom = 4.dp)
                                     .padding(vertical = 6.dp, horizontal = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
                                     modifier = Modifier
-                                        .widthIn(max = 560.dp)
-                                        .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                        .widthIn(max = 640.dp)
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // 1. Bold
+                                    // 1. Undo
+                                    IconButton(
+                                        onClick = {
+                                            undoRedo.undo(StickyDraftSnapshot(bodyField, lineAlignments))?.let { prev ->
+                                                isApplyingHistory = true
+                                                bodyField = prev.textFieldValue
+                                                lineAlignments = prev.lineAlignments
+                                                committedSnapshot = prev
+                                            }
+                                        },
+                                        enabled = undoRedo.canUndo,
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Undo,
+                                            contentDescription = "Undo",
+                                            tint = if (undoRedo.canUndo) textColor else textColor.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    // 2. Redo
+                                    IconButton(
+                                        onClick = {
+                                            undoRedo.redo(StickyDraftSnapshot(bodyField, lineAlignments))?.let { next ->
+                                                isApplyingHistory = true
+                                                bodyField = next.textFieldValue
+                                                lineAlignments = next.lineAlignments
+                                                committedSnapshot = next
+                                            }
+                                        },
+                                        enabled = undoRedo.canRedo,
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Redo,
+                                            contentDescription = "Redo",
+                                            tint = if (undoRedo.canRedo) textColor else textColor.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    // 3. Bold
                                     IconButton(
                                         onClick = { applyInlineFormatting("*") },
-                                        modifier = Modifier.size(40.dp)
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isCursorBold) effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.FormatBold, contentDescription = "Bold", tint = textColor)
+                                        Icon(Icons.Default.FormatBold, contentDescription = "Bold", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 2. Italic
+                                    // 4. Italic
                                     IconButton(
                                         onClick = { applyInlineFormatting("_") },
-                                        modifier = Modifier.size(40.dp)
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isCursorItalic) effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
                                         Text(
                                             text = "I",
                                             color = textColor,
-                                            fontSize = 18.sp,
+                                            fontSize = 17.sp,
                                             fontStyle = FontStyle.Italic,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-                                    // 3. Align Left
+                                    // 5. Checklist
+                                    IconButton(
+                                        onClick = { applyLinePrefixToggle(STICKY_CHECKBOX_UNCHECKED) },
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (currentLineStartsWithChecklist) effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
+                                    ) {
+                                        Icon(Icons.Default.CheckBox, contentDescription = "Checklist", tint = textColor, modifier = Modifier.size(20.dp))
+                                    }
+                                    // 6. Bullet List
+                                    IconButton(
+                                        onClick = { applyLinePrefixToggle(STICKY_BULLET_PREFIX) },
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (currentLineStartsWithBullet) effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
+                                    ) {
+                                        Icon(Icons.Default.FormatListBulleted, contentDescription = "Bullet List", tint = textColor, modifier = Modifier.size(20.dp))
+                                    }
+                                    // 7. Align Left
                                     IconButton(
                                         onClick = { applyAlignmentToSelectedLines("START") },
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(if (currentCursorLineAlignment == "START") effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.FormatAlignLeft, contentDescription = "Align Line Left", tint = textColor)
+                                        Icon(Icons.Default.FormatAlignLeft, contentDescription = "Align Line Left", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 4. Align Center
+                                    // 8. Align Center
                                     IconButton(
                                         onClick = { applyAlignmentToSelectedLines("CENTER") },
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(if (currentCursorLineAlignment == "CENTER") effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.FormatAlignCenter, contentDescription = "Align Line Center", tint = textColor)
+                                        Icon(Icons.Default.FormatAlignCenter, contentDescription = "Align Line Center", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 5. Align Right
+                                    // 9. Align Right
                                     IconButton(
                                         onClick = { applyAlignmentToSelectedLines("END") },
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(if (currentCursorLineAlignment == "END") effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.FormatAlignRight, contentDescription = "Align Line Right", tint = textColor)
+                                        Icon(Icons.Default.FormatAlignRight, contentDescription = "Align Line Right", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 6. Justify
+                                    // 10. Justify
                                     IconButton(
                                         onClick = { applyAlignmentToSelectedLines("JUSTIFY") },
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(if (currentCursorLineAlignment == "JUSTIFY") effectiveAccent.copy(alpha = 0.25f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.FormatAlignJustify, contentDescription = "Justify Line", tint = textColor)
+                                        Icon(Icons.Default.FormatAlignJustify, contentDescription = "Justify Line", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 7. Insert Borderless Visual Grid Table
+                                    // 11. Insert Borderless Visual Grid Table
                                     IconButton(
                                         onClick = {
                                             if (tableData == null) {
@@ -2290,18 +2599,18 @@ fun StickyNoteFullScreenDialog(
                                             }
                                         },
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                             .background(if (tableData != null) effectiveAccent.copy(alpha = 0.22f) else Color.Transparent)
                                     ) {
-                                        Icon(Icons.Default.TableChart, contentDescription = "Insert Visual Grid Table", tint = textColor)
+                                        Icon(Icons.Default.TableChart, contentDescription = "Insert Visual Grid Table", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
-                                    // 8. Attach File
+                                    // 12. Attach File
                                     IconButton(
                                         onClick = { attachmentLauncher.launch("*/*") },
-                                        modifier = Modifier.size(40.dp)
+                                        modifier = Modifier.size(38.dp)
                                     ) {
-                                        Icon(Icons.Default.AttachFile, contentDescription = "Attach File", tint = textColor)
+                                        Icon(Icons.Default.AttachFile, contentDescription = "Attach File", tint = textColor, modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
@@ -2448,8 +2757,22 @@ fun StickyNoteFullScreenDialog(
                                 fontFamily = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
                             ),
                             cursorBrush = SolidColor(effectiveAccent),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Sentences,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { bodyFocusRequester.requestFocus() }
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(subHeadingFocusRequester)
+                                .bringIntoViewRequester(subHeadingBringIntoViewRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        editorScope.launch { subHeadingBringIntoViewRequester.bringIntoView() }
+                                    }
+                                },
                             decorationBox = { inner ->
                                 if (subHeading.isEmpty()) {
                                     Text(
@@ -2487,8 +2810,16 @@ fun StickyNoteFullScreenDialog(
                     if (isEditing) {
                         BasicTextField(
                             value = bodyField,
-                            onValueChange = { newVal ->
-                                bodyField = newVal
+                            onValueChange = { rawNewVal ->
+                                val continuedVal = handleChecklistOrBulletNewline(bodyField, rawNewVal) ?: rawNewVal
+                                if (continuedVal.text != bodyField.text && lineAlignments.isNotEmpty()) {
+                                    lineAlignments = remapLineAlignmentsOnEdit(
+                                        oldText = bodyField.text,
+                                        newText = continuedVal.text,
+                                        alignments = lineAlignments
+                                    )
+                                }
+                                bodyField = continuedVal
                             },
                             textStyle = TextStyle(
                                 color = textColor,
@@ -2502,7 +2833,14 @@ fun StickyNoteFullScreenDialog(
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .defaultMinSize(minHeight = 120.dp),
+                                .defaultMinSize(minHeight = 140.dp)
+                                .focusRequester(bodyFocusRequester)
+                                .bringIntoViewRequester(bodyBringIntoViewRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        editorScope.launch { bodyBringIntoViewRequester.bringIntoView() }
+                                    }
+                                },
                             decorationBox = { inner ->
                                 if (bodyField.text.isEmpty()) {
                                     Text(
@@ -2523,39 +2861,122 @@ fun StickyNoteFullScreenDialog(
                             }
                         }
                         if (rawDisplayBody.isNotBlank()) {
-                            val parsedFullBody = remember(rawDisplayBody, lineAlignments) {
-                                parseStickyFormattedText(rawDisplayBody, lineAlignments)
-                            }
                             val baseNoteFont = if (isBoldMode) StickyBoldBaseFontFamily else AppFontFamily
                             val baseNoteWeight = if (isBoldMode) FontWeight.Bold else FontWeight.Normal
-                            if (!parsedFullBody.hasCustomFormatting) {
-                                Text(
-                                    text = parsedFullBody.plainText,
-                                    color = textColor,
-                                    fontSize = 16.sp,
-                                    lineHeight = 24.sp,
-                                    fontFamily = baseNoteFont,
-                                    fontWeight = baseNoteWeight,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                            val hasChecklistLines = remember(rawDisplayBody) {
+                                rawDisplayBody.lineSequence().any {
+                                    it.startsWith(STICKY_CHECKBOX_UNCHECKED) || it.startsWith(STICKY_CHECKBOX_CHECKED)
+                                }
+                            }
+                            if (hasChecklistLines) {
+                                val lines = remember(rawDisplayBody) { rawDisplayBody.split('\n') }
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    lines.forEachIndexed { lineIdx, line ->
+                                        val isUnchecked = line.startsWith(STICKY_CHECKBOX_UNCHECKED)
+                                        val isChecked = line.startsWith(STICKY_CHECKBOX_CHECKED)
+                                        val lineAlign = mapStringToTextAlign(lineAlignments[lineIdx] ?: "START")
+                                        if (isUnchecked || isChecked) {
+                                            val itemText = line.removePrefix(
+                                                if (isChecked) STICKY_CHECKBOX_CHECKED else STICKY_CHECKBOX_UNCHECKED
+                                            )
+                                            val lineColor = if (isChecked) textColor.copy(alpha = 0.52f) else textColor
+                                            val formattedItem = buildFormattedStickyAnnotatedString(
+                                                rawText = itemText,
+                                                isBoldMode = isBoldMode,
+                                                baseColor = lineColor,
+                                                accentColor = effectiveAccent
+                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clickable {
+                                                        val updatedText = toggleChecklistLineAtIndex(bodyField.text, lineIdx)
+                                                        bodyField = bodyField.copy(text = updatedText)
+                                                        persistCurrentDraft(overrideBodyText = updatedText)
+                                                    }
+                                                    .padding(vertical = 4.dp, horizontal = 2.dp),
+                                                verticalAlignment = Alignment.Top
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                                                    contentDescription = if (isChecked) "Checked" else "Unchecked",
+                                                    tint = if (isChecked) effectiveAccent else textColor.copy(alpha = 0.65f),
+                                                    modifier = Modifier
+                                                        .padding(top = 2.dp)
+                                                        .size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(
+                                                    text = formattedItem,
+                                                    color = lineColor,
+                                                    fontSize = 16.sp,
+                                                    lineHeight = 24.sp,
+                                                    fontFamily = baseNoteFont,
+                                                    fontWeight = baseNoteWeight,
+                                                    textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None,
+                                                    textAlign = lineAlign,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+                                        } else if (line.isNotEmpty()) {
+                                            val formattedLine = buildFormattedStickyAnnotatedString(
+                                                rawText = line,
+                                                isBoldMode = isBoldMode,
+                                                baseColor = textColor,
+                                                accentColor = effectiveAccent
+                                            )
+                                            Text(
+                                                text = formattedLine,
+                                                color = textColor,
+                                                fontSize = 16.sp,
+                                                lineHeight = 24.sp,
+                                                fontFamily = baseNoteFont,
+                                                fontWeight = baseNoteWeight,
+                                                textAlign = lineAlign,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                        }
+                                    }
+                                }
                             } else {
-                                val annotated = remember(parsedFullBody, isBoldMode, textColor, effectiveAccent) {
-                                    buildAnnotatedFromParsedSticky(
-                                        parsed = parsedFullBody,
-                                        isBoldMode = isBoldMode,
-                                        baseColor = textColor,
-                                        accentColor = effectiveAccent
+                                val parsedFullBody = remember(rawDisplayBody, lineAlignments) {
+                                    parseStickyFormattedText(rawDisplayBody, lineAlignments)
+                                }
+                                if (!parsedFullBody.hasCustomFormatting) {
+                                    Text(
+                                        text = parsedFullBody.plainText,
+                                        color = textColor,
+                                        fontSize = 16.sp,
+                                        lineHeight = 24.sp,
+                                        fontFamily = baseNoteFont,
+                                        fontWeight = baseNoteWeight,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    val annotated = remember(parsedFullBody, isBoldMode, textColor, effectiveAccent) {
+                                        buildAnnotatedFromParsedSticky(
+                                            parsed = parsedFullBody,
+                                            isBoldMode = isBoldMode,
+                                            baseColor = textColor,
+                                            accentColor = effectiveAccent
+                                        )
+                                    }
+                                    Text(
+                                        text = annotated,
+                                        color = textColor,
+                                        fontSize = 16.sp,
+                                        lineHeight = 24.sp,
+                                        fontFamily = baseNoteFont,
+                                        fontWeight = baseNoteWeight,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
-                                Text(
-                                    text = annotated,
-                                    color = textColor,
-                                    fontSize = 16.sp,
-                                    lineHeight = 24.sp,
-                                    fontFamily = baseNoteFont,
-                                    fontWeight = baseNoteWeight,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
                             }
                         }
                     }
@@ -2579,56 +3000,102 @@ fun StickyNoteFullScreenDialog(
                                         text = if (isBn) "টেবিল গ্রিড (${table.rows}×${table.cols})" else "Table Grid (${table.rows}×${table.cols})",
                                         color = textColor,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        TextButton(
-                                            onClick = {
-                                                val newRows = table.rows + 1
-                                                val newCells = table.cells + listOf(List(table.cols) { "" })
-                                                tableData = StickyTableData(newRows, table.cols, newCells)
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("+Row", color = effectiveAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    IconButton(
+                                        onClick = { tableData = null },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "Remove Table", tint = AccentPink, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = effectiveAccent.copy(alpha = 0.14f),
+                                        modifier = Modifier.clickable {
+                                            val newRows = table.rows + 1
+                                            val newCells = table.cells + listOf(List(table.cols) { "" })
+                                            tableData = StickyTableData(newRows, table.cols, newCells)
                                         }
-                                        if (table.rows > 1) {
-                                            TextButton(
-                                                onClick = {
-                                                    val newRows = table.rows - 1
-                                                    tableData = StickyTableData(newRows, table.cols, table.cells.take(newRows))
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                            ) {
-                                                Text("-Row", color = AccentPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    ) {
+                                        Text(
+                                            text = "+Row",
+                                            color = effectiveAccent,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                    if (table.rows > 1) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = AccentPink.copy(alpha = 0.14f),
+                                            modifier = Modifier.clickable {
+                                                val newRows = table.rows - 1
+                                                tableData = StickyTableData(newRows, table.cols, table.cells.take(newRows))
                                             }
-                                        }
-                                        TextButton(
-                                            onClick = {
-                                                val newCols = table.cols + 1
-                                                val newCells = table.cells.map { it + "" }
-                                                tableData = StickyTableData(table.rows, newCols, newCells)
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                         ) {
-                                            Text("+Col", color = effectiveAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                text = "-Row",
+                                                color = AccentPink,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                            )
                                         }
-                                        if (table.cols > 1) {
-                                            TextButton(
-                                                onClick = {
-                                                    val newCols = table.cols - 1
-                                                    tableData = StickyTableData(table.rows, newCols, table.cells.map { it.take(newCols) })
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                            ) {
-                                                Text("-Col", color = AccentPink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = effectiveAccent.copy(alpha = 0.14f),
+                                        modifier = Modifier.clickable {
+                                            val newCols = table.cols + 1
+                                            val newCells = table.cells.map { it + "" }
+                                            tableData = StickyTableData(table.rows, newCols, newCells)
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "+Col",
+                                            color = effectiveAccent,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                    if (table.cols > 1) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = AccentPink.copy(alpha = 0.14f),
+                                            modifier = Modifier.clickable {
+                                                val newCols = table.cols - 1
+                                                tableData = StickyTableData(table.rows, newCols, table.cells.map { it.take(newCols) })
                                             }
-                                        }
-                                        IconButton(
-                                            onClick = { tableData = null },
-                                            modifier = Modifier.size(28.dp)
                                         ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Remove Table", tint = AccentPink, modifier = Modifier.size(16.dp))
+                                            Text(
+                                                text = "-Col",
+                                                color = AccentPink,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                            )
                                         }
                                     }
                                 }
@@ -2795,7 +3262,7 @@ fun StickyNoteFullScreenDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(64.dp))
+                    Spacer(modifier = Modifier.height(64.dp + rememberSplitScreenSafeBottomPadding()))
                 }
             }
         }

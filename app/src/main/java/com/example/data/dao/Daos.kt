@@ -99,6 +99,9 @@ interface MenuDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity): Long
 
+    @Delete
+    suspend fun deleteMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity)
+
     @Query("SELECT * FROM menu_modification_history WHERE menuItemId = :menuItemId ORDER BY modifiedAt DESC")
     fun getHistoryForMenuItem(menuItemId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>>
 
@@ -438,6 +441,9 @@ abstract class SyncDao {
     @Update
     abstract suspend fun updateOwnerAccount(account: com.example.data.model.OwnerAccountEntity)
 
+    @Update
+    abstract suspend fun updateOwnerAccounts(accounts: List<com.example.data.model.OwnerAccountEntity>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertMenuItems(items: List<MenuEntity>)
 
@@ -475,6 +481,9 @@ abstract class SyncDao {
     abstract suspend fun insertStickyNotes(notes: List<StickyNoteEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertElectricityRates(rates: List<com.example.data.model.ElectricityRate>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertUserProfile(profile: UserProfileEntity)
 
     @androidx.room.Transaction
@@ -486,6 +495,7 @@ abstract class SyncDao {
         if (plan.bankAccountsToUpdate.isNotEmpty()) updateBankAccounts(plan.bankAccountsToUpdate)
 
         if (plan.ownerAccountsToInsert.isNotEmpty()) insertOwnerAccounts(plan.ownerAccountsToInsert)
+        if (plan.ownerAccountsToUpdate.isNotEmpty()) updateOwnerAccounts(plan.ownerAccountsToUpdate)
 
         if (plan.menusToInsert.isNotEmpty()) insertMenuItems(plan.menusToInsert)
         if (plan.menusToUpdate.isNotEmpty()) updateMenuItems(plan.menusToUpdate)
@@ -504,6 +514,7 @@ abstract class SyncDao {
 
         if (plan.hotelPaymentsToInsert.isNotEmpty()) insertHotelPayments(plan.hotelPaymentsToInsert)
         if (plan.stickyNotesToInsert.isNotEmpty()) insertStickyNotes(plan.stickyNotesToInsert)
+        if (plan.electricityRatesToInsert.isNotEmpty()) insertElectricityRates(plan.electricityRatesToInsert)
 
         if (plan.userProfileToUpdate != null) insertUserProfile(plan.userProfileToUpdate)
     }

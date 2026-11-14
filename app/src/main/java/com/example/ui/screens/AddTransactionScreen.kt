@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -33,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +100,18 @@ fun AddTransactionScreen(
         )
     }
     var showAmountKeyboard by remember { mutableStateOf(false) }
+    var useSystemKeyboardForAmount by remember { mutableStateOf(false) }
+    val amountInteractionSource = remember { MutableInteractionSource() }
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(amountInteractionSource, useSystemKeyboardForAmount) {
+        amountInteractionSource.interactions.collect { interaction ->
+            if (interaction is PressInteraction.Release && !useSystemKeyboardForAmount) {
+                softwareKeyboardController?.hide()
+                showAmountKeyboard = true
+            }
+        }
+    }
     var selectedAccountId by remember(editingExpense?.id) {
         mutableStateOf(editingExpense?.bankAccountId ?: accounts.firstOrNull()?.id ?: 0)
     }
@@ -492,10 +508,14 @@ fun AddTransactionScreen(
                             }
                         }
                     ) { innerPadding ->
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(innerPadding)
+                        ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
                                 .padding(horizontal = 14.dp, vertical = 4.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
@@ -575,35 +595,72 @@ fun AddTransactionScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Amount Input + On-Screen Calculator Keyboard
+                            // Amount Input + Docked On-Screen Calculator Keyboard
                             GlassCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { showAmountKeyboard = true }
+                                    .clickable {
+                                        if (!useSystemKeyboardForAmount) {
+                                            softwareKeyboardController?.hide()
+                                        }
+                                        showAmountKeyboard = true
+                                    }
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Row(
+                                        modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(
-                                            if (isBengali) "পরিমাণ (₹)" else "Amount (₹)",
-                                            color = AppTextColor().copy(alpha = 0.6f),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Icon(
-                                            imageVector = if (showAmountKeyboard) Icons.Default.KeyboardArrowUp else Icons.Default.Calculate,
-                                            contentDescription = "Toggle Calculator Keyboard",
-                                            tint = AppAccentColor(),
-                                            modifier = Modifier
-                                                .size(18.dp)
-                                                .clickable { showAmountKeyboard = !showAmountKeyboard }
-                                        )
+                                        Spacer(modifier = Modifier.size(32.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(
+                                                if (isBengali) "পরিমাণ (₹)" else "Amount (₹)",
+                                                color = AppTextColor().copy(alpha = 0.6f),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Icon(
+                                                imageVector = if (showAmountKeyboard) Icons.Default.KeyboardArrowDown else Icons.Default.Calculate,
+                                                contentDescription = "Toggle Calculator Keyboard",
+                                                tint = AppAccentColor(),
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .clickable {
+                                                        if (!showAmountKeyboard) {
+                                                            softwareKeyboardController?.hide()
+                                                            focusManager.clearFocus()
+                                                        }
+                                                        showAmountKeyboard = !showAmountKeyboard
+                                                    }
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                useSystemKeyboardForAmount = !useSystemKeyboardForAmount
+                                                if (!useSystemKeyboardForAmount) {
+                                                    softwareKeyboardController?.hide()
+                                                    showAmountKeyboard = true
+                                                } else {
+                                                    showAmountKeyboard = false
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (useSystemKeyboardForAmount) Icons.Default.Calculate else Icons.Default.Keyboard,
+                                                contentDescription = "Switch Keypad Mode",
+                                                tint = AppSecondaryTextColor(),
+                                                modifier = Modifier.size(17.dp)
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     BasicTextField(
@@ -612,11 +669,12 @@ fun AddTransactionScreen(
                                             if (newVal.all { c -> c.isDigit() || c == '.' || c == '+' || c == '-' || c == '×' || c == '÷' || c == '*' || c == '/' }) {
                                                 amountStr = newVal
                                             }
-                                            showAmountKeyboard = true
                                         },
+                                        readOnly = !useSystemKeyboardForAmount,
+                                        interactionSource = amountInteractionSource,
                                         textStyle = TextStyle(
                                             color = AppTextColor(),
-                                            fontSize = 40.sp,
+                                            fontSize = 38.sp,
                                             fontWeight = FontWeight.Black,
                                             textAlign = TextAlign.Center
                                         ),
@@ -628,20 +686,17 @@ fun AddTransactionScreen(
                                         cursorBrush = SolidColor(AppAccentColor()),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable { showAmountKeyboard = true }
                                             .testTag("transaction_amount_input"),
                                         decorationBox = { inner ->
                                             Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { showAmountKeyboard = true },
+                                                modifier = Modifier.fillMaxWidth(),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (amountStr.isEmpty()) {
                                                     Text(
                                                         "0.00",
                                                         color = AppTextColor().copy(alpha = 0.15f),
-                                                        fontSize = 40.sp,
+                                                        fontSize = 38.sp,
                                                         fontWeight = FontWeight.Black,
                                                         textAlign = TextAlign.Center,
                                                         modifier = Modifier.fillMaxWidth()
@@ -651,21 +706,6 @@ fun AddTransactionScreen(
                                             }
                                         }
                                     )
-
-                                    AnimatedVisibility(
-                                        visible = showAmountKeyboard,
-                                        enter = expandVertically() + fadeIn(),
-                                        exit = shrinkVertically() + fadeOut()
-                                    ) {
-                                        Column {
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                            OnScreenCalculatorKeyboard(
-                                                value = amountStr,
-                                                onValueChange = { amountStr = it },
-                                                onEnter = { showAmountKeyboard = false }
-                                            )
-                                        }
-                                    }
                                 }
                             }
 
@@ -674,8 +714,8 @@ fun AddTransactionScreen(
                             // Details Card
                             GlassCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     // Title
                                     GlassTextField(
@@ -842,7 +882,7 @@ fun AddTransactionScreen(
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AppAccentColor().copy(alpha = 0.14f),
                                                     border = BorderStroke(1.dp, AppAccentColor().copy(alpha = 0.35f)),
-                                                    modifier = Modifier.height(30.dp)
+                                                    modifier = Modifier.height(28.dp)
                                                 ) {
                                                     Box(
                                                         modifier = Modifier.padding(horizontal = 8.dp),
@@ -866,7 +906,7 @@ fun AddTransactionScreen(
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AccentGold.copy(alpha = 0.14f),
                                                     border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.35f)),
-                                                    modifier = Modifier.size(30.dp)
+                                                    modifier = Modifier.size(28.dp)
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Icon(
@@ -882,10 +922,10 @@ fun AddTransactionScreen(
                                                     shape = RoundedCornerShape(8.dp),
                                                     color = AccentGreen.copy(alpha = 0.16f),
                                                     border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f)),
-                                                    modifier = Modifier.height(30.dp)
+                                                    modifier = Modifier.height(28.dp)
                                                 ) {
                                                     Row(
-                                                        modifier = Modifier.padding(horizontal = 9.dp),
+                                                        modifier = Modifier.padding(horizontal = 8.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                                     ) {
@@ -893,10 +933,10 @@ fun AddTransactionScreen(
                                                             imageVector = Icons.Default.Mic,
                                                             contentDescription = "Voice to Text",
                                                             tint = AccentGreen,
-                                                            modifier = Modifier.size(14.dp)
+                                                            modifier = Modifier.size(13.dp)
                                                         )
                                                         Text(
-                                                            text = if (isBengali) "STT" else "STT",
+                                                            text = "STT",
                                                             color = AccentGreen,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Bold,
@@ -909,10 +949,10 @@ fun AddTransactionScreen(
                                         GlassTextField(
                                             value = notes,
                                             onValueChange = { notes = it },
-                                            label = { Text(if (isBengali) "নোট (ঐচ্ছিক)" else "Notes (Optional)") },
+                                            placeholder = { Text(if (isBengali) "নোট লিখুন (ঐচ্ছিক)..." else "Add notes (optional)...") },
                                             modifier = Modifier.fillMaxWidth(),
                                             singleLine = false,
-                                            maxLines = 3,
+                                            maxLines = 2,
                                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                                         )
                                     }
@@ -1175,7 +1215,27 @@ fun AddTransactionScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height((if (showAmountKeyboard) 280.dp else 48.dp) + rememberSplitScreenSafeBottomPadding()))
+                        }
+
+                        // Docked Calculator Keyboard overlay outside verticalScroll (zero relayout frame drops)
+                        AnimatedVisibility(
+                            visible = showAmountKeyboard,
+                            enter = if (isHeavyEffectsDisabled()) EnterTransition.None else slideInVertically { it } + fadeIn(),
+                            exit = if (isHeavyEffectsDisabled()) ExitTransition.None else slideOutVertically { it } + fadeOut(),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .widthIn(max = 520.dp)
+                                .dialogSafeBottomPadding(extraBottom = 8.dp)
+                                .padding(horizontal = 12.dp)
+                        ) {
+                            OnScreenCalculatorKeyboard(
+                                value = amountStr,
+                                onValueChange = { amountStr = it },
+                                onEnter = { showAmountKeyboard = false }
+                            )
+                        }
                         }
                     }
                 }

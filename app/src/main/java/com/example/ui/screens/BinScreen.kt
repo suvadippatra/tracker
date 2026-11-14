@@ -655,8 +655,7 @@ fun BinScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Midnight Glow"))
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .dialogSystemBarsPadding(extraTop = 8.dp),
+                    .pointerInput(Unit) { detectTapGestures { } },
                 contentAlignment = Alignment.Center
             ) {
                 Scaffold(
@@ -664,38 +663,25 @@ fun BinScreen(
                     containerColor = Color.Transparent,
                     contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
                     topBar = {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(Icons.Default.ChevronLeft, if (isBn) "ফিরে যান" else "Back", tint = AppTextColor(), modifier = Modifier.size(26.dp))
-                            }
-                            Text(if (isBn) "রিসাইকেল বিন" else "Recycle Bin", color = AppTextColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            
-                            if (!isCurrentSectionEmpty) {
-                                FilledTonalIconButton(
-                                    onClick = { showEmptyBinConfirmation = true },
-                                    modifier = Modifier.size(40.dp),
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = AccentPink.copy(alpha = 0.14f),
-                                        contentColor = AccentPink
-                                    )
-                                ) {
-                                    Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                        Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                            com.example.ui.screens.settings.components.SettingsPageHeader(
+                                title = if (isBn) "রিসাইকেল বিন" else "Recycle Bin",
+                                onBack = onDismiss,
+                                trailingContent = {
+                                    if (!isCurrentSectionEmpty) {
+                                        FilledTonalIconButton(
+                                            onClick = { showEmptyBinConfirmation = true },
+                                            modifier = Modifier.size(40.dp),
+                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = AccentPink.copy(alpha = 0.14f),
+                                                contentColor = AccentPink
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.DeleteSweep, if (isBn) "বিভাগ খালি করুন" else "Empty Section", tint = AccentPink)
+                                        }
+                                    }
                                 }
-                            } else {
-                                Box(modifier = Modifier.size(40.dp))
-                            }
+                            )
                         }
                     }
                 ) { padding ->

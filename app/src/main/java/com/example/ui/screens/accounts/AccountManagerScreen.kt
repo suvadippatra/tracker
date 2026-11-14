@@ -97,55 +97,32 @@ fun AccountManagerScreen(
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .dialogSystemBarsPadding(extraTop = 8.dp)
                                 .imePadding(),
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0.dp),
                             topBar = {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .bounceClick()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ChevronLeft,
-                                contentDescription = "Back",
-                                tint = AppTextColor(),
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-
-                        Text(
-                            text = if (isBengali) "অ্যাকাউন্ট ব্যবস্থাপনা" else "Account Manager",
-                            color = AppTextColor(),
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        IconButton(
-                            onClick = { isAddingBankAccount = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(AppAccentColor(), CircleShape)
-                                .bounceClick()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Account",
-                                tint = AppOnAccentColor()
-                            )
-                        }
-                    }
-                }
+                                Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                    com.example.ui.screens.settings.components.SettingsPageHeader(
+                                        title = if (isBengali) "অ্যাকাউন্ট ব্যবস্থাপনা" else "Account Manager",
+                                        onBack = onDismiss,
+                                        trailingContent = {
+                                            IconButton(
+                                                onClick = { isAddingBankAccount = true },
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(AppAccentColor(), CircleShape)
+                                                    .bounceClick()
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "Add Account",
+                                                    tint = AppOnAccentColor()
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
             ) { innerPadding ->
                 LazyColumn(
                     modifier = Modifier
@@ -153,7 +130,7 @@ fun AccountManagerScreen(
                         .padding(innerPadding)
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp)
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp + rememberSplitScreenSafeBottomPadding())
                 ) {
                 // Summary Card
                 item {
@@ -534,7 +511,6 @@ fun AccountEditorScreen(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
@@ -542,6 +518,7 @@ fun AccountEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .dialogSafeTopPadding(extraTop = 4.dp)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -816,7 +793,7 @@ fun AccountEditorScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(120.dp + rememberSplitScreenSafeBottomPadding()))
             }
         }
     }

@@ -7,9 +7,11 @@ import com.example.ui.components.*
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,7 +51,7 @@ import com.example.ui.components.getGlassIconButtonBg
 import com.example.ui.viewmodel.FinancialViewModel
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MenuManagementScreen(
     hotel: HotelEntity,
@@ -153,7 +155,6 @@ fun MenuManagementScreen(
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .dialogSystemBarsPadding(extraTop = 8.dp)
                                 .imePadding(),
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0.dp),
@@ -161,6 +162,7 @@ fun MenuManagementScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .dialogSafeTopPadding(extraTop = 4.dp)
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
@@ -251,7 +253,10 @@ fun MenuManagementScreen(
                                         
                                         HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f))
 
-                                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = PaddingValues(bottom = 24.dp)
+                                        ) {
                                             items(menuItems, key = { it.id }) { item ->
                                                 MenuTableRow(
                                                     item = item,
@@ -272,6 +277,7 @@ fun MenuManagementScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .dialogSafeBottomPadding(extraBottom = 8.dp)
                                         .padding(horizontal = 16.dp, vertical = 12.dp)
                                 ) {
                                     Button(
@@ -299,9 +305,51 @@ fun MenuManagementScreen(
                 AddMenuItemDialog(
                     hotelId = hotel.id,
                     onDismiss = { showAddMenu = false },
-                    onSave = { newItem ->
-                        viewModel.addMenu(newItem)
+                    onSave = { newItem, effectiveDateMillis ->
+                        viewModel.addMenu(newItem, effectiveDateMillis)
                         showAddMenu = false
+                    }
+                )
+            }
+
+            var historyToDelete by remember { mutableStateOf<com.example.data.model.MenuModificationHistoryEntity?>(null) }
+
+            if (historyToDelete != null) {
+                val delItem = historyToDelete!!
+                AlertDialog(
+                    onDismissRequest = { historyToDelete = null },
+                    containerColor = getDialogBackground(),
+                    shape = RoundedCornerShape(22.dp),
+                    title = {
+                        Text(
+                            text = if (isBn) "মূল্য পরিবর্তনের এন্ট্রি মুছবেন?" else "Delete Price History Entry?",
+                            color = AppTextColor(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = if (isBn) "আপনি কি \"${delItem.itemName}\" এর এই রেকর্ডটি (${delItem.changeSummary}) মুছে ফেলতে চান?"
+                            else "Remove this modification record for \"${delItem.itemName}\" (${delItem.changeSummary})?",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 13.5.sp
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.deleteMenuHistory(delItem)
+                                historyToDelete = null
+                            }
+                        ) {
+                            Text(if (isBn) "মুছে ফেলুন" else "Delete", color = AccentPink, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { historyToDelete = null }) {
+                            Text(if (isBn) "বাতিল" else "Cancel", color = AppSecondaryTextColor())
+                        }
                     }
                 )
             }
@@ -334,8 +382,8 @@ fun MenuManagementScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (isBn) "বিঃদ্রঃ নতুন দাম শুধুমাত্র ভবিষ্যতের অর্ডারে প্রযোজ্য হবে; পূর্ববর্তী মাসের হিসাব অপরিবর্তিত থাকে।"
-                                else "Note: Price updates apply only to future orders; past months' meal records keep their original snapshot prices.",
+                                text = if (isBn) "ভুল এন্ট্রি মুছতে সেটির উপর লং-প্রেস করুন।"
+                                else "Long-press any entry to remove a wrong price history record.",
                                 color = AppAccentColor(),
                                 fontSize = 11.5.sp,
                                 lineHeight = 16.sp
@@ -371,7 +419,13 @@ fun MenuManagementScreen(
                                         shape = RoundedCornerShape(12.dp),
                                         color = getCardBackground(),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder()),
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .combinedClickable(
+                                                onClick = {},
+                                                onLongClick = { historyToDelete = rec }
+                                            )
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Row(
@@ -383,7 +437,8 @@ fun MenuManagementScreen(
                                                     text = rec.itemName,
                                                     color = AppTextColor(),
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp
+                                                    fontSize = 14.sp,
+                                                    modifier = Modifier.weight(1f)
                                                 )
                                                 Text(
                                                     text = dateStr,
@@ -590,7 +645,7 @@ fun MenuTableRow(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Price Effective From:",
+                            text = "* Effective Date (Required):",
                             color = AppSecondaryTextColor(),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -748,7 +803,7 @@ fun MenuTableRow(
 fun AddMenuItemDialog(
     hotelId: Int,
     onDismiss: () -> Unit,
-    onSave: (MenuEntity) -> Unit
+    onSave: (MenuEntity, Long) -> Unit
 ) {
     BackHandler { onDismiss() }
 
@@ -756,6 +811,20 @@ fun AddMenuItemDialog(
     var newPrice by remember { mutableStateOf("") }
     var newEmoji by remember { mutableStateOf("🍽️") }
     var newType by remember { mutableStateOf("Day") } // Day, Night, Common
+    var effectiveDateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateFormat = remember { java.text.SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    if (showDatePicker) {
+        SlidingDatePickerModal(
+            initialDateMillis = effectiveDateMillis,
+            onDateSelected = { picked ->
+                effectiveDateMillis = picked
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -803,6 +872,40 @@ fun AddMenuItemDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                // Mandatory Effective Date Picker (defaults to today)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppAccentColor().copy(alpha = 0.10f))
+                        .clickable { showDatePicker = true }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Effective Date",
+                            tint = AppAccentColor(),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "* Effective Date",
+                            color = AppTextColor(),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = runCatching { dateFormat.format(java.util.Date(effectiveDateMillis)) }.getOrDefault("Today"),
+                        color = AppAccentColor(),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 
                 // Toggle for type with Day/Night icons
                 Row(
@@ -857,20 +960,25 @@ fun AddMenuItemDialog(
                     Button(
                         onClick = {
                             val p = newPrice.toDoubleOrNull() ?: 0.0
-                            if (newName.isNotBlank()) {
-                                onSave(MenuEntity(
-                                    hotelId = hotelId,
-                                    banglaName = newName,
-                                    englishName = newName,
-                                    price = p,
-                                    isDayMenu = newType == "Day" || newType == "Common",
-                                    isNightMenu = newType == "Night" || newType == "Common",
-                                    isAddOn = false,
-                                    emoji = newEmoji,
-                                    type = newType
-                                ))
+                            if (newName.isNotBlank() && effectiveDateMillis > 0L) {
+                                onSave(
+                                    MenuEntity(
+                                        hotelId = hotelId,
+                                        banglaName = newName,
+                                        englishName = newName,
+                                        price = p,
+                                        isDayMenu = newType == "Day" || newType == "Common",
+                                        isNightMenu = newType == "Night" || newType == "Common",
+                                        isAddOn = false,
+                                        emoji = newEmoji,
+                                        type = newType,
+                                        lastUpdatedMillis = effectiveDateMillis
+                                    ),
+                                    effectiveDateMillis
+                                )
                             }
                         },
+                        enabled = newName.isNotBlank() && effectiveDateMillis > 0L,
                         colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor()),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(48.dp).bounceClick()

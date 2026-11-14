@@ -106,8 +106,18 @@ fun SyncResolutionScreen(
     val keepBothCount = remember(conflicts, conflictDecisions) {
         conflicts.count { conflictDecisions[it.conflictKey] == ConflictResolution.KEEP_BOTH }
     }
+    var showOverwriteConfirmDialog by remember { mutableStateOf(false) }
 
     // Grouping by categories
+    val hotelConflicts = remember(conflicts) {
+        conflicts.filterIsInstance<ConflictItem.HotelConflict>()
+    }
+    val bankAccountConflicts = remember(conflicts) {
+        conflicts.filterIsInstance<ConflictItem.BankAccountConflict>()
+    }
+    val ownerAccountConflicts = remember(conflicts) {
+        conflicts.filterIsInstance<ConflictItem.OwnerAccountConflict>()
+    }
     val transactionConflicts = remember(conflicts) {
         conflicts.filterIsInstance<ConflictItem.TransactionConflict>()
     }
@@ -289,7 +299,13 @@ fun SyncResolutionScreen(
                     }
 
                     Button(
-                        onClick = onConfirmMerge,
+                        onClick = {
+                            if (takeImportedCount > 0) {
+                                showOverwriteConfirmDialog = true
+                            } else {
+                                onConfirmMerge()
+                            }
+                        },
                         enabled = !isMerging,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -337,6 +353,111 @@ fun SyncResolutionScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
         ) {
+            // 0A. Hotel Conflicts
+            if (hotelConflicts.isNotEmpty()) {
+                item {
+                    ConflictCategoryHeader(
+                        title = "Hotels & Stays",
+                        count = hotelConflicts.size,
+                        icon = Icons.Default.Apartment,
+                        color = AccentCyan
+                    )
+                }
+                items(hotelConflicts, key = { it.conflictKey }) { conflict ->
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
+                    ParentEntityConflictCard(
+                        title = conflict.title,
+                        subtitle = conflict.subtitle,
+                        localHeader = "LOCAL HOTEL",
+                        localPrimary = conflict.localHotel.name,
+                        localSecondary = listOfNotNull(
+                            conflict.localHotel.location.ifBlank { null },
+                            conflict.localHotel.upiId.ifBlank { null },
+                            "Adv: ₹${conflict.localHotel.advancedPayment}"
+                        ).joinToString(" • "),
+                        incomingHeader = "INCOMING HOTEL",
+                        incomingPrimary = conflict.importedHotel.name,
+                        incomingSecondary = listOfNotNull(
+                            conflict.importedHotel.location.ifBlank { null },
+                            conflict.importedHotel.upiId.ifBlank { null },
+                            "Adv: ₹${conflict.importedHotel.advancedPayment}"
+                        ).joinToString(" • "),
+                        currentDecision = decision,
+                        onDecisionChanged = { res -> onResolutionChanged(conflict.conflictKey, res) }
+                    )
+                }
+            }
+
+            // 0B. Bank Account Conflicts
+            if (bankAccountConflicts.isNotEmpty()) {
+                item {
+                    ConflictCategoryHeader(
+                        title = "Bank Accounts",
+                        count = bankAccountConflicts.size,
+                        icon = Icons.Default.AccountBalance,
+                        color = AccentGreen
+                    )
+                }
+                items(bankAccountConflicts, key = { it.conflictKey }) { conflict ->
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
+                    ParentEntityConflictCard(
+                        title = conflict.title,
+                        subtitle = conflict.subtitle,
+                        localHeader = "LOCAL ACCOUNT",
+                        localPrimary = conflict.localBankAccount.name,
+                        localSecondary = listOfNotNull(
+                            "Bal: ₹${conflict.localBankAccount.balance}",
+                            conflict.localBankAccount.upiId.ifBlank { null },
+                            conflict.localBankAccount.ifsc.ifBlank { null }
+                        ).joinToString(" • "),
+                        incomingHeader = "INCOMING ACCOUNT",
+                        incomingPrimary = conflict.importedBankAccount.name,
+                        incomingSecondary = listOfNotNull(
+                            "Bal: ₹${conflict.importedBankAccount.balance}",
+                            conflict.importedBankAccount.upiId.ifBlank { null },
+                            conflict.importedBankAccount.ifsc.ifBlank { null }
+                        ).joinToString(" • "),
+                        currentDecision = decision,
+                        onDecisionChanged = { res -> onResolutionChanged(conflict.conflictKey, res) }
+                    )
+                }
+            }
+
+            // 0C. Owner Account Conflicts
+            if (ownerAccountConflicts.isNotEmpty()) {
+                item {
+                    ConflictCategoryHeader(
+                        title = "Owner Profile Accounts",
+                        count = ownerAccountConflicts.size,
+                        icon = Icons.Default.Person,
+                        color = AccentPurple
+                    )
+                }
+                items(ownerAccountConflicts, key = { it.conflictKey }) { conflict ->
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
+                    ParentEntityConflictCard(
+                        title = conflict.title,
+                        subtitle = conflict.subtitle,
+                        localHeader = "LOCAL OWNER",
+                        localPrimary = conflict.localOwnerAccount.accountName.ifBlank { conflict.localOwnerAccount.ownerName },
+                        localSecondary = listOfNotNull(
+                            conflict.localOwnerAccount.ownerName.ifBlank { null },
+                            conflict.localOwnerAccount.upiId.ifBlank { null },
+                            conflict.localOwnerAccount.accountNumber.ifBlank { null }
+                        ).joinToString(" • "),
+                        incomingHeader = "INCOMING OWNER",
+                        incomingPrimary = conflict.importedOwnerAccount.accountName.ifBlank { conflict.importedOwnerAccount.ownerName },
+                        incomingSecondary = listOfNotNull(
+                            conflict.importedOwnerAccount.ownerName.ifBlank { null },
+                            conflict.importedOwnerAccount.upiId.ifBlank { null },
+                            conflict.importedOwnerAccount.accountNumber.ifBlank { null }
+                        ).joinToString(" • "),
+                        currentDecision = decision,
+                        onDecisionChanged = { res -> onResolutionChanged(conflict.conflictKey, res) }
+                    )
+                }
+            }
+
             // 1. Transaction Conflicts
             if (transactionConflicts.isNotEmpty()) {
                 item {
@@ -348,7 +469,7 @@ fun SyncResolutionScreen(
                     )
                 }
                 items(transactionConflicts, key = { it.conflictKey }) { conflict ->
-                    val decision = conflictDecisions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
                     TransactionConflictCard(
                         conflict = conflict,
                         currentDecision = decision,
@@ -369,7 +490,7 @@ fun SyncResolutionScreen(
                     )
                 }
                 items(mealConflicts, key = { it.conflictKey }) { conflict ->
-                    val decision = conflictDecisions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
                     MealConflictCard(
                         conflict = conflict,
                         currentDecision = decision,
@@ -390,7 +511,7 @@ fun SyncResolutionScreen(
                     )
                 }
                 items(menuItemConflicts, key = { it.conflictKey }) { conflict ->
-                    val decision = conflictDecisions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
                     MenuItemConflictCard(
                         conflict = conflict,
                         currentDecision = decision,
@@ -410,7 +531,7 @@ fun SyncResolutionScreen(
                     )
                 }
                 items(meterReadingConflicts, key = { it.conflictKey }) { conflict ->
-                    val decision = conflictDecisions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
                     MeterReadingConflictCard(
                         conflict = conflict,
                         currentDecision = decision,
@@ -431,7 +552,7 @@ fun SyncResolutionScreen(
                     )
                 }
                 items(utilityBillConflicts, key = { it.conflictKey }) { conflict ->
-                    val decision = conflictDecisions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+                    val decision = conflictDecisions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
                     UtilityBillConflictCard(
                         conflict = conflict,
                         currentDecision = decision,
@@ -441,6 +562,58 @@ fun SyncResolutionScreen(
                 }
             }
         }
+    }
+
+    if (showOverwriteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showOverwriteConfirmDialog = false },
+            containerColor = CardBackground,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = AccentGold
+                )
+            },
+            title = {
+                Text(
+                    text = "Confirm Overwrite ($takeImportedCount)",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "You selected 'Take Incoming' for $takeImportedCount conflicting record(s). " +
+                        "Applying this sync will overwrite and replace your existing local records for those items.\n\n" +
+                        "Keep Local ($keepLocalCount) and Keep Both ($keepBothCount) items will not remove existing data.",
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showOverwriteConfirmDialog = false
+                        onConfirmMerge()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentRed,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.testTag("confirm_sync_overwrite_btn")
+                ) {
+                    Text("Overwrite & Sync", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showOverwriteConfirmDialog = false }
+                ) {
+                    Text("Review Again", color = AccentCyan)
+                }
+            }
+        )
     }
 }
 
@@ -1262,6 +1435,127 @@ private fun ResolutionChoiceSelector(
                 selectedColor = AccentPurple,
                 modifier = Modifier.weight(1f),
                 onClick = { onSelect(ConflictResolution.KEEP_BOTH) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ParentEntityConflictCard(
+    title: String,
+    subtitle: String,
+    localHeader: String,
+    localPrimary: String,
+    localSecondary: String,
+    incomingHeader: String,
+    incomingPrimary: String,
+    incomingSecondary: String,
+    currentDecision: ConflictResolution,
+    onDecisionChanged: (ConflictResolution) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, CardBorderColor, RoundedCornerShape(14.dp)),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(LocalCardBackground, RoundedCornerShape(10.dp))
+                        .border(
+                            1.dp,
+                            if (currentDecision == ConflictResolution.KEEP_LOCAL) AccentGold.copy(alpha = 0.6f) else Color.Transparent,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Text(
+                            localHeader,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = TextMuted)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            localPrimary,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (localSecondary.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                localSecondary,
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(ImportedCardBackground, RoundedCornerShape(10.dp))
+                        .border(
+                            1.dp,
+                            if (currentDecision == ConflictResolution.TAKE_IMPORTED) AccentCyan.copy(alpha = 0.6f) else Color.Transparent,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Text(
+                            incomingHeader,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = AccentCyan)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            incomingPrimary,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (incomingSecondary.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                incomingSecondary,
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            ResolutionChoiceSelector(
+                currentDecision = currentDecision,
+                allowKeepBoth = true,
+                onSelect = onDecisionChanged
             )
         }
     }

@@ -538,10 +538,19 @@ fun ProfileSettingsScreen(
         )
     }
 
+    val profileListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+
     LazyColumn(
+        state = profileListState,
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(
+            top = 12.dp,
+            bottom = 120.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Personal Profile Card (Interactive - without Currency badge or Edit pencil button)
@@ -965,194 +974,229 @@ fun AccountCardItem(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Icon(
-                        Icons.Default.AccountBalance,
-                        contentDescription = null,
-                        tint = AppAccentColor(),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = account.accountName.ifBlank { account.ownerName },
-                        color = AppTextColor(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isDefault) {
-                        Surface(
-                            color = AccentGold.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f)),
-                            modifier = Modifier.padding(end = 6.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
-                                    color = AccentGold,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
+                Icon(
+                    Icons.Default.AccountBalance,
+                    contentDescription = null,
+                    tint = AppAccentColor(),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = account.accountName.ifBlank { account.ownerName },
+                    color = AppTextColor(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
 
-                    Surface(
-                        color = if (isLinkedToExtras) AccentGreen.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isLinkedToExtras) AccentGreen.copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .padding(end = 6.dp)
-                            .clickable {
-                                if (isLinkedToExtras) showDelinkDialog = true
-                                else {
+                var showMenu by remember { mutableStateOf(false) }
+                var showDeleteConfirm by remember { mutableStateOf(false) }
+
+                Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor().copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
+                        modifier = Modifier.background(getDialogBackground())
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (prefLanguage == "bn") "সম্পাদনা করুন" else "Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                            onClick = { showMenu = false; onEdit() }
+                        )
+                        if (isLinkedToExtras) {
+                            DropdownMenuItem(
+                                text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজ থেকে ডি-লিংক করুন" else "De-link from Extras Page", color = AccentPink, fontWeight = FontWeight.SemiBold) },
+                                onClick = { showMenu = false; showDelinkDialog = true }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজে লিংক করুন" else "Link to Extras Page", color = AccentGreen, fontWeight = FontWeight.SemiBold) },
+                                onClick = {
+                                    showMenu = false
                                     viewModel.linkOwnerAccountToExtras(account)
                                     Toast.makeText(context, "Linked to Extras page!", Toast.LENGTH_SHORT).show()
                                 }
-                            }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(if (prefLanguage == "bn") "বিনে সরান" else "Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
+                            onClick = { showMenu = false; showDeleteConfirm = true }
+                        )
+                    }
+                }
+
+                if (showDeleteConfirm) {
+                    com.example.ui.components.Tier1DeleteDialog(
+                        itemTitle = account.accountName.ifBlank { account.ownerName },
+                        onConfirm = { onDelete(); showDeleteConfirm = false },
+                        onDismiss = { showDeleteConfirm = false }
+                    )
+                }
+            }
+
+            // Status Badges row wrapped gracefully below the heading
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (isDefault) {
+                    Surface(
+                        color = AccentGold.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.5f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                if (isLinkedToExtras) Icons.Default.Link else Icons.Default.LinkOff,
-                                contentDescription = null,
-                                tint = if (isLinkedToExtras) AccentGreen else Color.Gray,
-                                modifier = Modifier.size(12.dp)
-                            )
+                            Icon(Icons.Default.Star, contentDescription = null, tint = AccentGold, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isLinkedToExtras) {
-                                    if (prefLanguage == "bn") "লিংকড (Extras)" else "Linked to Extras"
-                                } else {
-                                    if (prefLanguage == "bn") "প্রোফাইল ওনলি" else "Profile Only"
-                                },
-                                color = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
+                                text = if (prefLanguage == "bn") "ডিফল্ট" else "Default",
+                                color = AccentGold,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
+                }
 
-                    var showMenu by remember { mutableStateOf(false) }
-                    var showDeleteConfirm by remember { mutableStateOf(false) }
-                    
-                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTextColor().copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+                Surface(
+                    color = if (isLinkedToExtras) AccentGreen.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, if (isLinkedToExtras) AccentGreen.copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.4f)),
+                    modifier = Modifier.clickable {
+                        if (isLinkedToExtras) showDelinkDialog = true
+                        else {
+                            viewModel.linkOwnerAccountToExtras(account)
+                            Toast.makeText(context, "Linked to Extras page!", Toast.LENGTH_SHORT).show()
                         }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
-                            modifier = Modifier.background(getDialogBackground())
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(if (prefLanguage == "bn") "সম্পাদনা করুন" else "Edit", color = AppTextColor(), fontWeight = FontWeight.Medium) },
-                                onClick = { showMenu = false; onEdit() }
-                            )
-                            if (isLinkedToExtras) {
-                                DropdownMenuItem(
-                                    text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজ থেকে ডি-লিংক করুন" else "De-link from Extras Page", color = AccentPink, fontWeight = FontWeight.SemiBold) },
-                                    onClick = { showMenu = false; showDelinkDialog = true }
-                                )
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (isLinkedToExtras) Icons.Default.Link else Icons.Default.LinkOff,
+                            contentDescription = null,
+                            tint = if (isLinkedToExtras) AccentGreen else Color.Gray,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isLinkedToExtras) {
+                                if (prefLanguage == "bn") "লিংকড (Extras)" else "Linked to Extras"
                             } else {
-                                DropdownMenuItem(
-                                    text = { Text(if (prefLanguage == "bn") "এক্সট্রা পেজে লিংক করুন" else "Link to Extras Page", color = AccentGreen, fontWeight = FontWeight.SemiBold) },
-                                    onClick = {
-                                        showMenu = false
-                                        viewModel.linkOwnerAccountToExtras(account)
-                                        Toast.makeText(context, "Linked to Extras page!", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text(if (prefLanguage == "bn") "বিনে সরান" else "Move to Bin", color = AccentPink, fontWeight = FontWeight.Medium) },
-                                onClick = { showMenu = false; showDeleteConfirm = true }
-                            )
-                        }
-                    }
-
-                    if (showDeleteConfirm) {
-                        com.example.ui.components.Tier1DeleteDialog(
-                            itemTitle = account.accountName.ifBlank { account.ownerName },
-                            onConfirm = { onDelete(); showDeleteConfirm = false },
-                            onDismiss = { showDeleteConfirm = false }
+                                if (prefLanguage == "bn") "প্রোফাইল ওনলি" else "Profile Only"
+                            },
+                            color = if (isLinkedToExtras) AccentGreen else AppSecondaryTextColor(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
             }
 
-            if (account.accountNumber.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "A/C: ",
-                        color = AppSecondaryTextColor(),
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = account.accountNumber,
-                        color = AppTextColor(),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            if (account.accountNumber.isNotBlank() || account.ifscCode.isNotBlank()) {
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (account.accountNumber.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "A/C: ", color = AppSecondaryTextColor(), fontSize = 12.sp, maxLines = 1)
+                            Text(
+                                text = account.accountNumber,
+                                color = AppTextColor(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     if (account.ifscCode.isNotBlank()) {
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "IFSC: ",
-                            color = AppSecondaryTextColor(),
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = account.ifscCode,
-                            color = AppTextColor(),
-                            fontSize = 12.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "IFSC: ", color = AppSecondaryTextColor(), fontSize = 12.sp, maxLines = 1)
+                            Text(
+                                text = account.ifscCode,
+                                color = AppTextColor(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
 
             if (account.upiId.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "UPI: ",
-                        color = AppSecondaryTextColor(),
-                        fontSize = 12.sp
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "UPI: ", color = AppSecondaryTextColor(), fontSize = 12.sp, maxLines = 1)
                     Text(
                         text = account.upiId,
                         color = AccentGold,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            if (account.branchName.isNotBlank() || account.ownerMobile.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (account.branchName.isNotBlank() || account.ownerMobile.isNotBlank() || account.email.isNotBlank()) {
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     if (account.branchName.isNotBlank()) {
                         Text(
                             text = "Branch: ${account.branchName}",
                             color = AppSecondaryTextColor(),
-                            fontSize = 11.sp
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                     if (account.ownerMobile.isNotBlank()) {
                         Text(
                             text = "Ph: ${account.ownerMobile}",
                             color = AppSecondaryTextColor(),
-                            fontSize = 11.sp
+                            fontSize = 11.5.sp,
+                            maxLines = 1
+                        )
+                    }
+                    if (account.email.isNotBlank()) {
+                        Text(
+                            text = "Email: ${account.email}",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -1191,91 +1235,25 @@ fun ShowPaymentDetailsModal(
     onDismiss: () -> Unit
 ) {
     BackHandler { onDismiss() }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = getDialogBackground(),
-        shape = RoundedCornerShape(24.dp),
-        title = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (prefLanguage == "bn") "পেমেন্ট পাওয়ার তথ্য ও QR" else "Payment Details & QR",
-                    color = AppTextColor(),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                if (account.qrCodeUri.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .size(200.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White)
-                            .border(2.dp, AppAccentColor(), RoundedCornerShape(16.dp))
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        coil.compose.AsyncImage(
-                            model = account.qrCodeUri,
-                            contentDescription = "QR Code",
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = getCardBackground()),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        DetailRowItem(if (prefLanguage == "bn") "ব্যাংক/লেবেল:" else "Bank/Label:", account.accountName, isBold = true)
-                        if (account.accountNumber.isNotBlank()) DetailRowItem(if (prefLanguage == "bn") "অ্যাকাউন্ট নং:" else "Acc No:", account.accountNumber)
-                        if (account.ifscCode.isNotBlank()) DetailRowItem(if (prefLanguage == "bn") "IFSC কোড:" else "IFSC:", account.ifscCode)
-                        if (account.branchName.isNotBlank()) DetailRowItem(if (prefLanguage == "bn") " শাখা:" else "Branch:", account.branchName)
-                        if (account.upiId.isNotBlank()) DetailRowItem(if (prefLanguage == "bn") "UPI ID:" else "UPI ID:", account.upiId, AppAccentColor())
-                        if (account.ownerName.isNotBlank()) DetailRowItem(if (prefLanguage == "bn") "নাম:" else "Name:", account.ownerName)
-                    }
-                }
-            }
-        },
-        confirmButton = {}
+    MinimalistPaymentInfoDialog(
+        title = account.accountName.ifBlank { account.ownerName.ifBlank { "Payment Account" } },
+        subtitle = account.ownerName.takeIf { it.isNotBlank() && it != account.accountName },
+        badgeLabel = if (account.linkedBankAccountId != null) "Linked to Extras" else "Profile Only",
+        qrUriString = account.qrCodeUri,
+        upiId = account.upiId,
+        detailRows = listOfNotNull(
+            account.accountNumber.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem(if (prefLanguage == "bn") "অ্যাকাউন্ট নং" else "Account No", it) },
+            account.ifscCode.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem("IFSC Code", it) },
+            account.branchName.takeIf { it.isNotBlank() }?.let { PaymentInfoRowItem(if (prefLanguage == "bn") "শাখা" else "Branch", it) }
+        ),
+        contactChips = listOfNotNull(
+            account.ownerMobile.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Ph", it) },
+            account.whatsappNumber.takeIf { it.isNotBlank() }?.let { PaymentContactChip("WA", it) },
+            account.email.takeIf { it.isNotBlank() }?.let { PaymentContactChip("Email", it, isEmail = true) }
+        ),
+        notesText = account.notes.takeIf { it.isNotBlank() },
+        onDismiss = onDismiss
     )
-}
-
-@Composable
-private fun DetailRowItem(
-    label: String,
-    value: String,
-    valueColor: Color = AppTextColor(),
-    isBold: Boolean = false
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = label, color = AppSecondaryTextColor(), fontSize = 12.sp)
-        Text(
-            text = value,
-            color = valueColor,
-            fontSize = 13.sp,
-            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal
-        )
-    }
 }
 
 @Composable
@@ -1351,43 +1329,27 @@ fun EditProfileModal(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (prefLanguage == "bn") "প্রোফাইল তথ্য ও পেমেন্ট বিবরণী" else "Edit Profile & Payment Details",
-                                    color = AppTextColor(),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    modifier = Modifier.weight(1f)
+                            Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                com.example.ui.screens.settings.components.SettingsPageHeader(
+                                    title = if (prefLanguage == "bn") "প্রোফাইল তথ্য ও পেমেন্ট বিবরণী" else "Edit Profile & Payment Details",
+                                    onBack = onDismiss,
+                                    trailingContent = {
+                                        FilledIconButton(
+                                            onClick = { onSave(name, contact, avatar, currency, bankName, accNum, ifsc, branch, upi, qrUri) },
+                                            modifier = Modifier.size(40.dp),
+                                            colors = IconButtonDefaults.filledIconButtonColors(
+                                                containerColor = AppAccentColor(),
+                                                contentColor = AppOnAccentColor()
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
+                                        }
+                                    }
                                 )
-                                FilledIconButton(
-                                    onClick = { onSave(name, contact, avatar, currency, bankName, accNum, ifsc, branch, upi, qrUri) },
-                                    modifier = Modifier.size(40.dp),
-                                    colors = IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = AppAccentColor(),
-                                        contentColor = AppOnAccentColor()
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Check, contentDescription = "Save", tint = AppOnAccentColor())
-                                }
                             }
                         }
                     ) { innerPadding ->
@@ -1740,39 +1702,27 @@ fun OwnerAccountEditorModal(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = AppTextColor(), modifier = Modifier.size(24.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (account == null) {
+                            Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                com.example.ui.screens.settings.components.SettingsPageHeader(
+                                    title = if (account == null) {
                                         if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
                                     } else {
                                         if (prefLanguage == "bn") "অ্যাকাউন্ট সম্পাদনা" else "Edit Account Details"
                                     },
-                                    color = AppTextColor(),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    onBack = onDismiss
                                 )
                             }
                         },
                 bottomBar = {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .dialogSafeBottomPadding(extraBottom = 8.dp)
+                            .padding(16.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = onDismiss) {
@@ -2022,7 +1972,7 @@ fun OwnerAccountEditorModal(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(100.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()))
                 }
             }
         }

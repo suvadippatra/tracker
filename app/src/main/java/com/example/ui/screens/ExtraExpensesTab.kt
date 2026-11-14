@@ -689,7 +689,6 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                         var showAccountMenu by remember { mutableStateOf(false) }
                         var showQRDialog by remember { mutableStateOf(false) }
                         var showContactDialog by remember { mutableStateOf(false) }
-                        var showFullScreenQR by remember { mutableStateOf(false) }
                         var showDeleteDialog by remember { mutableStateOf(false) }
 
                         if (showContactDialog) {
@@ -960,432 +959,51 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                                 }
                             }
                         if (showQRDialog) {
-                            val context = androidx.compose.ui.platform.LocalContext.current
-                            val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                             val isBengali = prefLanguage == "bn"
-
-                            androidx.activity.compose.BackHandler(onBack = { showQRDialog = false })
-
-                            androidx.compose.ui.window.Dialog(
-                                onDismissRequest = { showQRDialog = false },
-                                properties = androidx.compose.ui.window.DialogProperties(
-                                    usePlatformDefaultWidth = false,
-                                    decorFitsSystemWindows = false,
-                                    dismissOnClickOutside = true,
-                                    dismissOnBackPress = true
-                                )
-                            ) {
-                                com.example.ui.components.DialogEdgeToEdge()
-                                AppThemeProvider(viewModel) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.65f))
-                                            .clickable(
-                                                onClick = { showQRDialog = false },
-                                                indication = null,
-                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.92f)
-                                                .widthIn(max = 520.dp)
-                                                .padding(vertical = 24.dp)
-                                                .clickable(
-                                                    onClick = {},
-                                                    indication = null,
-                                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                                ),
-                                            shape = RoundedCornerShape(24.dp),
-                                            color = getDialogBackground(),
-                                            border = BorderStroke(1.dp, getGlassBorder())
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(20.dp)
-                                                    .verticalScroll(rememberScrollState())
-                                            ) {
-                                                // Header Row
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(40.dp)
-                                                                .clip(CircleShape)
-                                                                .background(AppAccentColor().copy(alpha = 0.18f))
-                                                                .border(1.dp, AppAccentColor().copy(alpha = 0.4f), CircleShape),
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.AccountBalance,
-                                                                contentDescription = null,
-                                                                tint = AppAccentColor(),
-                                                                modifier = Modifier.size(22.dp)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(10.dp))
-                                                        Text(
-                                                            text = if (isBengali) "অ্যাকাউন্টের বিবরণ" else "Account Details",
-                                                            color = AppTextColor(),
-                                                            fontSize = 18.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-
-                                                    IconButton(
-                                                        onClick = { showQRDialog = false },
-                                                        modifier = Modifier
-                                                            .size(36.dp)
-                                                            .background(getGlassIconButtonBg(), CircleShape)
-                                                            .bounceClick()
-                                                    ) {
-                                                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                                                    }
-                                                }
-
-                                                Spacer(modifier = Modifier.height(16.dp))
-
-                                                // Header Banner Card
-                                                Card(
-                                                    colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    border = BorderStroke(1.dp, getGlassBorder()),
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(14.dp)
-                                                    ) {
-                                                        Column(modifier = Modifier.weight(1f)) {
-                                                            Text(
-                                                                text = account.name,
-                                                                color = AppTextColor(),
-                                                                fontSize = 18.sp,
-                                                                fontWeight = FontWeight.Bold
-                                                            )
-                                                            Spacer(modifier = Modifier.height(2.dp))
-                                                            Text(
-                                                                text = if (isBengali) "অ্যাকাউন্টের বিস্তারিত বিবরণ" else "Account Information & Details",
-                                                                color = AppSecondaryTextColor(),
-                                                                fontSize = 12.sp
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                Spacer(modifier = Modifier.height(16.dp))
-
-                                                // Info Card Group
-                                                Card(
-                                                    colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    border = BorderStroke(1.dp, getGlassBorder()),
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                                        // Account Number
-                                                        if (account.accountNumber.isNotBlank()) {
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .size(36.dp)
-                                                                            .clip(RoundedCornerShape(10.dp))
-                                                                            .background(AppAccentColor().copy(alpha = 0.15f)),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Icon(Icons.Default.Numbers, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(18.dp))
-                                                                    }
-                                                                    Spacer(modifier = Modifier.width(12.dp))
-                                                                    Column {
-                                                                        Text(if (isBengali) "অ্যাকাউন্ট নম্বর" else "Account Number", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
-                                                                        Text(account.accountNumber, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                                                    }
-                                                                }
-                                                                IconButton(
-                                                                    onClick = {
-                                                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.accountNumber))
-                                                                        android.widget.Toast.makeText(context, if (isBengali) "অ্যাকাউন্ট নম্বর কপি করা হয়েছে!" else "Account # copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                                                    },
-                                                                    modifier = Modifier
-                                                                        .size(34.dp)
-                                                                        .background(AppAccentColor().copy(alpha = 0.1f), CircleShape)
-                                                                        .bounceClick()
-                                                                ) {
-                                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = AppAccentColor(), modifier = Modifier.size(16.dp))
-                                                                }
-                                                            }
-                                                            HorizontalDivider(color = getGlassBorder())
-                                                        }
-
-                                                        // IFSC Code
-                                                        if (account.ifsc.isNotBlank()) {
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .size(36.dp)
-                                                                            .clip(RoundedCornerShape(10.dp))
-                                                                            .background(Color(0xFFFFB74D).copy(alpha = 0.15f)),
-                                                                        contentAlignment = Alignment.Center
-                                                                    ) {
-                                                                        Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFFFB74D), modifier = Modifier.size(18.dp))
-                                                                    }
-                                                                    Spacer(modifier = Modifier.width(12.dp))
-                                                                    Column {
-                                                                        Text(if (isBengali) "আইএফএসসি কোড (IFSC)" else "IFSC Code", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
-                                                                        Text(account.ifsc, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                                                    }
-                                                                }
-                                                                IconButton(
-                                                                    onClick = {
-                                                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.ifsc))
-                                                                        android.widget.Toast.makeText(context, if (isBengali) "IFSC কপি করা হয়েছে!" else "IFSC copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                                                    },
-                                                                    modifier = Modifier
-                                                                        .size(34.dp)
-                                                                        .background(Color(0xFFFFB74D).copy(alpha = 0.1f), CircleShape)
-                                                                        .bounceClick()
-                                                                ) {
-                                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFFFFB74D), modifier = Modifier.size(16.dp))
-                                                                }
-                                                            }
-                                                            HorizontalDivider(color = getGlassBorder())
-                                                        }
-
-                                                        // UPI ID
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .size(36.dp)
-                                                                        .clip(RoundedCornerShape(10.dp))
-                                                                        .background(Color(0xFFBA68C8).copy(alpha = 0.15f)),
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Icon(Icons.Default.QrCode, contentDescription = null, tint = Color(0xFFBA68C8), modifier = Modifier.size(18.dp))
-                                                                }
-                                                                Spacer(modifier = Modifier.width(12.dp))
-                                                                Column {
-                                                                    Text(if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
-                                                                    Text(account.upiId.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" }, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                                                }
-                                                            }
-                                                            if (account.qrCodeUri.isNotBlank()) {
-                                                                IconButton(
-                                                                    onClick = { showFullScreenQR = true },
-                                                                    modifier = Modifier
-                                                                        .size(34.dp)
-                                                                        .background(Color(0xFFBA68C8).copy(alpha = 0.1f), CircleShape)
-                                                                        .bounceClick()
-                                                                ) {
-                                                                    Icon(Icons.Default.QrCodeScanner, contentDescription = "Preview QR", tint = Color(0xFFBA68C8), modifier = Modifier.size(16.dp))
-                                                                }
-                                                                Spacer(modifier = Modifier.width(6.dp))
-                                                            }
-                                                            if (account.upiId.isNotBlank()) {
-                                                                IconButton(
-                                                                    onClick = {
-                                                                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(account.upiId))
-                                                                        android.widget.Toast.makeText(context, if (isBengali) "UPI ID কপি করা হয়েছে!" else "UPI ID copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                                                    },
-                                                                    modifier = Modifier
-                                                                        .size(34.dp)
-                                                                        .background(Color(0xFFBA68C8).copy(alpha = 0.1f), CircleShape)
-                                                                        .bounceClick()
-                                                                ) {
-                                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFFBA68C8), modifier = Modifier.size(16.dp))
-                                                                }
-                                                            }
-                                                        }
-
-                                                        if (!account.importedFrom.isNullOrBlank()) {
-                                                            HorizontalDivider(color = getGlassBorder())
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .size(36.dp)
-                                                                        .clip(RoundedCornerShape(10.dp))
-                                                                        .background(Color(0xFF64B5F6).copy(alpha = 0.15f)),
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Icon(Icons.Default.Download, contentDescription = null, tint = Color(0xFF64B5F6), modifier = Modifier.size(18.dp))
-                                                                }
-                                                                Spacer(modifier = Modifier.width(12.dp))
-                                                                Column {
-                                                                    Text(if (isBengali) "আমদানি করা হয়েছে" else "Import Source", color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
-                                                                    Text(if (isBengali) "আমদানি করা হয়েছে: ${account.importedFrom}" else "Imported from: ${account.importedFrom}", color = AppTextColor(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                                                }
-                                                            }
-                                                        }
-
-                                                        if (account.phoneNumber.isNotBlank() || account.whatsappNumber.isNotBlank() || account.email.isNotBlank()) {
-                                                            HorizontalDivider(color = getGlassBorder())
-                                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                                Text(
-                                                                    text = if (isBengali) "যোগাযোগের মাধ্যম" else "Contact Channels",
-                                                                    color = AppTextColor().copy(alpha = 0.6f),
-                                                                    fontSize = 12.sp,
-                                                                    fontWeight = FontWeight.Bold
-                                                                )
-                                                                if (account.phoneNumber.isNotBlank()) {
-                                                                    Text("Phone / SMS: ${account.phoneNumber}", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                                }
-                                                                if (account.whatsappNumber.isNotBlank()) {
-                                                                    Text("WhatsApp: ${account.whatsappNumber}", color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                                }
-                                                                if (account.email.isNotBlank()) {
-                                                                    Text("Email: ${account.email}", color = AppAccentColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-
-                                                val combinedNotes = listOf(account.notes.trim(), account.details.trim())
-                                                    .filter { it.isNotBlank() }
-                                                    .distinct()
-                                                    .joinToString("\n\n")
-                                                if (combinedNotes.isNotBlank()) {
-                                                    Spacer(modifier = Modifier.height(16.dp))
-                                                    Card(
-                                                        colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
-                                                        shape = RoundedCornerShape(16.dp),
-                                                        border = BorderStroke(1.dp, getGlassBorder()),
-                                                        modifier = Modifier.fillMaxWidth()
-                                                    ) {
-                                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Icon(Icons.Default.StickyNote2, contentDescription = null, tint = AccentGold, modifier = Modifier.size(18.dp))
-                                                                Spacer(modifier = Modifier.width(8.dp))
-                                                                Text(
-                                                                    text = if (isBengali) "সংক্ষিপ্ত নোট" else "Short Notes",
-                                                                    color = AppTextColor(),
-                                                                    fontSize = 14.sp,
-                                                                    fontWeight = FontWeight.Bold
-                                                                )
-                                                            }
-                                                            Text(
-                                                                text = combinedNotes,
-                                                                color = AppTextColor().copy(alpha = 0.85f),
-                                                                fontSize = 13.sp,
-                                                                lineHeight = 19.sp
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                Spacer(modifier = Modifier.height(16.dp))
-
-                                                // Financial Summary Card
-                                                Card(
-                                                    colors = CardDefaults.cardColors(containerColor = getSettingsItemBg()),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    border = BorderStroke(1.dp, getGlassBorder()),
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                                        Text(if (isBengali) "আর্থিক সারসংক্ষেপ" else "Financial Summary", color = AppTextColor(), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                                        
-                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                            Text(if (isBengali) "প্রারম্ভিক স্থিতি" else "Opening Balance", color = AppSecondaryTextColor(), fontSize = 12.sp)
-                                                            Text("₹${"%,.0f".format(accInitBal)}", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                        }
-                                                        
-                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                            Text(if (isBengali) "মোট আয়" else "Total Income", color = AppSecondaryTextColor(), fontSize = 12.sp)
-                                                            Text("+₹${"%,.0f".format(accIncome)}", color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                        }
-
-                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                            Text(if (isBengali) "মোট ব্যয়" else "Total Expense", color = AppSecondaryTextColor(), fontSize = 12.sp)
-                                                            Text("-₹${"%,.0f".format(accExpense)}", color = AccentPink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                        }
-                                                        
-                                                        HorizontalDivider(color = getGlassBorder())
-
-                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                            Text(if (isBengali) "নেট ব্যালেন্স" else "Net Balance", color = AppTextColor(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                                            Text("₹${"%,.0f".format(computedAccBalance)}", color = AppAccentColor(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                                        }
-                                                    }
-                                                }
-
-                                                // Payment QR Code Card
-                                                if (account.qrCodeUri.isNotBlank()) {
-                                                    Spacer(modifier = Modifier.height(16.dp))
-                                                    Text(
-                                                        text = if (isBengali) "পেমেন্ট কিউআর কোড" else "Payment QR Code",
-                                                        color = AppTextColor(),
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(120.dp)
-                                                            .clip(RoundedCornerShape(14.dp))
-                                                            .background(Color.White)
-                                                            .border(1.dp, AppAccentColor().copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                                                            .clickable { showFullScreenQR = true }
-                                                            .padding(6.dp)
-                                                            .align(Alignment.CenterHorizontally),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        AsyncImage(
-                                                            model = account.qrCodeUri,
-                                                            contentDescription = "QR Code",
-                                                            modifier = Modifier.fillMaxSize()
-                                                        )
-                                                    }
-                                                }
-
-                                                Spacer(modifier = Modifier.height(16.dp))
-
-                                                // Close Button
-                                                Button(
-                                                    onClick = { showQRDialog = false },
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(44.dp)
-                                                        .bounceClick(),
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor())
-                                                ) {
-                                                    Text(if (isBengali) "বন্ধ করুন" else "Close", color = AppOnAccentColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                                }
-                                            }
-                                        }
-                                    }
+                            val combinedNotes = listOf(account.notes.trim(), account.details.trim())
+                                .filter { it.isNotBlank() }
+                                .distinct()
+                                .joinToString("\n\n")
+                            val detailRows = buildList {
+                                if (account.accountNumber.isNotBlank()) {
+                                    add(PaymentInfoRowItem(if (isBengali) "অ্যাকাউন্ট নম্বর" else "Account No.", account.accountNumber))
+                                }
+                                if (account.ifsc.isNotBlank()) {
+                                    add(PaymentInfoRowItem("IFSC", account.ifsc))
+                                }
+                                if (account.branchName.isNotBlank()) {
+                                    add(PaymentInfoRowItem(if (isBengali) "শাখা" else "Branch", account.branchName, copyable = false))
+                                }
+                                if (!account.importedFrom.isNullOrBlank()) {
+                                    add(PaymentInfoRowItem(if (isBengali) "আমদানি উৎস" else "Imported From", account.importedFrom, copyable = false))
                                 }
                             }
-                        }
-                        
-                        if (showFullScreenQR) {
-                            com.example.ui.components.FullScreenQRPreviewDialog(
-                                qrUri = account.qrCodeUri,
+                            val contactChips = buildList {
+                                if (account.phoneNumber.isNotBlank()) add(PaymentContactChip("Phone", account.phoneNumber))
+                                if (account.whatsappNumber.isNotBlank()) add(PaymentContactChip("WhatsApp", account.whatsappNumber))
+                                if (account.email.isNotBlank()) add(PaymentContactChip("Email", account.email, isEmail = true))
+                            }
+                            val summaryText = if (isBengali) {
+                                "প্রারম্ভিক ₹${"%,.0f".format(accInitBal)} • আয় +₹${"%,.0f".format(accIncome)} • ব্যয় -₹${"%,.0f".format(accExpense)} • নেট ₹${"%,.0f".format(computedAccBalance)}"
+                            } else {
+                                "Init ₹${"%,.0f".format(accInitBal)} • Inc +₹${"%,.0f".format(accIncome)} • Exp -₹${"%,.0f".format(accExpense)} • Net ₹${"%,.0f".format(computedAccBalance)}"
+                            }
+
+                            MinimalistPaymentInfoDialog(
                                 title = account.name,
+                                subtitle = if (isBengali) "অ্যাকাউন্টের বিবরণ" else "Account Details",
+                                qrUriString = account.qrCodeUri,
                                 upiId = account.upiId,
-                                onDismiss = { showFullScreenQR = false }
+                                detailRows = detailRows,
+                                contactChips = contactChips,
+                                financialSummaryText = summaryText,
+                                notesText = combinedNotes.takeIf { it.isNotBlank() },
+                                emptyQrLabel = if (isBengali) "কোনো পেমেন্ট QR সংযুক্ত নেই" else "No payment QR attached",
+                                onDismiss = { showQRDialog = false },
+                                onEdit = {
+                                    showQRDialog = false
+                                    editingAccount = account
+                                }
                             )
                         }
                     }
@@ -1438,6 +1056,16 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
             BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 val isWide = maxWidth >= 600.dp
+                val mobileExpensesListState = androidx.compose.runtime.saveable.rememberSaveable(
+                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val tabletLeftListState = androidx.compose.runtime.saveable.rememberSaveable(
+                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val tabletRightListState = androidx.compose.runtime.saveable.rememberSaveable(
+                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+
                 val displayCount = if (isWide) {
                     val tabletFitCount = ((maxHeight - 210.dp) / 68.dp).toInt().coerceAtLeast(8)
                     minOf(filteredExpenses.size, tabletFitCount)
@@ -1455,6 +1083,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                     ) {
                         // Left Column: Hero Balance Card + Extras Accounts Carousel + Account Info
                         LazyColumn(
+                            state = tabletLeftListState,
                             modifier = Modifier
                                 .weight(1.15f)
                                 .fillMaxHeight(),
@@ -1469,6 +1098,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
                         // Right Column: Category Filter + Recent Transactions + View History
                         LazyColumn(
+                            state = tabletRightListState,
                             modifier = Modifier
                                 .weight(1.0f)
                                 .fillMaxHeight(),
@@ -1532,6 +1162,7 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                 } else {
                     // MOBILE SINGLE-COLUMN STRUCTURE
                     LazyColumn(
+                        state = mobileExpensesListState,
                         modifier = Modifier
                             .fillMaxHeight()
                             .widthIn(max = 840.dp)
@@ -1589,18 +1220,20 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
                         }
 
                         item {
-                            Spacer(modifier = Modifier.height(156.dp))
+                            Spacer(modifier = Modifier.height(LocalBottomBarInset.current + 124.dp + rememberSplitScreenSafeBottomPadding()))
                         }
                     }
                 }
 
     // Unified Bottom-end floating button across tabs
     if (accounts.isNotEmpty()) {
+        val navInset = LocalBottomBarInset.current
+        val fabBottomPad = if (navInset > 0.dp) navInset + 18.dp else 24.dp + rememberSplitScreenSafeBottomPadding()
         FloatingActionButton(
             onClick = { showAddExpense = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 104.dp)
+                .padding(end = 20.dp, bottom = fabBottomPad)
                 .size(58.dp)
                 .bounceClick()
                 .testTag("add_expense_fab"),
@@ -1645,13 +1278,19 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
             onDismiss = { showQrImportScanner = false },
             onSuccess = { payload, key, iv, scannedQrUris ->
                 showQrImportScanner = false
-                viewModel.importAccountViaQr(payload, key, iv, scannedPaymentQrUris = scannedQrUris) { result ->
-                    when (result) {
-                        is com.example.data.ImportResult.Success -> {
-                            android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
+                viewModel.startQrSmartImportFlow(
+                    payload = payload,
+                    key = key,
+                    iv = iv,
+                    targetBankAccountId = activeBankAccountId,
+                    scannedPaymentQrUris = scannedQrUris
+                ) { outcome ->
+                    when (outcome) {
+                        is com.example.data.ImportOutcome.Success -> {
+                            android.widget.Toast.makeText(context, outcome.message, android.widget.Toast.LENGTH_LONG).show()
                         }
-                        is com.example.data.ImportResult.Error -> {
-                            android.widget.Toast.makeText(context, "Import failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                        is com.example.data.ImportOutcome.Error -> {
+                            android.widget.Toast.makeText(context, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -2224,7 +1863,6 @@ fun ExtraExpenseDetailedHistoryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(getAppBackgroundGradient(com.example.ui.components.LocalAppTheme.current))
-                    .dialogSystemBarsPadding(extraTop = 8.dp)
                     .pointerInput(Unit) {
                         detectHorizontalDragGestures(
                             onDragStart = { totalDragAmount = 0f },
@@ -2251,9 +1889,15 @@ fun ExtraExpenseDetailedHistoryScreen(
             ) {
                 Scaffold(
                     modifier = Modifier.fillMaxHeight().widthIn(max = 840.dp),
+                    containerColor = Color.Transparent,
                     contentWindowInsets = WindowInsets(0.dp),
                     topBar = {
-                        Column(modifier = Modifier.background(Color.Transparent).padding(top = 8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .background(Color.Transparent)
+                                .dialogSafeTopPadding(extraTop = 4.dp)
+                                .padding(top = 8.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -2381,8 +2025,7 @@ fun ExtraExpenseDetailedHistoryScreen(
                                 }
                             }
                         }
-                    },
-                    containerColor = Color.Transparent
+                    }
                 ) { padding ->
                     if (filteredExpenses.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {

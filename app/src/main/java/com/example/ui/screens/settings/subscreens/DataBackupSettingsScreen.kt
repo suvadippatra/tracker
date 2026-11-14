@@ -7,15 +7,21 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -190,17 +196,18 @@ fun DataBackupSettingsScreen(
                             val attachmentsDir = java.io.File(context.filesDir, "attachments")
                             val addedNames = mutableSetOf<String>()
 
+                            val mediaPrefixes = listOf("QR_", "IMG_", "PAY_", "STICKY_", "AVATAR_", "VOICE_", "UPI_SS_")
+                            val mediaExts = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".m4a", ".mp3", ".aac", ".ogg", ".wav", ".pdf")
+
                             if (attachmentsDir.exists() && attachmentsDir.isDirectory) {
                                 attachmentsDir.listFiles()?.forEach { file ->
                                     if (file.isFile && file.canRead()) {
-                                        if (combinedText.contains(file.name) || combinedText.isNotBlank()) {
-                                            val entryName = "attachments/${file.name}"
-                                            if (addedNames.add(entryName)) {
-                                                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
-                                                file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
-                                                zos.closeEntry()
-                                                mediaCount++
-                                            }
+                                        val entryName = "attachments/${file.name}"
+                                        if (addedNames.add(entryName)) {
+                                            zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                            file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
+                                            zos.closeEntry()
+                                            mediaCount++
                                         }
                                     }
                                 }
@@ -211,14 +218,31 @@ fun DataBackupSettingsScreen(
                             if (qrCodesDir.exists() && qrCodesDir.isDirectory) {
                                 qrCodesDir.listFiles()?.forEach { file ->
                                     if (file.isFile && file.canRead()) {
-                                        if (combinedText.contains(file.name) || combinedText.isNotBlank()) {
-                                            val entryName = "qr_codes/${file.name}"
-                                            if (addedNames.add(entryName)) {
-                                                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
-                                                file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
-                                                zos.closeEntry()
-                                                mediaCount++
-                                            }
+                                        val entryName = "qr_codes/${file.name}"
+                                        if (addedNames.add(entryName)) {
+                                            zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                            file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
+                                            zos.closeEntry()
+                                            mediaCount++
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bundle user-attached QR photos, receipts, avatars, and sticky media stored directly in filesDir root
+                            context.filesDir.listFiles()?.forEach { file ->
+                                if (file.isFile && file.canRead()) {
+                                    val name = file.name
+                                    val isUserMedia = mediaPrefixes.any { name.startsWith(it, ignoreCase = true) } ||
+                                        mediaExts.any { name.endsWith(it, ignoreCase = true) } ||
+                                        (combinedText.isNotBlank() && combinedText.contains(name) && !name.endsWith(".db"))
+                                    if (isUserMedia) {
+                                        val entryName = "root_files/$name"
+                                        if (addedNames.add(entryName)) {
+                                            zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                            file.inputStream().buffered().use { fis -> fis.copyTo(zos) }
+                                            zos.closeEntry()
+                                            mediaCount++
                                         }
                                     }
                                 }
@@ -309,6 +333,16 @@ fun DataBackupSettingsScreen(
                                                 restoredMediaCount++
                                             }
                                         }
+                                        name.startsWith("root_files/") -> {
+                                            val cleanFileName = java.io.File(name).name
+                                            if (cleanFileName.isNotBlank()) {
+                                                val outFile = java.io.File(context.filesDir, cleanFileName)
+                                                java.io.FileOutputStream(outFile).use { fos ->
+                                                    zis.copyTo(fos)
+                                                }
+                                                restoredMediaCount++
+                                            }
+                                        }
                                     }
                                 }
                                 zis.closeEntry()
@@ -316,7 +350,7 @@ fun DataBackupSettingsScreen(
                             }
                         }
 
-                        // Rewrite any old device /data/.../files/attachments/<file> and /qr_codes/<file> paths to this device
+                        // Rewrite old device /data/.../files/attachments/<file>, /qr_codes/<file>, and root /files/<file> paths to this device
                         val rawPayload = jsonEntryText ?: csvEntryText
                         extractedText = rawPayload
                             ?.replace(
@@ -327,19 +361,44 @@ fun DataBackupSettingsScreen(
                                 Regex("""/data/[^\s"\[\],;]+/files/qr_codes/([A-Za-z0-9_.\-]+)"""),
                                 "${qrCodesDir.absolutePath}/$1"
                             )
+                            ?.replace(
+                                Regex("""/data/[^\s"\[\],;]+/files/(?!attachments/|qr_codes/)([A-Za-z0-9_.\-]+)"""),
+                                "${context.filesDir.absolutePath}/$1"
+                            )
                     } else {
                         extractedText = bytes.toString(Charsets.UTF_8)
                     }
 
                     if (!extractedText.isNullOrBlank()) {
-                        viewModel.importUniversal(extractedText, targetType, selectedHotelId) { outcome ->
-                            when (outcome) {
-                                is ImportOutcome.Success -> {
-                                    val suffix = if (restoredMediaCount > 0) " (+$restoredMediaCount media files restored)" else ""
-                                    Toast.makeText(context, outcome.message + suffix, Toast.LENGTH_LONG).show()
+                        val trimmed = extractedText.trimStart()
+                        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                            withContext(Dispatchers.Main) {
+                                viewModel.startSmartImportFlow(
+                                    payloadText = extractedText,
+                                    targetHotelId = selectedHotelId,
+                                    targetBankAccountId = selectedAccountScopeId
+                                ) { outcome ->
+                                    when (outcome) {
+                                        is ImportOutcome.Success -> {
+                                            val suffix = if (restoredMediaCount > 0) " (+$restoredMediaCount media files restored)" else ""
+                                            Toast.makeText(context, outcome.message + suffix, Toast.LENGTH_LONG).show()
+                                        }
+                                        is ImportOutcome.Error -> {
+                                            Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
                                 }
-                                is ImportOutcome.Error -> {
-                                    Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            viewModel.importUniversal(extractedText, targetType, selectedHotelId) { outcome ->
+                                when (outcome) {
+                                    is ImportOutcome.Success -> {
+                                        val suffix = if (restoredMediaCount > 0) " (+$restoredMediaCount media files restored)" else ""
+                                        Toast.makeText(context, outcome.message + suffix, Toast.LENGTH_LONG).show()
+                                    }
+                                    is ImportOutcome.Error -> {
+                                        Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
                         }
@@ -423,10 +482,19 @@ fun DataBackupSettingsScreen(
         "$sizeLabel • $totalRecordCount records"
     }
 
+    val backupListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+
     LazyColumn(
+        state = backupListState,
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = 120.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Top Global Action Card: Scanner & Universal Paste
@@ -1127,121 +1195,169 @@ fun DataBackupSettingsScreen(
     // ==========================================
     if (activeDataTypeForExport != null) {
         val type = activeDataTypeForExport!!
-        AlertDialog(
+        Dialog(
             onDismissRequest = { activeDataTypeForExport = null },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = AccentCyan)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Export ${type.displayName}", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Choose your preferred export method:",
-                        color = AppSecondaryTextColor(),
-                        fontSize = 13.sp
-                    )
-
-                    // 0. ZIP Archive Export (Bundles JSON/CSV + all attached media files)
-                    ExportOptionRow(
-                        icon = Icons.Default.Share,
-                        title = "Save as ZIP Archive (.zip + Media)",
-                        subtitle = "Bundles backup data along with attached images, receipts & voice notes",
-                        accentColor = AccentGreen,
-                        onClick = {
-                            val cur = type
-                            activeDataTypeForExport = null
-                            viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
-                                viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
-                                    pendingExportContent = json
-                                    pendingZipCsvContent = csv
-                                    saveZipLauncher.launch("${cur.name.lowercase()}_with_media.zip")
-                                }
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            DialogEdgeToEdge()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { activeDataTypeForExport = null }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 500.dp)
+                        .heightIn(max = 680.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    color = getDialogBackground(),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 12.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = AccentCyan)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Export ${type.displayName}",
+                                color = AppTextColor(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { activeDataTypeForExport = null },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryTextColor())
                             }
                         }
-                    )
-
-                    // 1. File Export (JSON)
-                    ExportOptionRow(
-                        icon = Icons.Default.Storage,
-                        title = "Save as JSON File",
-                        subtitle = "Structured backup file for devices",
-                        accentColor = AccentCyan,
-                        onClick = {
-                            val cur = type
-                            activeDataTypeForExport = null
-                            viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
-                                pendingExportContent = json
-                                saveJsonLauncher.launch("${cur.name.lowercase()}_backup.json")
-                            }
-                        }
-                    )
-
-                    // 2. CSV File / Spreadsheet Export
-                    ExportOptionRow(
-                        icon = Icons.Default.ReceiptLong,
-                        title = "Save as CSV (Spreadsheet)",
-                        subtitle = "Open in MS Excel or Google Sheets",
-                        accentColor = AccentOrange,
-                        onClick = {
-                            val cur = type
-                            activeDataTypeForExport = null
-                            viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
-                                pendingExportContent = csv
-                                saveCsvLauncher.launch("${cur.name.lowercase()}_export.csv")
-                            }
-                        }
-                    )
-
-                    // 3. Copy to Clipboard
-                    ExportOptionRow(
-                        icon = Icons.Default.ContentCopy,
-                        title = "Copy CSV to Clipboard",
-                        subtitle = "Copy formatted table directly",
-                        accentColor = AccentGold,
-                        onClick = {
-                            activeDataTypeForExport = null
-                            viewModel.exportDataCsv(type, selectedHotelId, selectedAccountScopeId) { csv ->
-                                clipboardManager.setText(AnnotatedString(csv))
-                                Toast.makeText(context, "CSV copied to clipboard!", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-
-                    // 4. QR Method Export
-                    ExportOptionRow(
-                        icon = Icons.Default.QrCode,
-                        title = "Export via QR Code Stream",
-                        subtitle = "Stream encrypted QR code for instant camera scan",
-                        accentColor = AccentPurple,
-                        onClick = {
-                            activeDataTypeForExport = null
-                            viewModel.exportViaQr(type, selectedHotelId, selectedAccountScopeId) { result ->
-                                when (result) {
-                                    is ExportResult.Success -> {
-                                        qrSessionId = UUID.randomUUID().toString()
-                                        activeQrItemName = type.displayName
-                                        activeQrExportData = result
-                                    }
-                                    is ExportResult.Error -> {
-                                        Toast.makeText(context, "QR generation failed: ${result.message}", Toast.LENGTH_LONG).show()
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Choose your preferred export method:",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ExportOptionRow(
+                                icon = Icons.Default.Share,
+                                title = "Save ZIP Archive (+ Full Media)",
+                                subtitle = "Bundles all data + attached photos, audio, receipts & QRs",
+                                accentColor = AccentGreen,
+                                onClick = {
+                                    val cur = type
+                                    activeDataTypeForExport = null
+                                    viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
+                                        viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
+                                            pendingExportContent = json
+                                            pendingZipCsvContent = csv
+                                            saveZipLauncher.launch("${cur.name.lowercase()}_with_media.zip")
+                                        }
                                     }
                                 }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.Storage,
+                                title = "Save JSON Backup (+ Exact QRs)",
+                                subtitle = "Structured data & exact QR matrices (excludes raw photo/audio files)",
+                                accentColor = AccentCyan,
+                                onClick = {
+                                    val cur = type
+                                    activeDataTypeForExport = null
+                                    viewModel.exportDataJson(cur, selectedHotelId, selectedAccountScopeId) { json ->
+                                        pendingExportContent = json
+                                        saveJsonLauncher.launch("${cur.name.lowercase()}_backup.json")
+                                    }
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.ReceiptLong,
+                                title = "Save CSV Spreadsheet (Data Only)",
+                                subtitle = "Excel/Sheets table — excludes media files & QRs",
+                                accentColor = AccentOrange,
+                                onClick = {
+                                    val cur = type
+                                    activeDataTypeForExport = null
+                                    viewModel.exportDataCsv(cur, selectedHotelId, selectedAccountScopeId) { csv ->
+                                        pendingExportContent = csv
+                                        saveCsvLauncher.launch("${cur.name.lowercase()}_export.csv")
+                                    }
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.ContentCopy,
+                                title = "Copy CSV to Clipboard (No Media)",
+                                subtitle = "Copy plain table directly — excludes media & QRs",
+                                accentColor = AccentGold,
+                                onClick = {
+                                    activeDataTypeForExport = null
+                                    viewModel.exportDataCsv(type, selectedHotelId, selectedAccountScopeId) { csv ->
+                                        clipboardManager.setText(AnnotatedString(csv))
+                                        Toast.makeText(context, "CSV copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.QrCode,
+                                title = "Export via QR Stream (+ Payment QRs)",
+                                subtitle = "Encrypted QR stream + exact pixel-reconstructed payment QRs (no photos/audio)",
+                                accentColor = AccentPurple,
+                                onClick = {
+                                    activeDataTypeForExport = null
+                                    viewModel.exportViaQr(type, selectedHotelId, selectedAccountScopeId) { result ->
+                                        when (result) {
+                                            is ExportResult.Success -> {
+                                                qrSessionId = UUID.randomUUID().toString()
+                                                activeQrItemName = type.displayName
+                                                activeQrExportData = result
+                                            }
+                                            is ExportResult.Error -> {
+                                                Toast.makeText(context, "QR generation failed: ${result.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { activeDataTypeForExport = null }) {
+                                Text("Close", color = AppSecondaryTextColor(), fontWeight = FontWeight.SemiBold)
                             }
                         }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { activeDataTypeForExport = null }) {
-                    Text("Close", color = AppSecondaryTextColor())
+                    }
                 }
             }
-        )
+        }
     }
 
     // ==========================================
@@ -1249,218 +1365,321 @@ fun DataBackupSettingsScreen(
     // ==========================================
     if (activeDataTypeForImport != null) {
         val type = activeDataTypeForImport!!
-        AlertDialog(
+        Dialog(
             onDismissRequest = { activeDataTypeForImport = null },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = AccentCyan)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Import ${type.displayName}", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Select how you want to import data:",
-                        color = AppSecondaryTextColor(),
-                        fontSize = 13.sp
-                    )
-
-                    // 0. Import ZIP Archive (.zip with Media/Attachments)
-                    ExportOptionRow(
-                        icon = Icons.Default.Share,
-                        title = "Import ZIP Archive (.zip + Media)",
-                        subtitle = "Restores data along with all bundled images, receipts & audio",
-                        accentColor = AccentGreen,
-                        onClick = {
-                            val cur = type
-                            pendingImportDataType = cur
-                            activeDataTypeForImport = null
-                            openFileLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            DialogEdgeToEdge()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { activeDataTypeForImport = null }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 500.dp)
+                        .heightIn(max = 680.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    color = getDialogBackground(),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 12.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = AccentCyan)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Import ${type.displayName}",
+                                color = AppTextColor(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { activeDataTypeForImport = null },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryTextColor())
+                            }
                         }
-                    )
-
-                    // 1. File Import
-                    ExportOptionRow(
-                        icon = Icons.Default.Storage,
-                        title = "Import from File (.json / .csv / .zip)",
-                        subtitle = "Pick a .json, .csv, or .zip backup file from storage",
-                        accentColor = AccentCyan,
-                        onClick = {
-                            val cur = type
-                            pendingImportDataType = cur
-                            activeDataTypeForImport = null
-                            openFileLauncher.launch(arrayOf("*/*", "application/zip", "application/json", "text/csv", "text/comma-separated-values", "text/plain"))
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Select how you want to import data:",
+                            color = AppSecondaryTextColor(),
+                            fontSize = 13.sp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ExportOptionRow(
+                                icon = Icons.Default.Share,
+                                title = "Import ZIP Archive (+ Full Media)",
+                                subtitle = "Restores data along with all bundled QRs, photos, receipts & audio",
+                                accentColor = AccentGreen,
+                                onClick = {
+                                    val cur = type
+                                    pendingImportDataType = cur
+                                    activeDataTypeForImport = null
+                                    openFileLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.Storage,
+                                title = "Import File (.json / .csv / .zip)",
+                                subtitle = "JSON carries exact QRs; ZIP adds all media files; CSV is data-only",
+                                accentColor = AccentCyan,
+                                onClick = {
+                                    val cur = type
+                                    pendingImportDataType = cur
+                                    activeDataTypeForImport = null
+                                    openFileLauncher.launch(arrayOf("*/*", "application/zip", "application/json", "text/csv", "text/comma-separated-values", "text/plain"))
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.ContentPaste,
+                                title = "Paste CSV / JSON Text (No Raw Media)",
+                                subtitle = "Paste raw CSV or JSON (+ exact QR matrices, no attached files)",
+                                accentColor = AccentOrange,
+                                onClick = {
+                                    val cur = activeDataTypeForImport
+                                    activeDataTypeForImport = null
+                                    pasteDataType = cur ?: BackupDataType.FULL_BACKUP
+                                    pasteInputText = ""
+                                    showPasteDialog = true
+                                }
+                            )
+                            ExportOptionRow(
+                                icon = Icons.Default.QrCodeScanner,
+                                title = "Scan QR Code (+ Payment QRs)",
+                                subtitle = "Scans QR stream & reconstructs exact pixel-identical payment QRs",
+                                accentColor = AccentPurple,
+                                onClick = {
+                                    activeDataTypeForImport = null
+                                    showQrScanner = true
+                                }
+                            )
                         }
-                    )
-
-                    // 2. Paste Text Box
-                    ExportOptionRow(
-                        icon = Icons.Default.ContentPaste,
-                        title = "Paste CSV / JSON Text",
-                        subtitle = "Paste raw table text or JSON directly",
-                        accentColor = AccentOrange,
-                        onClick = {
-                            val cur = activeDataTypeForImport
-                            activeDataTypeForImport = null
-                            pasteDataType = cur ?: BackupDataType.FULL_BACKUP
-                            pasteInputText = ""
-                            showPasteDialog = true
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { activeDataTypeForImport = null }) {
+                                Text("Cancel", color = AppSecondaryTextColor(), fontWeight = FontWeight.SemiBold)
+                            }
                         }
-                    )
-
-                    // 3. Scan QR Code
-                    ExportOptionRow(
-                        icon = Icons.Default.QrCodeScanner,
-                        title = "Scan QR Code (Camera)",
-                        subtitle = "Scan an animated QR stream from another device",
-                        accentColor = AccentPurple,
-                        onClick = {
-                            activeDataTypeForImport = null
-                            showQrScanner = true
-                        }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { activeDataTypeForImport = null }) {
-                    Text("Cancel", color = AppSecondaryTextColor())
+                    }
                 }
             }
-        )
+        }
     }
 
     // ==========================================
     // PASTE TEXT DIALOG (Available for ALL data types)
     // ==========================================
     if (showPasteDialog) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { if (!isImporting) showPasteDialog = false },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = null, tint = AccentCyan)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Paste ${pasteDataType.displayName}",
-                            color = AccentCyan,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    }
-                    Text(
-                        text = "Paste CSV or JSON formatted content below",
-                        color = AppSecondaryTextColor(),
-                        fontSize = 12.sp
-                    )
-                }
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = pasteInputText,
-                        onValueChange = { pasteInputText = it },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            DialogEdgeToEdge()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { if (!isImporting) showPasteDialog = false }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 500.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    color = getDialogBackground(),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 12.dp
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp),
-                        placeholder = {
-                            Text(
-                                "Paste your CSV rows or JSON data here...",
-                                color = AppSecondaryTextColor().copy(alpha = 0.6f),
-                                fontSize = 12.sp
-                            )
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = AppTextColor(),
-                            unfocusedTextColor = AppTextColor(),
-                            focusedBorderColor = AccentCyan,
-                            unfocusedBorderColor = getGlassBorder(),
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        ),
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = AppTextColor()
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(20.dp)
                     ) {
-                        TextButton(
-                            onClick = {
-                                pasteInputText = getSampleTemplateFor(pasteDataType)
-                            },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Insert Sample", color = AccentGold, fontSize = 12.sp)
+                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = AccentCyan)
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Paste ${pasteDataType.displayName}",
+                                    color = AccentCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Paste CSV or JSON formatted content below",
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
-
-                        if (pasteInputText.isNotBlank()) {
+                        Spacer(Modifier.height(14.dp))
+                        OutlinedTextField(
+                            value = pasteInputText,
+                            onValueChange = { pasteInputText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp),
+                            placeholder = {
+                                Text(
+                                    "Paste your CSV rows or JSON data here...",
+                                    color = AppSecondaryTextColor().copy(alpha = 0.6f),
+                                    fontSize = 12.sp
+                                )
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = AppTextColor(),
+                                unfocusedTextColor = AppTextColor(),
+                                focusedBorderColor = AccentCyan,
+                                unfocusedBorderColor = getGlassBorder(),
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                color = AppTextColor()
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             TextButton(
-                                onClick = { pasteInputText = "" },
+                                onClick = {
+                                    pasteInputText = getSampleTemplateFor(pasteDataType)
+                                },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("Clear", color = AppSecondaryTextColor(), fontSize = 12.sp)
+                                Icon(Icons.Default.Info, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Insert Sample", color = AccentGold, fontSize = 12.sp)
                             }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (pasteInputText.isBlank()) {
-                            Toast.makeText(context, "Please paste some content first", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        isImporting = true
-                        viewModel.importUniversal(pasteInputText, pasteDataType, selectedHotelId) { outcome ->
-                            isImporting = false
-                            when (outcome) {
-                                is ImportOutcome.Success -> {
-                                    Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                                    showPasteDialog = false
-                                    pasteInputText = ""
-                                }
-                                is ImportOutcome.Error -> {
-                                    Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                            if (pasteInputText.isNotBlank()) {
+                                TextButton(
+                                    onClick = { pasteInputText = "" },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Clear", color = AppSecondaryTextColor(), fontSize = 12.sp)
                                 }
                             }
                         }
-                    },
-                    enabled = !isImporting && pasteInputText.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
-                ) {
-                    if (isImporting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Importing...", color = Color.White, fontWeight = FontWeight.Bold)
-                    } else {
-                        Text("Import & Save", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            TextButton(
+                                onClick = { showPasteDialog = false },
+                                enabled = !isImporting,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel", color = AppSecondaryTextColor())
+                            }
+                            Button(
+                                onClick = {
+                                    if (pasteInputText.isBlank()) {
+                                        Toast.makeText(context, "Please paste some content first", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    val trimmed = pasteInputText.trimStart()
+                                    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                                        val payload = pasteInputText
+                                        showPasteDialog = false
+                                        pasteInputText = ""
+                                        isImporting = false
+                                        viewModel.startSmartImportFlow(
+                                            payloadText = payload,
+                                            targetHotelId = selectedHotelId,
+                                            targetBankAccountId = selectedAccountScopeId
+                                        ) { outcome ->
+                                            when (outcome) {
+                                                is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                                                is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    } else {
+                                        isImporting = true
+                                        viewModel.importUniversal(pasteInputText, pasteDataType, selectedHotelId) { outcome ->
+                                            isImporting = false
+                                            when (outcome) {
+                                                is ImportOutcome.Success -> {
+                                                    Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                                                    showPasteDialog = false
+                                                    pasteInputText = ""
+                                                }
+                                                is ImportOutcome.Error -> {
+                                                    Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !isImporting && pasteInputText.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                modifier = Modifier.weight(1.4f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                if (isImporting) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Importing...", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                                } else {
+                                    Text("Import & Save", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showPasteDialog = false },
-                    enabled = !isImporting
-                ) {
-                    Text("Cancel", color = AppSecondaryTextColor())
                 }
             }
-        )
+        }
     }
 
     // ==========================================
@@ -1468,83 +1687,144 @@ fun DataBackupSettingsScreen(
     // ==========================================
     if (showCsvFormatDialogFor != null) {
         val type = showCsvFormatDialogFor!!
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showCsvFormatDialogFor = null },
-            containerColor = getDialogBackground(),
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = AccentCyan)
-                    Spacer(Modifier.width(8.dp))
-                    Text("${type.displayName} Format", color = AccentCyan, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "You can prepare data in Microsoft Excel or Google Sheets and export as CSV:",
-                        color = AppTextColor(),
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text("Expected Columns:", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(AppTextColor().copy(0.08f))
-                            .padding(10.dp)
-                    ) {
-                        Text(
-                            text = getCsvHeaderFor(type),
-                            color = AccentCyan,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text("Example Rows:", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(AppTextColor().copy(0.08f))
-                            .padding(10.dp)
-                    ) {
-                        Text(
-                            text = getSampleTemplateFor(type),
-                            color = AppSecondaryTextColor(),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val sample = getSampleTemplateFor(type)
-                        clipboardManager.setText(AnnotatedString(sample))
-                        Toast.makeText(context, "Sample template copied", Toast.LENGTH_SHORT).show()
-                        showCsvFormatDialogFor = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor())
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            DialogEdgeToEdge()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showCsvFormatDialogFor = null }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 500.dp)
+                        .heightIn(max = 680.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    color = getDialogBackground(),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 12.dp
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Copy Template", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCsvFormatDialogFor = null }) {
-                    Text("Close", color = AppSecondaryTextColor())
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = AccentCyan)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${type.displayName} Format",
+                                color = AccentCyan,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { showCsvFormatDialogFor = null },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryTextColor())
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "You can prepare data in Microsoft Excel or Google Sheets and export as CSV:",
+                                color = AppTextColor(),
+                                fontSize = 13.sp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Expected Columns:", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(AppTextColor().copy(0.08f))
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = getCsvHeaderFor(type),
+                                    color = AccentCyan,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    softWrap = false
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text("Example Rows:", color = AppTextColor(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(AppTextColor().copy(0.08f))
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = getSampleTemplateFor(type),
+                                    color = AppSecondaryTextColor(),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            TextButton(
+                                onClick = { showCsvFormatDialogFor = null },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Close", color = AppSecondaryTextColor())
+                            }
+                            Button(
+                                onClick = {
+                                    val sample = getSampleTemplateFor(type)
+                                    clipboardManager.setText(AnnotatedString(sample))
+                                    Toast.makeText(context, "Sample template copied", Toast.LENGTH_SHORT).show()
+                                    showCsvFormatDialogFor = null
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor()),
+                                modifier = Modifier.weight(1.4f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Copy Template", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     // ==========================================
@@ -1652,20 +1932,20 @@ fun DataBackupSettingsScreen(
             onDismiss = { showQrScanner = false },
             onSuccess = { payload, key, iv, scannedQrUris ->
                 showQrScanner = false
-                viewModel.importHotelViaQr(
+                viewModel.startQrSmartImportFlow(
                     payload = payload,
                     key = key,
                     iv = iv,
                     targetHotelId = selectedHotelId,
-                    targetBankAccountId = selectedAccountScopeId ?: 1,
+                    targetBankAccountId = selectedAccountScopeId,
                     scannedPaymentQrUris = scannedQrUris
-                ) { result ->
-                    when (result) {
-                        is ImportResult.Success -> {
-                            Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                ) { outcome ->
+                    when (outcome) {
+                        is ImportOutcome.Success -> {
+                            Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
                         }
-                        is ImportResult.Error -> {
-                            Toast.makeText(context, "Import failed: ${result.message}", Toast.LENGTH_LONG).show()
+                        is ImportOutcome.Error -> {
+                            Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -1839,9 +2119,9 @@ private fun DataBackupItemCard(
                     border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder()),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = AccentGold, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = AccentGold, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Copy", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Copy", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
 
                 // QR Send Button
@@ -1852,9 +2132,9 @@ private fun DataBackupItemCard(
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor.copy(alpha = 0.25f)),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.QrCode, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.QrCode, contentDescription = null, tint = accentColor, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("QR Send", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("QR Send", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
 
                 // QR Receive / Scan Button
@@ -1865,9 +2145,9 @@ private fun DataBackupItemCard(
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPurple.copy(alpha = 0.25f)),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("QR Scan", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("QR Scan", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
 
@@ -1886,9 +2166,9 @@ private fun DataBackupItemCard(
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor.copy(alpha = 0.15f)),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = accentColor, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Export", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Export", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
 
                 // Import Button
@@ -1899,9 +2179,9 @@ private fun DataBackupItemCard(
                     colors = ButtonDefaults.buttonColors(containerColor = AccentCyan.copy(alpha = 0.15f)),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Import", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Import", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
 
                 // Quick Paste Button
@@ -1913,9 +2193,9 @@ private fun DataBackupItemCard(
                     border = androidx.compose.foundation.BorderStroke(1.dp, getGlassBorder()),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.ContentPaste, contentDescription = null, tint = AppSecondaryTextColor(), modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.ContentPaste, contentDescription = null, tint = AppSecondaryTextColor(), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Paste", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text("Paste", color = AppTextColor(), fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1960,12 +2240,16 @@ private fun ExportOptionRow(
                     text = title,
                     color = AppTextColor(),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
                     color = AppSecondaryTextColor(),
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 

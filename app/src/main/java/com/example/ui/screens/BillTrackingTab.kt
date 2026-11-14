@@ -112,6 +112,13 @@ fun BillTrackingTab(
                 }
             }
             is MeterReadingUiState.Success -> {
+                val dailyReadingListState = androidx.compose.runtime.saveable.rememberSaveable(
+                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val billSummaryListState = androidx.compose.runtime.saveable.rememberSaveable(
+                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+
                 if (isWide) {
                     val columnMaxHeight = maxHeight
                     // Responsive side-by-side layout for tablets / foldables
@@ -130,7 +137,8 @@ fun BillTrackingTab(
                                 isLight = isLight,
                                 modifier = Modifier.fillMaxSize(),
                                 isWide = true,
-                                columnMaxHeight = columnMaxHeight
+                                columnMaxHeight = columnMaxHeight,
+                                listState = dailyReadingListState
                             )
                         }
                         Box(modifier = Modifier.weight(1.2f)) {
@@ -144,7 +152,8 @@ fun BillTrackingTab(
                                 financialViewModel = financialViewModel,
                                 onOpenUtilityConfig = onOpenUtilityConfig,
                                 isWide = true,
-                                columnMaxHeight = columnMaxHeight
+                                columnMaxHeight = columnMaxHeight,
+                                listState = billSummaryListState
                             )
                         }
                     }
@@ -216,7 +225,8 @@ fun BillTrackingTab(
                                     language = language,
                                     currency = currency,
                                     isLight = isLight,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    listState = dailyReadingListState
                                 )
                                 "Summary" -> BillSummaryScreen(
                                     viewModel = viewModel,
@@ -226,7 +236,8 @@ fun BillTrackingTab(
                                     isLight = isLight,
                                     modifier = Modifier.fillMaxSize(),
                                     financialViewModel = financialViewModel,
-                                    onOpenUtilityConfig = onOpenUtilityConfig
+                                    onOpenUtilityConfig = onOpenUtilityConfig,
+                                    listState = billSummaryListState
                                 )
                             }
                         }
@@ -267,7 +278,8 @@ fun DailyReadingInputScreen(
     isLight: Boolean,
     modifier: Modifier = Modifier,
     isWide: Boolean = false,
-    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp
+    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
@@ -334,6 +346,7 @@ fun DailyReadingInputScreen(
     }
 
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 156.dp)
@@ -744,7 +757,8 @@ fun BillSummaryScreen(
     financialViewModel: FinancialViewModel? = null,
     onOpenUtilityConfig: () -> Unit = {},
     isWide: Boolean = false,
-    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp
+    columnMaxHeight: androidx.compose.ui.unit.Dp = 640.dp,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val formatter = remember { Formatters.getSimpleDateFormat("dd MMM, yyyy") }
     
@@ -1202,6 +1216,7 @@ fun BillSummaryScreen(
     }
 
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 156.dp)

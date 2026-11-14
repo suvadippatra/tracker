@@ -102,20 +102,47 @@ fun TabContentArea(
     userProfile: com.example.data.model.UserProfileEntity?,
     onOpenUtilityConfig: () -> Unit
 ) {
-    when (activeTab) {
-        "Hotels" -> HotelManagementTab(viewModel)
-        "Extras" -> ExtraExpensesTab(viewModel)
-        "Bill" -> {
-            userProfile?.let { profile ->
-                BillTrackingTab(
-                    viewModel = meterViewModel,
-                    userProfile = profile,
-                    financialViewModel = viewModel,
-                    onOpenUtilityConfig = onOpenUtilityConfig
-                )
+    val saveableStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    val fastMode = isHeavyEffectsDisabled() || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
+    val tabOrder = remember { listOf("Hotels", "Extras", "Bill", "Sticky") }
+
+    @Composable
+    fun RenderTab(tab: String) {
+        saveableStateHolder.SaveableStateProvider(tab) {
+            when (tab) {
+                "Hotels" -> HotelManagementTab(viewModel)
+                "Extras" -> ExtraExpensesTab(viewModel)
+                "Bill" -> {
+                    userProfile?.let { profile ->
+                        BillTrackingTab(
+                            viewModel = meterViewModel,
+                            userProfile = profile,
+                            financialViewModel = viewModel,
+                            onOpenUtilityConfig = onOpenUtilityConfig
+                        )
+                    }
+                }
+                "Sticky" -> StickyNotesTab(viewModel)
             }
         }
-        "Sticky" -> StickyNotesTab(viewModel)
+    }
+
+    if (fastMode) {
+        RenderTab(activeTab)
+    } else {
+        AnimatedContent(
+            targetState = activeTab,
+            transitionSpec = {
+                val fromIdx = tabOrder.indexOf(initialState).coerceAtLeast(0)
+                val toIdx = tabOrder.indexOf(targetState).coerceAtLeast(0)
+                val dir = if (toIdx >= fromIdx) 1 else -1
+                (slideInHorizontally(tween(180)) { dir * it / 16 } + fadeIn(tween(180))) togetherWith
+                    (slideOutHorizontally(tween(140)) { -dir * it / 20 } + fadeOut(tween(120)))
+            },
+            label = "main_tab_transition"
+        ) { tab ->
+            RenderTab(tab)
+        }
     }
 }
 
@@ -365,21 +392,23 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                 }
             }
         ) { innerPadding ->
-            Box(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            CompositionLocalProvider(LocalBottomBarInset provides innerPadding.calculateBottomPadding()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding())
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    TabContentArea(
-                        activeTab = activeTab,
-                        viewModel = viewModel,
-                        meterViewModel = meterViewModel,
-                        userProfile = userProfile,
-                        onOpenUtilityConfig = { showUtilConfig = true }
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = innerPadding.calculateTopPadding())
+                    ) {
+                        TabContentArea(
+                            activeTab = activeTab,
+                            viewModel = viewModel,
+                            meterViewModel = meterViewModel,
+                            userProfile = userProfile,
+                            onOpenUtilityConfig = { showUtilConfig = true }
+                        )
+                    }
                 }
             }
         }
@@ -430,6 +459,12 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
 
     val pendingUpiPayments by com.example.service.DetectedUpiPaymentBus.pendingPayments.collectAsStateWithLifecycle()
     val allBankAccounts by viewModel.allBankAccounts.collectAsStateWithLifecycle()
+    val allHotels by viewModel.allHotels.collectAsStateWithLifecycle()
+    val allOwnerAccounts by viewModel.allOwnerAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val importUiFlowState by viewModel.importUiFlowState.collectAsStateWithLifecycle()
+    val parentDecisions by viewModel.parentDecisions.collectAsStateWithLifecycle()
+    val acceptedMenuItemKeys by viewModel.acceptedMenuItemKeys.collectAsStateWithLifecycle()
+    val conflictDecisions by viewModel.conflictDecisions.collectAsStateWithLifecycle()
     val globalContext = LocalContext.current
     val activeUpiPayment = pendingUpiPayments.firstOrNull()
     if (activeUpiPayment != null) {
@@ -461,6 +496,88 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                 com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id, globalContext)
             }
         )
+    }
+
+    if (!showSettings) {
+        when (val syncState = importUiFlowState) {
+            is FinancialViewModel.ImportUiFlowState.ParentMappingRequired -> {
+                ParentMappingDialog(
+                    unmappedParents = syncState.unmappedParents,
+                    availableHotels = allHotels,
+                    availableBankAccounts = allBankAccounts,
+                    availableOwnerAccounts = allOwnerAccounts,
+                    currentResolutions = parentDecisions,
+                    onResolutionChanged = { key, res ->
+                        viewModel.setParentResolution(key, res)
+                    },
+                    onConfirm = {
+                        viewModel.confirmParentMappings { outcome ->
+                            when (outcome) {
+                                is com.example.data.ImportOutcome.Success -> android.widget.Toast.makeText(globalContext, outcome.message, android.widget.Toast.LENGTH_LONG).show()
+                                is com.example.data.ImportOutcome.Error -> android.widget.Toast.makeText(globalContext, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        viewModel.cancelImportFlow()
+                    }
+                )
+            }
+            is FinancialViewModel.ImportUiFlowState.MenuConfirmationRequired -> {
+                MenuConfirmationDialog(
+                    pendingMenuItems = syncState.pendingMenuItems,
+                    acceptedKeys = acceptedMenuItemKeys,
+                    onToggleItem = { key, isAccepted ->
+                        viewModel.setMenuItemAccepted(key, isAccepted)
+                    },
+                    onToggleAll = { isAllAccepted ->
+                        viewModel.setAllMenuItemsAccepted(isAllAccepted)
+                    },
+                    onConfirm = {
+                        viewModel.confirmMenuItems { outcome ->
+                            when (outcome) {
+                                is com.example.data.ImportOutcome.Success -> android.widget.Toast.makeText(globalContext, outcome.message, android.widget.Toast.LENGTH_LONG).show()
+                                is com.example.data.ImportOutcome.Error -> android.widget.Toast.makeText(globalContext, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        viewModel.cancelImportFlow()
+                    }
+                )
+            }
+            is FinancialViewModel.ImportUiFlowState.ConflictsDetected -> {
+                SyncResolutionDialog(
+                    conflicts = syncState.conflicts,
+                    conflictDecisions = conflictDecisions,
+                    isMerging = false,
+                    onResolutionChanged = { key, res ->
+                        viewModel.setConflictResolution(key, res)
+                    },
+                    onResolveAllLatest = {
+                        viewModel.resolveAllConflictsLatest()
+                    },
+                    onResolveAllLocal = {
+                        viewModel.resolveAllConflictsLocal()
+                    },
+                    onConfirmMerge = {
+                        val plan = viewModel.generateMergePlan()
+                        if (plan != null) {
+                            viewModel.executeMergePlan(plan) { outcome ->
+                                when (outcome) {
+                                    is com.example.data.ImportOutcome.Success -> android.widget.Toast.makeText(globalContext, outcome.message, android.widget.Toast.LENGTH_LONG).show()
+                                    is com.example.data.ImportOutcome.Error -> android.widget.Toast.makeText(globalContext, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        viewModel.cancelImportFlow()
+                    }
+                )
+            }
+            else -> Unit
+        }
     }
 }
 
@@ -537,15 +654,13 @@ fun GlassHeader(
     }
 
     if (!isGlass) {
-        // Material 3 Solid Docked App Bar
-        val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
-
+        // Seamless Edge-to-Edge Top App Bar blending with app background
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(surfaceBg)
+                .background(Color.Transparent)
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = if (showGreeting) 10.dp else 4.dp)
+                .padding(horizontal = 16.dp, vertical = if (showGreeting) 8.dp else 4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -720,15 +835,17 @@ fun GlassBottomNavigation(
     language: String
 ) {
     val isLight = isAppLightMode()
-    val surfaceBg = if (isLight) com.example.ui.theme.M3SurfaceLight else com.example.ui.theme.M3SurfaceDark
+    val surfaceBg = if (isLight) com.example.ui.theme.M3BackgroundLight.copy(alpha = 0.96f) else com.example.ui.theme.M3SurfaceDark.copy(alpha = 0.96f)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = surfaceBg,
-        shadowElevation = if (isLight) 8.dp else 12.dp,
-        tonalElevation = if (isLight) 2.dp else 3.dp
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp
     ) {
-        val safeBottomPad = rememberSplitScreenSafeBottomPadding()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(color = AppTextColor().copy(alpha = 0.08f), thickness = 0.8.dp)
+            val safeBottomPad = rememberSplitScreenSafeBottomPadding()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -802,6 +919,7 @@ fun GlassBottomNavigation(
                     )
                 }
             }
+        }
         }
     }
 }

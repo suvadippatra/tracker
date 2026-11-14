@@ -252,6 +252,16 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         val isWide = maxWidth >= 600.dp
         val columnMaxHeight = maxHeight
 
+        val mobileListState = androidx.compose.runtime.saveable.rememberSaveable(
+            saver = androidx.compose.foundation.lazy.LazyListState.Saver
+        ) { androidx.compose.foundation.lazy.LazyListState() }
+        val tabletLeftListState = androidx.compose.runtime.saveable.rememberSaveable(
+            saver = androidx.compose.foundation.lazy.LazyListState.Saver
+        ) { androidx.compose.foundation.lazy.LazyListState() }
+        val tabletRightListState = androidx.compose.runtime.saveable.rememberSaveable(
+            saver = androidx.compose.foundation.lazy.LazyListState.Saver
+        ) { androidx.compose.foundation.lazy.LazyListState() }
+
         if (isWide) {
             // WIDESCREEN TABLET LAYOUT: Two columns side-by-side
             Row(
@@ -262,6 +272,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
             ) {
                 // Left Column: Ledger Card & Popular Meals Carousel
                 LazyColumn(
+                    state = tabletLeftListState,
                     modifier = Modifier
                         .weight(1.2f)
                         .fillMaxHeight(),
@@ -381,6 +392,13 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit Hotel Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                                 onClick = {
                                                                     viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
+                                                                    openDropdownHotelId = null
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                text = { Text(if (isBengali) "মেনু ও দাম সংশোধন" else "Edit Menu & Prices", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
+                                                                onClick = {
+                                                                    viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.ManageMenu(hotel, returnToEditHotel = false))
                                                                     openDropdownHotelId = null
                                                                 }
                                                             )
@@ -606,6 +624,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 
                 // Right Column: Recent Meal Logs & view history button
                 LazyColumn(
+                    state = tabletRightListState,
                     modifier = Modifier
                         .weight(1.0f)
                         .fillMaxHeight(),
@@ -733,6 +752,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         } else {
             // REGULAR MOBILE VERTICAL SCREEN LAYOUT
             LazyColumn(
+                state = mobileListState,
                 modifier = Modifier
                     .fillMaxHeight()
                     .widthIn(max = 840.dp)
@@ -852,6 +872,13 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                             text = { Text(if (isBengali) "হোটেল তথ্য সংশোধন" else "Edit Hotel Details", color = AppTextColor(), fontWeight = FontWeight.Medium) },
                                                             onClick = {
                                                                 viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
+                                                                openDropdownHotelId = null
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text(if (isBengali) "মেনু ও দাম সংশোধন" else "Edit Menu & Prices", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.ManageMenu(hotel, returnToEditHotel = false))
                                                                 openDropdownHotelId = null
                                                             }
                                                         )
@@ -1089,7 +1116,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(156.dp)) // Padding for bottom bar and FAB
+                    Spacer(modifier = Modifier.height(LocalBottomBarInset.current + 124.dp + rememberSplitScreenSafeBottomPadding())) // Padding for bottom bar and FAB
                 }
             }
         }
@@ -1097,6 +1124,8 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         // FAB FOR ADDING NEW MEAL (Unified position & style across all tabs)
         if (activeHotel != null) {
             val fabAccent = AppAccentColor()
+            val navInset = LocalBottomBarInset.current
+            val fabBottomPad = if (navInset > 0.dp) navInset + 18.dp else 24.dp + rememberSplitScreenSafeBottomPadding()
             FloatingActionButton(
                 onClick = {
                     viewModel.resetOrderFlow()
@@ -1104,7 +1133,7 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 104.dp)
+                    .padding(end = 20.dp, bottom = fabBottomPad)
                     .size(58.dp)
                     .bounceClick()
                     .testTag("add_meal_fab"),
@@ -1181,13 +1210,19 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
             onDismiss = { showQrScanner = false },
             onSuccess = { payload: ByteArray, key: ByteArray, iv: ByteArray, scannedQrUris: Map<String, String> ->
                 showQrScanner = false
-                viewModel.importHotelViaQr(payload, key, iv, scannedPaymentQrUris = scannedQrUris) { result ->
-                    when (result) {
-                        is com.example.data.ImportResult.Success -> {
-                            android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
+                viewModel.startQrSmartImportFlow(
+                    payload = payload,
+                    key = key,
+                    iv = iv,
+                    targetHotelId = activeHotel?.id,
+                    scannedPaymentQrUris = scannedQrUris
+                ) { outcome ->
+                    when (outcome) {
+                        is com.example.data.ImportOutcome.Success -> {
+                            android.widget.Toast.makeText(context, outcome.message, android.widget.Toast.LENGTH_LONG).show()
                         }
-                        is com.example.data.ImportResult.Error -> {
-                            android.widget.Toast.makeText(context, "Import failed: ${result.message}", android.widget.Toast.LENGTH_LONG).show()
+                        is com.example.data.ImportOutcome.Error -> {
+                            android.widget.Toast.makeText(context, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -1389,7 +1424,8 @@ fun MealHistoryModal(
                     modifier = Modifier
                         .fillMaxSize()
                         .widthIn(max = 840.dp)
-                        .dialogSystemBarsPadding(extraTop = 8.dp)
+                        .dialogSafeTopPadding(extraTop = 4.dp)
+                        .dialogSafeBottomPadding(extraBottom = 8.dp)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                 // Header Bar (Separated from Month Selector to prevent accidental touches)
@@ -2929,15 +2965,14 @@ fun UnifiedHotelDialog(
                 contentAlignment = Alignment.TopCenter
             ) {
                 Scaffold(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .dialogSystemBarsPadding(extraTop = 8.dp),
+                    modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Transparent,
                     contentWindowInsets = WindowInsets(0.dp),
                     topBar = {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .dialogSafeTopPadding(extraTop = 4.dp)
                                 .padding(horizontal = 20.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -3136,8 +3171,21 @@ fun HotelInfoDetailRow(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = AppTextColor().copy(alpha = 0.6f), fontSize = 12.sp)
-            Text(value, color = AppTextColor(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = label,
+                color = AppTextColor().copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value,
+                color = AppTextColor(),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         if (actionIcon2 != null && onAction2 != null) {
             IconButton(
@@ -3355,7 +3403,6 @@ fun HotelContactOptionsDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HotelDetailsBottomSheet(
     hotel: com.example.data.model.HotelEntity,
@@ -3363,352 +3410,57 @@ fun HotelDetailsBottomSheet(
     viewModel: com.example.ui.viewmodel.FinancialViewModel,
     onDismiss: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-    var previewQrUri by remember { mutableStateOf<String?>(null) }
-    val qrUris = hotel.qrCodeUri.split(",").filter { it.isNotBlank() }
-
-    androidx.activity.compose.BackHandler(onBack = onDismiss)
-
-    // Unified Popup Layout matching Account Info Popup
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
+    val detailRows = buildList {
+        add(
+            PaymentInfoRowItem(
+                label = if (isBengali) "অগ্রিম জমা" else "Advanced Payment",
+                value = "₹${hotel.advancedPayment.toInt()}",
+                copyable = false
+            )
         )
-    ) {
-        com.example.ui.components.DialogEdgeToEdge()
-        AppThemeProvider(viewModel) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .clickable(
-                        onClick = onDismiss,
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .widthIn(max = 520.dp)
-                        .padding(vertical = 24.dp)
-                        .clickable(
-                            onClick = {},
-                            indication = null,
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        ),
-                    shape = RoundedCornerShape(24.dp),
-                    color = getDialogBackground(),
-                    shadowElevation = 10.dp
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        // Header Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(AppAccentColor().copy(alpha = 0.16f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Apartment,
-                                        contentDescription = null,
-                                        tint = AppAccentColor(),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = if (isBengali) "হোটেলের বিবরণ" else "Hotel Details",
-                                    color = AppTextColor(),
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTextColor())
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Header Banner Card (Exact match with Account Info Popup)
-                        Surface(
-                            color = getSettingsItemBg(),
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 2.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(14.dp)
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = hotel.name,
-                                        color = AppTextColor(),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = if (isBengali) "হোটেলের বিস্তারিত বিবরণ ও পেমেন্ট তথ্য" else "Hotel Information & Payment Details",
-                                        color = AppSecondaryTextColor(),
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Info Card Group (Exact match with Account Info Popup)
-                        Surface(
-                            color = getSettingsItemBg(),
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 2.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                // Advanced Payment
-                                HotelInfoDetailRow(
-                                    icon = Icons.Default.AccountBalanceWallet,
-                                    iconTint = AppAccentColor(),
-                                    label = if (isBengali) "অগ্রিম জমা" else "Advanced Payment",
-                                    value = "₹${hotel.advancedPayment.toInt()}"
-                                )
-
-                                HorizontalDivider(color = getGlassBorder())
-
-                                // Phone Number
-                                HotelInfoDetailRow(
-                                    icon = Icons.Default.Phone,
-                                    iconTint = Color(0xFF81C784),
-                                    label = if (isBengali) "ফোন নম্বর" else "Phone Number",
-                                    value = hotel.phoneNumber.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                    actionIcon = if (hotel.phoneNumber.isNotBlank()) Icons.Default.ContentCopy else null,
-                                    onAction = if (hotel.phoneNumber.isNotBlank()) {
-                                        {
-                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(hotel.phoneNumber))
-                                            android.widget.Toast.makeText(context, "Phone number copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else null
-                                )
-
-                                if (hotel.whatsappNumber.isNotBlank()) {
-                                    HorizontalDivider(color = getGlassBorder())
-                                    HotelInfoDetailRow(
-                                        icon = Icons.Default.Chat,
-                                        iconTint = Color(0xFF25D366),
-                                        label = if (isBengali) "হোয়াটসঅ্যাপ নম্বর" else "WhatsApp Number",
-                                        value = hotel.whatsappNumber,
-                                        actionIcon = Icons.Default.ContentCopy,
-                                        onAction = {
-                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(hotel.whatsappNumber))
-                                            android.widget.Toast.makeText(context, "WhatsApp number copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    )
-                                }
-
-                                HorizontalDivider(color = getGlassBorder())
-
-                                // Location
-                                HotelInfoDetailRow(
-                                    icon = Icons.Default.LocationOn,
-                                    iconTint = Color(0xFFFFB74D),
-                                    label = if (isBengali) "অবস্থান / ঠিকানা" else "Location / Address",
-                                    value = hotel.location.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                    actionIcon = if (hotel.location.isNotBlank()) Icons.Default.Map else null,
-                                    onAction = {
-                                        if (hotel.location.isNotBlank()) {
-                                            val intent = if (hotel.location.startsWith("http")) {
-                                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(hotel.location))
-                                            } else {
-                                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=${android.net.Uri.encode(hotel.location)}"))
-                                            }
-                                            try { context.startActivity(intent) } catch (e: Exception) {}
-                                        }
-                                    }
-                                )
-
-                                HorizontalDivider(color = getGlassBorder())
-
-                                // UPI ID & QR Code button
-                                HotelInfoDetailRow(
-                                    icon = Icons.Default.QrCode,
-                                    iconTint = Color(0xFFBA68C8),
-                                    label = if (isBengali) "ইউপিআই আইডি (UPI ID)" else "UPI ID",
-                                    value = hotel.upiId.ifBlank { if (isBengali) "প্রদান করা হয়নি" else "Not provided" },
-                                    actionIcon = if (hotel.upiId.isNotBlank()) Icons.Default.ContentCopy else null,
-                                    onAction = {
-                                        if (hotel.upiId.isNotBlank()) {
-                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(hotel.upiId))
-                                            android.widget.Toast.makeText(context, if (isBengali) "UPI ID কপি করা হয়েছে!" else "UPI ID copied!", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    actionIcon2 = if (qrUris.isNotEmpty()) Icons.Default.QrCodeScanner else null,
-                                    onAction2 = if (qrUris.isNotEmpty()) {
-                                        { previewQrUri = qrUris.first() }
-                                    } else null
-                                )
-
-                                if (!hotel.importedFrom.isNullOrBlank()) {
-                                    HorizontalDivider(color = getGlassBorder())
-                                    HotelInfoDetailRow(
-                                        icon = Icons.Default.Download,
-                                        iconTint = Color(0xFF64B5F6),
-                                        label = if (isBengali) "আমদানি করা হয়েছে" else "Import Source",
-                                        value = if (isBengali) "আমদানি করা হয়েছে: ${hotel.importedFrom}" else "Imported from: ${hotel.importedFrom}"
-                                    )
-                                }
-                            }
-                        }
-
-                        // Short Notes Card
-                        if (hotel.notes.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Surface(
-                                color = getSettingsItemBg(),
-                                shape = RoundedCornerShape(16.dp),
-                                shadowElevation = 2.dp,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Notes, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (isBengali) "সংক্ষিপ্ত নোট" else "Short Notes",
-                                            color = AppTextColor(),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Text(
-                                        text = hotel.notes,
-                                        color = AppSecondaryTextColor(),
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        // QR Codes Section
-                        if (qrUris.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Surface(
-                                color = getSettingsItemBg(),
-                                shape = RoundedCornerShape(16.dp),
-                                shadowElevation = 2.dp,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = if (isBengali) "পেমেন্ট কিউআর কোড (${qrUris.size})" else "Payment QR Codes (${qrUris.size})",
-                                        color = AppTextColor(),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.align(Alignment.Start)
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        qrUris.forEachIndexed { idx, uri ->
-                                            Surface(
-                                                modifier = Modifier
-                                                    .size(120.dp)
-                                                    .clickable { previewQrUri = uri },
-                                                shape = RoundedCornerShape(14.dp),
-                                                color = Color.White,
-                                                shadowElevation = 4.dp
-                                            ) {
-                                                AsyncImage(
-                                                    model = uri,
-                                                    contentDescription = "QR Code ${idx + 1}",
-                                                    modifier = Modifier.fillMaxSize().padding(8.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Action Buttons (Matching Account Info Popup)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    onDismiss()
-                                    viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
-                                },
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = getSettingsItemBg(),
-                                    contentColor = AppTextColor()
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f).height(44.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccentColor(), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isBengali) "সম্পাদনা" else "Edit", fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = onDismiss,
-                                modifier = Modifier.weight(1f).height(44.dp).bounceClick(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppAccentColor(), contentColor = AppOnAccentColor())
-                            ) {
-                                Text(if (isBengali) "বন্ধ করুন" else "Close", color = AppOnAccentColor(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-            }
+        if (hotel.location.isNotBlank()) {
+            add(
+                PaymentInfoRowItem(
+                    label = if (isBengali) "অবস্থান / ঠিকানা" else "Location / Address",
+                    value = hotel.location,
+                    copyable = true
+                )
+            )
+        }
+        if (!hotel.importedFrom.isNullOrBlank()) {
+            add(
+                PaymentInfoRowItem(
+                    label = if (isBengali) "আমদানি উৎস" else "Imported From",
+                    value = hotel.importedFrom,
+                    copyable = false
+                )
+            )
+        }
+    }
+    val contactChips = buildList {
+        if (hotel.phoneNumber.isNotBlank()) {
+            add(PaymentContactChip(label = if (isBengali) "ফোন" else "Phone", value = hotel.phoneNumber))
+        }
+        if (hotel.whatsappNumber.isNotBlank()) {
+            add(PaymentContactChip(label = "WhatsApp", value = hotel.whatsappNumber))
         }
     }
 
-    if (previewQrUri != null) {
-        com.example.ui.components.FullScreenQRPreviewDialog(
-            qrUri = previewQrUri!!,
-            title = if (isBengali) "হোটেল পেমেন্ট কিউআর" else "${hotel.name} Payment QR",
-            upiId = hotel.upiId,
-            onDismiss = { previewQrUri = null }
-        )
-    }
+    MinimalistPaymentInfoDialog(
+        title = hotel.name,
+        subtitle = if (isBengali) "হোটেলের তথ্য ও পেমেন্ট" else "Hotel & Payment Info",
+        qrUriString = hotel.qrCodeUri,
+        upiId = hotel.upiId,
+        detailRows = detailRows,
+        contactChips = contactChips,
+        notesText = hotel.notes.takeIf { it.isNotBlank() },
+        emptyQrLabel = if (isBengali) "কোনো পেমেন্ট QR সংযুক্ত নেই" else "No payment QR attached",
+        onDismiss = onDismiss,
+        onEdit = {
+            onDismiss()
+            viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotel))
+        }
+    )
 }
 
 @Composable

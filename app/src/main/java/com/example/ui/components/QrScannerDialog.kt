@@ -216,10 +216,14 @@ fun ScannerContent(
                                                 }
                                             }
                                         },
-                                        onQrResult = { result ->
+                                        onQrDecoded = { result, binaryBitmap ->
                                             if (isCompleted || !isPhase2PaymentQr) return@ZXingAnalyzer
                                             val text = result.text ?: return@ZXingAnalyzer
                                             if (isCurrentFountainPacket(text)) return@ZXingAnalyzer
+
+                                            val extractedPayload = if (!text.startsWith("TQRCUE|")) {
+                                                QrMediaCodec.extractDecodedPayload(result, binaryBitmap)
+                                            } else null
 
                                             coroutineScope.launch(Dispatchers.Main) {
                                                 if (isCompleted || !isPhase2PaymentQr) return@launch
@@ -253,7 +257,11 @@ fun ScannerContent(
 
                                                 isReconstructingQr = true
                                                 val savedUri = withContext(Dispatchers.IO) {
-                                                    QrMediaCodec.reconstructExactQrPngFromResult(context, result)
+                                                    if (extractedPayload != null) {
+                                                        QrMediaCodec.saveExactQrPng(context, extractedPayload)
+                                                    } else {
+                                                        QrMediaCodec.reconstructExactQrPngFromResult(context, result)
+                                                    }
                                                 }
                                                 isReconstructingQr = false
 

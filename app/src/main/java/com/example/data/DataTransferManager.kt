@@ -686,7 +686,9 @@ class DataTransferManager(private val db: AppDatabase) {
                         put("bodyText", sn.bodyText)
                         put("tags", sn.tags)
                         put("textAlignment", sn.textAlignment)
+                        put("colorIndex", sn.colorIndex)
                         put("sortOrder", sn.sortOrder)
+                        put("attachmentsJson", sn.attachmentsJson)
                         put("createdAt", sn.createdAt)
                         put("updatedAt", sn.updatedAt)
                     })
@@ -1435,10 +1437,12 @@ class DataTransferManager(private val db: AppDatabase) {
                                 StickyNoteEntity(
                                     title = item.optString("title", ""),
                                     subtitle = item.optString("subtitle", ""),
-                                    bodyText = item.optString("bodyText", ""),
+                                    bodyText = item.optString("bodyText", item.optString("content", "")),
                                     tags = item.optString("tags", ""),
-                                    textAlignment = item.optString("textAlignment", "START"),
+                                    textAlignment = item.optString("textAlignment", item.optString("alignment", "START")),
+                                    colorIndex = item.optInt("colorIndex", 0),
                                     sortOrder = item.optInt("sortOrder", i),
+                                    attachmentsJson = item.optString("attachmentsJson", "[]").ifBlank { "[]" },
                                     createdAt = item.optLong("createdAt", System.currentTimeMillis()),
                                     updatedAt = item.optLong("updatedAt", System.currentTimeMillis())
                                 )

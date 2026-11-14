@@ -18,7 +18,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val isInitialLight = com.example.ui.theme.ThemePreferences.isLightMode(this)
         val initialBgColor = if (isInitialLight) {
-            android.graphics.Color.parseColor("#FCFCFD")
+            android.graphics.Color.parseColor("#F8FAFC")
         } else {
             android.graphics.Color.parseColor("#0A1317")
         }

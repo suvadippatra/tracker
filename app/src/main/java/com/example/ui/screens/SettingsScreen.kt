@@ -82,59 +82,32 @@ fun SettingsScreen(
             contentAlignment = Alignment.TopCenter
         ) {
             Scaffold(
-                    modifier = Modifier.fillMaxSize().dialogSystemBarsPadding(extraTop = 8.dp),
+                modifier = Modifier.fillMaxSize(),
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Transparent)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    if (currentScreen != "main") {
-                                        currentScreen = "main"
-                                    } else {
-                                        onDismiss()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(getGlassIconButtonBg(), CircleShape)
-                                    .bounceClick()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ChevronLeft,
-                                    contentDescription = "Back",
-                                    tint = AppTextColor(),
-                                    modifier = Modifier.size(26.dp)
-                                )
+                    val headerTitle = when (currentScreen) {
+                        "main" -> if (isBn) "সেটিংস" else "Settings"
+                        "profile" -> if (isBn) "অ্যাকাউন্ট ও প্রোফাইল" else "Account & Profile"
+                        "appearance" -> if (isBn) "থিম ও কাস্টমাইজেশন" else "Appearance & Visuals"
+                        "security" -> if (isBn) "নিরাপত্তা ও লক" else "Security & Privacy"
+                        "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
+                        "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
+                        "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
+                        "other_tools" -> if (isBn) "অন্যান্য টুলস" else "View Another Tools"
+                        else -> "Settings"
+                    }
+                    Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                        SettingsPageHeader(
+                            title = headerTitle,
+                            onBack = {
+                                if (currentScreen != "main") {
+                                    currentScreen = "main"
+                                } else {
+                                    onDismiss()
+                                }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = when(currentScreen) {
-                                    "main" -> if (isBn) "সেটিংস" else "Settings"
-                                    "profile" -> if (isBn) "অ্যাকাউন্ট ও প্রোফাইল" else "Account & Profile"
-                                    "appearance" -> if (isBn) "থিম ও কাস্টমাইজেশন" else "Appearance & Visuals"
-                                    "security" -> if (isBn) "নিরাপত্তা ও লক" else "Security & Privacy"
-                                    "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
-                                    "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
-                                    "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
-                                    "other_tools" -> if (isBn) "অন্যান্য টুলস" else "View Another Tools"
-                                    else -> "Settings"
-                                },
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AppTextColor()
-                            )
-                        }
+                        )
                     }
                 }
             ) { innerPadding ->
@@ -151,6 +124,10 @@ fun SettingsScreen(
                             .fillMaxWidth()
                     ) {
                         val fastMode = isHeavyEffectsDisabled() || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P
+                        val settingsMainListState = androidx.compose.runtime.saveable.rememberSaveable(
+                            saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                        ) { androidx.compose.foundation.lazy.LazyListState() }
+
                         AnimatedContent(
                             targetState = currentScreen,
                             transitionSpec = {
@@ -167,6 +144,7 @@ fun SettingsScreen(
                         ) { screen ->
                             when (screen) {
                                 "main" -> SettingsMainList(
+                                    listState = settingsMainListState,
                                     prefLanguage = userProfile?.language ?: "en",
                                     onNavigate = { currentScreen = it },
                                     onOpenBin = { currentScreen = "bin" },
@@ -216,15 +194,19 @@ fun SettingsDialog(
 
 @Composable
 fun SettingsMainList(
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     prefLanguage: String = "en",
     onNavigate: (String) -> Unit,
     onOpenBin: () -> Unit,
     onOpenOwnerProfile: () -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = 120.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -428,107 +410,83 @@ fun UnifiedAccountDialog(
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .dialogSystemBarsPadding(extraTop = 8.dp)
                             .imePadding(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(getGlassIconButtonBg(), CircleShape)
-                                .bounceClick()
-                        ) {
-                            Icon(
-                                Icons.Default.ChevronLeft,
-                                contentDescription = "Back",
-                                tint = AppTextColor(),
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = if (account == null) {
+                    Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                        SettingsPageHeader(
+                            title = if (account == null) {
                                 if (prefLanguage == "bn") "নতুন অ্যাকাউন্ট যুক্ত করুন" else "Add Account"
                             } else {
                                 if (prefLanguage == "bn") "অ্যাকাউন্ট সংশোধন" else "Edit Account Details"
                             },
-                            color = AppTextColor(),
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 2,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        FilledIconButton(
-                            onClick = {
-                                if (accName.isNotBlank()) {
-                                    val bal = accBal.toDoubleOrNull() ?: 0.0
-                                    if (onSaveExtended != null) {
-                                        onSaveExtended(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email)
-                                    } else {
-                                        onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
-                                    }
-                                } else {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        if (prefLanguage == "bn") "অ্যাকাউন্টের নাম দিন" else "Enter Account Name",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .testTag("save_account_btn"),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = AppAccentColor(),
-                                contentColor = AppOnAccentColor()
-                            )
-                        ) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = "Save",
-                                tint = AppOnAccentColor()
-                            )
-                        }
-
-                        if (account != null && onDelete != null) {
-                            Spacer(modifier = Modifier.width(4.dp))
-                            var showTopMenu by remember { mutableStateOf(false) }
-                            Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
-                                IconButton(
-                                    onClick = { showTopMenu = true },
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "More Options",
-                                        tint = AppTextColor()
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = showTopMenu,
-                                    onDismissRequest = { showTopMenu = false },
-                                    offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
-                                    modifier = Modifier.background(getDialogBackground())
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete Account", color = AccentPink, fontWeight = FontWeight.Medium) },
-                                        onClick = {
-                                            showTopMenu = false
-                                            showDeleteConfirm = true
+                            onBack = onDismiss,
+                        trailingContent = {
+                            FilledIconButton(
+                                onClick = {
+                                    if (accName.isNotBlank()) {
+                                        val bal = accBal.toDoubleOrNull() ?: 0.0
+                                        if (onSaveExtended != null) {
+                                            onSaveExtended(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName, notes, phoneNumber, whatsappNumber, email)
+                                        } else {
+                                            onSave(accName, bal, details, upiId, qrCodeUri, accountNumber, ifsc, branchName)
                                         }
-                                    )
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            if (prefLanguage == "bn") "অ্যাকাউন্টের নাম দিন" else "Enter Account Name",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .testTag("save_account_btn"),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = AppAccentColor(),
+                                    contentColor = AppOnAccentColor()
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Save",
+                                    tint = AppOnAccentColor()
+                                )
+                            }
+
+                            if (account != null && onDelete != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                var showTopMenu by remember { mutableStateOf(false) }
+                                Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
+                                    IconButton(
+                                        onClick = { showTopMenu = true },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More Options",
+                                            tint = AppTextColor()
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showTopMenu,
+                                        onDismissRequest = { showTopMenu = false },
+                                        offset = androidx.compose.ui.unit.DpOffset(x = (-12).dp, y = 4.dp),
+                                        modifier = Modifier.background(getDialogBackground())
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (prefLanguage == "bn") "মুছে ফেলুন" else "Delete Account", color = AccentPink, fontWeight = FontWeight.Medium) },
+                                            onClick = {
+                                                showTopMenu = false
+                                                showDeleteConfirm = true
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
+                    )
                     }
                 }
         ) { innerPadding ->
@@ -890,15 +848,14 @@ fun LegalInfoDialog(
             color = bgColor
         ) {
             Scaffold(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .dialogSystemBarsPadding(extraTop = 8.dp),
+                modifier = Modifier.fillMaxSize(),
                 containerColor = bgColor,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .dialogSafeTopPadding(extraTop = 4.dp)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

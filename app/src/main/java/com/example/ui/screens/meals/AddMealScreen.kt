@@ -23,6 +23,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.*
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
@@ -60,6 +62,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -114,6 +117,17 @@ fun AddMealFlowModal(
     var customMealText by remember { mutableStateOf("") }
     var customMealAmountStr by remember { mutableStateOf("") }
     var showCustomAmountKeyboard by remember { mutableStateOf(false) }
+    var useSystemKeyboardForCustom by remember { mutableStateOf(false) }
+    val customAmountInteractionSource = remember { MutableInteractionSource() }
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(customAmountInteractionSource, useSystemKeyboardForCustom) {
+        customAmountInteractionSource.interactions.collect { interaction ->
+            if (interaction is PressInteraction.Release && !useSystemKeyboardForCustom) {
+                softwareKeyboardController?.hide()
+                showCustomAmountKeyboard = true
+            }
+        }
+    }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
     val initialCommittedIds = remember { committedGroups.map { it.id } }
@@ -399,10 +413,14 @@ fun AddMealFlowModal(
                             }
                         }
                     ) { innerPadding ->
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(innerPadding)
+                        ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
                                 .padding(horizontal = 14.dp, vertical = 4.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
@@ -775,38 +793,42 @@ fun AddMealFlowModal(
                                     singleLine = true,
                                     modifier = Modifier.weight(1.3f)
                                 )
-                                Box(
+                                GlassTextField(
+                                    value = customMealAmountStr,
+                                    onValueChange = { newVal ->
+                                        if (newVal.all { c -> c.isDigit() || c == '.' || c == '+' || c == '-' || c == '×' || c == '÷' || c == '*' || c == '/' }) {
+                                            customMealAmountStr = newVal
+                                        }
+                                    },
+                                    readOnly = !useSystemKeyboardForCustom,
+                                    interactionSource = customAmountInteractionSource,
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = {
+                                                useSystemKeyboardForCustom = !useSystemKeyboardForCustom
+                                                if (!useSystemKeyboardForCustom) {
+                                                    softwareKeyboardController?.hide()
+                                                    showCustomAmountKeyboard = true
+                                                } else {
+                                                    showCustomAmountKeyboard = false
+                                                }
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (useSystemKeyboardForCustom) Icons.Default.Calculate else Icons.Default.Keyboard,
+                                                contentDescription = "Toggle Calculator",
+                                                tint = AppAccentColor(),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    },
+                                    label = { Text(if (isBengali) "পরিমাণ (₹)" else "Amount (₹)") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clickable { showCustomAmountKeyboard = true }
-                                ) {
-                                    GlassTextField(
-                                        value = customMealAmountStr,
-                                        onValueChange = { newVal ->
-                                            if (newVal.all { c -> c.isDigit() || c == '.' || c == '+' || c == '-' || c == '×' || c == '÷' || c == '*' || c == '/' }) {
-                                                customMealAmountStr = newVal
-                                            }
-                                            showCustomAmountKeyboard = true
-                                        },
-                                        label = { Text(if (isBengali) "পরিমাণ (₹)" else "Amount (₹)") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("custom_meal_amount_input")
-                                    )
-                                }
-                            }
-
-                            AnimatedVisibility(
-                                visible = showCustomAmountKeyboard,
-                                enter = expandVertically() + fadeIn(),
-                                exit = shrinkVertically() + fadeOut()
-                            ) {
-                                OnScreenCalculatorKeyboard(
-                                    value = customMealAmountStr,
-                                    onValueChange = { customMealAmountStr = it },
-                                    onEnter = { showCustomAmountKeyboard = false }
+                                        .testTag("custom_meal_amount_input")
                                 )
                             }
                         }
@@ -830,10 +852,27 @@ fun AddMealFlowModal(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(if (showCustomAmountKeyboard) 280.dp else 24.dp))
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // Docked Calculator Keyboard overlay above bottomBar (zero scroll relayout frame drops)
+                AnimatedVisibility(
+                    visible = showCustomAmountKeyboard,
+                    enter = if (isHeavyEffectsDisabled()) EnterTransition.None else slideInVertically { it } + fadeIn(),
+                    exit = if (isHeavyEffectsDisabled()) ExitTransition.None else slideOutVertically { it } + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    OnScreenCalculatorKeyboard(
+                        value = customMealAmountStr,
+                        onValueChange = { customMealAmountStr = it },
+                        onEnter = { showCustomAmountKeyboard = false }
+                    )
+                }
+                }
                         }
                     }
                 }

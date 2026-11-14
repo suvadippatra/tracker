@@ -1060,6 +1060,43 @@ class FinancialViewModel(
     private val _importUiFlowState = MutableStateFlow<ImportUiFlowState>(ImportUiFlowState.Idle)
     val importUiFlowState = _importUiFlowState.asStateFlow()
 
+    fun startQrSmartImportFlow(
+        payload: ByteArray,
+        key: ByteArray,
+        iv: ByteArray,
+        targetHotelId: Int? = null,
+        targetBankAccountId: Int? = null,
+        scannedPaymentQrUris: Map<String, String> = emptyMap(),
+        onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                _isAnalyzingImport.value = true
+                _importUiFlowState.value = ImportUiFlowState.Analyzing
+                val rawJson = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val decrypted = com.example.data.QrImportManager.decryptToJson(payload, key, iv)
+                    if (scannedPaymentQrUris.isNotEmpty()) {
+                        val db = com.example.data.AppDatabase.getDatabase(getApplication())
+                        com.example.data.DataTransferManager(db).injectScannedPaymentQrsIntoJson(decrypted, scannedPaymentQrUris)
+                    } else {
+                        decrypted
+                    }
+                }
+                startSmartImportFlow(
+                    payloadText = rawJson,
+                    targetHotelId = targetHotelId,
+                    targetBankAccountId = targetBankAccountId,
+                    onDirectComplete = onDirectComplete
+                )
+            } catch (e: Exception) {
+                _isAnalyzingImport.value = false
+                _importUiFlowState.value = ImportUiFlowState.Idle
+                e.printStackTrace()
+                onDirectComplete?.invoke(com.example.data.ImportOutcome.Error("QR decode failed: ${e.message}"))
+            }
+        }
+    }
+
     fun startSmartImportFlow(
         payloadText: String,
         targetHotelId: Int? = null,
@@ -1084,8 +1121,8 @@ class FinancialViewModel(
                 // Default all new menu items to accepted
                 _acceptedMenuItemKeys.value = analysis.pendingNewMenuItems.map { it.itemKey }.toSet()
 
-                // Default all conflicts to "Take Latest"
-                _conflictDecisions.value = syncEngine.autoResolveAllLatest(analysis.conflicts)
+                // Default all conflicts to Keep Local so existing data is never overwritten silently
+                _conflictDecisions.value = syncEngine.autoResolveAllLocal(analysis.conflicts)
 
                 // Initialize parent decisions if any
                 val initParentDecisions = mutableMapOf<String, com.example.utils.ParentResolution>()
@@ -1162,9 +1199,9 @@ class FinancialViewModel(
                 )
                 _syncAnalysis.value = updatedAnalysis
 
-                // Preserve or update conflict decisions
-                val latestConflictMap = syncEngine.autoResolveAllLatest(updatedAnalysis.conflicts)
-                val mergedConflicts = latestConflictMap.toMutableMap()
+                // Preserve or update conflict decisions (safe KEEP_LOCAL default for new conflicts)
+                val localDefaultMap = syncEngine.autoResolveAllLocal(updatedAnalysis.conflicts)
+                val mergedConflicts = localDefaultMap.toMutableMap()
                 _conflictDecisions.value.forEach { (k, v) ->
                     if (mergedConflicts.containsKey(k)) {
                         mergedConflicts[k] = v
@@ -1273,8 +1310,8 @@ class FinancialViewModel(
                 syncEngine.executeMergePlan(plan)
                 _importUiFlowState.value = ImportUiFlowState.Idle
                 clearSyncAnalysis()
-                val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.hotelPaymentsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size + plan.stickyNotesToInsert.size
-                val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
+                val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.hotelPaymentsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size + plan.stickyNotesToInsert.size + plan.electricityRatesToInsert.size
+                val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.ownerAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
                 val paidHotelMonths = plan.hotelPaymentsToInsert.size
                 val paidBills = plan.billsToInsert.count { it.isPaid } + plan.billsToUpdate.count { it.isPaid }
                 val paidReadings = plan.readingsToInsert.count { it.isPaid } + plan.readingsToUpdate.count { it.isPaid }
@@ -1582,7 +1619,9 @@ class FinancialViewModel(
         }
     }
     fun deleteVirtualAccount(account: com.example.data.model.BankAccountEntity) = viewModelScope.launch { repository.updateBankAccount(account.copy(isDeleted = true)) }
-    fun addMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch { repository.insertMenu(menu) }
+    fun addMenu(menu: com.example.data.model.MenuEntity, effectiveDateMillis: Long = System.currentTimeMillis()) = viewModelScope.launch {
+        repository.insertMenu(menu.copy(lastUpdatedMillis = effectiveDateMillis))
+    }
     fun updateMenu(menu: com.example.data.model.MenuEntity, effectiveDateMillis: Long = System.currentTimeMillis()) = viewModelScope.launch {
         val oldItem = allHotelMenus.value.find { it.id == menu.id } ?: allMenuItems.value.find { it.id == menu.id }
         if (oldItem != null) {
@@ -1617,6 +1656,9 @@ class FinancialViewModel(
     }
     fun deleteMenu(menu: com.example.data.model.MenuEntity) = viewModelScope.launch {
         repository.updateMenu(menu.copy(isDeleted = true, lastUpdatedMillis = System.currentTimeMillis()))
+    }
+    fun deleteMenuHistory(history: com.example.data.model.MenuModificationHistoryEntity) = viewModelScope.launch {
+        repository.deleteMenuHistory(history)
     }
     fun getHistoryForMenuItem(menuItemId: Int): Flow<List<com.example.data.model.MenuModificationHistoryEntity>> =
         repository.getHistoryForMenuItem(menuItemId)

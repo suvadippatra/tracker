@@ -193,178 +193,10 @@ fun QrExportStreamDialog(
         else -> "Recovery Packet (Round $currentRound/5)"
     }
 
-    @Composable
-    fun QrDisplayBox(modifier: Modifier = Modifier) {
-        val activeBitmap = if (stage == 0) currentBitmap else paymentBitmap
-        BoxWithConstraints(
-            modifier = modifier
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, _, zoom, _ ->
-                        qrZoomFactor = (qrZoomFactor * zoom).coerceIn(0.85f, 1.35f)
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            val maxAllowedSide = minOf(maxWidth, maxHeight)
-            val baseSide = minOf(maxWidth * 0.88f, maxHeight * 0.92f)
-            val zoomedSide = (baseSide * qrZoomFactor).coerceIn(baseSide * 0.85f, maxAllowedSide)
-            val innerPad = (12.dp * (1.35f - qrZoomFactor).coerceIn(0.15f, 1f))
-            Surface(
-                modifier = Modifier.size(zoomedSide),
-                shape = RoundedCornerShape(18.dp),
-                color = Color.White,
-                border = BorderStroke(
-                    width = if (stage == 1 && isShowingWarning) 2.5.dp else 1.5.dp,
-                    color = if (stage == 1 && isShowingWarning) Color(0xFFF59E0B) else getGlassBorder()
-                ),
-                shadowElevation = 2.dp
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPad),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (activeBitmap != null) {
-                        Image(
-                            bitmap = activeBitmap.asImageBitmap(),
-                            contentDescription = if (stage == 0) "QR Stream Frame" else "Payment QR Code",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit,
-                            filterQuality = FilterQuality.None
-                        )
-                    } else {
-                        CircularProgressIndicator(
-                            color = accentColor,
-                            strokeWidth = 3.dp,
-                            modifier = Modifier.size(40.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun PaymentStageControls(modifier: Modifier = Modifier) {
-        val item = currentPaymentItem ?: return
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = getCardBackground(),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (isShowingWarning) Color(0xFFF59E0B).copy(alpha = 0.7f) else getGlassBorder()
-            ),
-            modifier = modifier
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isShowingWarning) Icons.Default.Warning else Icons.Default.QrCode,
-                        contentDescription = null,
-                        tint = if (isShowingWarning) Color(0xFFF59E0B) else AccentGreen,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        text = if (isShowingWarning) {
-                            "Going to present Payment QR for ${item.entityType}: ${item.entityName}"
-                        } else {
-                            "Payment QR Active: ${item.entityType} • ${item.entityName}"
-                        },
-                        color = textColor,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            if (!isShowingWarning) {
-                                isShowingWarning = true
-                            } else if (paymentIndex > 0) {
-                                paymentIndex--
-                                isShowingWarning = true
-                            } else {
-                                stage = 0
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(44.dp).testTag("qr_payment_prev_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = when {
-                                !isShowingWarning -> "Warning"
-                                paymentIndex > 0 -> "Prev"
-                                else -> "Data QR"
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            if (isShowingWarning) {
-                                isShowingWarning = false
-                            } else if (paymentIndex < paymentQrs.lastIndex) {
-                                paymentIndex++
-                                isShowingWarning = true
-                            } else {
-                                onDismiss()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isShowingWarning) Color(0xFFF59E0B) else accentColor,
-                            contentColor = if (isShowingWarning) Color.Black else AppOnAccentColor(accentColor)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("qr_payment_next_btn")
-                    ) {
-                        Text(
-                            text = when {
-                                isShowingWarning -> "Present Payment QR"
-                                paymentIndex < paymentQrs.lastIndex -> "Next Warning"
-                                else -> "Done"
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-        }
+    val activeQrBitmap = if (stage == 0) currentBitmap else paymentBitmap
+    val warningBannerText = remember(exportData.skippedPaymentQrNames) {
+        if (exportData.skippedPaymentQrNames.isEmpty()) ""
+        else "Could not decode QR: ${exportData.skippedPaymentQrNames.joinToString(", ")}"
     }
 
     Dialog(
@@ -382,15 +214,14 @@ fun QrExportStreamDialog(
             color = surfaceBg
         ) {
             Scaffold(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .dialogSystemBarsPadding(extraTop = 4.dp),
+                modifier = Modifier.fillMaxSize(),
                 containerColor = surfaceBg,
                 contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .dialogSafeTopPadding(extraTop = 4.dp)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -420,6 +251,8 @@ fun QrExportStreamDialog(
                             color = textColor,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -471,7 +304,13 @@ fun QrExportStreamDialog(
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            QrDisplayBox(
+                            QrStreamDisplayBox(
+                                activeBitmap = activeQrBitmap,
+                                isPaymentStage = stage == 1,
+                                isShowingWarning = isShowingWarning,
+                                qrZoomFactor = qrZoomFactor,
+                                onZoomFactorChange = { qrZoomFactor = it },
+                                accentColor = accentColor,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
@@ -510,13 +349,60 @@ fun QrExportStreamDialog(
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
+                                        if (hasPaymentQrs && stage == 0) {
+                                            Text(
+                                                text = "${paymentQrs.size} Payment QR(s) attached",
+                                                color = AccentGreen,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        if (warningBannerText.isNotEmpty() && stage == 0) {
+                                            Text(
+                                                text = warningBannerText,
+                                                color = Color(0xFFF59E0B),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                if (stage == 1 && hasPaymentQrs) {
-                                    PaymentStageControls(modifier = Modifier.fillMaxWidth())
+                                if (stage == 1 && currentPaymentItem != null) {
+                                    QrPaymentStageControls(
+                                        item = currentPaymentItem,
+                                        isShowingWarning = isShowingWarning,
+                                        paymentIndex = paymentIndex,
+                                        totalPaymentQrs = paymentQrs.size,
+                                        accentColor = accentColor,
+                                        textColor = textColor,
+                                        onPrev = {
+                                            if (!isShowingWarning) {
+                                                isShowingWarning = true
+                                            } else if (paymentIndex > 0) {
+                                                paymentIndex--
+                                                isShowingWarning = true
+                                            } else {
+                                                stage = 0
+                                            }
+                                        },
+                                        onNext = {
+                                            if (isShowingWarning) {
+                                                isShowingWarning = false
+                                            } else if (paymentIndex < paymentQrs.lastIndex) {
+                                                paymentIndex++
+                                                isShowingWarning = true
+                                            } else {
+                                                onDismiss()
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 } else {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -643,56 +529,105 @@ fun QrExportStreamDialog(
                                 border = BorderStroke(1.dp, getGlassBorder()),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = displayItemName,
-                                            color = textColor,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        if (hasPaymentQrs && stage == 0) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "${paymentQrs.size} Payment QR(s) queued after stream",
+                                                text = displayItemName,
+                                                color = textColor,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (hasPaymentQrs && stage == 0) {
+                                                Text(
+                                                    text = "${paymentQrs.size} Payment QR(s) queued after stream",
+                                                    color = accentColor,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = accentColor.copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                text = frameLabel,
                                                 color = accentColor,
                                                 fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = accentColor.copy(alpha = 0.12f)
-                                    ) {
+                                    if (warningBannerText.isNotEmpty() && stage == 0) {
                                         Text(
-                                            text = frameLabel,
-                                            color = accentColor,
+                                            text = warningBannerText,
+                                            color = Color(0xFFF59E0B),
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
                             }
 
-                            QrDisplayBox(
+                            QrStreamDisplayBox(
+                                activeBitmap = activeQrBitmap,
+                                isPaymentStage = stage == 1,
+                                isShowingWarning = isShowingWarning,
+                                qrZoomFactor = qrZoomFactor,
+                                onZoomFactorChange = { qrZoomFactor = it },
+                                accentColor = accentColor,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                             )
 
-                            if (stage == 1 && hasPaymentQrs) {
-                                PaymentStageControls(modifier = Modifier.fillMaxWidth())
+                            if (stage == 1 && currentPaymentItem != null) {
+                                QrPaymentStageControls(
+                                    item = currentPaymentItem,
+                                    isShowingWarning = isShowingWarning,
+                                    paymentIndex = paymentIndex,
+                                    totalPaymentQrs = paymentQrs.size,
+                                    accentColor = accentColor,
+                                    textColor = textColor,
+                                    onPrev = {
+                                        if (!isShowingWarning) {
+                                            isShowingWarning = true
+                                        } else if (paymentIndex > 0) {
+                                            paymentIndex--
+                                            isShowingWarning = true
+                                        } else {
+                                            stage = 0
+                                        }
+                                    },
+                                    onNext = {
+                                        if (isShowingWarning) {
+                                            isShowingWarning = false
+                                        } else if (paymentIndex < paymentQrs.lastIndex) {
+                                            paymentIndex++
+                                            isShowingWarning = true
+                                        } else {
+                                            onDismiss()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             } else {
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
@@ -829,6 +764,181 @@ fun QrExportStreamDialog(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrStreamDisplayBox(
+    activeBitmap: Bitmap?,
+    isPaymentStage: Boolean,
+    isShowingWarning: Boolean,
+    qrZoomFactor: Float,
+    onZoomFactorChange: (Float) -> Unit,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val cachedImageBitmap = remember(activeBitmap) {
+        activeBitmap?.asImageBitmap()
+    }
+    BoxWithConstraints(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    onZoomFactorChange((qrZoomFactor * zoom).coerceIn(0.85f, 1.35f))
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        val maxAllowedSide = minOf(maxWidth, maxHeight)
+        val baseSide = minOf(maxWidth * 0.88f, maxHeight * 0.92f).coerceAtLeast(120.dp)
+        val zoomedSide = (baseSide * qrZoomFactor).coerceIn(baseSide * 0.85f, maxAllowedSide.coerceAtLeast(120.dp))
+        val innerPad = (12.dp * (1.35f - qrZoomFactor).coerceIn(0.15f, 1f))
+        Surface(
+            modifier = Modifier.size(zoomedSide),
+            shape = RoundedCornerShape(18.dp),
+            color = Color.White,
+            border = BorderStroke(
+                width = if (isPaymentStage && isShowingWarning) 2.5.dp else 1.5.dp,
+                color = if (isPaymentStage && isShowingWarning) Color(0xFFF59E0B) else getGlassBorder()
+            ),
+            shadowElevation = 2.dp
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPad),
+                contentAlignment = Alignment.Center
+            ) {
+                if (cachedImageBitmap != null) {
+                    Image(
+                        bitmap = cachedImageBitmap,
+                        contentDescription = if (!isPaymentStage) "QR Stream Frame" else "Payment QR Code",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                        filterQuality = FilterQuality.None
+                    )
+                } else {
+                    CircularProgressIndicator(
+                        color = accentColor,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrPaymentStageControls(
+    item: QrMediaCodec.PaymentQrTransferItem,
+    isShowingWarning: Boolean,
+    paymentIndex: Int,
+    totalPaymentQrs: Int,
+    accentColor: Color,
+    textColor: Color,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = getCardBackground(),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isShowingWarning) Color(0xFFF59E0B).copy(alpha = 0.7f) else getGlassBorder()
+        ),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isShowingWarning) Icons.Default.Warning else Icons.Default.QrCode,
+                    contentDescription = null,
+                    tint = if (isShowingWarning) Color(0xFFF59E0B) else AccentGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = if (isShowingWarning) {
+                        "Going to present Payment QR for ${item.entityType}: ${item.entityName}"
+                    } else {
+                        "Payment QR Active: ${item.entityType} • ${item.entityName}"
+                    },
+                    color = textColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onPrev,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(44.dp).testTag("qr_payment_prev_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = when {
+                            !isShowingWarning -> "Warning"
+                            paymentIndex > 0 -> "Prev"
+                            else -> "Data QR"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Button(
+                    onClick = onNext,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isShowingWarning) Color(0xFFF59E0B) else accentColor,
+                        contentColor = if (isShowingWarning) Color.Black else AppOnAccentColor(accentColor)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("qr_payment_next_btn")
+                ) {
+                    Text(
+                        text = when {
+                            isShowingWarning -> "Present Payment QR"
+                            paymentIndex < totalPaymentQrs - 1 -> "Next Warning"
+                            else -> "Done"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

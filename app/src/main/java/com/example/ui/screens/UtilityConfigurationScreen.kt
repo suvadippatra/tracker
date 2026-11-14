@@ -91,8 +91,7 @@ fun UtilityConfigurationScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(getAppBackgroundGradient(userProfile?.themeMode ?: "Auto", userProfile?.bgPreset ?: "Default"))
-                        .pointerInput(Unit) { detectTapGestures { } }
-                        .dialogSystemBarsPadding(extraTop = 8.dp),
+                        .pointerInput(Unit) { detectTapGestures { } },
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Scaffold(
@@ -100,40 +99,11 @@ fun UtilityConfigurationScreen(
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(getGlassIconButtonBg(), CircleShape)
-                                        .bounceClick()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronLeft,
-                                        contentDescription = "Back",
-                                        tint = AppTextColor(),
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (language == "bn") "ইউটিলিটি কনফিগারেশন" else "Utility Configuration",
-                                        color = AppTextColor(),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 20.sp
-                                    )
-                                    Text(
-                                        text = if (language == "bn") "বিদ্যুৎ চার্জ ও রেট পলিসি পরিচালনা করুন" else "Manage electricity rates & fixed service charges",
-                                        color = AppSecondaryTextColor(),
-                                        fontSize = 12.sp
-                                    )
-                                }
+                            Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
+                                com.example.ui.screens.settings.components.SettingsPageHeader(
+                                    title = if (language == "bn") "ইউটিলিটি কনফিগারেশন" else "Utility Configuration",
+                                    onBack = onDismiss
+                                )
                             }
                         }
                     ) { padding ->
@@ -143,7 +113,10 @@ fun UtilityConfigurationScreen(
                                 .padding(padding)
                                 .padding(horizontal = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(20.dp),
-                            contentPadding = PaddingValues(top = 12.dp, bottom = 40.dp)
+                            contentPadding = PaddingValues(
+                                top = 12.dp,
+                                bottom = 120.dp + rememberSplitScreenSafeBottomPadding()
+                            )
                         ) {
                             // Service Parameters
                             item {

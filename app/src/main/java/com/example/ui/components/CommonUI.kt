@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +53,7 @@ val LocalDisableHeavyEffects = compositionLocalOf { true }
 val LocalBoldTextEnabled = compositionLocalOf { false }
 val LocalStickyCardWidthPercent = compositionLocalOf { 80 }
 val LocalStickyPreviewLines = compositionLocalOf { 10 }
+val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
 @Composable
 fun isHeavyEffectsDisabled(): Boolean = LocalDisableHeavyEffects.current
@@ -452,7 +454,8 @@ fun GlassTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     enabled: Boolean = true,
     readOnly: Boolean = false,
-    isError: Boolean = false
+    isError: Boolean = false,
+    interactionSource: MutableInteractionSource? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLight = isAppLightMode()
@@ -522,6 +525,7 @@ fun GlassTextField(
             visualTransformation = visualTransformation,
             enabled = enabled,
             readOnly = readOnly,
+            interactionSource = interactionSource ?: remember { MutableInteractionSource() },
             cursorBrush = SolidColor(if (isLight) Color.Black else Color.White),
             decorationBox = { innerTextField ->
                 Row(
@@ -707,21 +711,28 @@ fun FullScreenQRPreviewDialog(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    val qrSide = minOf(maxWidth * 0.88f, maxHeight * 0.92f).coerceAtLeast(120.dp)
-                    Box(
-                        modifier = Modifier
-                            .size(qrSide)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White)
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
+                    val qrSide = remember(maxWidth, maxHeight) {
+                        minOf(maxWidth * 0.88f, maxHeight * 0.92f).coerceIn(140.dp, 520.dp)
+                    }
+                    Surface(
+                        modifier = Modifier.size(qrSide),
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White,
+                        shadowElevation = 2.dp
                     ) {
-                        coil.compose.AsyncImage(
-                            model = qrUri,
-                            contentDescription = "Full Screen QR Code",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            coil.compose.AsyncImage(
+                                model = qrUri,
+                                contentDescription = "Full Screen QR Code",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        }
                     }
                 }
 
@@ -1080,12 +1091,12 @@ fun OnScreenCalculatorKeyboard(
         listOf("0", "00", ".", "+")
     )
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isLight) Color(0xFFFFFFFF) else Color(0xFF111827),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
-        shadowElevation = 4.dp
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (isLight) Color(0xFFFFFFFF) else Color(0xFF111827))
+            .border(1.dp, accent.copy(alpha = 0.24f), RoundedCornerShape(18.dp))
     ) {
         Column(
             modifier = Modifier
@@ -1094,7 +1105,9 @@ fun OnScreenCalculatorKeyboard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Preview evaluated result if expression contains operators
-            val hasOperator = value.drop(1).any { it == '+' || it == '-' || it == '×' || it == '÷' || it == '*' || it == '/' }
+            val hasOperator = remember(value) {
+                value.drop(1).any { it == '+' || it == '-' || it == '×' || it == '÷' || it == '*' || it == '/' }
+            }
             if (hasOperator) {
                 val preview = remember(value) { evaluateCalculatorExpression(value) }
                 Row(
@@ -1127,23 +1140,22 @@ fun OnScreenCalculatorKeyboard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     rowKeys.forEach { keyLabel ->
-                        val isOp = keyLabel in listOf("+", "-", "×", "÷")
-                        Surface(
-                            onClick = { appendToken(keyLabel) },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isOp) opBg else keyBg,
+                        val isOp = keyLabel == "+" || keyLabel == "-" || keyLabel == "×" || keyLabel == "÷"
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isOp) opBg else keyBg)
+                                .clickable { appendToken(keyLabel) },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = keyLabel,
-                                    color = if (isOp) accent else textColor,
-                                    fontSize = if (isOp) 18.sp else 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Text(
+                                text = keyLabel,
+                                color = if (isOp) accent else textColor,
+                                fontSize = if (isOp) 18.sp else 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -1154,66 +1166,63 @@ fun OnScreenCalculatorKeyboard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    onClick = { onValueChange("") },
-                    shape = RoundedCornerShape(12.dp),
-                    color = AccentPink.copy(alpha = 0.14f),
+                Box(
                     modifier = Modifier
                         .weight(0.8f)
-                        .height(44.dp)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AccentPink.copy(alpha = 0.14f))
+                        .clickable { onValueChange("") },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "C",
-                            color = AccentPink,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = "C",
+                        color = AccentPink,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                Surface(
-                    onClick = {
-                        if (value.isNotEmpty()) {
-                            onValueChange(value.dropLast(1))
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = keyBg,
+                Box(
                     modifier = Modifier
                         .weight(1.2f)
-                        .height(44.dp)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(keyBg)
+                        .clickable {
+                            if (value.isNotEmpty()) {
+                                onValueChange(value.dropLast(1))
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Edit ⌫",
-                            color = textColor,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = "Edit ⌫",
+                        color = textColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                Surface(
-                    onClick = {
-                        val evaluated = evaluateCalculatorExpression(value)
-                        onValueChange(evaluated)
-                        onEnter(evaluated)
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = accent,
+                Box(
                     modifier = Modifier
                         .weight(2f)
-                        .height(44.dp)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(accent)
+                        .clickable {
+                            val evaluated = evaluateCalculatorExpression(value)
+                            onValueChange(evaluated)
+                            onEnter(evaluated)
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Enter ↵",
-                            color = AppOnAccentColor(accent),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
+                    Text(
+                        text = "Enter ↵",
+                        color = AppOnAccentColor(accent),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             }
         }
@@ -1388,4 +1397,466 @@ fun M3Chip(
         }
     }
 }
+
+data class PaymentInfoRowItem(
+    val label: String,
+    val value: String,
+    val copyable: Boolean = true
+)
+
+data class PaymentContactChip(
+    val label: String,
+    val value: String,
+    val isEmail: Boolean = false
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun MinimalistPaymentInfoDialog(
+    title: String,
+    subtitle: String? = null,
+    badgeLabel: String? = null,
+    qrUriString: String? = null,
+    upiId: String = "",
+    detailRows: List<PaymentInfoRowItem> = emptyList(),
+    contactChips: List<PaymentContactChip> = emptyList(),
+    financialSummaryText: String? = null,
+    notesText: String? = null,
+    emptyQrLabel: String = "No QR code attached",
+    onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+    onActionCopyToast: ((String) -> Unit)? = null
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val isLight = isAppLightMode()
+    val accent = AppAccentColor()
+    val qrList = remember(qrUriString) {
+        (qrUriString ?: "")
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+    }
+    var selectedQrIndex by remember(qrList) { androidx.compose.runtime.mutableIntStateOf(0) }
+    var fullScreenQrUri by remember { mutableStateOf<String?>(null) }
+
+    val copyWithFeedback: (String, String) -> Unit = { label, value ->
+        clipboard.setText(androidx.compose.ui.text.AnnotatedString(value))
+        if (onActionCopyToast != null) {
+            onActionCopyToast(label)
+        } else {
+            android.widget.Toast.makeText(context, "$label copied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        DialogEdgeToEdge()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) { onDismiss() }
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 460.dp)
+                    .heightIn(max = 680.dp)
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(24.dp),
+                color = getDialogBackground(),
+                tonalElevation = 6.dp,
+                shadowElevation = 12.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title.ifBlank { "Payment Details" },
+                                color = AppTextColor(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!subtitle.isNullOrBlank() || !badgeLabel.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (!subtitle.isNullOrBlank()) {
+                                        Text(
+                                            text = subtitle,
+                                            color = AppSecondaryTextColor(),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    if (!badgeLabel.isNullOrBlank()) {
+                                        Surface(
+                                            color = accent.copy(alpha = 0.14f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = badgeLabel,
+                                                color = accent,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(AppTextColor().copy(alpha = 0.08f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = AppTextColor(),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // QR Viewer Card
+                        if (qrList.isNotEmpty()) {
+                            val currentQrUri = qrList.getOrElse(selectedQrIndex.coerceIn(0, qrList.lastIndex)) { qrList.first() }
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                color = if (isLight) Color(0xFFF8FAFC) else Color(0xFF1E293B),
+                                border = BorderStroke(1.dp, accent.copy(alpha = 0.18f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    if (qrList.size > 1) {
+                                        LazyRowCompatQrSwitcher(
+                                            count = qrList.size,
+                                            selectedIndex = selectedQrIndex,
+                                            accent = accent,
+                                            onSelect = { selectedQrIndex = it }
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                    }
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(200.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable { fullScreenQrUri = currentQrUri },
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = Color.White,
+                                        shadowElevation = 2.dp
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            coil.compose.AsyncImage(
+                                                model = currentQrUri,
+                                                contentDescription = "Payment QR Code",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Tap QR to enlarge",
+                                        color = accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        } else {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = AppTextColor().copy(alpha = 0.05f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Inbox,
+                                        contentDescription = null,
+                                        tint = AppSecondaryTextColor(),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = emptyQrLabel,
+                                        color = AppSecondaryTextColor(),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Primary UPI row if provided separately
+                        val combinedRows = buildList {
+                            if (upiId.isNotBlank() && detailRows.none { it.label.equals("UPI ID", ignoreCase = true) }) {
+                                add(PaymentInfoRowItem("UPI ID", upiId, copyable = true))
+                            }
+                            addAll(detailRows.filter { it.value.isNotBlank() })
+                        }
+
+                        if (combinedRows.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = AppTextColor().copy(alpha = 0.04f)
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    combinedRows.forEachIndexed { idx, row ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(enabled = row.copyable) {
+                                                    copyWithFeedback(row.label, row.value)
+                                                }
+                                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = row.label,
+                                                    color = AppSecondaryTextColor(),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1
+                                                )
+                                                Spacer(modifier = Modifier.height(1.dp))
+                                                Text(
+                                                    text = row.value,
+                                                    color = AppTextColor(),
+                                                    fontSize = 13.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            if (row.copyable) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Copy",
+                                                    color = accent,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        if (idx < combinedRows.lastIndex) {
+                                            HorizontalDivider(
+                                                color = AppTextColor().copy(alpha = 0.07f),
+                                                modifier = Modifier.padding(horizontal = 14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Contact chips
+                        val visibleContacts = contactChips.filter { it.value.isNotBlank() }
+                        if (visibleContacts.isNotEmpty()) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                visibleContacts.forEach { contact ->
+                                    Surface(
+                                        modifier = Modifier.clickable {
+                                            copyWithFeedback(contact.label, contact.value)
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = accent.copy(alpha = 0.10f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${contact.label}: ",
+                                                color = accent,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = contact.value,
+                                                color = AppTextColor(),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Optional financial summary
+                        if (!financialSummaryText.isNullOrBlank()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = AccentCyan.copy(alpha = 0.10f)
+                            ) {
+                                Text(
+                                    text = financialSummaryText,
+                                    color = AppTextColor(),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
+                                )
+                            }
+                        }
+
+                        // Optional notes
+                        if (!notesText.isNullOrBlank()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = AppTextColor().copy(alpha = 0.04f)
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                                    Text(
+                                        text = "Notes",
+                                        color = AppSecondaryTextColor(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = notesText,
+                                        color = AppTextColor(),
+                                        fontSize = 12.5.sp,
+                                        lineHeight = 17.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Footer Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (onEdit != null) {
+                            M3OutlinedButton(
+                                onClick = onEdit,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Edit", maxLines = 1, softWrap = false, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        M3Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Close", maxLines = 1, softWrap = false, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (fullScreenQrUri != null) {
+        FullScreenQRPreviewDialog(
+            qrUri = fullScreenQrUri!!,
+            title = title,
+            upiId = upiId,
+            onDismiss = { fullScreenQrUri = null }
+        )
+    }
+}
+
+@Composable
+private fun LazyRowCompatQrSwitcher(
+    count: Int,
+    selectedIndex: Int,
+    accent: Color,
+    onSelect: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+    ) {
+        repeat(count) { idx ->
+            val selected = idx == selectedIndex
+            Surface(
+                modifier = Modifier.clickable { onSelect(idx) },
+                shape = RoundedCornerShape(14.dp),
+                color = if (selected) accent else AppTextColor().copy(alpha = 0.08f)
+            ) {
+                Text(
+                    text = "QR ${idx + 1}",
+                    color = if (selected) AppOnAccentColor(accent) else AppTextColor(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+}
+
 

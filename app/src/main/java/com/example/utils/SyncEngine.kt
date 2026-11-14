@@ -114,6 +114,36 @@ sealed class ConflictItem {
         val importedMenuItem: MenuEntity,
         val hotelName: String
     ) : ConflictItem()
+
+    data class HotelConflict(
+        override val conflictKey: String,
+        override val title: String,
+        override val subtitle: String,
+        override val timestamp: Long,
+        override val isImportedNewer: Boolean,
+        val localHotel: HotelEntity,
+        val importedHotel: HotelEntity
+    ) : ConflictItem()
+
+    data class BankAccountConflict(
+        override val conflictKey: String,
+        override val title: String,
+        override val subtitle: String,
+        override val timestamp: Long,
+        override val isImportedNewer: Boolean,
+        val localBankAccount: BankAccountEntity,
+        val importedBankAccount: BankAccountEntity
+    ) : ConflictItem()
+
+    data class OwnerAccountConflict(
+        override val conflictKey: String,
+        override val title: String,
+        override val subtitle: String,
+        override val timestamp: Long,
+        override val isImportedNewer: Boolean,
+        val localOwnerAccount: OwnerAccountEntity,
+        val importedOwnerAccount: OwnerAccountEntity
+    ) : ConflictItem()
 }
 
 data class ParsedImportPayload(
@@ -128,6 +158,7 @@ data class ParsedImportPayload(
     val ownerAccounts: List<OwnerAccountEntity> = emptyList(),
     val meterReadings: List<MeterReading> = emptyList(),
     val utilityBills: List<UtilityBill> = emptyList(),
+    val electricityRates: List<ElectricityRate> = emptyList(),
     val userProfile: UserProfileEntity? = null,
     val dataType: String = ""
 )
@@ -143,6 +174,7 @@ data class SyncAnalysisResult(
     val conflicts: List<ConflictItem> = emptyList(),
     val directNewHotels: List<HotelEntity> = emptyList(),
     val directNewBankAccounts: List<BankAccountEntity> = emptyList(),
+    val directNewOwnerAccounts: List<OwnerAccountEntity> = emptyList(),
     val directNewMenus: List<MenuEntity> = emptyList(),
     val directNewMeals: List<HotelTransactionEntity> = emptyList(),
     val directNewExpenses: List<ExtraExpenseEntity> = emptyList(),
@@ -150,6 +182,7 @@ data class SyncAnalysisResult(
     val directNewBills: List<UtilityBill> = emptyList(),
     val directNewHotelPayments: List<HotelPaymentEntity> = emptyList(),
     val directNewStickyNotes: List<StickyNoteEntity> = emptyList(),
+    val directNewElectricityRates: List<ElectricityRate> = emptyList(),
     val hasUnresolvedParents: Boolean = unmappedParents.isNotEmpty(),
     val hasPendingMenuItems: Boolean = pendingNewMenuItems.isNotEmpty(),
     val hasConflicts: Boolean = conflicts.isNotEmpty()
@@ -162,6 +195,7 @@ data class MergePlan(
     val bankAccountsToInsert: List<BankAccountEntity> = emptyList(),
     val bankAccountsToUpdate: List<BankAccountEntity> = emptyList(),
     val ownerAccountsToInsert: List<OwnerAccountEntity> = emptyList(),
+    val ownerAccountsToUpdate: List<OwnerAccountEntity> = emptyList(),
     val menusToInsert: List<MenuEntity> = emptyList(),
     val menusToUpdate: List<MenuEntity> = emptyList(),
     val mealsToInsert: List<HotelTransactionEntity> = emptyList(),
@@ -174,6 +208,7 @@ data class MergePlan(
     val billsToUpdate: List<UtilityBill> = emptyList(),
     val hotelPaymentsToInsert: List<HotelPaymentEntity> = emptyList(),
     val stickyNotesToInsert: List<StickyNoteEntity> = emptyList(),
+    val electricityRatesToInsert: List<ElectricityRate> = emptyList(),
     val userProfileToUpdate: UserProfileEntity? = null,
     val totalAffectedCount: Int = 0
 )
@@ -188,6 +223,7 @@ class SyncEngine(private val db: AppDatabase) {
     private val extraExpenseDao = db.extraExpenseDao()
     private val ownerAccountDao = db.ownerAccountDao()
     private val meterDao = db.meterDao()
+    private val stickyNoteDao = db.stickyNoteDao()
     private val userProfileDao = db.userProfileDao()
 
     companion object {
@@ -231,6 +267,7 @@ class SyncEngine(private val db: AppDatabase) {
         val ownerAccounts = mutableListOf<OwnerAccountEntity>()
         val meterReadings = mutableListOf<MeterReading>()
         val utilityBills = mutableListOf<UtilityBill>()
+        val electricityRates = mutableListOf<ElectricityRate>()
         var userProfile: UserProfileEntity? = null
 
         // 1. User Profile
@@ -549,10 +586,30 @@ class SyncEngine(private val db: AppDatabase) {
                         textAlignment = sObj.optString("textAlignment", sObj.optString("alignment", "START")),
                         colorIndex = sObj.optInt("colorIndex", 0),
                         sortOrder = sObj.optInt("sortOrder", i),
+                        attachmentsJson = sObj.optString("attachmentsJson", "[]").ifBlank { "[]" },
+                        tags = sObj.optString("tags", ""),
                         createdAt = sObj.optLong("createdAt", System.currentTimeMillis()),
                         updatedAt = sObj.optLong("updatedAt", sObj.optLong("lastUpdatedMillis", System.currentTimeMillis()))
                     )
                 )
+            }
+        }
+
+        // 15. Electricity Rates ("electricityRates")
+        if (root.has("electricityRates")) {
+            val rateArr = root.getJSONArray("electricityRates")
+            for (i in 0 until rateArr.length()) {
+                val rObj = rateArr.getJSONObject(i)
+                val rVal = rObj.optDouble("ratePerUnit", 0.0)
+                if (rVal > 0.0) {
+                    electricityRates.add(
+                        ElectricityRate(
+                            id = UUID.randomUUID().toString(),
+                            effectiveDate = rObj.optLong("effectiveDate", System.currentTimeMillis()),
+                            ratePerUnit = rVal
+                        )
+                    )
+                }
             }
         }
 
@@ -568,6 +625,7 @@ class SyncEngine(private val db: AppDatabase) {
             ownerAccounts = ownerAccounts,
             meterReadings = meterReadings,
             utilityBills = utilityBills,
+            electricityRates = electricityRates,
             userProfile = userProfile,
             dataType = root.optString("dataType", "IMPORT")
         )
@@ -623,16 +681,48 @@ class SyncEngine(private val db: AppDatabase) {
 
         val autoLinkedHotelIds = mutableMapOf<Int, Int>() // importedId -> localId
         val unmappedParents = mutableListOf<UnmappedParent>()
+        val parentConflicts = mutableListOf<ConflictItem>()
 
-        // 1. HOTEL MAPPING
+        // 1. HOTEL MAPPING & MISMATCH DETECTION
         if (payload.hotels.isNotEmpty()) {
             payload.hotels.forEach { impHotel ->
                 val normalizedImp = normalizeName(impHotel.name)
-                val exactMatch = localHotels.firstOrNull { normalizeName(it.name) == normalizedImp }
+                val impPhone = impHotel.phoneNumber.trim()
+                val impUpi = impHotel.upiId.trim().lowercase(Locale.ROOT)
+                val exactMatch = localHotels.firstOrNull { localH ->
+                    normalizeName(localH.name) == normalizedImp ||
+                        (impPhone.isNotBlank() && localH.phoneNumber.trim() == impPhone) ||
+                        (impUpi.isNotBlank() && localH.upiId.trim().lowercase(Locale.ROOT) == impUpi)
+                }
                 if (exactMatch != null) {
                     autoLinkedHotelIds[impHotel.id] = exactMatch.id
-                } else if (targetHotelId != null && payload.hotels.size == 1) {
-                    // Explicit target override provided (e.g. from screen context)
+                    val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
+                        exactMatch.location.trim() != impHotel.location.trim() ||
+                        exactMatch.phoneNumber.trim() != impPhone ||
+                        exactMatch.whatsappNumber.trim() != impHotel.whatsappNumber.trim() ||
+                        exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
+                        (impHotel.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impHotel.qrCodeUri) ||
+                        exactMatch.notes.trim() != impHotel.notes.trim() ||
+                        abs(exactMatch.advancedPayment - impHotel.advancedPayment) > 0.01
+                    if (hasMismatch) {
+                        val isNewer = impHotel.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
+                        parentConflicts.add(
+                            ConflictItem.HotelConflict(
+                                conflictKey = "hotel_${exactMatch.id}_${impHotel.id}",
+                                title = "Hotel: ${exactMatch.name}",
+                                subtitle = "Details or balance differ from local record",
+                                timestamp = impHotel.lastUpdatedMillis,
+                                isImportedNewer = isNewer,
+                                localHotel = exactMatch,
+                                importedHotel = impHotel.copy(
+                                    id = exactMatch.id,
+                                    qrCodeUri = impHotel.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
+                                    importedFrom = impHotel.importedFrom ?: exactMatch.importedFrom
+                                )
+                            )
+                        )
+                    }
+                } else if (targetHotelId != null && payload.hotels.size == 1 && localHotels.any { it.id == targetHotelId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedHotelIds[impHotel.id] = targetHotelId
                 } else {
                     unmappedParents.add(
@@ -654,18 +744,47 @@ class SyncEngine(private val db: AppDatabase) {
             autoLinkedHotelIds[1] = localHotels.first().id
         }
 
-        // 2. BANK ACCOUNT MAPPING
+        // 2. BANK ACCOUNT MAPPING & MISMATCH DETECTION
         val autoLinkedBankIds = mutableMapOf<Int, Int>()
         if (payload.bankAccounts.isNotEmpty()) {
             payload.bankAccounts.forEach { impAcc ->
                 val normalizedImp = normalizeName(impAcc.name)
-                val exactMatch = localBankAccounts.firstOrNull {
-                    normalizeName(it.name) == normalizedImp ||
-                            (it.accountNumber.isNotBlank() && it.accountNumber == impAcc.accountNumber)
+                val impAccNo = impAcc.accountNumber.trim()
+                val impUpi = impAcc.upiId.trim().lowercase(Locale.ROOT)
+                val exactMatch = localBankAccounts.firstOrNull { localB ->
+                    normalizeName(localB.name) == normalizedImp ||
+                        (impAccNo.isNotBlank() && localB.accountNumber.trim() == impAccNo) ||
+                        (impUpi.isNotBlank() && localB.upiId.trim().lowercase(Locale.ROOT) == impUpi)
                 }
                 if (exactMatch != null) {
                     autoLinkedBankIds[impAcc.id] = exactMatch.id
-                } else if (targetBankAccountId != null && payload.bankAccounts.size == 1) {
+                    val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
+                        exactMatch.accountNumber.trim() != impAccNo ||
+                        exactMatch.ifsc.trim().uppercase(Locale.ROOT) != impAcc.ifsc.trim().uppercase(Locale.ROOT) ||
+                        exactMatch.branchName.trim() != impAcc.branchName.trim() ||
+                        exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
+                        exactMatch.details.trim() != impAcc.details.trim() ||
+                        (impAcc.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impAcc.qrCodeUri) ||
+                        abs(exactMatch.balance - impAcc.balance) > 0.01
+                    if (hasMismatch) {
+                        val isNewer = impAcc.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
+                        parentConflicts.add(
+                            ConflictItem.BankAccountConflict(
+                                conflictKey = "bank_${exactMatch.id}_${impAcc.id}",
+                                title = "Bank: ${exactMatch.name}",
+                                subtitle = "Balance or bank details differ from local account",
+                                timestamp = impAcc.lastUpdatedMillis,
+                                isImportedNewer = isNewer,
+                                localBankAccount = exactMatch,
+                                importedBankAccount = impAcc.copy(
+                                    id = exactMatch.id,
+                                    qrCodeUri = impAcc.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
+                                    importedFrom = impAcc.importedFrom ?: exactMatch.importedFrom
+                                )
+                            )
+                        )
+                    }
+                } else if (targetBankAccountId != null && payload.bankAccounts.size == 1 && localBankAccounts.any { it.id == targetBankAccountId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedBankIds[impAcc.id] = targetBankAccountId
                 } else {
                     unmappedParents.add(
@@ -687,24 +806,56 @@ class SyncEngine(private val db: AppDatabase) {
             autoLinkedBankIds[1] = localBankAccounts.first().id
         }
 
-        // 3. OWNER ACCOUNT MAPPING
+        // 3. OWNER ACCOUNT MAPPING & MISMATCH DETECTION
         val autoLinkedOwnerIds = mutableMapOf<Int, Int>()
         payload.ownerAccounts.forEach { impOwner ->
-            val normalizedImp = normalizeName(impOwner.ownerName)
-            val exactMatch = localOwnerAccounts.firstOrNull {
-                normalizeName(it.ownerName) == normalizedImp ||
-                        (it.accountNumber.isNotBlank() && it.accountNumber == impOwner.accountNumber)
+            val normalizedOwner = normalizeName(impOwner.ownerName)
+            val normalizedAcc = normalizeName(impOwner.accountName)
+            val impAccNo = impOwner.accountNumber.trim()
+            val impUpi = impOwner.upiId.trim().lowercase(Locale.ROOT)
+            val exactMatch = localOwnerAccounts.firstOrNull { localO ->
+                (impAccNo.isNotBlank() && localO.accountNumber.trim() == impAccNo) ||
+                    (impUpi.isNotBlank() && localO.upiId.trim().lowercase(Locale.ROOT) == impUpi) ||
+                    (normalizedAcc.isNotBlank() && normalizeName(localO.accountName) == normalizedAcc && normalizeName(localO.ownerName) == normalizedOwner) ||
+                    (normalizedOwner.isNotBlank() && normalizeName(localO.ownerName) == normalizedOwner && localO.accountNumber.isBlank() && impAccNo.isBlank())
             }
             if (exactMatch != null) {
                 autoLinkedOwnerIds[impOwner.id] = exactMatch.id
+                val hasMismatch = normalizeName(exactMatch.ownerName) != normalizedOwner ||
+                    normalizeName(exactMatch.accountName) != normalizedAcc ||
+                    exactMatch.ownerMobile.trim() != impOwner.ownerMobile.trim() ||
+                    exactMatch.accountNumber.trim() != impAccNo ||
+                    exactMatch.ifscCode.trim().uppercase(Locale.ROOT) != impOwner.ifscCode.trim().uppercase(Locale.ROOT) ||
+                    exactMatch.branchName.trim() != impOwner.branchName.trim() ||
+                    exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
+                    exactMatch.details.trim() != impOwner.details.trim() ||
+                    (impOwner.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impOwner.qrCodeUri)
+                if (hasMismatch) {
+                    val isNewer = impOwner.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
+                    parentConflicts.add(
+                        ConflictItem.OwnerAccountConflict(
+                            conflictKey = "owner_${exactMatch.id}_${impOwner.id}",
+                            title = "Owner Account: ${exactMatch.accountName.ifBlank { exactMatch.ownerName }}",
+                            subtitle = "Owner profile account details differ",
+                            timestamp = impOwner.lastUpdatedMillis,
+                            isImportedNewer = isNewer,
+                            localOwnerAccount = exactMatch,
+                            importedOwnerAccount = impOwner.copy(
+                                id = exactMatch.id,
+                                qrCodeUri = impOwner.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
+                                importedFrom = impOwner.importedFrom ?: exactMatch.importedFrom
+                            )
+                        )
+                    )
+                }
             } else {
                 unmappedParents.add(
                     UnmappedParent(
                         entityKey = "owner_${impOwner.id}",
                         entityType = ParentEntityType.OWNER_ACCOUNT,
                         originalId = impOwner.id,
-                        importedName = impOwner.ownerName,
-                        importedSubtitle = listOfNotNull(impOwner.branchName.ifBlank { null }, impOwner.accountNumber.ifBlank { null }).joinToString(" • "),
+                        importedName = impOwner.accountName.ifBlank { impOwner.ownerName },
+                        importedSubtitle = listOfNotNull(impOwner.ownerName.ifBlank { null }, impOwner.branchName.ifBlank { null }, impOwner.accountNumber.ifBlank { null }).joinToString(" • "),
                         senderName = senderName,
                         rawOwnerAccount = impOwner
                     )
@@ -729,11 +880,10 @@ class SyncEngine(private val db: AppDatabase) {
 
                 val localExisting = hotelMenus.firstOrNull { localM ->
                     (impEnglish.isNotBlank() && normalizeName(localM.englishName) == impEnglish) ||
-                            (impBangla.isNotBlank() && normalizeName(localM.banglaName) == impBangla)
+                        (impBangla.isNotBlank() && normalizeName(localM.banglaName) == impBangla)
                 }
 
                 if (localExisting == null) {
-                    // New item for existing hotel -> Queue for user confirmation
                     pendingNewMenuItems.add(
                         PendingNewMenuItem(
                             itemKey = "menu_new_${mappedHotelId}_${impMenu.englishName}_${impMenu.banglaName}",
@@ -742,21 +892,32 @@ class SyncEngine(private val db: AppDatabase) {
                             menuItem = impMenu.copy(hotelId = mappedHotelId)
                         )
                     )
-                } else if (abs(localExisting.price - impMenu.price) > 0.01) {
-                    // Price changed -> conflict
-                    val isNewer = impMenu.lastUpdatedMillis >= localExisting.lastUpdatedMillis
-                    menuConflicts.add(
-                        ConflictItem.MenuItemConflict(
-                            conflictKey = "menu_price_${localExisting.id}_${impMenu.englishName}",
-                            title = "${impMenu.englishName.ifBlank { impMenu.banglaName }} (${hotelName})",
-                            subtitle = "Price mismatch: Local ₹${localExisting.price} vs Imported ₹${impMenu.price}",
-                            timestamp = impMenu.lastUpdatedMillis,
-                            isImportedNewer = isNewer,
-                            localMenuItem = localExisting,
-                            importedMenuItem = impMenu.copy(id = localExisting.id, hotelId = mappedHotelId),
-                            hotelName = hotelName
+                } else {
+                    val priceChanged = abs(localExisting.price - impMenu.price) > 0.01
+                    val flagsChanged = localExisting.isDayMenu != impMenu.isDayMenu ||
+                        localExisting.isNightMenu != impMenu.isNightMenu ||
+                        localExisting.isAddOn != impMenu.isAddOn ||
+                        normalizeName(localExisting.banglaName) != impBangla ||
+                        normalizeName(localExisting.englishName) != impEnglish
+                    if (priceChanged || flagsChanged) {
+                        val isNewer = impMenu.lastUpdatedMillis >= localExisting.lastUpdatedMillis
+                        menuConflicts.add(
+                            ConflictItem.MenuItemConflict(
+                                conflictKey = "menu_${localExisting.id}_${impMenu.englishName}_${impMenu.banglaName}",
+                                title = "${impMenu.englishName.ifBlank { impMenu.banglaName }} ($hotelName)",
+                                subtitle = if (priceChanged) {
+                                    "Price mismatch: Local ₹${localExisting.price} vs Incoming ₹${impMenu.price}"
+                                } else {
+                                    "Menu session/details differ from local item"
+                                },
+                                timestamp = impMenu.lastUpdatedMillis,
+                                isImportedNewer = isNewer,
+                                localMenuItem = localExisting,
+                                importedMenuItem = impMenu.copy(id = localExisting.id, hotelId = mappedHotelId),
+                                hotelName = hotelName
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -772,35 +933,35 @@ class SyncEngine(private val db: AppDatabase) {
                 val hotelName = hotelObj?.name ?: "Hotel #$mappedHotelId"
                 val impDayStart = startOfDay(impMeal.timestamp)
 
-                // Match: Hotel ID + Day + Session (isNight) + TotalAmount
                 val localMealMatch = localMeals.firstOrNull { localM ->
                     localM.hotelId == mappedHotelId &&
-                            localM.isNight == impMeal.isNight &&
-                            startOfDay(localM.timestamp) == impDayStart &&
-                            abs(localM.totalAmount - impMeal.totalAmount) < 0.01
+                        localM.isNight == impMeal.isNight &&
+                        startOfDay(localM.timestamp) == impDayStart
                 }
 
                 if (localMealMatch != null) {
-                    val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
-                    val timeDiff = abs(impMeal.timestamp - localMealMatch.timestamp)
-                    val isExact = timeDiff == 0L
-                    val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
-                    val sessionName = if (impMeal.isNight) "Night" else "Day"
+                    val isIdentical = abs(localMealMatch.totalAmount - impMeal.totalAmount) < 0.01 &&
+                        localMealMatch.itemsSerialized == impMeal.itemsSerialized
+                    if (!isIdentical) {
+                        val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
+                        val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
+                        val sessionName = if (impMeal.isNight) "Night" else "Day"
 
-                    mealConflicts.add(
-                        ConflictItem.MealConflict(
-                            conflictKey = "meal_${localMealMatch.id}_${impMeal.timestamp}",
-                            title = "$hotelName • $sessionName Session ($dateFormatted)",
-                            subtitle = "Total: ₹${impMeal.totalAmount}",
-                            timestamp = impMeal.timestamp,
-                            isImportedNewer = isNewer,
-                            localMeal = localMealMatch,
-                            importedMeal = impMeal.copy(hotelId = mappedHotelId),
-                            hotelName = hotelName,
-                            localItemsSummary = localMealMatch.itemsSerialized,
-                            importedItemsSummary = impMeal.itemsSerialized
+                        mealConflicts.add(
+                            ConflictItem.MealConflict(
+                                conflictKey = "meal_${localMealMatch.id}_${impMeal.timestamp}",
+                                title = "$hotelName • $sessionName Session ($dateFormatted)",
+                                subtitle = "Local ₹${localMealMatch.totalAmount} vs Incoming ₹${impMeal.totalAmount}",
+                                timestamp = impMeal.timestamp,
+                                isImportedNewer = isNewer,
+                                localMeal = localMealMatch,
+                                importedMeal = impMeal.copy(hotelId = mappedHotelId),
+                                hotelName = hotelName,
+                                localItemsSummary = localMealMatch.itemsSerialized,
+                                importedItemsSummary = impMeal.itemsSerialized
+                            )
                         )
-                    )
+                    }
                 } else {
                     directNewMeals.add(impMeal.copy(id = 0, hotelId = mappedHotelId))
                 }
@@ -817,32 +978,36 @@ class SyncEngine(private val db: AppDatabase) {
                 val accObj = localBankAccounts.firstOrNull { it.id == mappedBankId }
                 val accName = accObj?.name ?: "Account #$mappedBankId"
 
-                // Rule: AccountID + TransactionType (Debit/Credit) + Exact Amount + Window <= 5 mins (300,000 ms)
                 val localExpMatch = localExpenses.firstOrNull { localE ->
                     localE.bankAccountId == mappedBankId &&
-                            localE.type.equals(impExp.type, ignoreCase = true) &&
-                            abs(localE.amount - impExp.amount) < 0.01 &&
-                            abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
+                        localE.type.equals(impExp.type, ignoreCase = true) &&
+                        abs(localE.amount - impExp.amount) < 0.01 &&
+                        abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
                 }
 
                 if (localExpMatch != null) {
-                    val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
-                    val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
-                    val dateFormatted = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(impExp.timestamp))
+                    val isIdentical = normalizeName(localExpMatch.name) == normalizeName(impExp.name) &&
+                        normalizeName(localExpMatch.category) == normalizeName(impExp.category) &&
+                        localExpMatch.notes.trim() == impExp.notes.trim()
+                    if (!isIdentical) {
+                        val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
+                        val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
+                        val dateFormatted = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(impExp.timestamp))
 
-                    expenseConflicts.add(
-                        ConflictItem.TransactionConflict(
-                            conflictKey = "expense_${localExpMatch.id}_${impExp.timestamp}",
-                            title = "${impExp.name} (₹${impExp.amount})",
-                            subtitle = "$accName • $dateFormatted • Type: ${impExp.type}",
-                            timestamp = impExp.timestamp,
-                            isImportedNewer = isNewer,
-                            localExpense = localExpMatch,
-                            importedExpense = impExp.copy(bankAccountId = mappedBankId),
-                            timeDiffMinutes = diffMins,
-                            accountName = accName
+                        expenseConflicts.add(
+                            ConflictItem.TransactionConflict(
+                                conflictKey = "expense_${localExpMatch.id}_${impExp.timestamp}",
+                                title = "${impExp.name} (₹${impExp.amount})",
+                                subtitle = "$accName • $dateFormatted • Type: ${impExp.type}",
+                                timestamp = impExp.timestamp,
+                                isImportedNewer = isNewer,
+                                localExpense = localExpMatch,
+                                importedExpense = impExp.copy(bankAccountId = mappedBankId),
+                                timeDiffMinutes = diffMins,
+                                accountName = accName
+                            )
                         )
-                    )
+                    }
                 } else {
                     directNewExpenses.add(impExp.copy(id = 0, bankAccountId = mappedBankId))
                 }
@@ -856,31 +1021,36 @@ class SyncEngine(private val db: AppDatabase) {
         payload.meterReadings.forEach { impReading ->
             val impDayStart = startOfDay(impReading.readingDate)
             val match = localReadings.firstOrNull { localR ->
-                startOfDay(localR.readingDate) == impDayStart &&
-                        (abs(localR.totalReading - impReading.totalReading) < 0.01 ||
-                                abs(localR.unitsConsumed - impReading.unitsConsumed) < 0.01)
+                startOfDay(localR.readingDate) == impDayStart ||
+                    (abs(localR.totalReading - impReading.totalReading) < 0.01 &&
+                        abs(startOfDay(localR.readingDate) - impDayStart) <= 24L * 3600L * 1000L)
             }
 
             if (match != null) {
-                val isNewer = impReading.lastUpdatedMillis >= match.lastUpdatedMillis
-                val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impReading.readingDate))
-                readingConflicts.add(
-                    ConflictItem.MeterReadingConflict(
-                        conflictKey = "reading_${match.id}_${impReading.readingDate}",
-                        title = "Reading on $dateFormatted",
-                        subtitle = "Local: ${match.totalReading} kWh vs Imported: ${impReading.totalReading} kWh",
-                        timestamp = impReading.readingDate,
-                        isImportedNewer = isNewer,
-                        localReading = match,
-                        importedReading = impReading
+                val isIdentical = abs(match.totalReading - impReading.totalReading) < 0.01 &&
+                    abs(match.unitsConsumed - impReading.unitsConsumed) < 0.01 &&
+                    match.isPaid == impReading.isPaid
+                if (!isIdentical) {
+                    val isNewer = impReading.lastUpdatedMillis >= match.lastUpdatedMillis
+                    val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impReading.readingDate))
+                    readingConflicts.add(
+                        ConflictItem.MeterReadingConflict(
+                            conflictKey = "reading_${match.id}_${impReading.readingDate}",
+                            title = "Reading on $dateFormatted",
+                            subtitle = "Local: ${match.totalReading} kWh vs Imported: ${impReading.totalReading} kWh",
+                            timestamp = impReading.readingDate,
+                            isImportedNewer = isNewer,
+                            localReading = match,
+                            importedReading = impReading
+                        )
                     )
-                )
+                }
             } else {
                 directNewReadings.add(impReading.copy(id = UUID.randomUUID().toString()))
             }
         }
 
-        // 8. UTILITY BILLS
+        // 8. UTILITY BILLS (with PSID / Partial Payment diff detection)
         val billConflicts = mutableListOf<ConflictItem>()
         val directNewBills = mutableListOf<UtilityBill>()
 
@@ -890,39 +1060,70 @@ class SyncEngine(private val db: AppDatabase) {
 
             val match = localBills.firstOrNull { localB ->
                 startOfDay(localB.startDate) == impStartDay &&
-                        startOfDay(localB.endDate) == impEndDay &&
-                        abs(localB.calculatedAmount - impBill.calculatedAmount) < 0.01
+                    startOfDay(localB.endDate) == impEndDay
             }
 
             if (match != null) {
-                val isNewer = impBill.lastUpdatedMillis >= match.lastUpdatedMillis
-                val dateFmt = SimpleDateFormat("dd MMM", Locale.getDefault())
-                val rangeStr = "${dateFmt.format(Date(impBill.startDate))} - ${dateFmt.format(Date(impBill.endDate))}"
-                billConflicts.add(
-                    ConflictItem.UtilityBillConflict(
-                        conflictKey = "bill_${match.id}_${impBill.startDate}",
-                        title = "Electricity Bill ($rangeStr)",
-                        subtitle = "Amount: ₹${impBill.calculatedAmount} (${impBill.totalUnits} units)",
-                        timestamp = impBill.endDate,
-                        isImportedNewer = isNewer,
-                        localBill = match,
-                        importedBill = impBill
+                val isIdentical = abs(match.calculatedAmount - impBill.calculatedAmount) < 0.01 &&
+                    abs(match.totalUnits - impBill.totalUnits) < 0.01 &&
+                    match.isPaid == impBill.isPaid &&
+                    (match.transactionId ?: "") == (impBill.transactionId ?: "") &&
+                    match.note.trim() == impBill.note.trim()
+                if (!isIdentical) {
+                    val isNewer = impBill.lastUpdatedMillis >= match.lastUpdatedMillis
+                    val dateFmt = SimpleDateFormat("dd MMM", Locale.getDefault())
+                    val rangeStr = "${dateFmt.format(Date(impBill.startDate))} - ${dateFmt.format(Date(impBill.endDate))}"
+                    billConflicts.add(
+                        ConflictItem.UtilityBillConflict(
+                            conflictKey = "bill_${match.id}_${impBill.startDate}",
+                            title = "Electricity Bill ($rangeStr)",
+                            subtitle = "Amount: ₹${impBill.calculatedAmount} (${impBill.totalUnits} units)",
+                            timestamp = impBill.endDate,
+                            isImportedNewer = isNewer,
+                            localBill = match,
+                            importedBill = impBill
+                        )
                     )
-                )
+                }
             } else {
                 directNewBills.add(impBill.copy(id = UUID.randomUUID().toString()))
             }
         }
 
-        val directNewHotelPayments = payload.hotelPayments.map { pay ->
-            val mappedHotelId = autoLinkedHotelIds[pay.hotelId] ?: pay.hotelId
-            pay.copy(id = 0, hotelId = mappedHotelId)
-        }
-        val directNewStickyNotes = payload.stickyNotes.map { note ->
-            note.copy(id = 0, attachmentsJson = "[]")
+        val existingPayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
+        val directNewHotelPayments = payload.hotelPayments.mapNotNull { pay ->
+            val mappedHotelId = autoLinkedHotelIds[pay.hotelId] ?: return@mapNotNull null
+            val alreadyExists = existingPayments.any { existing ->
+                existing.hotelId == mappedHotelId && existing.year == pay.year && existing.month == pay.month &&
+                    abs(existing.amountPaid - pay.amountPaid) < 0.01 && existing.note.trim() == pay.note.trim()
+            }
+            if (alreadyExists) null else pay.copy(id = 0, hotelId = mappedHotelId)
         }
 
-        val allConflicts = (menuConflicts + mealConflicts + expenseConflicts + readingConflicts + billConflicts)
+        val localStickyNotes = stickyNoteDao.getAllStickyNotesSync().filter { !it.isDeleted }
+        val seenStickyKeys = localStickyNotes.mapTo(mutableSetOf()) {
+            "${normalizeName(it.title)}|${normalizeName(it.subtitle)}|${it.bodyText.trim()}"
+        }
+        val directNewStickyNotes = payload.stickyNotes.mapNotNull { note ->
+            val sig = "${normalizeName(note.title)}|${normalizeName(note.subtitle)}|${note.bodyText.trim()}"
+            if (seenStickyKeys.add(sig)) note.copy(id = 0) else null
+        }
+
+        val localRates = meterDao.getAllElectricityRatesSync().filter { !it.isDeleted }
+        val directNewRates = mutableListOf<ElectricityRate>()
+        payload.electricityRates.forEach { impRate ->
+            val impDay = startOfDay(impRate.effectiveDate)
+            val exists = localRates.any { local ->
+                startOfDay(local.effectiveDate) == impDay && abs(local.ratePerUnit - impRate.ratePerUnit) < 0.01
+            } || directNewRates.any { added ->
+                startOfDay(added.effectiveDate) == impDay && abs(added.ratePerUnit - impRate.ratePerUnit) < 0.01
+            }
+            if (!exists) {
+                directNewRates.add(impRate.copy(id = UUID.randomUUID().toString()))
+            }
+        }
+
+        val allConflicts = (parentConflicts + menuConflicts + mealConflicts + expenseConflicts + readingConflicts + billConflicts)
             .sortedByDescending { it.timestamp }
 
         SyncAnalysisResult(
@@ -936,13 +1137,15 @@ class SyncEngine(private val db: AppDatabase) {
             conflicts = allConflicts,
             directNewHotels = emptyList(),
             directNewBankAccounts = emptyList(),
+            directNewOwnerAccounts = emptyList(),
             directNewMenus = directNewMenus,
             directNewMeals = directNewMeals,
             directNewExpenses = directNewExpenses,
             directNewReadings = directNewReadings,
             directNewBills = directNewBills,
             directNewHotelPayments = directNewHotelPayments,
-            directNewStickyNotes = directNewStickyNotes
+            directNewStickyNotes = directNewStickyNotes,
+            directNewElectricityRates = directNewRates
         )
     }
 
@@ -1056,6 +1259,28 @@ class SyncEngine(private val db: AppDatabase) {
                             menuItem = impMenu.copy(hotelId = mappedHotelId)
                         )
                     )
+                } else {
+                    val priceChanged = abs(localExisting.price - impMenu.price) > 0.01
+                    val flagsChanged = localExisting.isDayMenu != impMenu.isDayMenu ||
+                        localExisting.isNightMenu != impMenu.isNightMenu ||
+                        localExisting.isAddOn != impMenu.isAddOn ||
+                        normalizeName(localExisting.banglaName) != impBangla ||
+                        normalizeName(localExisting.englishName) != impEnglish
+                    if (priceChanged || flagsChanged) {
+                        val isNewer = impMenu.lastUpdatedMillis >= localExisting.lastUpdatedMillis
+                        allConflicts.add(
+                            ConflictItem.MenuItemConflict(
+                                conflictKey = "menu_${localExisting.id}_${impMenu.englishName}_${impMenu.banglaName}",
+                                title = "${impMenu.englishName.ifBlank { impMenu.banglaName }} ($hotelName)",
+                                subtitle = if (priceChanged) "Price mismatch: Local ₹${localExisting.price} vs Incoming ₹${impMenu.price}" else "Menu session/details differ from local item",
+                                timestamp = impMenu.lastUpdatedMillis,
+                                isImportedNewer = isNewer,
+                                localMenuItem = localExisting,
+                                importedMenuItem = impMenu.copy(id = localExisting.id, hotelId = mappedHotelId),
+                                hotelName = hotelName
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -1063,7 +1288,6 @@ class SyncEngine(private val db: AppDatabase) {
         // Process Meals for newly decided hotels
         payload.transactions.forEach { impMeal ->
             if (newParentHotelIds.contains(impMeal.hotelId)) {
-                // BYPASS RULE: If parent is newly created, its meals are directly new!
                 directNewMeals.add(impMeal.copy(id = 0))
             } else if (finalHotelMap.containsKey(impMeal.hotelId) && !previousAnalysis.autoLinkedHotelIds.containsKey(impMeal.hotelId)) {
                 val mappedHotelId = finalHotelMap[impMeal.hotelId]!!
@@ -1073,30 +1297,33 @@ class SyncEngine(private val db: AppDatabase) {
 
                 val localMealMatch = localMeals.firstOrNull { localM ->
                     localM.hotelId == mappedHotelId &&
-                            localM.isNight == impMeal.isNight &&
-                            startOfDay(localM.timestamp) == impDayStart &&
-                            abs(localM.totalAmount - impMeal.totalAmount) < 0.01
+                        localM.isNight == impMeal.isNight &&
+                        startOfDay(localM.timestamp) == impDayStart
                 }
 
                 if (localMealMatch != null) {
-                    val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
-                    val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
-                    val sessionName = if (impMeal.isNight) "Night" else "Day"
+                    val isIdentical = abs(localMealMatch.totalAmount - impMeal.totalAmount) < 0.01 &&
+                        localMealMatch.itemsSerialized == impMeal.itemsSerialized
+                    if (!isIdentical) {
+                        val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
+                        val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
+                        val sessionName = if (impMeal.isNight) "Night" else "Day"
 
-                    allConflicts.add(
-                        ConflictItem.MealConflict(
-                            conflictKey = "meal_${localMealMatch.id}_${impMeal.timestamp}",
-                            title = "$hotelName • $sessionName Session ($dateFormatted)",
-                            subtitle = "Total: ₹${impMeal.totalAmount}",
-                            timestamp = impMeal.timestamp,
-                            isImportedNewer = isNewer,
-                            localMeal = localMealMatch,
-                            importedMeal = impMeal.copy(hotelId = mappedHotelId),
-                            hotelName = hotelName,
-                            localItemsSummary = localMealMatch.itemsSerialized,
-                            importedItemsSummary = impMeal.itemsSerialized
+                        allConflicts.add(
+                            ConflictItem.MealConflict(
+                                conflictKey = "meal_${localMealMatch.id}_${impMeal.timestamp}",
+                                title = "$hotelName • $sessionName Session ($dateFormatted)",
+                                subtitle = "Local ₹${localMealMatch.totalAmount} vs Incoming ₹${impMeal.totalAmount}",
+                                timestamp = impMeal.timestamp,
+                                isImportedNewer = isNewer,
+                                localMeal = localMealMatch,
+                                importedMeal = impMeal.copy(hotelId = mappedHotelId),
+                                hotelName = hotelName,
+                                localItemsSummary = localMealMatch.itemsSerialized,
+                                importedItemsSummary = impMeal.itemsSerialized
+                            )
                         )
-                    )
+                    }
                 } else {
                     directNewMeals.add(impMeal.copy(id = 0, hotelId = mappedHotelId))
                 }
@@ -1106,7 +1333,6 @@ class SyncEngine(private val db: AppDatabase) {
         // Process Expenses for newly decided accounts
         payload.expenses.forEach { impExp ->
             if (newParentBankIds.contains(impExp.bankAccountId)) {
-                // BYPASS RULE: If parent account is newly created, its expenses are 100% new!
                 directNewExpenses.add(impExp.copy(id = 0))
             } else if (finalBankMap.containsKey(impExp.bankAccountId) && !previousAnalysis.autoLinkedBankIds.containsKey(impExp.bankAccountId)) {
                 val mappedBankId = finalBankMap[impExp.bankAccountId]!!
@@ -1115,29 +1341,34 @@ class SyncEngine(private val db: AppDatabase) {
 
                 val localExpMatch = localExpenses.firstOrNull { localE ->
                     localE.bankAccountId == mappedBankId &&
-                            localE.type.equals(impExp.type, ignoreCase = true) &&
-                            abs(localE.amount - impExp.amount) < 0.01 &&
-                            abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
+                        localE.type.equals(impExp.type, ignoreCase = true) &&
+                        abs(localE.amount - impExp.amount) < 0.01 &&
+                        abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
                 }
 
                 if (localExpMatch != null) {
-                    val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
-                    val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
-                    val dateFormatted = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(impExp.timestamp))
+                    val isIdentical = normalizeName(localExpMatch.name) == normalizeName(impExp.name) &&
+                        normalizeName(localExpMatch.category) == normalizeName(impExp.category) &&
+                        localExpMatch.notes.trim() == impExp.notes.trim()
+                    if (!isIdentical) {
+                        val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
+                        val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
+                        val dateFormatted = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(impExp.timestamp))
 
-                    allConflicts.add(
-                        ConflictItem.TransactionConflict(
-                            conflictKey = "expense_${localExpMatch.id}_${impExp.timestamp}",
-                            title = "${impExp.name} (₹${impExp.amount})",
-                            subtitle = "$accName • $dateFormatted • Type: ${impExp.type}",
-                            timestamp = impExp.timestamp,
-                            isImportedNewer = isNewer,
-                            localExpense = localExpMatch,
-                            importedExpense = impExp.copy(bankAccountId = mappedBankId),
-                            timeDiffMinutes = diffMins,
-                            accountName = accName
+                        allConflicts.add(
+                            ConflictItem.TransactionConflict(
+                                conflictKey = "expense_${localExpMatch.id}_${impExp.timestamp}",
+                                title = "${impExp.name} (₹${impExp.amount})",
+                                subtitle = "$accName • $dateFormatted • Type: ${impExp.type}",
+                                timestamp = impExp.timestamp,
+                                isImportedNewer = isNewer,
+                                localExpense = localExpMatch,
+                                importedExpense = impExp.copy(bankAccountId = mappedBankId),
+                                timeDiffMinutes = diffMins,
+                                accountName = accName
+                            )
                         )
-                    )
+                    }
                 } else {
                     directNewExpenses.add(impExp.copy(id = 0, bankAccountId = mappedBankId))
                 }
@@ -1150,7 +1381,8 @@ class SyncEngine(private val db: AppDatabase) {
             if (!previousAnalysis.autoLinkedHotelIds.containsKey(impPay.hotelId) && finalHotelMap.containsKey(impPay.hotelId)) {
                 val mappedHotelId = finalHotelMap[impPay.hotelId]!!
                 val alreadyExists = existingPayments.any { existing ->
-                    existing.hotelId == mappedHotelId && existing.year == impPay.year && existing.month == impPay.month
+                    existing.hotelId == mappedHotelId && existing.year == impPay.year && existing.month == impPay.month &&
+                        abs(existing.amountPaid - impPay.amountPaid) < 0.01 && existing.note.trim() == impPay.note.trim()
                 }
                 if (!alreadyExists) {
                     updatedHotelPayments.add(impPay.copy(id = 0, hotelId = mappedHotelId))
@@ -1167,6 +1399,7 @@ class SyncEngine(private val db: AppDatabase) {
             conflicts = allConflicts.sortedByDescending { it.timestamp },
             directNewHotels = directNewHotels,
             directNewBankAccounts = directNewBankAccounts,
+            directNewOwnerAccounts = directNewOwnerAccounts,
             directNewMenus = directNewMenus,
             directNewMeals = directNewMeals,
             directNewExpenses = directNewExpenses,
@@ -1174,9 +1407,6 @@ class SyncEngine(private val db: AppDatabase) {
         )
     }
 
-    /**
-     * Pre-calculates resolution map for "Take All Latest".
-     */
     fun autoResolveAllLatest(conflicts: List<ConflictItem>): Map<String, ConflictResolution> {
         return conflicts.associate { conflict ->
             val choice = if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
@@ -1184,26 +1414,23 @@ class SyncEngine(private val db: AppDatabase) {
         }
     }
 
-    /**
-     * Pre-calculates resolution map for "Keep All Local".
-     */
     fun autoResolveAllLocal(conflicts: List<ConflictItem>): Map<String, ConflictResolution> {
         return conflicts.associate { conflict ->
             conflict.conflictKey to ConflictResolution.KEEP_LOCAL
         }
     }
 
-    /**
-     * Builds the final concrete MergePlan ready for Room transaction execution.
-     */
     fun buildFinalMergePlan(
         analysis: SyncAnalysisResult,
         acceptedMenuItemKeys: Set<String>,
         conflictResolutions: Map<String, ConflictResolution>
     ): MergePlan {
         val hotelsToInsert = analysis.directNewHotels.toMutableList()
+        val hotelsToUpdate = mutableListOf<HotelEntity>()
         val bankAccountsToInsert = analysis.directNewBankAccounts.toMutableList()
-        val ownerAccountsToInsert = mutableListOf<OwnerAccountEntity>()
+        val bankAccountsToUpdate = mutableListOf<BankAccountEntity>()
+        val ownerAccountsToInsert = analysis.directNewOwnerAccounts.toMutableList()
+        val ownerAccountsToUpdate = mutableListOf<OwnerAccountEntity>()
 
         val menusToInsert = analysis.directNewMenus.toMutableList()
         val menusToUpdate = mutableListOf<MenuEntity>()
@@ -1227,11 +1454,32 @@ class SyncEngine(private val db: AppDatabase) {
             }
         }
 
-        // 2. Resolve conflicts based on user decisions
+        // 2. Resolve conflicts based on user decisions (always preserve local data by default)
         analysis.conflicts.forEach { conflict ->
-            val decision = conflictResolutions[conflict.conflictKey] ?: if (conflict.isImportedNewer) ConflictResolution.TAKE_IMPORTED else ConflictResolution.KEEP_LOCAL
+            val decision = conflictResolutions[conflict.conflictKey] ?: ConflictResolution.KEEP_LOCAL
 
             when (conflict) {
+                is ConflictItem.HotelConflict -> {
+                    when (decision) {
+                        ConflictResolution.KEEP_LOCAL -> { /* Local kept */ }
+                        ConflictResolution.TAKE_IMPORTED -> hotelsToUpdate.add(conflict.importedHotel.copy(id = conflict.localHotel.id))
+                        ConflictResolution.KEEP_BOTH -> hotelsToInsert.add(conflict.importedHotel.copy(id = 0))
+                    }
+                }
+                is ConflictItem.BankAccountConflict -> {
+                    when (decision) {
+                        ConflictResolution.KEEP_LOCAL -> { /* Local kept */ }
+                        ConflictResolution.TAKE_IMPORTED -> bankAccountsToUpdate.add(conflict.importedBankAccount.copy(id = conflict.localBankAccount.id))
+                        ConflictResolution.KEEP_BOTH -> bankAccountsToInsert.add(conflict.importedBankAccount.copy(id = 0))
+                    }
+                }
+                is ConflictItem.OwnerAccountConflict -> {
+                    when (decision) {
+                        ConflictResolution.KEEP_LOCAL -> { /* Local kept */ }
+                        ConflictResolution.TAKE_IMPORTED -> ownerAccountsToUpdate.add(conflict.importedOwnerAccount.copy(id = conflict.localOwnerAccount.id))
+                        ConflictResolution.KEEP_BOTH -> ownerAccountsToInsert.add(conflict.importedOwnerAccount.copy(id = 0))
+                    }
+                }
                 is ConflictItem.TransactionConflict -> {
                     when (decision) {
                         ConflictResolution.KEEP_LOCAL -> { /* Do nothing, local is kept */ }
@@ -1292,20 +1540,35 @@ class SyncEngine(private val db: AppDatabase) {
 
         val hotelPaymentsToInsert = analysis.directNewHotelPayments
         val stickyNotesToInsert = analysis.directNewStickyNotes
+        val electricityRatesToInsert = analysis.directNewElectricityRates
 
-        val totalCount = hotelsToInsert.size + bankAccountsToInsert.size + ownerAccountsToInsert.size +
+        val totalCount = hotelsToInsert.size + hotelsToUpdate.size +
+                bankAccountsToInsert.size + bankAccountsToUpdate.size +
+                ownerAccountsToInsert.size + ownerAccountsToUpdate.size +
                 menusToInsert.size + menusToUpdate.size +
                 mealsToInsert.size + mealsToUpdate.size +
                 expensesToInsert.size + expensesToUpdate.size +
                 readingsToInsert.size + readingsToUpdate.size +
                 billsToInsert.size + billsToUpdate.size +
-                hotelPaymentsToInsert.size + stickyNotesToInsert.size
+                hotelPaymentsToInsert.size + stickyNotesToInsert.size +
+                electricityRatesToInsert.size
+
+        // Protect the receiver's local user profile & preferences during two-person sync;
+        // only update if the import is explicitly a Settings-only restore.
+        val safeProfileUpdate = if (analysis.payload.dataType == "SETTINGS") {
+            analysis.payload.userProfile
+        } else {
+            null
+        }
 
         return MergePlan(
             senderName = analysis.senderName,
             hotelsToInsert = hotelsToInsert,
+            hotelsToUpdate = hotelsToUpdate,
             bankAccountsToInsert = bankAccountsToInsert,
+            bankAccountsToUpdate = bankAccountsToUpdate,
             ownerAccountsToInsert = ownerAccountsToInsert,
+            ownerAccountsToUpdate = ownerAccountsToUpdate,
             menusToInsert = menusToInsert,
             menusToUpdate = menusToUpdate,
             mealsToInsert = mealsToInsert,
@@ -1318,7 +1581,8 @@ class SyncEngine(private val db: AppDatabase) {
             billsToUpdate = billsToUpdate,
             hotelPaymentsToInsert = hotelPaymentsToInsert,
             stickyNotesToInsert = stickyNotesToInsert,
-            userProfileToUpdate = analysis.payload.userProfile,
+            electricityRatesToInsert = electricityRatesToInsert,
+            userProfileToUpdate = safeProfileUpdate,
             totalAffectedCount = totalCount
         )
     }

@@ -50,9 +50,6 @@ import com.example.data.model.MenuEntity
 import com.example.data.model.OrderedItem
 import com.example.data.model.TransactionSerializer
 import com.example.ui.components.*
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -213,27 +210,10 @@ fun KhataScannerDialog(
 
     val processDecodedKhataBitmap: (Bitmap, String) -> Unit = { decodedBmp, sourceLabel ->
         scope.launch {
-            isProcessingImage = true
+            isProcessingImage = false
             errorMessage = null
-            scanSummaryStatus = null
-            try {
-                capturedBitmap = decodedBmp
-                val ocrResult = withContext(Dispatchers.Default) {
-                    runHybridKhataOcrDetailed(decodedBmp)
-                }
-                if (ocrResult.lines.isNotEmpty()) {
-                    extractedText = ocrResult.lines.joinToString("\n")
-                    scanSummaryStatus = "OCR detected ${ocrResult.lines.size} line(s) from $sourceLabel. Review or edit below."
-                } else {
-                    errorMessage = ocrResult.errorDetail?.let { err ->
-                        "OCR error on $sourceLabel ($err). Tap 'Paste / Google Lens Text' or type lines below."
-                    } ?: "Could not detect clear text from this $sourceLabel. You can tap 'Paste / Google Lens Text' or type the lines below."
-                }
-            } catch (e: Exception) {
-                errorMessage = "Failed to process $sourceLabel: ${e.localizedMessage}"
-            } finally {
-                isProcessingImage = false
-            }
+            capturedBitmap = decodedBmp
+            scanSummaryStatus = "Photo loaded ($sourceLabel). View image above for reference and type or paste Khata records below."
         }
     }
 
@@ -323,7 +303,6 @@ fun KhataScannerDialog(
             Scaffold(
                 modifier = Modifier
                     .fillMaxSize()
-                    .dialogSystemBarsPadding(extraTop = 8.dp)
                     .imePadding(),
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp),
@@ -331,6 +310,7 @@ fun KhataScannerDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .dialogSafeTopPadding(extraTop = 4.dp)
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -362,17 +342,6 @@ fun KhataScannerDialog(
                                     color = AppTextColor(),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Black,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = if (step == 1) {
-                                        "Offline English & Handwriting OCR • Full uncropped image preview"
-                                    } else {
-                                        "Compare Existing vs New dates & pick up to 4 menu combinations"
-                                    },
-                                    color = AppSecondaryTextColor(),
-                                    fontSize = 11.5.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -454,7 +423,6 @@ fun KhataScannerDialog(
                         }
 
                         if (step == 1) {
-                            // STEP 1: Stable Scrollable Layout (prevents any tablet recomposition/height flickering!)
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -462,24 +430,37 @@ fun KhataScannerDialog(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
+                                // 1. Khata Photo Reference Card
                                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = "1. Capture or Import Khata Photo (Offline English OCR)",
-                                            color = accent,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = "Capture or pick your handwritten English Khata page. The full image is shown below without 16:9 cropping so you can clearly read every row while editing.",
-                                            color = AppSecondaryTextColor(),
-                                            fontSize = 12.sp
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "1. Khata Photo (Reference)",
+                                                color = accent,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                            if (capturedBitmap != null) {
+                                                Text(
+                                                    text = "Remove Photo",
+                                                    color = Color(0xFFEF4444),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.clickable {
+                                                        capturedBitmap = null
+                                                        scanSummaryStatus = null
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
                                             Button(
                                                 onClick = {
@@ -495,7 +476,7 @@ fun KhataScannerDialog(
                                                 },
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(46.dp),
+                                                    .height(44.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = ButtonDefaults.buttonColors(
                                                     containerColor = accent,
@@ -514,7 +495,7 @@ fun KhataScannerDialog(
                                                 },
                                                 modifier = Modifier
                                                     .weight(1f)
-                                                    .height(46.dp),
+                                                    .height(44.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = ButtonDefaults.buttonColors(
                                                     containerColor = Color(0xFF10B981),
@@ -526,36 +507,6 @@ fun KhataScannerDialog(
                                                 Text("Pick Image", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        OutlinedButton(
-                                            onClick = {
-                                                val clipText = clipboardManager.getText()?.text.orEmpty()
-                                                if (clipText.isNotBlank()) {
-                                                    val repairedLines = clipText.lines()
-                                                        .map { normalizeMessyKhataOcrLine(it) }
-                                                        .filter { it.isNotBlank() }
-                                                    extractedText = repairedLines.joinToString("\n")
-                                                    errorMessage = null
-                                                    scanSummaryStatus = "Pasted & auto-repaired ${repairedLines.size} line(s) from Google Lens / Clipboard."
-                                                } else {
-                                                    Toast.makeText(context, "Clipboard is empty. Copy text from Google Lens first.", Toast.LENGTH_SHORT).show()
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(42.dp),
-                                            shape = RoundedCornerShape(12.dp),
-                                            border = BorderStroke(1.dp, accent.copy(alpha = 0.5f))
-                                        ) {
-                                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "Paste / Google Lens Text (Auto-Repair Handwritten OCR)",
-                                                color = AppTextColor(),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp
-                                            )
-                                        }
 
                                         if (isProcessingImage) {
                                             Spacer(modifier = Modifier.height(12.dp))
@@ -563,27 +514,23 @@ fun KhataScannerDialog(
                                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = accent, strokeWidth = 2.dp)
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Text(
-                                                    "Running offline English & handwriting OCR...",
+                                                    "Loading photo...",
                                                     color = AppSecondaryTextColor(),
                                                     fontSize = 12.sp
                                                 )
                                             }
                                         }
 
-                                        // Full Uncropped Image Preview (ContentScale.Fit, expandable to full screen)
+                                        // Full Uncropped Image Preview
                                         capturedBitmap?.let { bmp ->
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            val aspect = remember(bmp) {
-                                                (bmp.width.toFloat() / bmp.height.toFloat().coerceAtLeast(1f)).coerceIn(0.45f, 2.2f)
-                                            }
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .heightIn(min = 240.dp, max = 460.dp)
-                                                    .aspectRatio(aspect, matchHeightConstraintsFirst = false)
-                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .height(240.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
                                                     .background(if (isLight) Color(0xFFF1F5F9) else Color(0xFF0F172A))
-                                                    .border(1.dp, AppTextColor().copy(alpha = 0.14f), RoundedCornerShape(14.dp))
+                                                    .border(1.dp, AppTextColor().copy(alpha = 0.14f), RoundedCornerShape(12.dp))
                                                     .clickable { showFullBitmapModal = true },
                                                 contentAlignment = Alignment.Center
                                             ) {
@@ -593,10 +540,9 @@ fun KhataScannerDialog(
                                                     contentScale = ContentScale.Fit,
                                                     modifier = Modifier.fillMaxSize()
                                                 )
-                                                // Top-left Full Screen hint
                                                 Surface(
-                                                    color = Color.Black.copy(alpha = 0.62f),
-                                                    shape = RoundedCornerShape(bottomEnd = 12.dp),
+                                                    color = Color.Black.copy(alpha = 0.65f),
+                                                    shape = RoundedCornerShape(bottomEnd = 10.dp),
                                                     modifier = Modifier.align(Alignment.TopStart)
                                                 ) {
                                                     Row(
@@ -606,45 +552,7 @@ fun KhataScannerDialog(
                                                         Icon(Icons.Default.Search, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                                         Spacer(modifier = Modifier.width(4.dp))
                                                         Text(
-                                                            text = "Full Image (Tap to Zoom)",
-                                                            color = Color.White,
-                                                            fontSize = 10.5.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-                                                // Top-right Re-scan button
-                                                Surface(
-                                                    color = Color.Black.copy(alpha = 0.65f),
-                                                    shape = RoundedCornerShape(bottomStart = 12.dp),
-                                                    modifier = Modifier.align(Alignment.TopEnd)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .clickable {
-                                                                scope.launch {
-                                                                    isProcessingImage = true
-                                                                    errorMessage = null
-                                                                    val rescanOutcome = withContext(Dispatchers.Default) {
-                                                                        runHybridKhataOcrDetailed(bmp)
-                                                                    }
-                                                                    if (rescanOutcome.lines.isNotEmpty()) {
-                                                                        extractedText = rescanOutcome.lines.joinToString("\n")
-                                                                        scanSummaryStatus = "Re-scanned ${rescanOutcome.lines.size} line(s)."
-                                                                    } else {
-                                                                        errorMessage = rescanOutcome.errorDetail?.let { "Re-scan OCR error: $it" }
-                                                                            ?: "Could not detect clear text on re-scan."
-                                                                    }
-                                                                    isProcessingImage = false
-                                                                }
-                                                            }
-                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(Icons.Default.Refresh, contentDescription = "Rescan", tint = Color.White, modifier = Modifier.size(14.dp))
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(
-                                                            text = "Re-scan Image",
+                                                            text = "Tap to Zoom",
                                                             color = Color.White,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Bold
@@ -656,7 +564,7 @@ fun KhataScannerDialog(
                                     }
                                 }
 
-                                // Raw Data Editor Card
+                                // 2. Khata Records Text Card
                                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(
@@ -665,7 +573,7 @@ fun KhataScannerDialog(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "2. Extracted Khata Lines (Flexible Date & Price Format)",
+                                                text = "2. Khata Records",
                                                 color = accent,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp
@@ -680,12 +588,36 @@ fun KhataScannerDialog(
                                                 )
                                             }
                                         }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Supports full dates or day numbers with or without spaces, e.g.:\n9.10.26 - 60+50  •  11.10.26 - 40  •  13.10.26-20  •  31/10/26 40",
-                                            color = AppSecondaryTextColor(),
-                                            fontSize = 11.sp
-                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipText = clipboardManager.getText()?.text.orEmpty()
+                                                if (clipText.isNotBlank()) {
+                                                    val repairedLines = clipText.lines()
+                                                        .map { normalizeMessyKhataOcrLine(it) }
+                                                        .filter { it.isNotBlank() }
+                                                    extractedText = repairedLines.joinToString("\n")
+                                                    errorMessage = null
+                                                    scanSummaryStatus = "Pasted & formatted ${repairedLines.size} line(s) from clipboard."
+                                                } else {
+                                                    Toast.makeText(context, "Clipboard is empty. Copy text from Google Lens first.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(42.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            border = BorderStroke(1.dp, accent.copy(alpha = 0.5f))
+                                        ) {
+                                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Paste from Lens / Clipboard",
+                                                color = AppTextColor(),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
                                         Spacer(modifier = Modifier.height(10.dp))
                                         OutlinedTextField(
                                             value = extractedText,
@@ -698,7 +630,7 @@ fun KhataScannerDialog(
                                                 )
                                             },
                                             minLines = 6,
-                                            maxLines = 12,
+                                            maxLines = 10,
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(12.dp),
                                             colors = OutlinedTextFieldDefaults.colors(
@@ -712,47 +644,53 @@ fun KhataScannerDialog(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = {
-                                    if (hotels.isEmpty()) {
-                                        errorMessage = "Please create a Hotel first before matching Khata records."
-                                        return@Button
-                                    }
-                                    if (extractedText.isBlank()) {
-                                        errorMessage = "Please scan a Khata image or enter at least one Date - Price line."
-                                        return@Button
-                                    }
-                                    val parsed = buildEntriesFromRawText()
-                                    if (parsed.isEmpty()) {
-                                        errorMessage = "Could not find valid Date & Price numbers. Example: '9.10.26 - 60+50' or '11.10.26 - 40'."
-                                    } else {
-                                        errorMessage = null
-                                        // Sync targetMonth and targetYear to the first explicit date if present
-                                        parsed.firstOrNull { it.hasExplicitMonthYear }?.let { firstExplicit ->
-                                            targetMonth = firstExplicit.month
-                                            targetYear = firstExplicit.year
-                                        }
-                                        parsedEntries = parsed
-                                        step = 2
-                                    }
-                                },
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = accent,
-                                    contentColor = AppOnAccentColor(accent)
-                                )
+                                    .navigationBarsPadding(),
+                                color = Color.Transparent
                             ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Next: Check Captured Dates & Match Menu",
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 15.sp
-                                )
+                                Button(
+                                    onClick = {
+                                        if (hotels.isEmpty()) {
+                                            errorMessage = "Please create a Hotel first before matching Khata records."
+                                            return@Button
+                                        }
+                                        if (extractedText.isBlank()) {
+                                            errorMessage = "Please enter or paste at least one Date - Price line."
+                                            return@Button
+                                        }
+                                        val parsed = buildEntriesFromRawText()
+                                        if (parsed.isEmpty()) {
+                                            errorMessage = "Could not find valid Date & Price numbers. Example: '9.10.26 - 60+50' or '11.10.26 - 40'."
+                                        } else {
+                                            errorMessage = null
+                                            parsed.firstOrNull { it.hasExplicitMonthYear }?.let { firstExplicit ->
+                                                targetMonth = firstExplicit.month
+                                                targetYear = firstExplicit.year
+                                            }
+                                            parsedEntries = parsed
+                                            step = 2
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accent,
+                                        contentColor = AppOnAccentColor(accent)
+                                    )
+                                ) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Next: Check Captured Dates & Match Menu",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         } else {
                             // STEP 2: Target Hotel, Month Selection, Existing vs New Date Resolution, and Menu Combination Matching
@@ -1404,482 +1342,7 @@ private fun decodeSampledBitmapFromUri(
     return resizeBitmapSafely(oriented, reqMaxDim)
 }
 
-/**
- * Offline English + Handwriting Optical Row & Digit/Operator Recognizer:
- * - Adaptive integral-image local binarization with gentle notebook rule suppression (preserves vertical digit strokes).
- * - Segments handwritten or printed rows and extracts connected glyph boxes across full dates (`9.10.26 - 60+50`)
- *   as well as day-only rows (`17 - 60+40`).
- */
-private fun analyzeHandwrittenKhataBitmap(bitmap: Bitmap): List<String> {
-    val procBmp = resizeBitmapSafely(bitmap, 1360)
-    val w = procBmp.width
-    val h = procBmp.height
-    if (w < 60 || h < 60) return emptyList()
 
-    val pixels = IntArray(w * h)
-    procBmp.getPixels(pixels, 0, w, 0, 0, w, h)
-
-    val lum = IntArray(w * h)
-    for (i in pixels.indices) {
-        val c = pixels[i]
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
-        lum[i] = (r * 299 + g * 587 + b * 114) / 1000
-    }
-
-    val integral = LongArray((w + 1) * (h + 1))
-    for (y in 1..h) {
-        var rowSum = 0L
-        val srcOffset = (y - 1) * w
-        val intOffset = y * (w + 1)
-        val prevIntOffset = (y - 1) * (w + 1)
-        for (x in 1..w) {
-            rowSum += lum[srcOffset + x - 1]
-            integral[intOffset + x] = integral[prevIntOffset + x] + rowSum
-        }
-    }
-
-    val winR = max(14, min(w, h) / 22)
-    val ink = BooleanArray(w * h)
-    for (y in 0 until h) {
-        val y0 = max(0, y - winR)
-        val y1 = min(h - 1, y + winR)
-        for (x in 0 until w) {
-            val x0 = max(0, x - winR)
-            val x1 = min(w - 1, x + winR)
-            val area = (x1 - x0 + 1) * (y1 - y0 + 1)
-            val sum = integral[(y1 + 1) * (w + 1) + (x1 + 1)] -
-                integral[y0 * (w + 1) + (x1 + 1)] -
-                integral[(y1 + 1) * (w + 1) + x0] +
-                integral[y0 * (w + 1) + x0]
-            val mean = (sum / area).toInt()
-            ink[y * w + x] = lum[y * w + x] < (mean - 18)
-        }
-    }
-
-    // Suppress thin horizontal notebook lines ONLY where vertical stroke thickness is tiny, preserving digit strokes
-    val marginX = (w * 0.03f).toInt()
-    for (y in 2 until (h - 2)) {
-        var rowCount = 0
-        for (x in marginX until (w - marginX)) {
-            if (ink[y * w + x]) rowCount++
-        }
-        if (rowCount > (w - 2 * marginX) * 0.55f) {
-            for (x in 0 until w) {
-                val hasAbove = ink[(y - 2) * w + x]
-                val hasBelow = ink[(y + 2) * w + x]
-                if (!hasAbove && !hasBelow) {
-                    ink[y * w + x] = false
-                }
-            }
-        }
-    }
-
-    val rowInk = IntArray(h)
-    for (y in 0 until h) {
-        var cnt = 0
-        for (x in marginX until (w - marginX)) {
-            if (ink[y * w + x]) cnt++
-        }
-        rowInk[y] = cnt
-    }
-
-    val minRowInk = max(3, (w * 0.008f).toInt())
-    val minBandHeight = max(9, (h * 0.012f).toInt())
-    val maxBandHeight = max(32, (h * 0.16f).toInt())
-
-    val bands = mutableListOf<IntRange>()
-    var bandStart = -1
-    var gapCount = 0
-    for (y in 0 until h) {
-        if (rowInk[y] >= minRowInk) {
-            if (bandStart == -1) bandStart = y
-            gapCount = 0
-        } else if (bandStart != -1) {
-            gapCount++
-            if (gapCount >= 3) {
-                val bandEnd = y - gapCount
-                val bh = bandEnd - bandStart + 1
-                if (bh in minBandHeight..maxBandHeight) {
-                    bands.add(bandStart..bandEnd)
-                }
-                bandStart = -1
-                gapCount = 0
-            }
-        }
-    }
-    if (bandStart != -1) {
-        val bh = (h - 1) - bandStart + 1
-        if (bh in minBandHeight..maxBandHeight) {
-            bands.add(bandStart until h)
-        }
-    }
-
-    val results = mutableListOf<String>()
-
-    for (band in bands) {
-        val bh = band.last - band.first + 1
-        val colInk = IntArray(w)
-        for (x in marginX until (w - marginX)) {
-            var c = 0
-            for (y in band) {
-                if (ink[y * w + x]) c++
-            }
-            colInk[x] = c
-        }
-
-        val charSpans = mutableListOf<IntRange>()
-        var cStart = -1
-        var cGap = 0
-        val maxInternalGap = max(2, bh / 10)
-        for (x in marginX until (w - marginX)) {
-            if (colInk[x] >= 1) {
-                if (cStart == -1) cStart = x
-                cGap = 0
-            } else if (cStart != -1) {
-                cGap++
-                if (cGap > maxInternalGap) {
-                    val cEnd = x - cGap
-                    val cw = cEnd - cStart + 1
-                    if (cw >= 2) charSpans.add(cStart..cEnd)
-                    cStart = -1
-                    cGap = 0
-                }
-            }
-        }
-        if (cStart != -1) {
-            val cEnd = (w - marginX - 1)
-            if (cEnd - cStart + 1 >= 2) charSpans.add(cStart..cEnd)
-        }
-
-        if (charSpans.size < 2) continue
-
-        data class GlyphBox(val x0: Int, val y0: Int, val x1: Int, val y1: Int, val pixelCount: Int)
-        val boxes = mutableListOf<GlyphBox>()
-        for (span in charSpans) {
-            var yMin = band.last
-            var yMax = band.first
-            var pixelCount = 0
-            for (y in band) {
-                for (x in span) {
-                    if (ink[y * w + x]) {
-                        if (y < yMin) yMin = y
-                        if (y > yMax) yMax = y
-                        pixelCount++
-                    }
-                }
-            }
-            val gw = span.last - span.first + 1
-            val gh = yMax - yMin + 1
-            if (pixelCount >= 3 && gh >= 3 && gw <= bh * 2.4f) {
-                if (gw > gh * 1.45f && gw >= 16 && gh >= bh * 0.45f) {
-                    var minColX = (span.first + span.last) / 2
-                    var minColVal = Int.MAX_VALUE
-                    for (sx in (span.first + gw / 3)..(span.last - gw / 3)) {
-                        if (colInk[sx] < minColVal) {
-                            minColVal = colInk[sx]
-                            minColX = sx
-                        }
-                    }
-                    boxes.add(GlyphBox(span.first, yMin, minColX, yMax, pixelCount / 2))
-                    boxes.add(GlyphBox(minColX + 1, yMin, span.last, yMax, pixelCount / 2))
-                } else {
-                    boxes.add(GlyphBox(span.first, yMin, span.last, yMax, pixelCount))
-                }
-            }
-        }
-
-        if (boxes.size < 2) continue
-
-        // Classify all glyphs in the row first so we can locate '-' separator or widest gap
-        val chars = CharArray(boxes.size)
-        for (i in boxes.indices) {
-            val b = boxes[i]
-            chars[i] = classifyGlyph(ink, w, b.x0, b.y0, b.x1, b.y1, bh, band.first, band.last, allowOperators = true)
-        }
-
-        // Find explicit '-' separator or widest horizontal gap separating Date (left) and Prices (right)
-        var dashIdx = -1
-        for (i in 1 until min(boxes.size - 1, 10)) {
-            if (chars[i] == '-') {
-                dashIdx = i
-                break
-            }
-        }
-
-        val leftBoxes: List<GlyphBox>
-        val leftChars: List<Char>
-        val rightBoxes: List<GlyphBox>
-        val rightChars: List<Char>
-
-        if (dashIdx != -1) {
-            leftBoxes = boxes.subList(0, dashIdx)
-            leftChars = chars.take(dashIdx)
-            rightBoxes = boxes.subList(dashIdx + 1, boxes.size)
-            rightChars = chars.drop(dashIdx + 1)
-        } else {
-            var splitIndex = -1
-            var maxGapWidth = -1
-            val searchLimit = min(boxes.size - 1, 9)
-            for (i in 0 until searchLimit) {
-                val gap = boxes[i + 1].x0 - boxes[i].x1
-                if (gap > maxGapWidth) {
-                    maxGapWidth = gap
-                    splitIndex = i
-                }
-            }
-            if (splitIndex == -1) continue
-            leftBoxes = boxes.subList(0, splitIndex + 1)
-            leftChars = chars.take(splitIndex + 1)
-            rightBoxes = boxes.subList(splitIndex + 1, boxes.size)
-            rightChars = chars.drop(splitIndex + 1)
-        }
-
-        if (leftBoxes.isEmpty() || rightBoxes.isEmpty()) continue
-
-        // Reconstruct left date string (supports both "9.10.26" and "9")
-        val leftBuilder = StringBuilder()
-        for (i in leftBoxes.indices) {
-            val ch = leftChars[i]
-            if (ch in '0'..'9') {
-                leftBuilder.append(ch)
-            } else if (ch == '.' || ch == '-') {
-                if (leftBuilder.isNotEmpty() && leftBuilder.last() != '.') {
-                    leftBuilder.append('.')
-                }
-            }
-        }
-        val dateToken = leftBuilder.toString().trim('.')
-        if (dateToken.isEmpty()) continue
-
-        // Validate day part of dateToken
-        val dateParts = dateToken.split('.').filter { it.isNotEmpty() }
-        val dayNum = dateParts.firstOrNull()?.toIntOrNull()?.let { d ->
-            if (d > 31 && d >= 10) (d / 10).coerceIn(1, 31) else d
-        } ?: continue
-        if (dayNum !in 1..31) continue
-
-        val formattedDatePart = if (dateParts.size >= 3) {
-            val mNum = dateParts[1].toIntOrNull()?.coerceIn(1, 12) ?: 10
-            val yNum = dateParts[2].takeLast(2)
-            "$dayNum.$mNum.$yNum"
-        } else if (dateParts.size == 2) {
-            val mNum = dateParts[1].toIntOrNull()?.coerceIn(1, 12) ?: 10
-            "$dayNum.$mNum"
-        } else {
-            "$dayNum"
-        }
-
-        // Reconstruct right prices string (supports "60+50", "40", etc.)
-        val rightTokens = StringBuilder()
-        var prevX1 = rightBoxes.first().x0
-        for (idx in rightBoxes.indices) {
-            val b = rightBoxes[idx]
-            val gap = b.x0 - prevX1
-            prevX1 = b.x1
-            val ch = rightChars[idx]
-            if (ch == '-' || ch == '.') continue
-            if (ch == '+') {
-                if (rightTokens.isNotEmpty() && rightTokens.last() != '+') {
-                    rightTokens.append('+')
-                }
-            } else if (ch in '0'..'9') {
-                if (idx > 0 && gap > bh * 0.75f && rightTokens.isNotEmpty() && rightTokens.last() != '+') {
-                    rightTokens.append('+')
-                }
-                rightTokens.append(ch)
-            }
-        }
-
-        val cleanedPrices = rightTokens.toString()
-            .split('+')
-            .mapNotNull { it.trim().toIntOrNull() }
-            .filter { it in 5..2500 }
-
-        if (cleanedPrices.isNotEmpty()) {
-            results.add("$formattedDatePart - ${cleanedPrices.joinToString("+")}")
-        }
-    }
-
-    return results
-}
-
-private fun classifyGlyph(
-    ink: BooleanArray,
-    stride: Int,
-    x0: Int,
-    y0: Int,
-    x1: Int,
-    y1: Int,
-    bandHeight: Int,
-    bandY0: Int,
-    bandY1: Int,
-    allowOperators: Boolean
-): Char {
-    val gw = (x1 - x0 + 1).coerceAtLeast(1)
-    val gh = (y1 - y0 + 1).coerceAtLeast(1)
-    val aspect = gw.toFloat() / gh.toFloat()
-
-    // Small low dot '.' in dates like 9.10.26
-    if (allowOperators && gh <= bandHeight * 0.36f && gw <= bandHeight * 0.36f && y0 >= bandY0 + bandHeight * 0.45f) {
-        return '.'
-    }
-
-    // Horizontal dash '-'
-    if (allowOperators && gh <= bandHeight * 0.36f && aspect >= 1.35f) {
-        return '-'
-    }
-
-    val z = FloatArray(9)
-    var totalInk = 0
-    for (y in y0..y1) {
-        val zy = (((y - y0) * 3) / gh).coerceIn(0, 2)
-        for (x in x0..x1) {
-            if (ink[y * stride + x]) {
-                val zx = (((x - x0) * 3) / gw).coerceIn(0, 2)
-                z[zy * 3 + zx] += 1f
-                totalInk++
-            }
-        }
-    }
-    val cellArea = (gw * gh / 9f).coerceAtLeast(1f)
-    for (i in 0..8) z[i] = (z[i] / cellArea).coerceIn(0f, 1f)
-    val fillRatio = totalInk.toFloat() / (gw * gh).toFloat()
-
-    if (allowOperators && gh <= bandHeight * 0.82f && aspect in 0.60f..1.50f) {
-        val crossSum = z[1] + z[3] + z[4] + z[5] + z[7]
-        val cornerSum = z[0] + z[2] + z[6] + z[8]
-        if (z[4] > 0.32f && crossSum > cornerSum * 1.95f) {
-            return '+'
-        }
-    }
-
-    if (aspect < 0.45f || (gw <= 6 && gh >= 10)) {
-        return '1'
-    }
-
-    val holes = countEnclosedHoles(ink, stride, x0, y0, x1, y1)
-
-    if (holes >= 2) return '8'
-
-    if (holes == 1) {
-        val topInk = z[0] + z[1] + z[2]
-        val botInk = z[6] + z[7] + z[8]
-        val midCenter = z[4]
-        return when {
-            midCenter < 0.24f && abs(topInk - botInk) < 0.48f -> '0'
-            topInk > botInk + 0.22f -> '9'
-            botInk > topInk + 0.22f -> '6'
-            else -> '0'
-        }
-    }
-
-    val topBar = (z[0] + z[1] + z[2]) / 3f
-    val botBar = (z[6] + z[7] + z[8]) / 3f
-    val leftTop = z[0] + z[3]
-    val rightTop = z[2] + z[5]
-    val leftBot = z[3] + z[6]
-    val rightBot = z[5] + z[8]
-
-    return when {
-        topBar > 0.34f && botBar < 0.28f && z[3] < 0.24f -> '7'
-        z[3] + z[4] + z[5] > 1.02f && botBar < 0.34f && z[0] > 0.22f -> '4'
-        leftTop > rightTop + 0.16f && rightBot > leftBot -> '5'
-        rightTop > leftTop && leftBot > rightBot * 0.82f && botBar > 0.32f -> '2'
-        (rightTop + rightBot) > (leftTop + leftBot) * 1.22f -> '3'
-        fillRatio < 0.32f -> '0'
-        else -> '5'
-    }
-}
-
-private fun countEnclosedHoles(
-    ink: BooleanArray,
-    stride: Int,
-    x0: Int,
-    y0: Int,
-    x1: Int,
-    y1: Int
-): Int {
-    val gw = x1 - x0 + 1
-    val gh = y1 - y0 + 1
-    if (gw < 5 || gh < 7) return 0
-
-    val pw = gw + 2
-    val ph = gh + 2
-    val visited = BooleanArray(pw * ph)
-    for (py in 1..gh) {
-        val sy = y0 + py - 1
-        for (px in 1..gw) {
-            val sx = x0 + px - 1
-            if (ink[sy * stride + sx]) {
-                visited[py * pw + px] = true
-            }
-        }
-    }
-
-    val queue = IntArray(pw * ph)
-    var head = 0
-    var tail = 0
-    visited[0] = true
-    queue[tail++] = 0
-
-    val dx = intArrayOf(1, -1, 0, 0)
-    val dy = intArrayOf(0, 0, 1, -1)
-
-    while (head < tail) {
-        val curr = queue[head++]
-        val cx = curr % pw
-        val cy = curr / pw
-        for (d in 0..3) {
-            val nx = cx + dx[d]
-            val ny = cy + dy[d]
-            if (nx in 0 until pw && ny in 0 until ph) {
-                val nIdx = ny * pw + nx
-                if (!visited[nIdx]) {
-                    visited[nIdx] = true
-                    queue[tail++] = nIdx
-                }
-            }
-        }
-    }
-
-    var holes = 0
-    val minHolePixels = max(2, (gw * gh) / 36)
-    for (py in 1..gh) {
-        for (px in 1..gw) {
-            val startIdx = py * pw + px
-            if (!visited[startIdx]) {
-                var compSize = 0
-                head = 0
-                tail = 0
-                visited[startIdx] = true
-                queue[tail++] = startIdx
-                while (head < tail) {
-                    val curr = queue[head++]
-                    compSize++
-                    val cx = curr % pw
-                    val cy = curr / pw
-                    for (d in 0..3) {
-                        val nx = cx + dx[d]
-                        val ny = cy + dy[d]
-                        if (nx in 1..gw && ny in 1..gh) {
-                            val nIdx = ny * pw + nx
-                            if (!visited[nIdx]) {
-                                visited[nIdx] = true
-                                queue[tail++] = nIdx
-                            }
-                        }
-                    }
-                }
-                if (compSize >= minHolePixels) {
-                    holes++
-                }
-            }
-        }
-    }
-    return holes
-}
 
 /**
  * Super-flexible parser for Khata lines:
@@ -1893,219 +1356,7 @@ private fun countEnclosedHoles(
  * - `9-10-26 : 60 + 50` (hyphen date)
  * - `17 - 60+40` or `17 60+40` or `17-60+40` (day only)
  */
-/**
- * Runs Google ML Kit on-device Text Recognition first, repairs handwritten OCR errors via
- * [normalizeMessyKhataOcrLine], and falls back to [analyzeHandwrittenKhataBitmap] if needed.
- */
-private data class OcrScanOutcome(
-    val lines: List<String>,
-    val errorDetail: String? = null
-)
 
-private fun prepareBitmapForMlKit(source: Bitmap): Bitmap {
-    val safeBmp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-        source.config == Bitmap.Config.HARDWARE
-    ) {
-        source.copy(Bitmap.Config.ARGB_8888, false)
-    } else if (source.config != Bitmap.Config.ARGB_8888) {
-        source.copy(Bitmap.Config.ARGB_8888, false)
-    } else {
-        source
-    }
-
-    val minDim = min(safeBmp.width, safeBmp.height).coerceAtLeast(1)
-    val maxDim = max(safeBmp.width, safeBmp.height).coerceAtLeast(1)
-    val scaled = when {
-        minDim < 720 -> {
-            val scale = (720f / minDim.toFloat()).coerceAtMost(1800f / maxDim.toFloat()).coerceAtLeast(1f)
-            if (scale > 1.05f) {
-                val tw = (safeBmp.width * scale).roundToInt().coerceAtLeast(1)
-                val th = (safeBmp.height * scale).roundToInt().coerceAtLeast(1)
-                Bitmap.createScaledBitmap(safeBmp, tw, th, true)
-            } else safeBmp
-        }
-        maxDim > 1800 -> resizeBitmapSafely(safeBmp, 1800)
-        else -> safeBmp
-    }
-
-    // Flatten onto crisp white canvas so transparent PNG screenshots still have high contrast for OCR
-    val out = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(out)
-    canvas.drawColor(android.graphics.Color.WHITE)
-    canvas.drawBitmap(scaled, 0f, 0f, null)
-    if (scaled !== safeBmp && scaled !== source) scaled.recycle()
-    if (safeBmp !== source) safeBmp.recycle()
-    return out
-}
-
-private fun enhanceBitmapContrastForOcr(source: Bitmap): Bitmap {
-    val w = source.width
-    val h = source.height
-    val pixels = IntArray(w * h)
-    source.getPixels(pixels, 0, w, 0, 0, w, h)
-    for (i in pixels.indices) {
-        val c = pixels[i]
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
-        val lum = (r * 299 + g * 587 + b * 114) / 1000
-        // Stretch contrast around midpoint 165 so blue/black ink stands out crisply against ruled paper
-        val stretched = when {
-            lum < 145 -> (lum * 0.45f).toInt().coerceIn(0, 255)
-            lum > 185 -> 255
-            else -> ((lum - 145) * 4 + 65).coerceIn(0, 255)
-        }
-        pixels[i] = (0xFF shl 24) or (stretched shl 16) or (stretched shl 8) or stretched
-    }
-    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-    out.setPixels(pixels, 0, w, 0, 0, w, h)
-    return out
-}
-
-private fun isLikelyKhataNumericRow(line: String): Boolean {
-    val t = line.trim()
-    if (t.isEmpty()) return false
-    val digitCount = t.count { it.isDigit() }
-    val letterCount = t.count { it.isLetter() }
-    return digitCount >= 2 && (letterCount <= 4 || Regex("""^\s*(?:[HhTt]1|\d{1,2})[./\-oO0fFpP]""").containsMatchIn(t))
-}
-
-private suspend fun runSingleMlKitPass(bitmap: Bitmap, rotationDegrees: Int): OcrScanOutcome {
-    return runCatching {
-        suspendCancellableCoroutine<OcrScanOutcome> { cont ->
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            val image = InputImage.fromBitmap(bitmap, rotationDegrees)
-            recognizer.process(image)
-                .addOnSuccessListener { visionText ->
-                    val rawVisualLines = visionText.textBlocks
-                        .flatMap { it.lines }
-                        .sortedBy { it.boundingBox?.top ?: 0 }
-                        .map { it.text.trim() }
-                        .filter { it.isNotEmpty() }
-
-                    val visualElements = visionText.textBlocks
-                        .flatMap { it.lines }
-                        .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
-
-                    val mergedRows = mutableListOf<String>()
-                    var currentTop = -1000
-                    var currentHeight = 40
-                    val currentRowParts = mutableListOf<Pair<Int, String>>()
-
-                    for (line in visualElements) {
-                        val box = line.boundingBox
-                        val top = box?.top ?: 0
-                        val left = box?.left ?: 0
-                        val height = (box?.height() ?: 40).coerceAtLeast(20)
-                        if (currentRowParts.isEmpty() || abs(top - currentTop) <= (max(currentHeight, height) * 0.55f)) {
-                            if (currentRowParts.isEmpty()) {
-                                currentTop = top
-                                currentHeight = height
-                            }
-                            currentRowParts.add(left to line.text.trim())
-                        } else {
-                            mergedRows.add(currentRowParts.sortedBy { it.first }.joinToString(" ") { it.second })
-                            currentRowParts.clear()
-                            currentTop = top
-                            currentHeight = height
-                            currentRowParts.add(left to line.text.trim())
-                        }
-                    }
-                    if (currentRowParts.isNotEmpty()) {
-                        mergedRows.add(currentRowParts.sortedBy { it.first }.joinToString(" ") { it.second })
-                    }
-
-                    val rawFallbackLines = if (mergedRows.isNotEmpty()) {
-                        mergedRows
-                    } else if (rawVisualLines.isNotEmpty()) {
-                        rawVisualLines
-                    } else {
-                        visionText.text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-                    }
-
-                    val candidateLines = rawFallbackLines
-                        .map { line ->
-                            if (isLikelyKhataNumericRow(line)) {
-                                val normalized = normalizeMessyKhataOcrLine(line)
-                                if (normalized.isNotBlank()) normalized else line.trim()
-                            } else {
-                                line.trim()
-                            }
-                        }
-                        .filter { it.isNotBlank() }
-
-                    runCatching { recognizer.close() }
-                    if (cont.isActive) cont.resume(OcrScanOutcome(candidateLines, null))
-                }
-                .addOnFailureListener { exc ->
-                    runCatching { recognizer.close() }
-                    if (cont.isActive) cont.resume(OcrScanOutcome(emptyList(), exc.localizedMessage ?: exc.javaClass.simpleName))
-                }
-        }
-    }.getOrElse { exc ->
-        OcrScanOutcome(emptyList(), exc.localizedMessage ?: exc.javaClass.simpleName)
-    }
-}
-
-private suspend fun runHybridKhataOcrDetailed(bitmap: Bitmap): OcrScanOutcome {
-    val prepared = prepareBitmapForMlKit(bitmap)
-    var lastError: String? = null
-    val candidates = mutableListOf<List<String>>()
-
-    // 1. Primary upright ML Kit pass
-    val primary = runSingleMlKitPass(prepared, 0)
-    if (primary.errorDetail != null) lastError = primary.errorDetail
-    if (primary.lines.size >= 2) {
-        if (prepared !== bitmap) prepared.recycle()
-        return OcrScanOutcome(primary.lines, null)
-    }
-    if (primary.lines.isNotEmpty()) candidates.add(primary.lines)
-
-    // 2. Contrast-enhanced ML Kit pass (helps faint ink, ruled paper & low-contrast prints)
-    val contrastBmp = enhanceBitmapContrastForOcr(prepared)
-    val contrastRes = runSingleMlKitPass(contrastBmp, 0)
-    contrastBmp.recycle()
-    if (contrastRes.errorDetail != null) lastError = contrastRes.errorDetail
-    if (contrastRes.lines.size >= 2) {
-        if (prepared !== bitmap) prepared.recycle()
-        return OcrScanOutcome(contrastRes.lines, null)
-    }
-    if (contrastRes.lines.isNotEmpty()) candidates.add(contrastRes.lines)
-
-    // 3. Check 90°, 270°, 180° in case screenshot/photo lacked EXIF orientation tags
-    for (rot in listOf(90, 270, 180)) {
-        val rotRes = runSingleMlKitPass(prepared, rot)
-        if (rotRes.errorDetail != null) lastError = rotRes.errorDetail
-        if (rotRes.lines.isNotEmpty()) candidates.add(rotRes.lines)
-    }
-
-    if (prepared !== bitmap) prepared.recycle()
-
-    val bestMlKit = candidates.maxByOrNull { lines ->
-        lines.size * 10 + lines.sumOf { it.length }.coerceAtMost(200)
-    }.orEmpty()
-    if (bestMlKit.isNotEmpty()) {
-        return OcrScanOutcome(bestMlKit, null)
-    }
-
-    // 4. Pure-Kotlin optical recognizer fallback for numeric Khata rows
-    val fallbackLines = analyzeHandwrittenKhataBitmap(bitmap)
-        .map { normalizeMessyKhataOcrLine(it) }
-        .filter { it.isNotBlank() }
-    return if (fallbackLines.isNotEmpty()) {
-        OcrScanOutcome(fallbackLines, null)
-    } else {
-        OcrScanOutcome(emptyList(), lastError)
-    }
-}
-
-/**
- * Runs bundled Google ML Kit Text Recognition across normalized, contrast-enhanced, and rotated orientations,
- * preserves printed & handwritten text, and falls back to [analyzeHandwrittenKhataBitmap] if needed.
- */
-private suspend fun runHybridKhataOcr(bitmap: Bitmap): List<String> {
-    return runHybridKhataOcrDetailed(bitmap).lines
-}
 
 /**
  * Repairs common handwritten Khata & Google Lens OCR errors such as:

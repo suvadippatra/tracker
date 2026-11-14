@@ -34,8 +34,8 @@ class QrExportManager(
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
             val json = dtm.exportWholeHotelJson(hotelId, includeQrMedia = false)
             val hotel = hotelDao.getHotelByIdSync(hotelId)
-            val paymentQrs = extractPaymentQrItems(hotels = listOfNotNull(hotel))
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(hotels = listOfNotNull(hotel))
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             exportWholeHotelLegacy(hotelId)
         }
@@ -70,8 +70,8 @@ class QrExportManager(
             } else {
                 db?.bankAccountDao()?.getAllBankAccountsSync() ?: emptyList()
             }
-            val paymentQrs = extractPaymentQrItems(bankAccounts = bankAccounts)
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(bankAccounts = bankAccounts)
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export wallet data via QR")
         }
@@ -86,8 +86,8 @@ class QrExportManager(
             } else {
                 db?.bankAccountDao()?.getAllBankAccountsSync() ?: emptyList()
             }
-            val paymentQrs = extractPaymentQrItems(bankAccounts = bankAccounts)
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(bankAccounts = bankAccounts)
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export bank accounts via QR")
         }
@@ -98,8 +98,8 @@ class QrExportManager(
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
             val json = dtm.exportSingleBankAccountJson(bankAccountId, includeQrMedia = false)
             val bank = db?.bankAccountDao()?.getBankAccountByIdSync(bankAccountId)
-            val paymentQrs = extractPaymentQrItems(bankAccounts = listOfNotNull(bank))
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(bankAccounts = listOfNotNull(bank))
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export single bank account via QR")
         }
@@ -150,8 +150,8 @@ class QrExportManager(
             val dtm = dataTransferManager ?: throw IllegalStateException("Database required")
             val json = dtm.exportHotelInfoJson(hotelId, includeQrMedia = false)
             val hotel = hotelDao.getHotelByIdSync(hotelId)
-            val paymentQrs = extractPaymentQrItems(hotels = listOfNotNull(hotel))
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(hotels = listOfNotNull(hotel))
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export hotel info via QR")
         }
@@ -184,36 +184,41 @@ class QrExportManager(
             val hotels = hotelDao.getAllHotelsSync()
             val bankAccounts = db?.bankAccountDao()?.getAllBankAccountsSync() ?: emptyList()
             val ownerAccounts = db?.ownerAccountDao()?.getAllOwnerAccountsSync()?.filter { !it.isDeleted } ?: emptyList()
-            val paymentQrs = extractPaymentQrItems(
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(
                 hotels = hotels,
                 bankAccounts = bankAccounts,
                 ownerAccounts = ownerAccounts
             )
-            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs)
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
         } catch (e: Exception) {
             ExportResult.Error(e.message ?: "Failed to export full backup via QR")
         }
     }
 
-    private fun extractPaymentQrItems(
+    private fun extractPaymentQrItemsWithSkipped(
         hotels: List<HotelEntity> = emptyList(),
         bankAccounts: List<BankAccountEntity> = emptyList(),
         ownerAccounts: List<OwnerAccountEntity> = emptyList()
-    ): List<QrMediaCodec.PaymentQrTransferItem> {
-        val ctx = AppDatabase.getAppContext() ?: return emptyList()
+    ): Pair<List<QrMediaCodec.PaymentQrTransferItem>, List<String>> {
+        val ctx = AppDatabase.getAppContext() ?: return emptyList<QrMediaCodec.PaymentQrTransferItem>() to emptyList()
         val result = mutableListOf<QrMediaCodec.PaymentQrTransferItem>()
+        val skippedNames = mutableListOf<String>()
 
         hotels.forEach { hotel ->
-            val decoded = QrMediaCodec.extractDecodedQrsFromUri(ctx, hotel.qrCodeUri)
-            decoded.forEachIndexed { idx, payload ->
+            val label = hotel.name.ifBlank { "Hotel #${hotel.id}" }
+            val extraction = QrMediaCodec.extractDecodedQrsWithFailures(ctx, hotel.qrCodeUri)
+            if (extraction.failedUris.isNotEmpty()) {
+                skippedNames.add("$label (${extraction.failedUris.size})")
+            }
+            extraction.payloads.forEachIndexed { idx, payload ->
                 result.add(
                     QrMediaCodec.PaymentQrTransferItem(
                         key = "HOTEL:${hotel.id}:$idx",
                         entityType = "HOTEL",
-                        entityName = hotel.name.ifBlank { "Hotel #${hotel.id}" },
+                        entityName = label,
                         originalId = hotel.id,
                         slotIndex = idx,
-                        totalSlots = decoded.size,
+                        totalSlots = extraction.payloads.size,
                         decodedQr = payload
                     )
                 )
@@ -221,16 +226,20 @@ class QrExportManager(
         }
 
         bankAccounts.forEach { bank ->
-            val decoded = QrMediaCodec.extractDecodedQrsFromUri(ctx, bank.qrCodeUri)
-            decoded.forEachIndexed { idx, payload ->
+            val label = bank.name.ifBlank { "Bank #${bank.id}" }
+            val extraction = QrMediaCodec.extractDecodedQrsWithFailures(ctx, bank.qrCodeUri)
+            if (extraction.failedUris.isNotEmpty()) {
+                skippedNames.add("$label (${extraction.failedUris.size})")
+            }
+            extraction.payloads.forEachIndexed { idx, payload ->
                 result.add(
                     QrMediaCodec.PaymentQrTransferItem(
                         key = "BANK:${bank.id}:$idx",
                         entityType = "BANK",
-                        entityName = bank.name.ifBlank { "Bank #${bank.id}" },
+                        entityName = label,
                         originalId = bank.id,
                         slotIndex = idx,
-                        totalSlots = decoded.size,
+                        totalSlots = extraction.payloads.size,
                         decodedQr = payload
                     )
                 )
@@ -238,9 +247,12 @@ class QrExportManager(
         }
 
         ownerAccounts.forEach { owner ->
-            val decoded = QrMediaCodec.extractDecodedQrsFromUri(ctx, owner.qrCodeUri)
-            decoded.forEachIndexed { idx, payload ->
-                val label = owner.ownerName.ifBlank { owner.accountName.ifBlank { "Owner #${owner.id}" } }
+            val label = owner.ownerName.ifBlank { owner.accountName.ifBlank { "Owner #${owner.id}" } }
+            val extraction = QrMediaCodec.extractDecodedQrsWithFailures(ctx, owner.qrCodeUri)
+            if (extraction.failedUris.isNotEmpty()) {
+                skippedNames.add("$label (${extraction.failedUris.size})")
+            }
+            extraction.payloads.forEachIndexed { idx, payload ->
                 result.add(
                     QrMediaCodec.PaymentQrTransferItem(
                         key = "OWNER:${owner.id}:$idx",
@@ -248,14 +260,14 @@ class QrExportManager(
                         entityName = label,
                         originalId = owner.id,
                         slotIndex = idx,
-                        totalSlots = decoded.size,
+                        totalSlots = extraction.payloads.size,
                         decodedQr = payload
                     )
                 )
             }
         }
 
-        return result
+        return result to skippedNames
     }
 
     private fun appendQrManifestToJson(
@@ -285,7 +297,8 @@ class QrExportManager(
 
     fun packageJsonToExportResult(
         jsonString: String,
-        paymentQrs: List<QrMediaCodec.PaymentQrTransferItem> = emptyList()
+        paymentQrs: List<QrMediaCodec.PaymentQrTransferItem> = emptyList(),
+        skippedPaymentQrNames: List<String> = emptyList()
     ): ExportResult {
         return try {
             val rawBytes = jsonString.toByteArray(Charsets.UTF_8)
@@ -315,7 +328,8 @@ class QrExportManager(
                 originalSize = rawBytes.size,
                 compressedSize = compressedBytes.size,
                 encryptedSize = encryptedBytes.size,
-                paymentQrs = paymentQrs
+                paymentQrs = paymentQrs,
+                skippedPaymentQrNames = skippedPaymentQrNames
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -392,7 +406,8 @@ sealed class ExportResult {
         val originalSize: Int,
         val compressedSize: Int,
         val encryptedSize: Int,
-        val paymentQrs: List<QrMediaCodec.PaymentQrTransferItem> = emptyList()
+        val paymentQrs: List<QrMediaCodec.PaymentQrTransferItem> = emptyList(),
+        val skippedPaymentQrNames: List<String> = emptyList()
     ) : ExportResult()
     data class Error(val message: String) : ExportResult()
 }

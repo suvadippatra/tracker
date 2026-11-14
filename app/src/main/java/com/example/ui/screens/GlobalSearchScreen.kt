@@ -118,13 +118,13 @@ fun GlobalSearchScreen(
             modifier = Modifier
                 .fillMaxHeight()
                 .widthIn(max = 840.dp)
-                .dialogSystemBarsPadding(extraTop = 4.dp)
                 .imePadding()
         ) {
             // Search Input Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .dialogSafeTopPadding(extraTop = 4.dp)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

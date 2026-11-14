@@ -73,10 +73,17 @@ fun AppearanceSettingsScreen(
         )
     }
 
+    val appearanceListState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) { androidx.compose.foundation.lazy.LazyListState() }
+
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp),
+        state = appearanceListState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = 120.dp + com.example.ui.components.rememberSplitScreenSafeBottomPadding()
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 1. Performance & Dial Control Mode

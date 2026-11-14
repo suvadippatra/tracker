@@ -13,7 +13,8 @@ import com.google.zxing.common.HybridBinarizer
 
 class ZXingAnalyzer(
     private val onQrCodeScanned: (ByteArray) -> Unit,
-    private val onQrResult: ((Result) -> Unit)? = null
+    private val onQrResult: ((Result) -> Unit)? = null,
+    private val onQrDecoded: ((Result, BinaryBitmap) -> Unit)? = null
 ) : ImageAnalysis.Analyzer {
     private val reader = MultiFormatReader().apply {
         setHints(
@@ -38,13 +39,16 @@ class ZXingAnalyzer(
             val normalBitmap = BinaryBitmap(HybridBinarizer(source))
 
             try {
+                var usedBitmap = normalBitmap
                 val result = try {
                     reader.decodeWithState(normalBitmap)
                 } catch (_: Exception) {
                     reader.reset()
                     val invertedBitmap = BinaryBitmap(HybridBinarizer(source.invert()))
+                    usedBitmap = invertedBitmap
                     reader.decodeWithState(invertedBitmap)
                 }
+                onQrDecoded?.invoke(result, usedBitmap)
                 onQrResult?.invoke(result)
                 val rawBytes = (result.text ?: "").toByteArray(Charsets.ISO_8859_1)
                 if (rawBytes.isNotEmpty()) {

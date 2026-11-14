@@ -452,4 +452,29 @@ public val Icons.Filled.FormatBold: ImageVector
     get() = _formatBold ?: buildCustomIcon("Filled.FormatBold", listOf("""M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z""")).also { _formatBold = it }
 private var _formatBold: ImageVector? = null
 
+public val Icons.Filled.Keyboard: ImageVector
+    get() = _keyboard ?: buildCustomIcon("Filled.Keyboard", listOf("""M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z""")).also { _keyboard = it }
+private var _keyboard: ImageVector? = null
+
+public val Icons.Filled.Undo: ImageVector
+    get() = _undo ?: buildCustomIcon("Filled.Undo", listOf("""M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z""")).also { _undo = it }
+private var _undo: ImageVector? = null
+
+public val Icons.Filled.Redo: ImageVector
+    get() = _redo ?: buildCustomIcon("Filled.Redo", listOf("""M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z""")).also { _redo = it }
+private var _redo: ImageVector? = null
+
+public val Icons.Filled.CheckBox: ImageVector
+    get() = _checkBox ?: buildCustomIcon("Filled.CheckBox", listOf("""M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V5c0-1.1-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z""")).also { _checkBox = it }
+private var _checkBox: ImageVector? = null
+
+public val Icons.Filled.CheckBoxOutlineBlank: ImageVector
+    get() = _checkBoxOutlineBlank ?: buildCustomIcon("Filled.CheckBoxOutlineBlank", listOf("""M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z""")).also { _checkBoxOutlineBlank = it }
+private var _checkBoxOutlineBlank: ImageVector? = null
+
+public val Icons.Filled.FormatListBulleted: ImageVector
+    get() = _formatListBulleted ?: buildCustomIcon("Filled.FormatListBulleted", listOf("""M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z""")).also { _formatListBulleted = it }
+private var _formatListBulleted: ImageVector? = null
+
+
 
