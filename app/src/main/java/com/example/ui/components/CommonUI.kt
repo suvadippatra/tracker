@@ -569,6 +569,13 @@ fun ConfirmDeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    if (SecretDeleteModeManager.isActive()) {
+        LaunchedEffect(Unit) {
+            onConfirm()
+            onDismiss()
+        }
+        return
+    }
     var typedText by remember { mutableStateOf("") }
     val isConfirmed = typedText.equals("delete", ignoreCase = true)
 

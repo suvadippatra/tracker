@@ -1892,13 +1892,21 @@ fun DataBackupSettingsScreen(
                     viewModel.resolveAllConflictsLocal()
                 },
                 onConfirmMerge = {
-                    val plan = viewModel.generateMergePlan()
-                    if (plan != null) {
-                        viewModel.executeMergePlan(plan) { outcome ->
-                            when (outcome) {
-                                is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
-                                is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
-                            }
+                    viewModel.proceedToMergeSummaryConfirmation()
+                },
+                onDismiss = {
+                    viewModel.cancelImportFlow()
+                }
+            )
+        }
+        is FinancialViewModel.ImportUiFlowState.MergeSummaryConfirmationRequired -> {
+            com.example.ui.components.MergeSummaryWarningDialog(
+                plan = state.plan,
+                onConfirm = {
+                    viewModel.executeMergePlan(state.plan) { outcome ->
+                        when (outcome) {
+                            is ImportOutcome.Success -> Toast.makeText(context, outcome.message, Toast.LENGTH_LONG).show()
+                            is ImportOutcome.Error -> Toast.makeText(context, "Import failed: ${outcome.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 },

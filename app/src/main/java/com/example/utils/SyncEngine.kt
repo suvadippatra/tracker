@@ -183,6 +183,14 @@ data class SyncAnalysisResult(
     val directNewHotelPayments: List<HotelPaymentEntity> = emptyList(),
     val directNewStickyNotes: List<StickyNoteEntity> = emptyList(),
     val directNewElectricityRates: List<ElectricityRate> = emptyList(),
+    val duplicateRecordsInFileCount: Int = 0,
+    val duplicateRecordsInFileSummary: List<String> = emptyList(),
+    val localDuplicateMealIdsToDelete: List<Int> = emptyList(),
+    val localDuplicateExpenseIdsToDelete: List<Int> = emptyList(),
+    val localDuplicateMenuIdsToDelete: List<Int> = emptyList(),
+    val orphanHotelIdsToAdopt: Set<Int> = emptySet(),
+    val orphanBankIdsToAdopt: Set<Int> = emptySet(),
+    val skippedIdenticalCount: Int = 0,
     val hasUnresolvedParents: Boolean = unmappedParents.isNotEmpty(),
     val hasPendingMenuItems: Boolean = pendingNewMenuItems.isNotEmpty(),
     val hasConflicts: Boolean = conflicts.isNotEmpty()
@@ -210,6 +218,14 @@ data class MergePlan(
     val stickyNotesToInsert: List<StickyNoteEntity> = emptyList(),
     val electricityRatesToInsert: List<ElectricityRate> = emptyList(),
     val userProfileToUpdate: UserProfileEntity? = null,
+    val duplicateRecordsInFileCount: Int = 0,
+    val duplicateRecordsInFileSummary: List<String> = emptyList(),
+    val localDuplicateMealIdsToDelete: List<Int> = emptyList(),
+    val localDuplicateExpenseIdsToDelete: List<Int> = emptyList(),
+    val localDuplicateMenuIdsToDelete: List<Int> = emptyList(),
+    val orphanHotelIdsToAdopt: Set<Int> = emptySet(),
+    val orphanBankIdsToAdopt: Set<Int> = emptySet(),
+    val skippedIdenticalCount: Int = 0,
     val totalAffectedCount: Int = 0
 )
 
@@ -657,6 +673,368 @@ class SyncEngine(private val db: AppDatabase) {
         return ""
     }
 
+    private data class DeduplicatedPayloadResult(
+        val payload: ParsedImportPayload,
+        val duplicateCount: Int,
+        val duplicateSummary: List<String>
+    )
+
+    /**
+     * Detects and collapses duplicate entries inside the imported backup/ZIP/JSON payload itself,
+     * while recording a detailed summary so the user is informed and duplicates are intelligently managed.
+     */
+    private fun deduplicateImportedPayload(raw: ParsedImportPayload): DeduplicatedPayloadResult {
+        val summary = mutableListOf<String>()
+        var totalDups = 0
+
+        // 1. Hotels inside payload
+        val hotelIdRemap = mutableMapOf<Int, Int>()
+        val uniqueHotels = mutableListOf<HotelEntity>()
+        raw.hotels.forEach { h ->
+            val normName = normalizeName(h.name)
+            val phone = h.phoneNumber.trim()
+            val upi = h.upiId.trim().lowercase(Locale.ROOT)
+            val existing = uniqueHotels.firstOrNull { u ->
+                normalizeName(u.name) == normName ||
+                    (phone.isNotBlank() && u.phoneNumber.trim() == phone) ||
+                    (upi.isNotBlank() && u.upiId.trim().lowercase(Locale.ROOT) == upi)
+            }
+            if (existing != null) {
+                hotelIdRemap[h.id] = existing.id
+                totalDups++
+            } else {
+                val assignedId = if (h.id <= 0 || uniqueHotels.any { it.id == h.id }) (uniqueHotels.maxOfOrNull { it.id } ?: 0) + 1 else h.id
+                hotelIdRemap[h.id] = assignedId
+                uniqueHotels.add(h.copy(id = assignedId))
+            }
+        }
+        val dupHotels = raw.hotels.size - uniqueHotels.size
+        if (dupHotels > 0) summary.add("$dupHotels duplicate Hotel profile(s) in backup merged")
+
+        // 2. Bank Accounts inside payload
+        val bankIdRemap = mutableMapOf<Int, Int>()
+        val uniqueBanks = mutableListOf<BankAccountEntity>()
+        raw.bankAccounts.forEach { b ->
+            val normName = normalizeName(b.name)
+            val accNo = b.accountNumber.trim()
+            val upi = b.upiId.trim().lowercase(Locale.ROOT)
+            val existing = uniqueBanks.firstOrNull { u ->
+                normalizeName(u.name) == normName ||
+                    (accNo.isNotBlank() && u.accountNumber.trim() == accNo) ||
+                    (upi.isNotBlank() && u.upiId.trim().lowercase(Locale.ROOT) == upi)
+            }
+            if (existing != null) {
+                bankIdRemap[b.id] = existing.id
+                totalDups++
+            } else {
+                val assignedId = if (b.id <= 0 || uniqueBanks.any { it.id == b.id }) (uniqueBanks.maxOfOrNull { it.id } ?: 0) + 1 else b.id
+                bankIdRemap[b.id] = assignedId
+                uniqueBanks.add(b.copy(id = assignedId))
+            }
+        }
+        val dupBanks = raw.bankAccounts.size - uniqueBanks.size
+        if (dupBanks > 0) summary.add("$dupBanks duplicate Bank Account(s) in backup merged")
+
+        // 3. Menus inside payload
+        val seenMenuKeys = mutableSetOf<String>()
+        val uniqueMenus = mutableListOf<MenuEntity>()
+        val defaultHotelId = uniqueHotels.firstOrNull()?.id ?: 1
+        raw.menus.forEach { m ->
+            val hId = hotelIdRemap[m.hotelId] ?: if (uniqueHotels.size == 1) defaultHotelId else m.hotelId
+            val key = "${hId}|${normalizeName(m.englishName)}|${normalizeName(m.banglaName)}"
+            if (seenMenuKeys.add(key)) {
+                uniqueMenus.add(m.copy(hotelId = hId))
+            } else {
+                totalDups++
+            }
+        }
+        val dupMenus = raw.menus.size - uniqueMenus.size
+        if (dupMenus > 0) summary.add("$dupMenus duplicate Menu item(s) in backup removed")
+
+        // 4. Hotel Transactions (Meal Orders) inside payload
+        val seenMealKeys = mutableSetOf<String>()
+        val uniqueMeals = mutableListOf<HotelTransactionEntity>()
+        raw.transactions.forEach { tx ->
+            val hId = hotelIdRemap[tx.hotelId] ?: if (uniqueHotels.size == 1) defaultHotelId else tx.hotelId
+            val dayStart = startOfDay(tx.timestamp)
+            val key = "${hId}|${tx.isNight}|${dayStart}|${"%.2f".format(Locale.US, tx.totalAmount)}|${tx.itemsSerialized.trim()}"
+            if (seenMealKeys.add(key)) {
+                uniqueMeals.add(tx.copy(hotelId = hId))
+            } else {
+                totalDups++
+            }
+        }
+        val dupMeals = raw.transactions.size - uniqueMeals.size
+        if (dupMeals > 0) summary.add("$dupMeals duplicate Hotel Meal Order(s) in backup removed")
+
+        // 5. Extra Expenses inside payload
+        val seenExpKeys = mutableSetOf<String>()
+        val uniqueExpenses = mutableListOf<ExtraExpenseEntity>()
+        val defaultBankId = uniqueBanks.firstOrNull()?.id ?: 1
+        raw.expenses.forEach { exp ->
+            val bId = bankIdRemap[exp.bankAccountId] ?: if (uniqueBanks.size == 1) defaultBankId else exp.bankAccountId
+            val minuteBucket = exp.timestamp / (60 * 1000L)
+            val key = "${bId}|${exp.type.uppercase(Locale.ROOT)}|${"%.2f".format(Locale.US, exp.amount)}|${normalizeName(exp.name)}|${normalizeName(exp.category)}|$minuteBucket"
+            if (seenExpKeys.add(key)) {
+                uniqueExpenses.add(exp.copy(bankAccountId = bId))
+            } else {
+                totalDups++
+            }
+        }
+        val dupExps = raw.expenses.size - uniqueExpenses.size
+        if (dupExps > 0) summary.add("$dupExps duplicate Extra Transaction(s) in backup removed")
+
+        // 6. Hotel Payments inside payload
+        val seenPayKeys = mutableSetOf<String>()
+        val uniquePayments = mutableListOf<HotelPaymentEntity>()
+        raw.hotelPayments.forEach { pay ->
+            val hId = hotelIdRemap[pay.hotelId] ?: if (uniqueHotels.size == 1) defaultHotelId else pay.hotelId
+            val key = "${hId}|${pay.year}|${pay.month}|${"%.2f".format(Locale.US, pay.amountPaid)}"
+            if (seenPayKeys.add(key)) {
+                uniquePayments.add(pay.copy(hotelId = hId))
+            } else {
+                totalDups++
+            }
+        }
+
+        // If payload has menus or transactions or hotelPayments but ZERO hotels in payload,
+        // synthesize a HotelEntity so child data is never orphaned!
+        val finalHotels = if (uniqueHotels.isEmpty() && (uniqueMenus.isNotEmpty() || uniqueMeals.isNotEmpty() || uniquePayments.isNotEmpty())) {
+            val inferredHotelId = uniqueMenus.firstOrNull()?.hotelId
+                ?: uniqueMeals.firstOrNull()?.hotelId
+                ?: uniquePayments.firstOrNull()?.hotelId
+                ?: 1
+            listOf(
+                HotelEntity(
+                    id = inferredHotelId,
+                    name = raw.senderName?.let { "$it's Hotel" } ?: "Imported Hotel",
+                    importedFrom = raw.senderName
+                )
+            )
+        } else {
+            uniqueHotels
+        }
+
+        // Similarly, if payload has expenses but ZERO bank accounts, synthesize a BankAccountEntity
+        val finalBanks = if (uniqueBanks.isEmpty() && uniqueExpenses.isNotEmpty()) {
+            val inferredBankId = uniqueExpenses.firstOrNull()?.bankAccountId ?: 1
+            listOf(
+                BankAccountEntity(
+                    id = inferredBankId,
+                    name = raw.senderName?.let { "$it's Account" } ?: "Imported Account",
+                    importedFrom = raw.senderName
+                )
+            )
+        } else {
+            uniqueBanks
+        }
+
+        return DeduplicatedPayloadResult(
+            payload = raw.copy(
+                hotels = finalHotels,
+                bankAccounts = finalBanks,
+                menus = uniqueMenus,
+                transactions = uniqueMeals,
+                expenses = uniqueExpenses,
+                hotelPayments = uniquePayments
+            ),
+            duplicateCount = totalDups,
+            duplicateSummary = summary
+        )
+    }
+
+    private data class LocalDuplicateScanResult(
+        val cleanMeals: List<HotelTransactionEntity>,
+        val duplicateMealIds: List<Int>,
+        val cleanExpenses: List<ExtraExpenseEntity>,
+        val duplicateExpenseIds: List<Int>,
+        val cleanMenus: List<MenuEntity>,
+        val duplicateMenuIds: List<Int>,
+        val orphanHotelIds: Set<Int>,
+        val orphanBankIds: Set<Int>,
+        val summaryLines: List<String>
+    )
+
+    private fun findLocalDuplicatesAndCleanLists(
+        localHotels: List<HotelEntity>,
+        localBanks: List<BankAccountEntity>,
+        localMeals: List<HotelTransactionEntity>,
+        localExpenses: List<ExtraExpenseEntity>,
+        localMenus: List<MenuEntity>
+    ): LocalDuplicateScanResult {
+        val validHotelIds = localHotels.map { it.id }.toSet()
+        val validBankIds = localBanks.map { it.id }.toSet()
+
+        val orphanHotelIds = mutableSetOf<Int>()
+        localMenus.forEach { if (!validHotelIds.contains(it.hotelId)) orphanHotelIds.add(it.hotelId) }
+        localMeals.forEach { if (!validHotelIds.contains(it.hotelId)) orphanHotelIds.add(it.hotelId) }
+
+        val orphanBankIds = mutableSetOf<Int>()
+        localExpenses.forEach { if (!validBankIds.contains(it.bankAccountId)) orphanBankIds.add(it.bankAccountId) }
+
+        // Deduplicate local meals (exact same hotelId/orphan, session, day, amount, serialized items)
+        val seenMealSigs = mutableSetOf<String>()
+        val cleanMeals = mutableListOf<HotelTransactionEntity>()
+        val dupMealIds = mutableListOf<Int>()
+        localMeals.sortedBy { it.id }.forEach { meal ->
+            val effectiveHotelKey = if (validHotelIds.contains(meal.hotelId)) meal.hotelId else -1
+            val sig = "$effectiveHotelKey|${meal.isNight}|${startOfDay(meal.timestamp)}|${"%.2f".format(Locale.US, meal.totalAmount)}|${meal.itemsSerialized.trim()}"
+            if (seenMealSigs.add(sig)) {
+                cleanMeals.add(meal)
+            } else {
+                dupMealIds.add(meal.id)
+            }
+        }
+
+        // Deduplicate local expenses
+        val seenExpSigs = mutableSetOf<String>()
+        val cleanExpenses = mutableListOf<ExtraExpenseEntity>()
+        val dupExpIds = mutableListOf<Int>()
+        localExpenses.sortedBy { it.id }.forEach { exp ->
+            val effectiveBankKey = if (validBankIds.contains(exp.bankAccountId)) exp.bankAccountId else -1
+            val minuteBucket = exp.timestamp / (60 * 1000L)
+            val sig = "$effectiveBankKey|${exp.type.uppercase(Locale.ROOT)}|${"%.2f".format(Locale.US, exp.amount)}|${normalizeName(exp.name)}|${normalizeName(exp.category)}|$minuteBucket"
+            if (seenExpSigs.add(sig)) {
+                cleanExpenses.add(exp)
+            } else {
+                dupExpIds.add(exp.id)
+            }
+        }
+
+        // Deduplicate local menus
+        val seenMenuSigs = mutableSetOf<String>()
+        val cleanMenus = mutableListOf<MenuEntity>()
+        val dupMenuIds = mutableListOf<Int>()
+        localMenus.sortedBy { it.id }.forEach { menu ->
+            val effectiveHotelKey = if (validHotelIds.contains(menu.hotelId)) menu.hotelId else -1
+            val sig = "$effectiveHotelKey|${normalizeName(menu.englishName)}|${normalizeName(menu.banglaName)}"
+            if (seenMenuSigs.add(sig)) {
+                cleanMenus.add(menu)
+            } else {
+                dupMenuIds.add(menu.id)
+            }
+        }
+
+        val summary = mutableListOf<String>()
+        if (dupMealIds.isNotEmpty()) summary.add("${dupMealIds.size} existing duplicate Hotel Meal record(s) in app will be cleaned")
+        if (dupExpIds.isNotEmpty()) summary.add("${dupExpIds.size} existing duplicate Extra Expense record(s) in app will be cleaned")
+        if (dupMenuIds.isNotEmpty()) summary.add("${dupMenuIds.size} existing duplicate Menu item(s) in app will be cleaned")
+        if (orphanHotelIds.isNotEmpty()) summary.add("Orphaned local Hotel Menus/Orders will be linked to the imported Hotel")
+
+        return LocalDuplicateScanResult(
+            cleanMeals = cleanMeals,
+            duplicateMealIds = dupMealIds,
+            cleanExpenses = cleanExpenses,
+            duplicateExpenseIds = dupExpIds,
+            cleanMenus = cleanMenus,
+            duplicateMenuIds = dupMenuIds,
+            orphanHotelIds = orphanHotelIds,
+            orphanBankIds = orphanBankIds,
+            summaryLines = summary
+        )
+    }
+
+    /**
+     * Startup self-healing routine:
+     * 1. Restores or creates parent Hotel / BankAccount if orphaned child menus/orders/expenses exist in Room.
+     * 2. Cleans up any exact duplicate rows in hotel_transactions, menus, and extra_expenses.
+     * Returns the active/restored Hotel ID if one was healed, or null otherwise.
+     */
+    suspend fun autoHealOrphanedAndDuplicateData(): Int? = withContext(Dispatchers.IO) {
+        var healedHotelId: Int? = null
+        val allHotelsRaw = hotelDao.getAllHotelsSync()
+        val activeHotels = allHotelsRaw.filter { !it.isDeleted }.toMutableList()
+        val activeBanks = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }.toMutableList()
+        val activeMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
+        val activeMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
+        val activePayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
+        val activeExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+
+        val validHotelIds = activeHotels.map { it.id }.toMutableSet()
+        val orphanHotelIds = (activeMenus.map { it.hotelId } + activeMeals.map { it.hotelId } + activePayments.map { it.hotelId })
+            .toSet()
+            .filter { !validHotelIds.contains(it) }
+
+        if (orphanHotelIds.isNotEmpty()) {
+            val targetHotelId = if (activeHotels.isNotEmpty()) {
+                activeHotels.first().id
+            } else {
+                // Check if there is a soft-deleted hotel we can restore, or insert a new HotelEntity
+                val deletedMatch = allHotelsRaw.firstOrNull { it.isDeleted && orphanHotelIds.contains(it.id) }
+                if (deletedMatch != null) {
+                    hotelDao.updateHotel(deletedMatch.copy(isDeleted = false))
+                    validHotelIds.add(deletedMatch.id)
+                    activeHotels.add(deletedMatch.copy(isDeleted = false))
+                    deletedMatch.id
+                } else {
+                    val newId = hotelDao.insertHotel(
+                        HotelEntity(
+                            name = "Imported Hotel",
+                            notes = "Restored hotel for existing menus and meal history"
+                        )
+                    ).toInt()
+                    validHotelIds.add(newId)
+                    activeHotels.add(HotelEntity(id = newId, name = "Imported Hotel"))
+                    newId
+                }
+            }
+            orphanHotelIds.forEach { orphanId ->
+                if (orphanId != targetHotelId) {
+                    db.syncDao().remapOrphanedMenusHotelId(orphanId, targetHotelId)
+                    db.syncDao().remapOrphanedTransactionsHotelId(orphanId, targetHotelId)
+                    db.syncDao().remapOrphanedPaymentsHotelId(orphanId, targetHotelId)
+                }
+            }
+            healedHotelId = targetHotelId
+        }
+
+        val validBankIds = activeBanks.map { it.id }.toMutableSet()
+        val orphanBankIds = activeExpenses.map { it.bankAccountId }.toSet().filter { !validBankIds.contains(it) }
+        if (orphanBankIds.isNotEmpty()) {
+            val targetBankId = if (activeBanks.isNotEmpty()) {
+                activeBanks.first().id
+            } else {
+                val newBankId = bankAccountDao.insertBankAccount(
+                    BankAccountEntity(
+                        name = "Main Account",
+                        details = "Restored account for existing transactions"
+                    )
+                ).toInt()
+                validBankIds.add(newBankId)
+                newBankId
+            }
+            orphanBankIds.forEach { orphanId ->
+                if (orphanId != targetBankId) {
+                    db.syncDao().remapOrphanedExpensesBankId(orphanId, targetBankId)
+                }
+            }
+        }
+
+        // Clean any exact duplicate rows already in local database
+        val refreshedMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
+        val refreshedMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
+        val refreshedExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+
+        val scan = findLocalDuplicatesAndCleanLists(
+            localHotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted },
+            localBanks = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted },
+            localMeals = refreshedMeals,
+            localExpenses = refreshedExpenses,
+            localMenus = refreshedMenus
+        )
+        if (scan.duplicateMealIds.isNotEmpty()) {
+            db.syncDao().deleteTransactionIds(scan.duplicateMealIds)
+        }
+        if (scan.duplicateExpenseIds.isNotEmpty()) {
+            db.syncDao().deleteExpenseIds(scan.duplicateExpenseIds)
+        }
+        if (scan.duplicateMenuIds.isNotEmpty()) {
+            db.syncDao().deleteMenuIds(scan.duplicateMenuIds)
+        }
+
+        healedHotelId
+    }
+
     /**
      * Primary entry-point for in-memory sync analysis.
      * Takes raw imported JSON and cross-references Room database state to generate a full analysis report.
@@ -667,21 +1045,35 @@ class SyncEngine(private val db: AppDatabase) {
         targetBankAccountId: Int? = null,
         explicitSenderName: String? = null
     ): SyncAnalysisResult = withContext(Dispatchers.IO) {
-        val payload = parseJsonPayload(jsonString)
+        val rawPayload = parseJsonPayload(jsonString)
+        val dedupResult = deduplicateImportedPayload(rawPayload)
+        val payload = dedupResult.payload
         val senderName = explicitSenderName ?: payload.senderName
 
         val localHotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
         val localBankAccounts = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
         val localOwnerAccounts = ownerAccountDao.getAllOwnerAccountsSync().filter { !it.isDeleted }
-        val localMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
-        val localMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
-        val localExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+        val rawLocalMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
+        val rawLocalMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
+        val rawLocalExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
         val localReadings = meterDao.getAllReadingsSync().filter { !it.isDeleted }
         val localBills = meterDao.getAllUtilityBillsSync().filter { !it.isDeleted }
+
+        val localScan = findLocalDuplicatesAndCleanLists(
+            localHotels = localHotels,
+            localBanks = localBankAccounts,
+            localMeals = rawLocalMeals,
+            localExpenses = rawLocalExpenses,
+            localMenus = rawLocalMenus
+        )
+        val localMenus = localScan.cleanMenus
+        val localMeals = localScan.cleanMeals
+        val localExpenses = localScan.cleanExpenses
 
         val autoLinkedHotelIds = mutableMapOf<Int, Int>() // importedId -> localId
         val unmappedParents = mutableListOf<UnmappedParent>()
         val parentConflicts = mutableListOf<ConflictItem>()
+        var skippedIdenticalCount = 0
 
         // 1. HOTEL MAPPING & MISMATCH DETECTION
         if (payload.hotels.isNotEmpty()) {
@@ -721,6 +1113,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 )
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else if (targetHotelId != null && payload.hotels.size == 1 && localHotels.any { it.id == targetHotelId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedHotelIds[impHotel.id] = targetHotelId
@@ -738,7 +1132,7 @@ class SyncEngine(private val db: AppDatabase) {
                     )
                 }
             }
-        } else if (targetHotelId != null) {
+        } else if (targetHotelId != null && localHotels.any { it.id == targetHotelId }) {
             autoLinkedHotelIds[1] = targetHotelId
         } else if (localHotels.isNotEmpty()) {
             autoLinkedHotelIds[1] = localHotels.first().id
@@ -783,6 +1177,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 )
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else if (targetBankAccountId != null && payload.bankAccounts.size == 1 && localBankAccounts.any { it.id == targetBankAccountId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedBankIds[impAcc.id] = targetBankAccountId
@@ -800,7 +1196,7 @@ class SyncEngine(private val db: AppDatabase) {
                     )
                 }
             }
-        } else if (targetBankAccountId != null) {
+        } else if (targetBankAccountId != null && localBankAccounts.any { it.id == targetBankAccountId }) {
             autoLinkedBankIds[1] = targetBankAccountId
         } else if (localBankAccounts.isNotEmpty()) {
             autoLinkedBankIds[1] = localBankAccounts.first().id
@@ -847,6 +1243,8 @@ class SyncEngine(private val db: AppDatabase) {
                             )
                         )
                     )
+                } else {
+                    skippedIdenticalCount++
                 }
             } else {
                 unmappedParents.add(
@@ -917,6 +1315,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 hotelName = hotelName
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 }
             }
@@ -933,15 +1333,19 @@ class SyncEngine(private val db: AppDatabase) {
                 val hotelName = hotelObj?.name ?: "Hotel #$mappedHotelId"
                 val impDayStart = startOfDay(impMeal.timestamp)
 
-                val localMealMatch = localMeals.firstOrNull { localM ->
+                val sameDayCandidates = localMeals.filter { localM ->
                     localM.hotelId == mappedHotelId &&
                         localM.isNight == impMeal.isNight &&
                         startOfDay(localM.timestamp) == impDayStart
                 }
+                val exactMealMatch = sameDayCandidates.firstOrNull { localM ->
+                    abs(localM.totalAmount - impMeal.totalAmount) < 0.01 &&
+                        localM.itemsSerialized.trim() == impMeal.itemsSerialized.trim()
+                }
+                val localMealMatch = exactMealMatch ?: sameDayCandidates.firstOrNull()
 
                 if (localMealMatch != null) {
-                    val isIdentical = abs(localMealMatch.totalAmount - impMeal.totalAmount) < 0.01 &&
-                        localMealMatch.itemsSerialized == impMeal.itemsSerialized
+                    val isIdentical = exactMealMatch != null
                     if (!isIdentical) {
                         val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
                         val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
@@ -961,6 +1365,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 importedItemsSummary = impMeal.itemsSerialized
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else {
                     directNewMeals.add(impMeal.copy(id = 0, hotelId = mappedHotelId))
@@ -978,17 +1384,21 @@ class SyncEngine(private val db: AppDatabase) {
                 val accObj = localBankAccounts.firstOrNull { it.id == mappedBankId }
                 val accName = accObj?.name ?: "Account #$mappedBankId"
 
-                val localExpMatch = localExpenses.firstOrNull { localE ->
+                val windowCandidates = localExpenses.filter { localE ->
                     localE.bankAccountId == mappedBankId &&
                         localE.type.equals(impExp.type, ignoreCase = true) &&
                         abs(localE.amount - impExp.amount) < 0.01 &&
                         abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
                 }
+                val exactExpMatch = windowCandidates.firstOrNull { localE ->
+                    normalizeName(localE.name) == normalizeName(impExp.name) &&
+                        normalizeName(localE.category) == normalizeName(impExp.category) &&
+                        localE.notes.trim() == impExp.notes.trim()
+                }
+                val localExpMatch = exactExpMatch ?: windowCandidates.firstOrNull()
 
                 if (localExpMatch != null) {
-                    val isIdentical = normalizeName(localExpMatch.name) == normalizeName(impExp.name) &&
-                        normalizeName(localExpMatch.category) == normalizeName(impExp.category) &&
-                        localExpMatch.notes.trim() == impExp.notes.trim()
+                    val isIdentical = exactExpMatch != null
                     if (!isIdentical) {
                         val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
                         val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
@@ -1007,6 +1417,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 accountName = accName
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else {
                     directNewExpenses.add(impExp.copy(id = 0, bankAccountId = mappedBankId))
@@ -1044,6 +1456,8 @@ class SyncEngine(private val db: AppDatabase) {
                             importedReading = impReading
                         )
                     )
+                } else {
+                    skippedIdenticalCount++
                 }
             } else {
                 directNewReadings.add(impReading.copy(id = UUID.randomUUID().toString()))
@@ -1084,6 +1498,8 @@ class SyncEngine(private val db: AppDatabase) {
                             importedBill = impBill
                         )
                     )
+                } else {
+                    skippedIdenticalCount++
                 }
             } else {
                 directNewBills.add(impBill.copy(id = UUID.randomUUID().toString()))
@@ -1097,7 +1513,12 @@ class SyncEngine(private val db: AppDatabase) {
                 existing.hotelId == mappedHotelId && existing.year == pay.year && existing.month == pay.month &&
                     abs(existing.amountPaid - pay.amountPaid) < 0.01 && existing.note.trim() == pay.note.trim()
             }
-            if (alreadyExists) null else pay.copy(id = 0, hotelId = mappedHotelId)
+            if (alreadyExists) {
+                skippedIdenticalCount++
+                null
+            } else {
+                pay.copy(id = 0, hotelId = mappedHotelId)
+            }
         }
 
         val localStickyNotes = stickyNoteDao.getAllStickyNotesSync().filter { !it.isDeleted }
@@ -1106,7 +1527,12 @@ class SyncEngine(private val db: AppDatabase) {
         }
         val directNewStickyNotes = payload.stickyNotes.mapNotNull { note ->
             val sig = "${normalizeName(note.title)}|${normalizeName(note.subtitle)}|${note.bodyText.trim()}"
-            if (seenStickyKeys.add(sig)) note.copy(id = 0) else null
+            if (seenStickyKeys.add(sig)) {
+                note.copy(id = 0)
+            } else {
+                skippedIdenticalCount++
+                null
+            }
         }
 
         val localRates = meterDao.getAllElectricityRatesSync().filter { !it.isDeleted }
@@ -1120,11 +1546,19 @@ class SyncEngine(private val db: AppDatabase) {
             }
             if (!exists) {
                 directNewRates.add(impRate.copy(id = UUID.randomUUID().toString()))
+            } else {
+                skippedIdenticalCount++
             }
         }
 
         val allConflicts = (parentConflicts + menuConflicts + mealConflicts + expenseConflicts + readingConflicts + billConflicts)
             .sortedByDescending { it.timestamp }
+
+        val combinedDupCount = dedupResult.duplicateCount +
+            localScan.duplicateMealIds.size +
+            localScan.duplicateExpenseIds.size +
+            localScan.duplicateMenuIds.size
+        val combinedDupSummary = dedupResult.duplicateSummary + localScan.summaryLines
 
         SyncAnalysisResult(
             payload = payload,
@@ -1145,13 +1579,23 @@ class SyncEngine(private val db: AppDatabase) {
             directNewBills = directNewBills,
             directNewHotelPayments = directNewHotelPayments,
             directNewStickyNotes = directNewStickyNotes,
-            directNewElectricityRates = directNewRates
+            directNewElectricityRates = directNewRates,
+            duplicateRecordsInFileCount = combinedDupCount,
+            duplicateRecordsInFileSummary = combinedDupSummary,
+            localDuplicateMealIdsToDelete = localScan.duplicateMealIds,
+            localDuplicateExpenseIdsToDelete = localScan.duplicateExpenseIds,
+            localDuplicateMenuIdsToDelete = localScan.duplicateMenuIds,
+            orphanHotelIdsToAdopt = localScan.orphanHotelIds,
+            orphanBankIdsToAdopt = localScan.orphanBankIds,
+            skippedIdenticalCount = skippedIdenticalCount
         )
     }
 
     /**
      * Resolves unmapped parent decisions (from Phase 3 UI) and processes their child entities.
-     * Rule: If a parent is resolved as "CreateNew", all its child menus/transactions/expenses bypass duplicate check!
+     * Note: We keep the original `id` on `directNewHotels` / `directNewBankAccounts` so `SyncDao.executeMergeTransaction`
+     * can map `originalHotelId -> newlyInsertedRoomId` for all child menus, meal orders, payments, and expenses!
+     * Furthermore, even when creating a new parent, we check against any orphaned local records so re-importing never duplicates history.
      */
     suspend fun resolveParentDecisions(
         previousAnalysis: SyncAnalysisResult,
@@ -1162,10 +1606,20 @@ class SyncEngine(private val db: AppDatabase) {
 
         val localHotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
         val localBankAccounts = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
-        val localOwnerAccounts = ownerAccountDao.getAllOwnerAccountsSync().filter { !it.isDeleted }
-        val localMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
-        val localMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
-        val localExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+        val rawLocalMenus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
+        val rawLocalMeals = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
+        val rawLocalExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+
+        val localScan = findLocalDuplicatesAndCleanLists(
+            localHotels = localHotels,
+            localBanks = localBankAccounts,
+            localMeals = rawLocalMeals,
+            localExpenses = rawLocalExpenses,
+            localMenus = rawLocalMenus
+        )
+        val localMenus = localScan.cleanMenus
+        val localMeals = localScan.cleanMeals
+        val localExpenses = localScan.cleanExpenses
 
         val finalHotelMap = previousAnalysis.autoLinkedHotelIds.toMutableMap()
         val finalBankMap = previousAnalysis.autoLinkedBankIds.toMutableMap()
@@ -1180,14 +1634,16 @@ class SyncEngine(private val db: AppDatabase) {
 
         // Apply decisions to hotels
         payload.hotels.forEach { impHotel ->
-            val key = "hotel_${impHotel.id}"
-            when (val decision = parentDecisions[key]) {
-                is ParentResolution.MapToExisting -> {
-                    finalHotelMap[impHotel.id] = decision.targetLocalId
-                }
-                is ParentResolution.CreateNew, null -> {
-                    if (decision is ParentResolution.CreateNew) {
-                        directNewHotels.add(impHotel.copy(id = 0, importedFrom = decision.senderName ?: senderName))
+            if (!previousAnalysis.autoLinkedHotelIds.containsKey(impHotel.id)) {
+                val key = "hotel_${impHotel.id}"
+                when (val decision = parentDecisions[key]) {
+                    is ParentResolution.MapToExisting -> {
+                        finalHotelMap[impHotel.id] = decision.targetLocalId
+                    }
+                    is ParentResolution.CreateNew, null -> {
+                        val effectiveSender = (decision as? ParentResolution.CreateNew)?.senderName ?: senderName
+                        // Keep impHotel.id so SyncDao can map impHotel.id -> generated DB id!
+                        directNewHotels.add(impHotel.copy(importedFrom = effectiveSender))
                         newParentHotelIds.add(impHotel.id)
                     }
                 }
@@ -1196,14 +1652,16 @@ class SyncEngine(private val db: AppDatabase) {
 
         // Apply decisions to bank accounts
         payload.bankAccounts.forEach { impAcc ->
-            val key = "bank_${impAcc.id}"
-            when (val decision = parentDecisions[key]) {
-                is ParentResolution.MapToExisting -> {
-                    finalBankMap[impAcc.id] = decision.targetLocalId
-                }
-                is ParentResolution.CreateNew, null -> {
-                    if (decision is ParentResolution.CreateNew) {
-                        directNewBankAccounts.add(impAcc.copy(id = 0, importedFrom = decision.senderName ?: senderName))
+            if (!previousAnalysis.autoLinkedBankIds.containsKey(impAcc.id)) {
+                val key = "bank_${impAcc.id}"
+                when (val decision = parentDecisions[key]) {
+                    is ParentResolution.MapToExisting -> {
+                        finalBankMap[impAcc.id] = decision.targetLocalId
+                    }
+                    is ParentResolution.CreateNew, null -> {
+                        val effectiveSender = (decision as? ParentResolution.CreateNew)?.senderName ?: senderName
+                        // Keep impAcc.id so SyncDao can map impAcc.id -> generated DB id!
+                        directNewBankAccounts.add(impAcc.copy(importedFrom = effectiveSender))
                         newParentBankIds.add(impAcc.id)
                     }
                 }
@@ -1212,14 +1670,15 @@ class SyncEngine(private val db: AppDatabase) {
 
         // Apply decisions to owner accounts
         payload.ownerAccounts.forEach { impOwner ->
-            val key = "owner_${impOwner.id}"
-            when (val decision = parentDecisions[key]) {
-                is ParentResolution.MapToExisting -> {
-                    finalOwnerMap[impOwner.id] = decision.targetLocalId
-                }
-                is ParentResolution.CreateNew, null -> {
-                    if (decision is ParentResolution.CreateNew) {
-                        directNewOwnerAccounts.add(impOwner.copy(id = 0, importedFrom = decision.senderName ?: senderName))
+            if (!previousAnalysis.autoLinkedOwnerIds.containsKey(impOwner.id)) {
+                val key = "owner_${impOwner.id}"
+                when (val decision = parentDecisions[key]) {
+                    is ParentResolution.MapToExisting -> {
+                        finalOwnerMap[impOwner.id] = decision.targetLocalId
+                    }
+                    is ParentResolution.CreateNew, null -> {
+                        val effectiveSender = (decision as? ParentResolution.CreateNew)?.senderName ?: senderName
+                        directNewOwnerAccounts.add(impOwner.copy(id = 0, importedFrom = effectiveSender))
                     }
                 }
             }
@@ -1230,12 +1689,27 @@ class SyncEngine(private val db: AppDatabase) {
         val directNewMenus = previousAnalysis.directNewMenus.toMutableList()
         val directNewMeals = previousAnalysis.directNewMeals.toMutableList()
         val directNewExpenses = previousAnalysis.directNewExpenses.toMutableList()
+        var skippedIdenticalCount = previousAnalysis.skippedIdenticalCount
+
+        // Orphaned local records (e.g. from an earlier import where hotel was not created)
+        val orphanedLocalMenus = localMenus.filter { localScan.orphanHotelIds.contains(it.hotelId) }
+        val orphanedLocalMeals = localMeals.filter { localScan.orphanHotelIds.contains(it.hotelId) }
+        val orphanedLocalExpenses = localExpenses.filter { localScan.orphanBankIds.contains(it.bankAccountId) }
 
         // Process Menus for newly decided hotels
         payload.menus.forEach { impMenu ->
             if (newParentHotelIds.contains(impMenu.hotelId)) {
-                // BYPASS RULE: If parent is newly created, its children are 100% new!
-                directNewMenus.add(impMenu.copy(id = 0))
+                val impBangla = normalizeName(impMenu.banglaName)
+                val impEnglish = normalizeName(impMenu.englishName)
+                val orphanMatch = orphanedLocalMenus.firstOrNull { localM ->
+                    (impEnglish.isNotBlank() && normalizeName(localM.englishName) == impEnglish) ||
+                        (impBangla.isNotBlank() && normalizeName(localM.banglaName) == impBangla)
+                }
+                if (orphanMatch == null) {
+                    directNewMenus.add(impMenu.copy(id = 0))
+                } else {
+                    skippedIdenticalCount++
+                }
             } else if (finalHotelMap.containsKey(impMenu.hotelId) && !previousAnalysis.autoLinkedHotelIds.containsKey(impMenu.hotelId)) {
                 val mappedHotelId = finalHotelMap[impMenu.hotelId]!!
                 val hotelObj = localHotels.firstOrNull { it.id == mappedHotelId }
@@ -1247,7 +1721,7 @@ class SyncEngine(private val db: AppDatabase) {
 
                 val localExisting = hotelMenus.firstOrNull { localM ->
                     (impEnglish.isNotBlank() && normalizeName(localM.englishName) == impEnglish) ||
-                            (impBangla.isNotBlank() && normalizeName(localM.banglaName) == impBangla)
+                        (impBangla.isNotBlank() && normalizeName(localM.banglaName) == impBangla)
                 }
 
                 if (localExisting == null) {
@@ -1280,6 +1754,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 hotelName = hotelName
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 }
             }
@@ -1288,22 +1764,37 @@ class SyncEngine(private val db: AppDatabase) {
         // Process Meals for newly decided hotels
         payload.transactions.forEach { impMeal ->
             if (newParentHotelIds.contains(impMeal.hotelId)) {
-                directNewMeals.add(impMeal.copy(id = 0))
+                val impDayStart = startOfDay(impMeal.timestamp)
+                val orphanExact = orphanedLocalMeals.firstOrNull { localM ->
+                    localM.isNight == impMeal.isNight &&
+                        startOfDay(localM.timestamp) == impDayStart &&
+                        abs(localM.totalAmount - impMeal.totalAmount) < 0.01 &&
+                        localM.itemsSerialized.trim() == impMeal.itemsSerialized.trim()
+                }
+                if (orphanExact == null) {
+                    directNewMeals.add(impMeal.copy(id = 0))
+                } else {
+                    skippedIdenticalCount++
+                }
             } else if (finalHotelMap.containsKey(impMeal.hotelId) && !previousAnalysis.autoLinkedHotelIds.containsKey(impMeal.hotelId)) {
                 val mappedHotelId = finalHotelMap[impMeal.hotelId]!!
                 val hotelObj = localHotels.firstOrNull { it.id == mappedHotelId }
                 val hotelName = hotelObj?.name ?: "Hotel #$mappedHotelId"
                 val impDayStart = startOfDay(impMeal.timestamp)
 
-                val localMealMatch = localMeals.firstOrNull { localM ->
+                val sameDayCandidates = localMeals.filter { localM ->
                     localM.hotelId == mappedHotelId &&
                         localM.isNight == impMeal.isNight &&
                         startOfDay(localM.timestamp) == impDayStart
                 }
+                val exactMealMatch = sameDayCandidates.firstOrNull { localM ->
+                    abs(localM.totalAmount - impMeal.totalAmount) < 0.01 &&
+                        localM.itemsSerialized.trim() == impMeal.itemsSerialized.trim()
+                }
+                val localMealMatch = exactMealMatch ?: sameDayCandidates.firstOrNull()
 
                 if (localMealMatch != null) {
-                    val isIdentical = abs(localMealMatch.totalAmount - impMeal.totalAmount) < 0.01 &&
-                        localMealMatch.itemsSerialized == impMeal.itemsSerialized
+                    val isIdentical = exactMealMatch != null
                     if (!isIdentical) {
                         val isNewer = impMeal.lastUpdatedMillis >= localMealMatch.lastUpdatedMillis
                         val dateFormatted = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(impMeal.timestamp))
@@ -1323,6 +1814,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 importedItemsSummary = impMeal.itemsSerialized
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else {
                     directNewMeals.add(impMeal.copy(id = 0, hotelId = mappedHotelId))
@@ -1333,23 +1826,37 @@ class SyncEngine(private val db: AppDatabase) {
         // Process Expenses for newly decided accounts
         payload.expenses.forEach { impExp ->
             if (newParentBankIds.contains(impExp.bankAccountId)) {
-                directNewExpenses.add(impExp.copy(id = 0))
+                val orphanExact = orphanedLocalExpenses.firstOrNull { localE ->
+                    localE.type.equals(impExp.type, ignoreCase = true) &&
+                        abs(localE.amount - impExp.amount) < 0.01 &&
+                        abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS &&
+                        normalizeName(localE.name) == normalizeName(impExp.name)
+                }
+                if (orphanExact == null) {
+                    directNewExpenses.add(impExp.copy(id = 0))
+                } else {
+                    skippedIdenticalCount++
+                }
             } else if (finalBankMap.containsKey(impExp.bankAccountId) && !previousAnalysis.autoLinkedBankIds.containsKey(impExp.bankAccountId)) {
                 val mappedBankId = finalBankMap[impExp.bankAccountId]!!
                 val accObj = localBankAccounts.firstOrNull { it.id == mappedBankId }
                 val accName = accObj?.name ?: "Account #$mappedBankId"
 
-                val localExpMatch = localExpenses.firstOrNull { localE ->
+                val windowCandidates = localExpenses.filter { localE ->
                     localE.bankAccountId == mappedBankId &&
                         localE.type.equals(impExp.type, ignoreCase = true) &&
                         abs(localE.amount - impExp.amount) < 0.01 &&
                         abs(localE.timestamp - impExp.timestamp) <= TRANSACTION_FUZZY_WINDOW_MS
                 }
+                val exactExpMatch = windowCandidates.firstOrNull { localE ->
+                    normalizeName(localE.name) == normalizeName(impExp.name) &&
+                        normalizeName(localE.category) == normalizeName(impExp.category) &&
+                        localE.notes.trim() == impExp.notes.trim()
+                }
+                val localExpMatch = exactExpMatch ?: windowCandidates.firstOrNull()
 
                 if (localExpMatch != null) {
-                    val isIdentical = normalizeName(localExpMatch.name) == normalizeName(impExp.name) &&
-                        normalizeName(localExpMatch.category) == normalizeName(impExp.category) &&
-                        localExpMatch.notes.trim() == impExp.notes.trim()
+                    val isIdentical = exactExpMatch != null
                     if (!isIdentical) {
                         val isNewer = impExp.lastUpdatedMillis >= localExpMatch.lastUpdatedMillis
                         val diffMins = abs(impExp.timestamp - localExpMatch.timestamp) / (60 * 1000L)
@@ -1368,6 +1875,8 @@ class SyncEngine(private val db: AppDatabase) {
                                 accountName = accName
                             )
                         )
+                    } else {
+                        skippedIdenticalCount++
                     }
                 } else {
                     directNewExpenses.add(impExp.copy(id = 0, bankAccountId = mappedBankId))
@@ -1378,7 +1887,17 @@ class SyncEngine(private val db: AppDatabase) {
         val existingPayments = hotelPaymentDao.getAllPaymentsSync().filter { payment -> !payment.isDeleted }
         val updatedHotelPayments = previousAnalysis.directNewHotelPayments.toMutableList()
         payload.hotelPayments.forEach { impPay ->
-            if (!previousAnalysis.autoLinkedHotelIds.containsKey(impPay.hotelId) && finalHotelMap.containsKey(impPay.hotelId)) {
+            if (newParentHotelIds.contains(impPay.hotelId)) {
+                val alreadyExists = existingPayments.any { existing ->
+                    existing.year == impPay.year && existing.month == impPay.month &&
+                        abs(existing.amountPaid - impPay.amountPaid) < 0.01 && existing.note.trim() == impPay.note.trim()
+                }
+                if (!alreadyExists) {
+                    updatedHotelPayments.add(impPay.copy(id = 0))
+                } else {
+                    skippedIdenticalCount++
+                }
+            } else if (!previousAnalysis.autoLinkedHotelIds.containsKey(impPay.hotelId) && finalHotelMap.containsKey(impPay.hotelId)) {
                 val mappedHotelId = finalHotelMap[impPay.hotelId]!!
                 val alreadyExists = existingPayments.any { existing ->
                     existing.hotelId == mappedHotelId && existing.year == impPay.year && existing.month == impPay.month &&
@@ -1386,6 +1905,8 @@ class SyncEngine(private val db: AppDatabase) {
                 }
                 if (!alreadyExists) {
                     updatedHotelPayments.add(impPay.copy(id = 0, hotelId = mappedHotelId))
+                } else {
+                    skippedIdenticalCount++
                 }
             }
         }
@@ -1403,7 +1924,8 @@ class SyncEngine(private val db: AppDatabase) {
             directNewMenus = directNewMenus,
             directNewMeals = directNewMeals,
             directNewExpenses = directNewExpenses,
-            directNewHotelPayments = updatedHotelPayments
+            directNewHotelPayments = updatedHotelPayments,
+            skippedIdenticalCount = skippedIdenticalCount
         )
     }
 
@@ -1551,7 +2073,10 @@ class SyncEngine(private val db: AppDatabase) {
                 readingsToInsert.size + readingsToUpdate.size +
                 billsToInsert.size + billsToUpdate.size +
                 hotelPaymentsToInsert.size + stickyNotesToInsert.size +
-                electricityRatesToInsert.size
+                electricityRatesToInsert.size +
+                analysis.localDuplicateMealIdsToDelete.size +
+                analysis.localDuplicateExpenseIdsToDelete.size +
+                analysis.localDuplicateMenuIdsToDelete.size
 
         // Protect the receiver's local user profile & preferences during two-person sync;
         // only update if the import is explicitly a Settings-only restore.
@@ -1583,11 +2108,19 @@ class SyncEngine(private val db: AppDatabase) {
             stickyNotesToInsert = stickyNotesToInsert,
             electricityRatesToInsert = electricityRatesToInsert,
             userProfileToUpdate = safeProfileUpdate,
+            duplicateRecordsInFileCount = analysis.duplicateRecordsInFileCount,
+            duplicateRecordsInFileSummary = analysis.duplicateRecordsInFileSummary,
+            localDuplicateMealIdsToDelete = analysis.localDuplicateMealIdsToDelete,
+            localDuplicateExpenseIdsToDelete = analysis.localDuplicateExpenseIdsToDelete,
+            localDuplicateMenuIdsToDelete = analysis.localDuplicateMenuIdsToDelete,
+            orphanHotelIdsToAdopt = analysis.orphanHotelIdsToAdopt,
+            orphanBankIdsToAdopt = analysis.orphanBankIdsToAdopt,
+            skippedIdenticalCount = analysis.skippedIdenticalCount,
             totalAffectedCount = totalCount
         )
     }
 
-    suspend fun executeMergePlan(plan: MergePlan) = withContext(Dispatchers.IO) {
+    suspend fun executeMergePlan(plan: MergePlan): Int? = withContext(Dispatchers.IO) {
         db.syncDao().executeMergeTransaction(plan)
     }
 }

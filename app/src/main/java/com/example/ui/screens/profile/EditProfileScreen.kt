@@ -787,27 +787,34 @@ fun OwnerAccountCard(
     }
 
     if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Move to Recycle Bin?", color = AppTextColor(), fontWeight = FontWeight.Bold) },
-            text = { Text("Move account to Recycle Bin? You can restore it anytime from the Bin.", color = AppTextColor()) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        onDelete()
+        if (com.example.ui.components.SecretDeleteModeManager.isActive()) {
+            LaunchedEffect(Unit) {
+                showDeleteConfirmation = false
+                onDelete()
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Move to Recycle Bin?", color = AppTextColor(), fontWeight = FontWeight.Bold) },
+                text = { Text("Move account to Recycle Bin? You can restore it anytime from the Bin.", color = AppTextColor()) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDelete()
+                        }
+                    ) {
+                        Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Bold)
                     }
-                ) {
-                    Text("Move to Bin", color = AccentPink, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text("Cancel", color = AppTextColor().copy(alpha = 0.6f))
-                }
-            },
-            containerColor = getDialogBackground()
-        )
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel", color = AppTextColor().copy(alpha = 0.6f))
+                    }
+                },
+                containerColor = getDialogBackground()
+            )
+        }
     }
 
     if (showQRDialog && account.qrCodeUri.isNotBlank()) {

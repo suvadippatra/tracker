@@ -271,6 +271,8 @@ fun QrExportStreamDialog(
                                 color = statusTextColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
@@ -435,24 +437,28 @@ fun QrExportStreamDialog(
                                                 containerColor = if (!hasStarted || isPaused) accentColor else Color(0xFFE65100),
                                                 contentColor = if (!hasStarted || isPaused) AppOnAccentColor(accentColor) else Color.White
                                             ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                             shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.height(44.dp).testTag("qr_stream_play_btn")
+                                            modifier = Modifier.weight(1f).height(44.dp).testTag("qr_stream_play_btn")
                                         ) {
                                             Icon(
                                                 imageVector = if (!hasStarted || isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(18.dp)
                                             )
-                                            Spacer(Modifier.width(8.dp))
+                                            Spacer(Modifier.width(6.dp))
                                             Text(
                                                 text = when {
-                                                    !hasStarted -> "Start QR Stream (5 Rounds)"
-                                                    completedFiveRounds && isPaused -> "Start Again (5 Rounds)"
+                                                    !hasStarted -> "Start Stream (5x)"
+                                                    completedFiveRounds && isPaused -> "Restart (5x)"
                                                     isPaused -> "Resume Stream"
                                                     else -> "Pause Stream"
                                                 },
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
 
@@ -533,44 +539,54 @@ fun QrExportStreamDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = displayItemName,
-                                                color = textColor,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            if (hasPaymentQrs && stage == 0) {
+                                        Text(
+                                            text = displayItemName,
+                                            color = textColor,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (hasPaymentQrs && stage == 0) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = AccentGreen.copy(alpha = 0.14f)
+                                            ) {
                                                 Text(
-                                                    text = "${paymentQrs.size} Payment QR(s) queued after stream",
-                                                    color = accentColor,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold
+                                                    text = "+${paymentQrs.size} Payment QR",
+                                                    color = AccentGreen,
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                                 )
                                             }
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = accentColor.copy(alpha = 0.12f)
-                                        ) {
-                                            Text(
-                                                text = frameLabel,
-                                                color = accentColor,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = accentColor.copy(alpha = 0.12f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = frameLabel,
+                                            color = accentColor,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
                                     }
                                     if (warningBannerText.isNotEmpty() && stage == 0) {
                                         Text(
@@ -674,6 +690,7 @@ fun QrExportStreamDialog(
                                                     containerColor = if (!hasStarted || isPaused) accentColor else Color(0xFFE65100),
                                                     contentColor = if (!hasStarted || isPaused) AppOnAccentColor(accentColor) else Color.White
                                                 ),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                                 modifier = Modifier
                                                     .weight(1f)
@@ -685,16 +702,19 @@ fun QrExportStreamDialog(
                                                     contentDescription = null,
                                                     modifier = Modifier.size(18.dp)
                                                 )
-                                                Spacer(Modifier.width(8.dp))
+                                                Spacer(Modifier.width(6.dp))
                                                 Text(
                                                     text = when {
-                                                        !hasStarted -> "Start QR Frames (5 Rounds)"
-                                                        completedFiveRounds && isPaused -> "Start Again (5 Rounds)"
+                                                        !hasStarted -> "Start Stream (5x)"
+                                                        completedFiveRounds && isPaused -> "Restart (5x)"
                                                         isPaused -> "Resume Frames"
                                                         else -> "Pause Stream"
                                                     },
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 13.sp
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
 
@@ -719,7 +739,10 @@ fun QrExportStreamDialog(
                                                 text = "Speed: ${fps.toInt()} FPS",
                                                 color = textColor,
                                                 fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.widthIn(min = 84.dp)
                                             )
                                             Slider(
                                                 value = fps,
@@ -744,6 +767,7 @@ fun QrExportStreamDialog(
                                                     isShowingWarning = true
                                                     stage = 1
                                                 },
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -755,7 +779,10 @@ fun QrExportStreamDialog(
                                                 Text(
                                                     text = "Next: Payment QRs (${paymentQrs.size}) →",
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 13.sp
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
@@ -861,6 +888,7 @@ private fun QrPaymentStageControls(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -877,11 +905,11 @@ private fun QrPaymentStageControls(
                         "Payment QR Active: ${item.entityType} • ${item.entityName}"
                     },
                     color = textColor,
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -892,6 +920,7 @@ private fun QrPaymentStageControls(
             ) {
                 OutlinedButton(
                     onClick = onPrev,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.height(44.dp).testTag("qr_payment_prev_btn")
                 ) {
@@ -908,7 +937,9 @@ private fun QrPaymentStageControls(
                             else -> "Data QR"
                         },
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 
@@ -918,6 +949,7 @@ private fun QrPaymentStageControls(
                         containerColor = if (isShowingWarning) Color(0xFFF59E0B) else accentColor,
                         contentColor = if (isShowingWarning) Color.Black else AppOnAccentColor(accentColor)
                     ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -931,7 +963,10 @@ private fun QrPaymentStageControls(
                             else -> "Done"
                         },
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.width(6.dp))
                     Icon(

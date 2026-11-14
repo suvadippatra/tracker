@@ -55,8 +55,8 @@ class DataTransferManager(private val db: AppDatabase) {
 
     suspend fun exportWholeHotelJson(hotelId: Int, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val hotel = hotelDao.getHotelByIdSync(hotelId) ?: throw IllegalArgumentException("Hotel not found")
-        val menus = menuDao.getMenusForHotelSync(hotelId)
-        val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
+        val menus = menuDao.getMenusForHotelSync(hotelId).filter { !it.isDeleted }
+        val transactions = transactionDao.getTransactionsForHotelSync(hotelId).filter { !it.isDeleted }
         val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
 
         val profile = userProfileDao.getUserProfileSync()
@@ -83,6 +83,7 @@ class DataTransferManager(private val db: AppDatabase) {
             val menuArray = JSONArray()
             menus.forEach { m ->
                 menuArray.put(JSONObject().apply {
+                    put("hotelId", m.hotelId)
                     put("banglaName", m.banglaName)
                     put("englishName", m.englishName)
                     put("price", m.price)
@@ -142,7 +143,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportHotelMenusJson(hotelId: Int): String = withContext(Dispatchers.IO) {
-        val menus = menuDao.getMenusForHotelSync(hotelId)
+        val menus = menuDao.getMenusForHotelSync(hotelId).filter { !it.isDeleted }
         val root = JSONObject().apply {
             put("version", 2)
             put("dataType", BackupDataType.HOTEL_MENUS.name)
@@ -151,6 +152,7 @@ class DataTransferManager(private val db: AppDatabase) {
             val arr = JSONArray()
             menus.forEach { m ->
                 arr.put(JSONObject().apply {
+                    put("hotelId", m.hotelId)
                     put("banglaName", m.banglaName)
                     put("englishName", m.englishName)
                     put("price", m.price)
@@ -167,7 +169,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportHotelHistoryJson(hotelId: Int): String = withContext(Dispatchers.IO) {
-        val transactions = transactionDao.getTransactionsForHotelSync(hotelId)
+        val transactions = transactionDao.getTransactionsForHotelSync(hotelId).filter { !it.isDeleted }
         val payments = hotelPaymentDao.getAllPaymentsSync().filter { it.hotelId == hotelId && !it.isDeleted }
         val root = JSONObject().apply {
             put("version", 3)
@@ -214,8 +216,8 @@ class DataTransferManager(private val db: AppDatabase) {
         if (bankAccountId != null) {
             return@withContext exportSingleBankAccountJson(bankAccountId, includeQrMedia = includeQrMedia)
         }
-        val accounts = bankAccountDao.getAllBankAccountsSync()
-        val expenses = extraExpenseDao.getAllExpensesSync()
+        val accounts = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
+        val expenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
         val root = JSONObject().apply {
             put("version", 3)
             put("dataType", BackupDataType.WALLET_WHOLE.name)
@@ -261,9 +263,9 @@ class DataTransferManager(private val db: AppDatabase) {
 
     suspend fun exportBankAccountsJson(bankAccountId: Int? = null, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val accounts = if (bankAccountId != null) {
-            bankAccountDao.getBankAccountByIdSync(bankAccountId)?.let { listOf(it) } ?: emptyList()
+            bankAccountDao.getBankAccountByIdSync(bankAccountId)?.takeIf { !it.isDeleted }?.let { listOf(it) } ?: emptyList()
         } else {
-            bankAccountDao.getAllBankAccountsSync()
+            bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
         }
         val root = JSONObject().apply {
             put("version", 3)
@@ -297,7 +299,7 @@ class DataTransferManager(private val db: AppDatabase) {
 
     suspend fun exportSingleBankAccountJson(bankAccountId: Int, includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
         val account = bankAccountDao.getBankAccountByIdSync(bankAccountId) ?: throw IllegalArgumentException("Bank account not found")
-        val expenses = extraExpenseDao.getAllExpensesSync().filter { it.bankAccountId == bankAccountId }
+        val expenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted && it.bankAccountId == bankAccountId }
         val root = JSONObject().apply {
             put("version", 3)
             put("dataType", BackupDataType.SINGLE_BANK_ACCOUNT.name)
@@ -337,7 +339,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportTransactionHistoryJson(bankAccountId: Int? = null): String = withContext(Dispatchers.IO) {
-        val allExpenses = extraExpenseDao.getAllExpensesSync()
+        val allExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
         val expenses = if (bankAccountId != null) allExpenses.filter { it.bankAccountId == bankAccountId } else allExpenses
         val root = JSONObject().apply {
             put("version", 3)
@@ -523,17 +525,17 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportFullBackupJson(includeQrMedia: Boolean = true): String = withContext(Dispatchers.IO) {
-        val hotels = hotelDao.getAllHotelsSync()
-        val menus = menuDao.getAllMenuItemsSync()
-        val transactions = transactionDao.getAllTransactionsSync()
+        val hotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
+        val menus = menuDao.getAllMenuItemsSync().filter { !it.isDeleted }
+        val transactions = transactionDao.getAllTransactionsSync().filter { !it.isDeleted }
         val hotelPayments = hotelPaymentDao.getAllPaymentsSync().filter { !it.isDeleted }
-        val bankAccounts = bankAccountDao.getAllBankAccountsSync()
-        val expenses = extraExpenseDao.getAllExpensesSync()
+        val bankAccounts = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
+        val expenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
         val ownerAccounts = ownerAccountDao.getAllOwnerAccountsSync().filter { !it.isDeleted }
-        val readings = meterDao.getAllReadingsSync()
-        val bills = meterDao.getAllUtilityBillsSync()
-        val rates = meterDao.getAllElectricityRatesSync()
-        val stickyNotes = stickyNoteDao.getAllStickyNotesSync()
+        val readings = meterDao.getAllReadingsSync().filter { !it.isDeleted }
+        val bills = meterDao.getAllUtilityBillsSync().filter { !it.isDeleted }
+        val rates = meterDao.getAllElectricityRatesSync().filter { !it.isDeleted }
+        val stickyNotes = stickyNoteDao.getAllStickyNotesSync().filter { !it.isDeleted }
         val profile = userProfileDao.getUserProfileSync()
 
         val root = JSONObject().apply {
@@ -819,7 +821,7 @@ class DataTransferManager(private val db: AppDatabase) {
     // ==========================================
 
     suspend fun exportFullBackupCsv(): String = withContext(Dispatchers.IO) {
-        val hotels = hotelDao.getAllHotelsSync()
+        val hotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
         val profile = userProfileDao.getUserProfileSync()
         val sb = StringBuilder()
         sb.append("# FULL APPLICATION BACKUP\n\n")
@@ -874,7 +876,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportMenusCsv(hotelId: Int? = null): String = withContext(Dispatchers.IO) {
-        val menus = if (hotelId != null) menuDao.getMenusForHotelSync(hotelId) else menuDao.getAllMenuItemsSync()
+        val menus = (if (hotelId != null) menuDao.getMenusForHotelSync(hotelId) else menuDao.getAllMenuItemsSync()).filter { !it.isDeleted }
         val sb = StringBuilder()
         sb.append("Bangla Name,English Name,Price,Day Available,Night Available,Is Add-on,Category\n")
         menus.forEach { m ->
@@ -887,7 +889,7 @@ class DataTransferManager(private val db: AppDatabase) {
     }
 
     suspend fun exportHotelHistoryCsv(hotelId: Int? = null, includePaymentsSection: Boolean = true): String = withContext(Dispatchers.IO) {
-        val txs = if (hotelId != null) transactionDao.getTransactionsForHotelSync(hotelId) else transactionDao.getAllTransactionsSync()
+        val txs = (if (hotelId != null) transactionDao.getTransactionsForHotelSync(hotelId) else transactionDao.getAllTransactionsSync()).filter { !it.isDeleted }
         val sb = StringBuilder()
         sb.append("Order ID,Date,Time,Session,Meal Groups & Items,Total Items,Order Total,Timestamp\n")
         
@@ -2232,6 +2234,20 @@ class DataTransferManager(private val db: AppDatabase) {
         val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
         if (lines.isEmpty()) return@withContext 0
 
+        val activeHotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
+        val resolvedHotelId = if (activeHotels.any { it.id == hotelId }) {
+            hotelId
+        } else if (activeHotels.isNotEmpty()) {
+            activeHotels.first().id
+        } else {
+            hotelDao.insertHotel(HotelEntity(name = "Imported Hotel")).toInt()
+        }
+
+        val existingMenus = menuDao.getMenusForHotelSync(resolvedHotelId).filter { !it.isDeleted }
+        val seenKeys = existingMenus.mapTo(mutableSetOf()) {
+            "${it.englishName.trim().lowercase(Locale.ROOT)}|${it.banglaName.trim().lowercase(Locale.ROOT)}"
+        }
+
         val menuList = mutableListOf<MenuEntity>()
         for ((index, line) in lines.withIndex()) {
             val cols = splitCsvRow(line)
@@ -2252,19 +2268,24 @@ class DataTransferManager(private val db: AppDatabase) {
             val type = cols.getOrElse(6) { "Common" }
 
             if (bangla.isNotBlank() || english.isNotBlank()) {
-                menuList.add(
-                    MenuEntity(
-                        hotelId = hotelId,
-                        banglaName = bangla.ifBlank { english },
-                        englishName = english.ifBlank { bangla },
-                        price = price,
-                        isDayMenu = isDay,
-                        isNightMenu = isNight,
-                        isAddOn = isAddOn,
-                        emoji = "🍽️",
-                        type = type.ifBlank { "Common" }
+                val finalBangla = bangla.ifBlank { english }
+                val finalEnglish = english.ifBlank { bangla }
+                val key = "${finalEnglish.trim().lowercase(Locale.ROOT)}|${finalBangla.trim().lowercase(Locale.ROOT)}"
+                if (seenKeys.add(key)) {
+                    menuList.add(
+                        MenuEntity(
+                            hotelId = resolvedHotelId,
+                            banglaName = finalBangla,
+                            englishName = finalEnglish,
+                            price = price,
+                            isDayMenu = isDay,
+                            isNightMenu = isNight,
+                            isAddOn = isAddOn,
+                            emoji = "🍽️",
+                            type = type.ifBlank { "Common" }
+                        )
                     )
-                )
+                }
             }
         }
         if (menuList.isNotEmpty()) {
@@ -2501,10 +2522,29 @@ class DataTransferManager(private val db: AppDatabase) {
             }
         }
 
-        if (txList.isNotEmpty()) {
-            transactionDao.insertTransactions(txList)
+        val activeHotels = hotelDao.getAllHotelsSync().filter { !it.isDeleted }
+        val resolvedHotelId = if (activeHotels.any { it.id == hotelId }) {
+            hotelId
+        } else if (activeHotels.isNotEmpty()) {
+            activeHotels.first().id
+        } else {
+            hotelDao.insertHotel(HotelEntity(name = "Imported Hotel")).toInt()
         }
-        txList.size + importedPaymentsCount
+
+        val existingMeals = transactionDao.getTransactionsForHotelSync(resolvedHotelId).filter { !it.isDeleted }
+        val seenMealKeys = existingMeals.mapTo(mutableSetOf()) { m ->
+            "${m.isNight}|${getDayStart(m.timestamp)}|${"%.2f".format(Locale.US, m.totalAmount)}|${m.itemsSerialized.trim()}"
+        }
+
+        val dedupedTxList = txList.mapNotNull { tx ->
+            val key = "${tx.isNight}|${getDayStart(tx.timestamp)}|${"%.2f".format(Locale.US, tx.totalAmount)}|${tx.itemsSerialized.trim()}"
+            if (seenMealKeys.add(key)) tx.copy(hotelId = resolvedHotelId) else null
+        }
+
+        if (dedupedTxList.isNotEmpty()) {
+            transactionDao.insertTransactions(dedupedTxList)
+        }
+        dedupedTxList.size + importedPaymentsCount
     }
 
     suspend fun importWholeHotelCsv(csv: String, targetHotelId: Int? = null): ImportOutcome = withContext(Dispatchers.IO) {
@@ -2704,10 +2744,28 @@ class DataTransferManager(private val db: AppDatabase) {
                 )
             )
         }
-        if (list.isNotEmpty()) {
-            extraExpenseDao.insertExpenses(list)
+        val activeBanks = bankAccountDao.getAllBankAccountsSync().filter { !it.isDeleted }
+        val existingExpenses = extraExpenseDao.getAllExpensesSync().filter { !it.isDeleted }
+        val seenExpKeys = existingExpenses.mapTo(mutableSetOf()) { e ->
+            "${e.bankAccountId}|${e.type.uppercase(Locale.ROOT)}|${"%.2f".format(Locale.US, e.amount)}|${e.name.trim().lowercase(Locale.ROOT)}|${e.timestamp / 60000L}"
         }
-        list.size
+
+        val dedupedList = list.mapNotNull { exp ->
+            val resolvedBankId = if (activeBanks.any { it.id == exp.bankAccountId }) {
+                exp.bankAccountId
+            } else if (activeBanks.isNotEmpty()) {
+                activeBanks.first().id
+            } else {
+                exp.bankAccountId
+            }
+            val key = "${resolvedBankId}|${exp.type.uppercase(Locale.ROOT)}|${"%.2f".format(Locale.US, exp.amount)}|${exp.name.trim().lowercase(Locale.ROOT)}|${exp.timestamp / 60000L}"
+            if (seenExpKeys.add(key)) exp.copy(bankAccountId = resolvedBankId) else null
+        }
+
+        if (dedupedList.isNotEmpty()) {
+            extraExpenseDao.insertExpenses(dedupedList)
+        }
+        dedupedList.size
     }
 
     suspend fun importMeterReadingsCsv(csv: String): Int = withContext(Dispatchers.IO) {

@@ -22,12 +22,46 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 
+object SecretDeleteModeManager {
+    @Volatile
+    private var expiresAtMillis: Long = 0L
+    private var tapCount: Int = 0
+    private var lastTapMillis: Long = 0L
+
+    fun registerLogoTap(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastTapMillis > 2500L) {
+            tapCount = 1
+        } else {
+            tapCount++
+        }
+        lastTapMillis = now
+        if (tapCount >= 4) {
+            tapCount = 0
+            expiresAtMillis = now + 2 * 60 * 1000L
+            return true
+        }
+        return false
+    }
+
+    fun isActive(): Boolean {
+        return System.currentTimeMillis() < expiresAtMillis
+    }
+}
+
 @Composable
 fun Tier1DeleteDialog(
     itemTitle: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    if (SecretDeleteModeManager.isActive()) {
+        LaunchedEffect(Unit) {
+            onConfirm()
+            onDismiss()
+        }
+        return
+    }
     Tier2DeleteDialog(itemTitle, "delete", onConfirm, onDismiss)
 }
 
@@ -37,6 +71,13 @@ fun OldTier1DeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    if (SecretDeleteModeManager.isActive()) {
+        LaunchedEffect(Unit) {
+            onConfirm()
+            onDismiss()
+        }
+        return
+    }
     BackHandler { onDismiss() }
 
     Dialog(
@@ -110,6 +151,13 @@ fun Tier2DeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    if (SecretDeleteModeManager.isActive()) {
+        LaunchedEffect(Unit) {
+            onConfirm()
+            onDismiss()
+        }
+        return
+    }
     BackHandler { onDismiss() }
 
     var input by remember { mutableStateOf("") }

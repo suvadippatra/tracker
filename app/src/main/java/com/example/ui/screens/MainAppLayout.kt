@@ -561,13 +561,21 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                         viewModel.resolveAllConflictsLocal()
                     },
                     onConfirmMerge = {
-                        val plan = viewModel.generateMergePlan()
-                        if (plan != null) {
-                            viewModel.executeMergePlan(plan) { outcome ->
-                                when (outcome) {
-                                    is com.example.data.ImportOutcome.Success -> android.widget.Toast.makeText(globalContext, outcome.message, android.widget.Toast.LENGTH_LONG).show()
-                                    is com.example.data.ImportOutcome.Error -> android.widget.Toast.makeText(globalContext, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
-                                }
+                        viewModel.proceedToMergeSummaryConfirmation()
+                    },
+                    onDismiss = {
+                        viewModel.cancelImportFlow()
+                    }
+                )
+            }
+            is FinancialViewModel.ImportUiFlowState.MergeSummaryConfirmationRequired -> {
+                com.example.ui.components.MergeSummaryWarningDialog(
+                    plan = syncState.plan,
+                    onConfirm = {
+                        viewModel.executeMergePlan(syncState.plan) { outcome ->
+                            when (outcome) {
+                                is com.example.data.ImportOutcome.Success -> android.widget.Toast.makeText(globalContext, outcome.message, android.widget.Toast.LENGTH_LONG).show()
+                                is com.example.data.ImportOutcome.Error -> android.widget.Toast.makeText(globalContext, "Import failed: ${outcome.message}", android.widget.Toast.LENGTH_LONG).show()
                             }
                         }
                     },

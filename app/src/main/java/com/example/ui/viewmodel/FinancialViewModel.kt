@@ -153,13 +153,14 @@ class FinancialViewModel(
         }
         viewModelScope.launch {
             repository.initializeDatabaseIfNeeded(application)
+            val healedHotelId = runCatching { syncEngine.autoHealOrphanedAndDuplicateData() }.getOrNull()
             val profile = repository.userProfile.first()
             if (profile != null) {
                 com.example.ui.theme.ThemePreferences.save(application, profile)
             }
             val hotels = repository.allHotels.first()
             if (hotels.isNotEmpty()) {
-                val targetHotelId = profile?.defaultHotelId ?: hotels.first().id
+                val targetHotelId = healedHotelId ?: profile?.defaultHotelId ?: hotels.first().id
                 if (hotels.any { it.id == targetHotelId }) {
                     activeHotelId.value = targetHotelId
                 } else {
@@ -1029,6 +1030,7 @@ class FinancialViewModel(
     // Import Analysis & Smart Sync Engine State
     private val syncEngine by lazy { com.example.utils.SyncEngine(com.example.data.AppDatabase.getDatabase(getApplication())) }
 
+    private var _baseSyncAnalysis: com.example.utils.SyncAnalysisResult? = null
     private val _syncAnalysis = MutableStateFlow<com.example.utils.SyncAnalysisResult?>(null)
     val syncAnalysis = _syncAnalysis.asStateFlow()
 
@@ -1053,6 +1055,10 @@ class FinancialViewModel(
         data class ParentMappingRequired(val unmappedParents: List<com.example.utils.UnmappedParent>) : ImportUiFlowState()
         data class MenuConfirmationRequired(val pendingMenuItems: List<com.example.utils.PendingNewMenuItem>) : ImportUiFlowState()
         data class ConflictsDetected(val conflicts: List<com.example.utils.ConflictItem>) : ImportUiFlowState()
+        data class MergeSummaryConfirmationRequired(
+            val plan: com.example.utils.MergePlan,
+            val analysis: com.example.utils.SyncAnalysisResult
+        ) : ImportUiFlowState()
         data class ReadyToMerge(val plan: com.example.utils.MergePlan) : ImportUiFlowState()
         object Merging : ImportUiFlowState()
     }
@@ -1116,13 +1122,7 @@ class FinancialViewModel(
                     explicitSenderName = explicitSenderName
                 )
 
-                _syncAnalysis.value = analysis
-
-                // Default all new menu items to accepted
-                _acceptedMenuItemKeys.value = analysis.pendingNewMenuItems.map { it.itemKey }.toSet()
-
-                // Default all conflicts to Keep Local so existing data is never overwritten silently
-                _conflictDecisions.value = syncEngine.autoResolveAllLocal(analysis.conflicts)
+                _baseSyncAnalysis = analysis
 
                 // Initialize parent decisions if any
                 val initParentDecisions = mutableMapOf<String, com.example.utils.ParentResolution>()
@@ -1131,8 +1131,27 @@ class FinancialViewModel(
                 }
                 _parentDecisions.value = initParentDecisions
 
+                // Pre-resolve default parent decisions immediately so if the user clicks Continue without changing dropdowns,
+                // all new parent Hotels/Banks and their child menus/orders/expenses are already populated!
+                val effectiveAnalysis = if (analysis.unmappedParents.isNotEmpty()) {
+                    syncEngine.resolveParentDecisions(
+                        previousAnalysis = analysis,
+                        parentDecisions = initParentDecisions
+                    ).copy(unmappedParents = analysis.unmappedParents)
+                } else {
+                    analysis
+                }
+
+                _syncAnalysis.value = effectiveAnalysis
+
+                // Default all new menu items to accepted
+                _acceptedMenuItemKeys.value = effectiveAnalysis.pendingNewMenuItems.map { it.itemKey }.toSet()
+
+                // Default all conflicts to Keep Local so existing data is never overwritten silently
+                _conflictDecisions.value = syncEngine.autoResolveAllLocal(effectiveAnalysis.conflicts)
+
                 _isAnalyzingImport.value = false
-                transitionToNextImportFlowStep(analysis, onDirectComplete)
+                transitionToNextImportFlowStep(effectiveAnalysis, onDirectComplete)
             } catch (e: Exception) {
                 _isAnalyzingImport.value = false
                 _importUiFlowState.value = ImportUiFlowState.Idle
@@ -1169,14 +1188,10 @@ class FinancialViewModel(
             return
         }
 
-        // 4. Otherwise, ready to merge directly
+        // 4. Always show the post-import Merge Summary Warning dialog ("Add these details new / Update these following details")
         val plan = generateMergePlan()
         if (plan != null) {
-            _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
-            // If onDirectComplete is provided and no UI steps were required, execute directly
-            if (onDirectComplete != null) {
-                executeMergePlan(plan, onDirectComplete)
-            }
+            _importUiFlowState.value = ImportUiFlowState.MergeSummaryConfirmationRequired(plan, currAnalysis)
         } else {
             _importUiFlowState.value = ImportUiFlowState.Idle
         }
@@ -1190,13 +1205,13 @@ class FinancialViewModel(
     }
 
     fun recalculateWithDecisions() {
-        val currentAnalysis = _syncAnalysis.value ?: return
+        val baseAnalysis = _baseSyncAnalysis ?: _syncAnalysis.value ?: return
         viewModelScope.launch {
             try {
                 val updatedAnalysis = syncEngine.resolveParentDecisions(
-                    previousAnalysis = currentAnalysis,
+                    previousAnalysis = baseAnalysis,
                     parentDecisions = _parentDecisions.value
-                )
+                ).copy(unmappedParents = baseAnalysis.unmappedParents)
                 _syncAnalysis.value = updatedAnalysis
 
                 // Preserve or update conflict decisions (safe KEEP_LOCAL default for new conflicts)
@@ -1219,20 +1234,41 @@ class FinancialViewModel(
     }
 
     fun confirmParentMappings(onDirectComplete: ((com.example.data.ImportOutcome) -> Unit)? = null) {
-        val currAnalysis = _syncAnalysis.value ?: return
-        if (currAnalysis.pendingNewMenuItems.isNotEmpty()) {
-            _importUiFlowState.value = ImportUiFlowState.MenuConfirmationRequired(currAnalysis.pendingNewMenuItems)
-        } else if (currAnalysis.conflicts.isNotEmpty()) {
-            _importUiFlowState.value = ImportUiFlowState.ConflictsDetected(currAnalysis.conflicts)
-        } else {
-            val plan = generateMergePlan()
-            if (plan != null) {
-                _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
-                if (onDirectComplete != null) {
-                    executeMergePlan(plan, onDirectComplete)
+        val baseAnalysis = _baseSyncAnalysis ?: _syncAnalysis.value ?: return
+        viewModelScope.launch {
+            try {
+                val resolvedAnalysis = syncEngine.resolveParentDecisions(
+                    previousAnalysis = baseAnalysis,
+                    parentDecisions = _parentDecisions.value
+                )
+                _syncAnalysis.value = resolvedAnalysis
+
+                val localDefaultMap = syncEngine.autoResolveAllLocal(resolvedAnalysis.conflicts)
+                val mergedConflicts = localDefaultMap.toMutableMap()
+                _conflictDecisions.value.forEach { (k, v) ->
+                    if (mergedConflicts.containsKey(k)) {
+                        mergedConflicts[k] = v
+                    }
                 }
-            } else {
-                _importUiFlowState.value = ImportUiFlowState.Idle
+                _conflictDecisions.value = mergedConflicts
+
+                val newKeys = resolvedAnalysis.pendingNewMenuItems.map { it.itemKey }.toSet()
+                _acceptedMenuItemKeys.value = _acceptedMenuItemKeys.value.intersect(newKeys).ifEmpty { newKeys }
+
+                if (resolvedAnalysis.pendingNewMenuItems.isNotEmpty()) {
+                    _importUiFlowState.value = ImportUiFlowState.MenuConfirmationRequired(resolvedAnalysis.pendingNewMenuItems)
+                } else if (resolvedAnalysis.conflicts.isNotEmpty()) {
+                    _importUiFlowState.value = ImportUiFlowState.ConflictsDetected(resolvedAnalysis.conflicts)
+                } else {
+                    val plan = generateMergePlan()
+                    if (plan != null) {
+                        _importUiFlowState.value = ImportUiFlowState.MergeSummaryConfirmationRequired(plan, resolvedAnalysis)
+                    } else {
+                        _importUiFlowState.value = ImportUiFlowState.Idle
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -1263,14 +1299,17 @@ class FinancialViewModel(
         } else {
             val plan = generateMergePlan()
             if (plan != null) {
-                _importUiFlowState.value = ImportUiFlowState.ReadyToMerge(plan)
-                if (onDirectComplete != null) {
-                    executeMergePlan(plan, onDirectComplete)
-                }
+                _importUiFlowState.value = ImportUiFlowState.MergeSummaryConfirmationRequired(plan, currAnalysis)
             } else {
                 _importUiFlowState.value = ImportUiFlowState.Idle
             }
         }
+    }
+
+    fun proceedToMergeSummaryConfirmation() {
+        val currAnalysis = _syncAnalysis.value ?: return
+        val plan = generateMergePlan() ?: return
+        _importUiFlowState.value = ImportUiFlowState.MergeSummaryConfirmationRequired(plan, currAnalysis)
     }
 
     fun setConflictResolution(conflictKey: String, resolution: com.example.utils.ConflictResolution) {
@@ -1307,11 +1346,24 @@ class FinancialViewModel(
         viewModelScope.launch {
             try {
                 _importUiFlowState.value = ImportUiFlowState.Merging
-                syncEngine.executeMergePlan(plan)
+                val resolvedHotelId = syncEngine.executeMergePlan(plan)
+                if (resolvedHotelId != null && resolvedHotelId > 0) {
+                    activeHotelId.value = resolvedHotelId
+                } else {
+                    val currentHotels = repository.allHotels.first()
+                    if (currentHotels.isNotEmpty() && currentHotels.none { it.id == activeHotelId.value }) {
+                        activeHotelId.value = currentHotels.first().id
+                    }
+                }
+                val currentAccounts = repository.allBankAccounts.first()
+                if (currentAccounts.isNotEmpty() && (activeBankAccountId.value == null || currentAccounts.none { it.id == activeBankAccountId.value })) {
+                    activeBankAccountId.value = currentAccounts.first().id
+                }
                 _importUiFlowState.value = ImportUiFlowState.Idle
                 clearSyncAnalysis()
                 val totalInserted = plan.hotelsToInsert.size + plan.bankAccountsToInsert.size + plan.ownerAccountsToInsert.size + plan.menusToInsert.size + plan.mealsToInsert.size + plan.hotelPaymentsToInsert.size + plan.expensesToInsert.size + plan.readingsToInsert.size + plan.billsToInsert.size + plan.stickyNotesToInsert.size + plan.electricityRatesToInsert.size
                 val totalUpdated = plan.hotelsToUpdate.size + plan.bankAccountsToUpdate.size + plan.ownerAccountsToUpdate.size + plan.menusToUpdate.size + plan.mealsToUpdate.size + plan.expensesToUpdate.size + plan.readingsToUpdate.size + plan.billsToUpdate.size
+                val totalCleanedDups = plan.localDuplicateMealIdsToDelete.size + plan.localDuplicateExpenseIdsToDelete.size + plan.localDuplicateMenuIdsToDelete.size + plan.duplicateRecordsInFileCount
                 val paidHotelMonths = plan.hotelPaymentsToInsert.size
                 val paidBills = plan.billsToInsert.count { it.isPaid } + plan.billsToUpdate.count { it.isPaid }
                 val paidReadings = plan.readingsToInsert.count { it.isPaid } + plan.readingsToUpdate.count { it.isPaid }
@@ -1319,7 +1371,8 @@ class FinancialViewModel(
                 if (paidHotelMonths > 0) psidParts.add("$paidHotelMonths hotel paid month(s)")
                 if (paidBills > 0) psidParts.add("$paidBills paid bill(s)")
                 if (paidReadings > 0) psidParts.add("$paidReadings paid reading(s)")
-                val psidSuffix = if (psidParts.isNotEmpty()) " • Paid: ${psidParts.joinToString(", ")}" else ""
+                if (totalCleanedDups > 0) psidParts.add("$totalCleanedDups duplicate(s) cleaned")
+                val psidSuffix = if (psidParts.isNotEmpty()) " • ${psidParts.joinToString(", ")}" else ""
                 updateWidgets()
                 onResult(com.example.data.ImportOutcome.Success("Data synchronized ($totalInserted added, $totalUpdated updated$psidSuffix)", count = totalInserted + totalUpdated))
             } catch (e: Exception) {
@@ -1351,6 +1404,7 @@ class FinancialViewModel(
                     targetBankAccountId = targetBankAccountId,
                     explicitSenderName = explicitSenderName
                 )
+                _baseSyncAnalysis = result
                 _syncAnalysis.value = result
                 _isAnalyzingImport.value = false
                 onResult(result)
@@ -1362,6 +1416,7 @@ class FinancialViewModel(
     }
 
     fun clearSyncAnalysis() {
+        _baseSyncAnalysis = null
         _syncAnalysis.value = null
         _parentDecisions.value = emptyMap()
         _acceptedMenuItemKeys.value = emptySet()

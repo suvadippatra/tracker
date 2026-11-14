@@ -180,7 +180,15 @@ fun AboutSettingsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Surface(
-                            modifier = Modifier.size(84.dp),
+                            modifier = Modifier
+                                .size(84.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    SecretDeleteModeManager.registerLogoTap()
+                                },
                             shape = CircleShape,
                             color = colorResource(id = com.example.R.color.ic_launcher_background)
                         ) {

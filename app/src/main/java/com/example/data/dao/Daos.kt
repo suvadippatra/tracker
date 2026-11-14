@@ -486,25 +486,132 @@ abstract class SyncDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertUserProfile(profile: UserProfileEntity)
 
+    @Query("DELETE FROM hotel_transactions WHERE id IN (:ids)")
+    abstract suspend fun deleteTransactionIds(ids: List<Int>)
+
+    @Query("DELETE FROM extra_expenses WHERE id IN (:ids)")
+    abstract suspend fun deleteExpenseIds(ids: List<Int>)
+
+    @Query("DELETE FROM menu_items WHERE id IN (:ids)")
+    abstract suspend fun deleteMenuIds(ids: List<Int>)
+
+    @Query("UPDATE menu_items SET hotelId = :newHotelId WHERE hotelId = :oldHotelId")
+    abstract suspend fun remapOrphanedMenusHotelId(oldHotelId: Int, newHotelId: Int)
+
+    @Query("UPDATE hotel_transactions SET hotelId = :newHotelId WHERE hotelId = :oldHotelId")
+    abstract suspend fun remapOrphanedTransactionsHotelId(oldHotelId: Int, newHotelId: Int)
+
+    @Query("UPDATE hotel_payments SET hotelId = :newHotelId WHERE hotelId = :oldHotelId")
+    abstract suspend fun remapOrphanedPaymentsHotelId(oldHotelId: Int, newHotelId: Int)
+
+    @Query("UPDATE extra_expenses SET bankAccountId = :newBankId WHERE bankAccountId = :oldBankId")
+    abstract suspend fun remapOrphanedExpensesBankId(oldBankId: Int, newBankId: Int)
+
     @androidx.room.Transaction
-    open suspend fun executeMergeTransaction(plan: com.example.utils.MergePlan) {
-        if (plan.hotelsToInsert.isNotEmpty()) insertHotels(plan.hotelsToInsert)
-        if (plan.hotelsToUpdate.isNotEmpty()) updateHotels(plan.hotelsToUpdate)
+    open suspend fun executeMergeTransaction(plan: com.example.utils.MergePlan): Int? {
+        if (plan.localDuplicateMealIdsToDelete.isNotEmpty()) {
+            deleteTransactionIds(plan.localDuplicateMealIdsToDelete)
+        }
+        if (plan.localDuplicateExpenseIdsToDelete.isNotEmpty()) {
+            deleteExpenseIds(plan.localDuplicateExpenseIdsToDelete)
+        }
+        if (plan.localDuplicateMenuIdsToDelete.isNotEmpty()) {
+            deleteMenuIds(plan.localDuplicateMenuIdsToDelete)
+        }
 
-        if (plan.bankAccountsToInsert.isNotEmpty()) insertBankAccounts(plan.bankAccountsToInsert)
-        if (plan.bankAccountsToUpdate.isNotEmpty()) updateBankAccounts(plan.bankAccountsToUpdate)
+        val insertedHotelIdMap = mutableMapOf<Int, Int>()
+        var firstResolvedHotelId: Int? = null
 
-        if (plan.ownerAccountsToInsert.isNotEmpty()) insertOwnerAccounts(plan.ownerAccountsToInsert)
-        if (plan.ownerAccountsToUpdate.isNotEmpty()) updateOwnerAccounts(plan.ownerAccountsToUpdate)
+        plan.hotelsToInsert.forEach { hotel ->
+            val origId = if (hotel.id > 0) hotel.id else 1
+            val generatedId = insertHotel(hotel.copy(id = 0, isDeleted = false)).toInt()
+            insertedHotelIdMap[origId] = generatedId
+            if (firstResolvedHotelId == null) {
+                firstResolvedHotelId = generatedId
+            }
+            if (origId in plan.orphanHotelIdsToAdopt && origId != generatedId) {
+                remapOrphanedMenusHotelId(origId, generatedId)
+                remapOrphanedTransactionsHotelId(origId, generatedId)
+                remapOrphanedPaymentsHotelId(origId, generatedId)
+            }
+        }
 
-        if (plan.menusToInsert.isNotEmpty()) insertMenuItems(plan.menusToInsert)
-        if (plan.menusToUpdate.isNotEmpty()) updateMenuItems(plan.menusToUpdate)
+        if (plan.hotelsToUpdate.isNotEmpty()) {
+            updateHotels(plan.hotelsToUpdate.map { it.copy(isDeleted = false) })
+            if (firstResolvedHotelId == null) {
+                firstResolvedHotelId = plan.hotelsToUpdate.first().id
+            }
+        }
 
-        if (plan.mealsToInsert.isNotEmpty()) insertTransactions(plan.mealsToInsert)
-        if (plan.mealsToUpdate.isNotEmpty()) updateTransactions(plan.mealsToUpdate)
+        val insertedBankIdMap = mutableMapOf<Int, Int>()
+        plan.bankAccountsToInsert.forEach { account ->
+            val origId = if (account.id > 0) account.id else 1
+            val generatedId = insertBankAccount(account.copy(id = 0, isDeleted = false)).toInt()
+            insertedBankIdMap[origId] = generatedId
+            if (origId in plan.orphanBankIdsToAdopt && origId != generatedId) {
+                remapOrphanedExpensesBankId(origId, generatedId)
+            }
+        }
 
-        if (plan.expensesToInsert.isNotEmpty()) insertExpenses(plan.expensesToInsert)
-        if (plan.expensesToUpdate.isNotEmpty()) updateExpenses(plan.expensesToUpdate)
+        if (plan.bankAccountsToUpdate.isNotEmpty()) {
+            updateBankAccounts(plan.bankAccountsToUpdate.map { it.copy(isDeleted = false) })
+        }
+
+        if (plan.ownerAccountsToInsert.isNotEmpty()) {
+            val remappedOwners = plan.ownerAccountsToInsert.map { owner ->
+                val remappedBankId = owner.linkedBankAccountId?.let { insertedBankIdMap[it] ?: it }
+                owner.copy(id = 0, linkedBankAccountId = remappedBankId, isDeleted = false)
+            }
+            insertOwnerAccounts(remappedOwners)
+        }
+        if (plan.ownerAccountsToUpdate.isNotEmpty()) {
+            updateOwnerAccounts(plan.ownerAccountsToUpdate.map { it.copy(isDeleted = false) })
+        }
+
+        if (plan.menusToInsert.isNotEmpty()) {
+            val remappedMenus = plan.menusToInsert.map { menu ->
+                val targetHotelId = insertedHotelIdMap[menu.hotelId] ?: menu.hotelId
+                menu.copy(id = 0, hotelId = targetHotelId, isDeleted = false)
+            }
+            insertMenuItems(remappedMenus)
+        }
+        if (plan.menusToUpdate.isNotEmpty()) {
+            val remappedMenuUpdates = plan.menusToUpdate.map { menu ->
+                val targetHotelId = insertedHotelIdMap[menu.hotelId] ?: menu.hotelId
+                menu.copy(hotelId = targetHotelId, isDeleted = false)
+            }
+            updateMenuItems(remappedMenuUpdates)
+        }
+
+        if (plan.mealsToInsert.isNotEmpty()) {
+            val remappedMeals = plan.mealsToInsert.map { meal ->
+                val targetHotelId = insertedHotelIdMap[meal.hotelId] ?: meal.hotelId
+                meal.copy(id = 0, hotelId = targetHotelId, isDeleted = false)
+            }
+            insertTransactions(remappedMeals)
+        }
+        if (plan.mealsToUpdate.isNotEmpty()) {
+            val remappedMealUpdates = plan.mealsToUpdate.map { meal ->
+                val targetHotelId = insertedHotelIdMap[meal.hotelId] ?: meal.hotelId
+                meal.copy(hotelId = targetHotelId, isDeleted = false)
+            }
+            updateTransactions(remappedMealUpdates)
+        }
+
+        if (plan.expensesToInsert.isNotEmpty()) {
+            val remappedExpenses = plan.expensesToInsert.map { exp ->
+                val targetBankId = insertedBankIdMap[exp.bankAccountId] ?: exp.bankAccountId
+                exp.copy(id = 0, bankAccountId = targetBankId, isDeleted = false)
+            }
+            insertExpenses(remappedExpenses)
+        }
+        if (plan.expensesToUpdate.isNotEmpty()) {
+            val remappedExpenseUpdates = plan.expensesToUpdate.map { exp ->
+                val targetBankId = insertedBankIdMap[exp.bankAccountId] ?: exp.bankAccountId
+                exp.copy(bankAccountId = targetBankId, isDeleted = false)
+            }
+            updateExpenses(remappedExpenseUpdates)
+        }
 
         if (plan.readingsToInsert.isNotEmpty()) insertReadings(plan.readingsToInsert)
         if (plan.readingsToUpdate.isNotEmpty()) updateReadings(plan.readingsToUpdate)
@@ -512,10 +619,18 @@ abstract class SyncDao {
         if (plan.billsToInsert.isNotEmpty()) insertUtilityBills(plan.billsToInsert)
         if (plan.billsToUpdate.isNotEmpty()) updateUtilityBills(plan.billsToUpdate)
 
-        if (plan.hotelPaymentsToInsert.isNotEmpty()) insertHotelPayments(plan.hotelPaymentsToInsert)
+        if (plan.hotelPaymentsToInsert.isNotEmpty()) {
+            val remappedPayments = plan.hotelPaymentsToInsert.map { pay ->
+                val targetHotelId = insertedHotelIdMap[pay.hotelId] ?: pay.hotelId
+                pay.copy(id = 0, hotelId = targetHotelId, isDeleted = false)
+            }
+            insertHotelPayments(remappedPayments)
+        }
         if (plan.stickyNotesToInsert.isNotEmpty()) insertStickyNotes(plan.stickyNotesToInsert)
         if (plan.electricityRatesToInsert.isNotEmpty()) insertElectricityRates(plan.electricityRatesToInsert)
 
         if (plan.userProfileToUpdate != null) insertUserProfile(plan.userProfileToUpdate)
+
+        return firstResolvedHotelId
     }
 }
