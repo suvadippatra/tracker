@@ -80,36 +80,35 @@ fun SplashScreen(
 
     LaunchedEffect(Unit) {
         startAnimation = true
-        // Allow the "Care Comes to Life" animation to complete gracefully (~1400ms)
-        // If reduced motion is requested, complete briskly in ~450ms
-        val animationHoldTime = if (disableHeavyEffects) 450L else 1450L
+        // Fast launch (~350ms) once database initializes; even faster in reduced-motion mode
+        val animationHoldTime = if (disableHeavyEffects) 180L else 350L
         delay(animationHoldTime)
 
-        // Wait until database initialization finishes (safety fallback: max 2.2s total)
+        // Wait until database initialization finishes (safety fallback: max 1.2s total)
         var elapsed = 0L
         while (!isInitialized && elapsed < 800L) {
-            delay(100L)
-            elapsed += 100L
+            delay(50L)
+            elapsed += 50L
         }
 
         // Trigger smooth dissolve out
         isFadingOut = true
-        delay(260L)
+        delay(140L)
         onFinish()
     }
 
     // 1. Overall splash container alpha (for smooth exit dissolve)
     val containerAlpha by animateFloatAsState(
         targetValue = if (isFadingOut) 0f else 1f,
-        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "splash_exit"
     )
 
     // 2. Logo Fade & Gentle Float
     val logoAlpha by animateFloatAsState(
-        targetValue = if (startAnimation) 1f else 0.18f,
+        targetValue = if (startAnimation) 1f else 0.25f,
         animationSpec = tween(
-            durationMillis = if (disableHeavyEffects) 220 else 520,
+            durationMillis = if (disableHeavyEffects) 140 else 220,
             delayMillis = 0,
             easing = FastOutSlowInEasing
         ),
@@ -117,35 +116,33 @@ fun SplashScreen(
     )
 
     val logoOffsetY by animateDpAsState(
-        targetValue = if (startAnimation) 0.dp else if (disableHeavyEffects) 0.dp else 22.dp,
-        animationSpec = spring(
-            dampingRatio = 0.82f,
-            stiffness = Spring.StiffnessLow
+        targetValue = if (startAnimation) 0.dp else if (disableHeavyEffects) 0.dp else 12.dp,
+        animationSpec = tween(
+            durationMillis = if (disableHeavyEffects) 120 else 240,
+            easing = FastOutSlowInEasing
         ),
         label = "logo_offset_y"
     )
 
     // 3. Heart Pulse & Soft Glow ("Care Comes to Life")
     val heartGlowAlpha by animateFloatAsState(
-        targetValue = if (startAnimation && !disableHeavyEffects) 0.42f else 0f,
+        targetValue = if (startAnimation && !disableHeavyEffects) 0.36f else 0f,
         animationSpec = keyframes {
-            durationMillis = 1100
+            durationMillis = 340
             0.0f at 0 using LinearEasing
-            0.0f at 450 using FastOutSlowInEasing
-            0.55f at 750 using FastOutSlowInEasing // Peak warm glow
-            0.20f at 1050 using FastOutSlowInEasing // Settles into calm resting ambient
+            0.48f at 190 using FastOutSlowInEasing
+            0.22f at 340 using FastOutSlowInEasing
         },
         label = "heart_glow_alpha"
     )
 
     val heartPulseScale by animateFloatAsState(
-        targetValue = if (startAnimation && !disableHeavyEffects) 1.0f else 0.92f,
+        targetValue = if (startAnimation && !disableHeavyEffects) 1.0f else 0.94f,
         animationSpec = keyframes {
-            durationMillis = 1100
-            0.92f at 0
-            0.92f at 450
-            1.16f at 750 using FastOutSlowInEasing // Tender heartbeat expansion
-            1.00f at 1050 using FastOutSlowInEasing // Natural settle
+            durationMillis = 340
+            0.94f at 0
+            1.12f at 190 using FastOutSlowInEasing
+            1.00f at 340 using FastOutSlowInEasing
         },
         label = "heart_pulse_scale"
     )
@@ -154,18 +151,18 @@ fun SplashScreen(
     val textAlpha by animateFloatAsState(
         targetValue = if (startAnimation) 1f else 0f,
         animationSpec = tween(
-            durationMillis = if (disableHeavyEffects) 250 else 550,
-            delayMillis = if (disableHeavyEffects) 100 else 650,
+            durationMillis = if (disableHeavyEffects) 140 else 200,
+            delayMillis = if (disableHeavyEffects) 30 else 70,
             easing = FastOutSlowInEasing
         ),
         label = "text_alpha"
     )
 
     val textOffsetY by animateDpAsState(
-        targetValue = if (startAnimation) 0.dp else if (disableHeavyEffects) 0.dp else 10.dp,
+        targetValue = if (startAnimation) 0.dp else if (disableHeavyEffects) 0.dp else 6.dp,
         animationSpec = tween(
-            durationMillis = if (disableHeavyEffects) 250 else 550,
-            delayMillis = if (disableHeavyEffects) 100 else 650,
+            durationMillis = if (disableHeavyEffects) 140 else 200,
+            delayMillis = if (disableHeavyEffects) 30 else 70,
             easing = FastOutSlowInEasing
         ),
         label = "text_offset_y"

@@ -67,15 +67,42 @@ class FinancialViewModel(
     application: Application,
     private val savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
-    private val _rootOverlayState = MutableStateFlow<RootOverlayState>(RootOverlayState.None)
-    val rootOverlayState: StateFlow<RootOverlayState> = _rootOverlayState
+    private val _overlayStack = MutableStateFlow<List<RootOverlayState>>(emptyList())
+    val overlayStack: StateFlow<List<RootOverlayState>> = _overlayStack.asStateFlow()
+
+    val rootOverlayState: StateFlow<RootOverlayState> = _overlayStack
+        .map { it.lastOrNull() ?: RootOverlayState.None }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RootOverlayState.None)
+
+    fun pushOverlay(state: RootOverlayState) {
+        if (state is RootOverlayState.None) {
+            _overlayStack.value = emptyList()
+        } else {
+            _overlayStack.value = _overlayStack.value + state
+        }
+    }
+
+    fun popOverlay() {
+        val current = _overlayStack.value
+        if (current.isNotEmpty()) {
+            _overlayStack.value = current.dropLast(1)
+        }
+    }
+
+    fun popToRoot() {
+        _overlayStack.value = emptyList()
+    }
 
     fun showRootOverlay(state: RootOverlayState) {
-        _rootOverlayState.value = state
+        if (state is RootOverlayState.None) {
+            _overlayStack.value = emptyList()
+        } else {
+            _overlayStack.value = listOf(state)
+        }
     }
 
     fun closeRootOverlay() {
-        _rootOverlayState.value = RootOverlayState.None
+        popOverlay()
     }
 
 
@@ -237,10 +264,10 @@ class FinancialViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allMeterReadings: StateFlow<List<MeterReading>> = repository.allMeterReadings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allUtilityBills: StateFlow<List<UtilityBill>> = repository.allUtilityBills
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedBankAccounts: StateFlow<List<BankAccountEntity>> = repository.deletedBankAccounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -264,7 +291,7 @@ class FinancialViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allCategories: StateFlow<List<com.example.data.model.TransactionCategoryEntity>> = repository.allCategories
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allHotelPayments: StateFlow<List<HotelPaymentEntity>> = repository.allHotelPayments
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -272,7 +299,7 @@ class FinancialViewModel(
     val allOwnerAccounts: StateFlow<List<com.example.data.model.OwnerAccountEntity>> = combine(repository.allOwnerAccounts, userProfile) { accounts, profile ->
         val defId = profile.defaultOwnerAccountId
         accounts.sortedWith(compareByDescending<com.example.data.model.OwnerAccountEntity> { it.id == defId }.thenBy { it.id })
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.allStickyNotes
         .map { notes ->
@@ -280,14 +307,14 @@ class FinancialViewModel(
             notes
         }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allStickyTags: StateFlow<List<String>> = allStickyNotes
         .map { notes ->
             notes.flatMap { com.example.ui.screens.StickyCardPreviewCache.getOrCompute(it, 6).tagsList }.distinct()
         }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedStickyNotes: StateFlow<List<StickyNoteEntity>> = repository.deletedStickyNotes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -1000,6 +1027,57 @@ class FinancialViewModel(
                 onResult("")
             }
         }
+    }
+
+    fun exportSelectionJson(
+        selection: com.example.data.ExportSelection,
+        includeQrMedia: Boolean = true,
+        onResult: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val db = com.example.data.AppDatabase.getDatabase(getApplication())
+                val json = com.example.data.UnifiedExportEngine(db).exportJson(selection, includeQrMedia = includeQrMedia)
+                onResult(json)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult("{}")
+            }
+        }
+    }
+
+    fun exportSelectionCsv(
+        selection: com.example.data.ExportSelection,
+        onResult: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val db = com.example.data.AppDatabase.getDatabase(getApplication())
+                val csv = com.example.data.UnifiedExportEngine(db).exportCsv(selection)
+                onResult(csv)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult("")
+            }
+        }
+    }
+
+    fun exportSelectionViaQr(
+        selection: com.example.data.ExportSelection,
+        onResult: (com.example.data.ExportResult) -> Unit
+    ) {
+        viewModelScope.launch {
+            val db = com.example.data.AppDatabase.getDatabase(getApplication())
+            val manager = com.example.data.QrExportManager(db.hotelDao(), db.menuDao(), db.transactionDao(), db)
+            onResult(manager.exportSelection(selection))
+        }
+    }
+
+    suspend fun collectScopedMediaForSelection(
+        selection: com.example.data.ExportSelection
+    ): List<Pair<String, java.io.File>> {
+        val db = com.example.data.AppDatabase.getDatabase(getApplication())
+        return com.example.data.UnifiedExportEngine(db).collectScopedMediaEntries(getApplication(), selection)
     }
 
     fun importUniversal(content: String, type: com.example.data.BackupDataType, hotelId: Int = 1, onResult: (com.example.data.ImportOutcome) -> Unit) {

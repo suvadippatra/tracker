@@ -324,6 +324,9 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE expenseId = :expenseId ORDER BY timestamp ASC")
     fun getAttachmentsForExpense(expenseId: Int): Flow<List<com.example.data.model.AttachmentEntity>>
 
+    @Query("SELECT * FROM attachments WHERE isDeleted = 0 ORDER BY timestamp ASC")
+    suspend fun getAllAttachmentsSync(): List<com.example.data.model.AttachmentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAttachment(attachment: com.example.data.model.AttachmentEntity): Long
 

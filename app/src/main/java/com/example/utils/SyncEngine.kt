@@ -160,7 +160,9 @@ data class ParsedImportPayload(
     val utilityBills: List<UtilityBill> = emptyList(),
     val electricityRates: List<ElectricityRate> = emptyList(),
     val userProfile: UserProfileEntity? = null,
-    val dataType: String = ""
+    val dataType: String = "",
+    val stubHotelIds: Set<Int> = emptySet(),
+    val stubBankAccountIds: Set<Int> = emptySet()
 )
 
 data class SyncAnalysisResult(
@@ -285,6 +287,8 @@ class SyncEngine(private val db: AppDatabase) {
         val utilityBills = mutableListOf<UtilityBill>()
         val electricityRates = mutableListOf<ElectricityRate>()
         var userProfile: UserProfileEntity? = null
+        val stubHotelIds = mutableSetOf<Int>()
+        val stubBankAccountIds = mutableSetOf<Int>()
 
         // 1. User Profile
         if (root.has("userProfile")) {
@@ -294,10 +298,19 @@ class SyncEngine(private val db: AppDatabase) {
             userProfile = UserProfileEntity(
                 name = pName,
                 contact = pObj.optString("contact", ""),
+                avatar = pObj.optString("avatar", ""),
                 currencySymbol = pObj.optString("currencySymbol", "₹"),
                 language = pObj.optString("language", "en"),
                 themeMode = pObj.optString("themeMode", "Auto"),
-                enableSupplementaryAddons = pObj.optBoolean("enableSupplementaryAddons", true)
+                enableSupplementaryAddons = pObj.optBoolean("enableSupplementaryAddons", true),
+                bgPreset = pObj.optString("bgPreset", "Default"),
+                enableLiquidGlassTheme = pObj.optBoolean("enableLiquidGlassTheme", false),
+                disableHeavyEffects = pObj.optBoolean("disableHeavyEffects", true),
+                mealGroupPosition = pObj.optString("mealGroupPosition", "BottomBar"),
+                textSize = pObj.optString("textSize", "Medium"),
+                isBoldTextEnabled = pObj.optBoolean("isBoldTextEnabled", false),
+                stickyCardWidthPercent = pObj.optInt("stickyCardWidthPercent", 80),
+                stickyPreviewLines = pObj.optInt("stickyPreviewLines", 10)
             )
         }
 
@@ -359,8 +372,10 @@ class SyncEngine(private val db: AppDatabase) {
         // 3. Single Hotel ("hotel")
         if (root.has("hotel")) {
             val hObj = root.getJSONObject("hotel")
+            val hId = hObj.optInt("id", 1)
+            if (hObj.optBoolean("isStub", false)) stubHotelIds.add(hId)
             val hotel = HotelEntity(
-                id = hObj.optInt("id", 1),
+                id = hId,
                 name = hObj.optString("name", "Imported Hotel"),
                 advancedPayment = hObj.optDouble("advancedPayment", 0.0),
                 phoneNumber = hObj.optString("phoneNumber", ""),
@@ -379,9 +394,11 @@ class SyncEngine(private val db: AppDatabase) {
             val hArr = root.getJSONArray("hotels")
             for (i in 0 until hArr.length()) {
                 val hObj = hArr.getJSONObject(i)
+                val hId = hObj.optInt("id", i + 1)
+                if (hObj.optBoolean("isStub", false)) stubHotelIds.add(hId)
                 hotels.add(
                     HotelEntity(
-                        id = hObj.optInt("id", i + 1),
+                        id = hId,
                         name = hObj.optString("name", "Hotel ${i + 1}"),
                         advancedPayment = hObj.optDouble("advancedPayment", 0.0),
                         phoneNumber = hObj.optString("phoneNumber", ""),
@@ -443,10 +460,12 @@ class SyncEngine(private val db: AppDatabase) {
         // 7. Single Bank Account ("bankAccount")
         if (root.has("bankAccount")) {
             val bObj = root.getJSONObject("bankAccount")
+            val bId = bObj.optInt("id", 1)
+            if (bObj.optBoolean("isStub", false)) stubBankAccountIds.add(bId)
             val bal = bObj.optDouble("balance", 0.0)
             bankAccounts.add(
                 BankAccountEntity(
-                    id = bObj.optInt("id", 1),
+                    id = bId,
                     name = bObj.optString("name", "Imported Account"),
                     balance = bal,
                     initialBalance = bObj.optDouble("initialBalance", bal),
@@ -466,10 +485,12 @@ class SyncEngine(private val db: AppDatabase) {
             val bArr = root.getJSONArray("bankAccounts")
             for (i in 0 until bArr.length()) {
                 val bObj = bArr.getJSONObject(i)
+                val bId = bObj.optInt("id", i + 1)
+                if (bObj.optBoolean("isStub", false)) stubBankAccountIds.add(bId)
                 val bal = bObj.optDouble("balance", 0.0)
                 bankAccounts.add(
                     BankAccountEntity(
-                        id = bObj.optInt("id", i + 1),
+                        id = bId,
                         name = bObj.optString("name", "Account ${i + 1}"),
                         balance = bal,
                         initialBalance = bObj.optDouble("initialBalance", bal),
@@ -643,7 +664,9 @@ class SyncEngine(private val db: AppDatabase) {
             utilityBills = utilityBills,
             electricityRates = electricityRates,
             userProfile = userProfile,
-            dataType = root.optString("dataType", "IMPORT")
+            dataType = root.optString("dataType", "IMPORT"),
+            stubHotelIds = stubHotelIds,
+            stubBankAccountIds = stubBankAccountIds
         )
     }
 
@@ -829,6 +852,9 @@ class SyncEngine(private val db: AppDatabase) {
             uniqueBanks
         }
 
+        val remappedStubHotels = raw.stubHotelIds.mapNotNull { hotelIdRemap[it] ?: it }.toSet()
+        val remappedStubBanks = raw.stubBankAccountIds.mapNotNull { bankIdRemap[it] ?: it }.toSet()
+
         return DeduplicatedPayloadResult(
             payload = raw.copy(
                 hotels = finalHotels,
@@ -836,7 +862,9 @@ class SyncEngine(private val db: AppDatabase) {
                 menus = uniqueMenus,
                 transactions = uniqueMeals,
                 expenses = uniqueExpenses,
-                hotelPayments = uniquePayments
+                hotelPayments = uniquePayments,
+                stubHotelIds = remappedStubHotels,
+                stubBankAccountIds = remappedStubBanks
             ),
             duplicateCount = totalDups,
             duplicateSummary = summary
@@ -1088,33 +1116,38 @@ class SyncEngine(private val db: AppDatabase) {
                 }
                 if (exactMatch != null) {
                     autoLinkedHotelIds[impHotel.id] = exactMatch.id
-                    val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
-                        exactMatch.location.trim() != impHotel.location.trim() ||
-                        exactMatch.phoneNumber.trim() != impPhone ||
-                        exactMatch.whatsappNumber.trim() != impHotel.whatsappNumber.trim() ||
-                        exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
-                        (impHotel.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impHotel.qrCodeUri) ||
-                        exactMatch.notes.trim() != impHotel.notes.trim() ||
-                        abs(exactMatch.advancedPayment - impHotel.advancedPayment) > 0.01
-                    if (hasMismatch) {
-                        val isNewer = impHotel.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
-                        parentConflicts.add(
-                            ConflictItem.HotelConflict(
-                                conflictKey = "hotel_${exactMatch.id}_${impHotel.id}",
-                                title = "Hotel: ${exactMatch.name}",
-                                subtitle = "Details or balance differ from local record",
-                                timestamp = impHotel.lastUpdatedMillis,
-                                isImportedNewer = isNewer,
-                                localHotel = exactMatch,
-                                importedHotel = impHotel.copy(
-                                    id = exactMatch.id,
-                                    qrCodeUri = impHotel.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
-                                    importedFrom = impHotel.importedFrom ?: exactMatch.importedFrom
+                    if (impHotel.id in payload.stubHotelIds) {
+                        // Lightweight parent reference stub — link children silently without raising profile conflict
+                        skippedIdenticalCount++
+                    } else {
+                        val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
+                            exactMatch.location.trim() != impHotel.location.trim() ||
+                            exactMatch.phoneNumber.trim() != impPhone ||
+                            exactMatch.whatsappNumber.trim() != impHotel.whatsappNumber.trim() ||
+                            exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
+                            (impHotel.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impHotel.qrCodeUri) ||
+                            exactMatch.notes.trim() != impHotel.notes.trim() ||
+                            abs(exactMatch.advancedPayment - impHotel.advancedPayment) > 0.01
+                        if (hasMismatch) {
+                            val isNewer = impHotel.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
+                            parentConflicts.add(
+                                ConflictItem.HotelConflict(
+                                    conflictKey = "hotel_${exactMatch.id}_${impHotel.id}",
+                                    title = "Hotel: ${exactMatch.name}",
+                                    subtitle = "Details or balance differ from local record",
+                                    timestamp = impHotel.lastUpdatedMillis,
+                                    isImportedNewer = isNewer,
+                                    localHotel = exactMatch,
+                                    importedHotel = impHotel.copy(
+                                        id = exactMatch.id,
+                                        qrCodeUri = impHotel.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
+                                        importedFrom = impHotel.importedFrom ?: exactMatch.importedFrom
+                                    )
                                 )
                             )
-                        )
-                    } else {
-                        skippedIdenticalCount++
+                        } else {
+                            skippedIdenticalCount++
+                        }
                     }
                 } else if (targetHotelId != null && payload.hotels.size == 1 && localHotels.any { it.id == targetHotelId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedHotelIds[impHotel.id] = targetHotelId
@@ -1152,33 +1185,38 @@ class SyncEngine(private val db: AppDatabase) {
                 }
                 if (exactMatch != null) {
                     autoLinkedBankIds[impAcc.id] = exactMatch.id
-                    val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
-                        exactMatch.accountNumber.trim() != impAccNo ||
-                        exactMatch.ifsc.trim().uppercase(Locale.ROOT) != impAcc.ifsc.trim().uppercase(Locale.ROOT) ||
-                        exactMatch.branchName.trim() != impAcc.branchName.trim() ||
-                        exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
-                        exactMatch.details.trim() != impAcc.details.trim() ||
-                        (impAcc.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impAcc.qrCodeUri) ||
-                        abs(exactMatch.balance - impAcc.balance) > 0.01
-                    if (hasMismatch) {
-                        val isNewer = impAcc.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
-                        parentConflicts.add(
-                            ConflictItem.BankAccountConflict(
-                                conflictKey = "bank_${exactMatch.id}_${impAcc.id}",
-                                title = "Bank: ${exactMatch.name}",
-                                subtitle = "Balance or bank details differ from local account",
-                                timestamp = impAcc.lastUpdatedMillis,
-                                isImportedNewer = isNewer,
-                                localBankAccount = exactMatch,
-                                importedBankAccount = impAcc.copy(
-                                    id = exactMatch.id,
-                                    qrCodeUri = impAcc.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
-                                    importedFrom = impAcc.importedFrom ?: exactMatch.importedFrom
+                    if (impAcc.id in payload.stubBankAccountIds) {
+                        // Lightweight parent reference stub — link transactions silently without raising account conflict
+                        skippedIdenticalCount++
+                    } else {
+                        val hasMismatch = normalizeName(exactMatch.name) != normalizedImp ||
+                            exactMatch.accountNumber.trim() != impAccNo ||
+                            exactMatch.ifsc.trim().uppercase(Locale.ROOT) != impAcc.ifsc.trim().uppercase(Locale.ROOT) ||
+                            exactMatch.branchName.trim() != impAcc.branchName.trim() ||
+                            exactMatch.upiId.trim().lowercase(Locale.ROOT) != impUpi ||
+                            exactMatch.details.trim() != impAcc.details.trim() ||
+                            (impAcc.qrCodeUri.isNotBlank() && exactMatch.qrCodeUri != impAcc.qrCodeUri) ||
+                            abs(exactMatch.balance - impAcc.balance) > 0.01
+                        if (hasMismatch) {
+                            val isNewer = impAcc.lastUpdatedMillis >= exactMatch.lastUpdatedMillis
+                            parentConflicts.add(
+                                ConflictItem.BankAccountConflict(
+                                    conflictKey = "bank_${exactMatch.id}_${impAcc.id}",
+                                    title = "Bank: ${exactMatch.name}",
+                                    subtitle = "Balance or bank details differ from local account",
+                                    timestamp = impAcc.lastUpdatedMillis,
+                                    isImportedNewer = isNewer,
+                                    localBankAccount = exactMatch,
+                                    importedBankAccount = impAcc.copy(
+                                        id = exactMatch.id,
+                                        qrCodeUri = impAcc.qrCodeUri.ifBlank { exactMatch.qrCodeUri },
+                                        importedFrom = impAcc.importedFrom ?: exactMatch.importedFrom
+                                    )
                                 )
                             )
-                        )
-                    } else {
-                        skippedIdenticalCount++
+                        } else {
+                            skippedIdenticalCount++
+                        }
                     }
                 } else if (targetBankAccountId != null && payload.bankAccounts.size == 1 && localBankAccounts.any { it.id == targetBankAccountId } && payload.dataType != "FULL_BACKUP") {
                     autoLinkedBankIds[impAcc.id] = targetBankAccountId
@@ -2078,9 +2116,17 @@ class SyncEngine(private val db: AppDatabase) {
                 analysis.localDuplicateExpenseIdsToDelete.size +
                 analysis.localDuplicateMenuIdsToDelete.size
 
-        // Protect the receiver's local user profile & preferences during two-person sync;
-        // only update if the import is explicitly a Settings-only restore.
-        val safeProfileUpdate = if (analysis.payload.dataType == "SETTINGS") {
+        // Protect the receiver's local user profile & preferences during multi-domain sync;
+        // apply profile/settings restore when explicitly importing Settings or Profile-only custom backups.
+        val isProfileOrSettingsOnly = analysis.payload.dataType == "SETTINGS" ||
+            (analysis.payload.dataType == "CUSTOM_SELECTION" &&
+                analysis.payload.userProfile != null &&
+                analysis.payload.hotels.isEmpty() &&
+                analysis.payload.bankAccounts.isEmpty() &&
+                analysis.payload.meterReadings.isEmpty() &&
+                analysis.payload.utilityBills.isEmpty() &&
+                analysis.payload.stickyNotes.isEmpty())
+        val safeProfileUpdate = if (isProfileOrSettingsOnly) {
             analysis.payload.userProfile
         } else {
             null

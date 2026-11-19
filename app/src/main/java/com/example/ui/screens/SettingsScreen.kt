@@ -60,7 +60,7 @@ fun SettingsScreen(
     onOpenOwnerProfile: () -> Unit,
     onOpenUtilityConfig: () -> Unit
 ) {
-    var currentScreen by remember { mutableStateOf("main") }
+    var currentScreen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("main") }
     var contentVisible by remember { mutableStateOf(true) }
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isBn = userProfile?.language == "bn"

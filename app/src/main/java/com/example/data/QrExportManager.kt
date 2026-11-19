@@ -195,6 +195,23 @@ class QrExportManager(
         }
     }
 
+    suspend fun exportSelection(selection: ExportSelection): ExportResult = withContext(Dispatchers.IO) {
+        try {
+            val database = db ?: throw IllegalStateException("Database required")
+            val engine = UnifiedExportEngine(database)
+            val json = engine.exportJson(selection, includeQrMedia = false)
+            val (hotels, bankAccounts, ownerAccounts) = engine.resolveEntitiesForQr(selection)
+            val (paymentQrs, skipped) = extractPaymentQrItemsWithSkipped(
+                hotels = hotels,
+                bankAccounts = bankAccounts,
+                ownerAccounts = ownerAccounts
+            )
+            packageJsonToExportResult(appendQrManifestToJson(json, paymentQrs), paymentQrs, skipped)
+        } catch (e: Exception) {
+            ExportResult.Error(e.message ?: "Failed to export selection via QR")
+        }
+    }
+
     private fun extractPaymentQrItemsWithSkipped(
         hotels: List<HotelEntity> = emptyList(),
         bankAccounts: List<BankAccountEntity> = emptyList(),

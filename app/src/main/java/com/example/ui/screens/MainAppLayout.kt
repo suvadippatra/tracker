@@ -308,10 +308,17 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
         }
     }
 
+    BackHandler(
+        enabled = activeTab != "Hotels" && !showSettings && !showSearch && !showBin && !showUtilConfig && !showQRViewer
+    ) {
+        viewModel.activeTab.value = "Hotels"
+    }
+
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
     val useSideNavigation = isTablet
 
+    Box(modifier = Modifier.fillMaxSize()) {
     if (useSideNavigation) {
         Row(modifier = Modifier.fillMaxSize()) {
             if (isBottomBarVisible) {
@@ -440,13 +447,19 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
     }
 
     if (showSettings) {
-        SettingsDialog(
-            viewModel = viewModel,
-            onDismiss = { showSettings = false },
-            onOpenBin = { showBin = true;   },
-            onOpenOwnerProfile = { viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile);   },
-            onOpenUtilityConfig = { showUtilConfig = true }
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures { } }
+        ) {
+            SettingsScreen(
+                viewModel = viewModel,
+                onDismiss = { showSettings = false },
+                onOpenBin = { showBin = true },
+                onOpenOwnerProfile = { viewModel.pushOverlay(com.example.ui.viewmodel.RootOverlayState.OwnerProfile) },
+                onOpenUtilityConfig = { showUtilConfig = true }
+            )
+        }
     }
 
     if (showUtilConfig) {
@@ -455,6 +468,7 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
             financialViewModel = viewModel,
             onDismiss = { showUtilConfig = false }
         )
+    }
     }
 
     val pendingUpiPayments by com.example.service.DetectedUpiPaymentBus.pendingPayments.collectAsStateWithLifecycle()

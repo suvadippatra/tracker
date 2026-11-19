@@ -300,8 +300,8 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                 } else {
                     MainAppLayout(viewModel)
                     
-                    // Root Overlay Architecture (Layer 2)
-                    val rootOverlay by viewModel.rootOverlayState.collectAsStateWithLifecycle()
+                    // Root Overlay Architecture (Layer 2) - Ordered Overlay Stack
+                    val overlayStack by viewModel.overlayStack.collectAsStateWithLifecycle()
                     val fastOverlay = isHeavyEffectsDisabled() || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P
 
                     @Composable
@@ -310,29 +310,23 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                             is com.example.ui.viewmodel.RootOverlayState.AddMeal -> {
                                 AddMealFlowModal(
                                     viewModel = viewModel,
-                                    onDismiss = { viewModel.closeRootOverlay() }
+                                    onDismiss = { viewModel.popOverlay() }
                                 )
                             }
                             is com.example.ui.viewmodel.RootOverlayState.ManageMenu -> {
                                 MenuManagementScreen(
                                     hotel = state.hotel,
                                     viewModel = viewModel,
-                                    onBack = {
-                                        if (state.returnToEditHotel) {
-                                            viewModel.showRootOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(state.hotel))
-                                        } else {
-                                            viewModel.closeRootOverlay()
-                                        }
-                                    }
+                                    onBack = { viewModel.popOverlay() }
                                 )
                             }
                             is com.example.ui.viewmodel.RootOverlayState.EditHotel -> {
                                 EditHotelModal(
                                     hotel = state.hotel,
                                     viewModel = viewModel,
-                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onDismiss = { viewModel.popOverlay() },
                                     onManageMenu = {
-                                        viewModel.showRootOverlay(
+                                        viewModel.pushOverlay(
                                             com.example.ui.viewmodel.RootOverlayState.ManageMenu(
                                                 hotel = it,
                                                 returnToEditHotel = true
@@ -344,20 +338,20 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                             is com.example.ui.viewmodel.RootOverlayState.OwnerProfile -> {
                                 OwnerProfileScreen(
                                     viewModel = viewModel,
-                                    onDismiss = { viewModel.closeRootOverlay() }
+                                    onDismiss = { viewModel.popOverlay() }
                                 )
                             }
                             is com.example.ui.viewmodel.RootOverlayState.AccountManager -> {
                                 AccountManagerScreen(
                                     viewModel = viewModel,
-                                    onDismiss = { viewModel.closeRootOverlay() }
+                                    onDismiss = { viewModel.popOverlay() }
                                 )
                             }
                             is com.example.ui.viewmodel.RootOverlayState.AddOwnerAccount -> {
                                 AddOwnerAccountDialog(
                                     viewModel = viewModel,
                                     account = state.account,
-                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onDismiss = { viewModel.popOverlay() },
                                     onSave = { acc, bal, details ->
                                         // Handled internally in component
                                     }
@@ -367,7 +361,7 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                 AccountEditorScreen(
                                     account = state.account,
                                     prefLanguage = userProfile.language,
-                                    onDismiss = { viewModel.closeRootOverlay() },
+                                    onDismiss = { viewModel.popOverlay() },
                                     onSave = { name, bal, details, upi, qr, accNum, ifsc, branch, notes, phone, whatsapp, email ->
                                         if (state.account != null) {
                                             viewModel.editVirtualAccount(
@@ -403,12 +397,12 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                                                 email = email
                                             )
                                         }
-                                        viewModel.closeRootOverlay()
+                                        viewModel.popOverlay()
                                     },
                                     onDelete = state.account?.let { acc ->
                                         {
                                             viewModel.deleteVirtualAccount(acc)
-                                            viewModel.closeRootOverlay()
+                                            viewModel.popOverlay()
                                         }
                                     }
                                 )
@@ -417,34 +411,30 @@ fun TrakerApp(viewModel: FinancialViewModel) {
                         }
                     }
 
-                    if (fastOverlay) {
-                        if (rootOverlay != com.example.ui.viewmodel.RootOverlayState.None) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                RenderRootOverlay(rootOverlay)
-                            }
-                        }
-                    } else {
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = rootOverlay,
-                            transitionSpec = {
-                                val entering = targetState != com.example.ui.viewmodel.RootOverlayState.None
-                                val exiting = targetState == com.example.ui.viewmodel.RootOverlayState.None
-                                when {
-                                    exiting -> androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(90)) togetherWith
-                                        (androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { it / 10 } +
-                                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
-                                    entering -> (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(200)) { it / 10 } +
-                                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))) togetherWith
-                                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100))
-                                    else -> androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
-                                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
-                                }
-                            },
-                            label = "root_overlay_transition"
-                        ) { state ->
-                            if (state != com.example.ui.viewmodel.RootOverlayState.None) {
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    RenderRootOverlay(state)
+                    if (overlayStack.isNotEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            overlayStack.forEachIndexed { index, state ->
+                                key(index, state::class) {
+                                    if (fastOverlay) {
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            RenderRootOverlay(state)
+                                        }
+                                    } else {
+                                        val enterState = remember {
+                                            androidx.compose.animation.core.MutableTransitionState(false).apply {
+                                                targetState = true
+                                            }
+                                        }
+                                        AnimatedVisibility(
+                                            visibleState = enterState,
+                                            enter = slideInHorizontally(tween(180)) { it / 12 } + fadeIn(tween(160)),
+                                            exit = fadeOut(tween(100))
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxSize()) {
+                                                RenderRootOverlay(state)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

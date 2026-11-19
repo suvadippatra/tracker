@@ -127,15 +127,11 @@ fun MenuManagementScreen(
     val customBgUri = userProfile?.customBgUri ?: ""
     val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
-    Dialog(
-        onDismissRequest = onBack,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures { } }
     ) {
-        DialogEdgeToEdge()
-        Box(modifier = Modifier.fillMaxSize()) {
             CompositionLocalProvider(
                 LocalAppTheme provides themeMode,
                 LocalAppBgPreset provides bgPreset,
@@ -498,7 +494,6 @@ fun MenuManagementScreen(
             }
         }
     }
-}
 
 @Composable
 fun MenuTableRow(

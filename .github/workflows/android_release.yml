@@ -66,21 +66,22 @@ jobs:
         run: |
           touch .env
           touch .env.example
-          if [ ! -f debug.keystore ]; then
-            if [ -f debug.keystore.base64 ]; then
-              base64 -d debug.keystore.base64 > debug.keystore
-            else
-              keytool -genkeypair -v \
-                -keystore debug.keystore \
-                -storepass android \
-                -alias androiddebugkey \
-                -keypass android \
-                -keyalg RSA \
-                -keysize 2048 \
-                -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US"
-            fi
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Decoded repository debug.keystore.base64 -> debug.keystore"
+          elif [ ! -f debug.keystore ]; then
+            echo "WARNING: debug.keystore.base64 not found! Generating ephemeral debug.keystore."
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "Alias name|SHA1:|SHA256:" || true
           mkdir -p dist-outputs
 
           RAW_TAG="${{ inputs.tag_name }}"
@@ -96,7 +97,7 @@ jobs:
           PATCH=$(echo "$CLEAN_VER" | cut -d. -f3 | sed -E 's/^([0-9]+).*/\1/; s/^$/0/; t; s/.*/0/' )
           RUN_NO="${{ github.run_number }}"
           if [ -z "$RUN_NO" ]; then RUN_NO=1; fi
-          COMPUTED_CODE=$(( MAJOR * 1000000 + MINOR * 10000 + PATCH * 100 + RUN_NO + 10 ))
+          COMPUTED_CODE=$(( 10#$MAJOR * 1000000 + 10#$MINOR * 10000 + 10#$PATCH * 100 + 10#$RUN_NO + 10 ))
           echo "APP_VERSION_NAME=$CLEAN_VER" >> $GITHUB_ENV
           echo "APP_VERSION_CODE=$COMPUTED_CODE" >> $GITHUB_ENV
           echo "Resolved APK versionName=$CLEAN_VER, versionCode=$COMPUTED_CODE"

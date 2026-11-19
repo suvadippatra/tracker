@@ -191,7 +191,7 @@ fun AddTransactionScreen(
     var playingVoiceUri by remember { mutableStateOf<Uri?>(null) }
     val mediaPlayerRef = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     
-    val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+    val sdf = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -344,7 +344,7 @@ fun AddTransactionScreen(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { handleBack() },
         properties = androidx.compose.ui.window.DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false

@@ -68,15 +68,7 @@ fun UtilityConfigurationScreen(
         onDismiss()
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        DialogEdgeToEdge()
-        AppThemeProvider(financialViewModel) {
+    AppThemeProvider(financialViewModel) {
             val primaryAccent = AppAccentColor()
             val onPrimaryAccent = AppOnAccentColor()
             val isLight = isAppLightMode()
@@ -432,4 +424,3 @@ fun UtilityConfigurationScreen(
             }
         }
     }
-}

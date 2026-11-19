@@ -251,20 +251,13 @@ fun ProfileSettingsScreen(
         )
     }
 
-    // Create or Edit Hotel Modal
-    if (showCreateHotelModal || hotelToEdit != null) {
-        com.example.ui.screens.EditHotelModal(
-            hotel = hotelToEdit,
-            viewModel = viewModel,
-            onDismiss = {
-                showCreateHotelModal = false
-                hotelToEdit = null
-            },
-            onManageMenu = {
-                showCreateHotelModal = false
-                hotelToEdit = null
-            }
-        )
+    // Create or Edit Hotel Modal via Unified Overlay Stack
+    LaunchedEffect(showCreateHotelModal, hotelToEdit) {
+        if (showCreateHotelModal || hotelToEdit != null) {
+            viewModel.pushOverlay(com.example.ui.viewmodel.RootOverlayState.EditHotel(hotelToEdit))
+            showCreateHotelModal = false
+            hotelToEdit = null
+        }
     }
 
     // Default Owner Payment Receiving Account Selection Dialog

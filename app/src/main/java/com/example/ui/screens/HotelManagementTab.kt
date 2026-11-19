@@ -115,6 +115,8 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
     
     
     var showQrScanner by remember { mutableStateOf(false) }
+    var showKhataScanner by remember { mutableStateOf(false) }
+    var khataTargetHotelId by remember { mutableIntStateOf(0) }
 
     val quickActionTrigger by viewModel.quickActionTrigger.collectAsStateWithLifecycle()
     LaunchedEffect(quickActionTrigger) {
@@ -423,6 +425,14 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                                 onClick = {
                                                                     openDropdownHotelId = null
                                                                     showMealHistory = true
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                text = { Text(if (isBengali) "খাতা টেক্সট এন্ট্রি" else "Khata Text Entry", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                                                onClick = {
+                                                                    openDropdownHotelId = null
+                                                                    khataTargetHotelId = hotel.id
+                                                                    showKhataScanner = true
                                                                 }
                                                             )
                                                             DropdownMenuItem(
@@ -906,6 +916,14 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                                                             }
                                                         )
                                                         DropdownMenuItem(
+                                                            text = { Text(if (isBengali) "খাতা টেক্সট এন্ট্রি" else "Khata Text Entry", color = AppTextColor(), fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                openDropdownHotelId = null
+                                                                khataTargetHotelId = hotel.id
+                                                                showKhataScanner = true
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
                                                             text = { Text(if (isBengali) "কিউআর মাধ্যমে এক্সপোর্ট" else "Export via QR", color = AppAccentColor(), fontWeight = FontWeight.Medium) },
                                                             onClick = {
                                                                 openDropdownHotelId = null
@@ -1227,6 +1245,19 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
                     }
                 }
             }
+        )
+    }
+
+    if (showKhataScanner) {
+        val allMenusForKhata by viewModel.allHotelMenus.collectAsStateWithLifecycle()
+        val allTxsForKhata by viewModel.allTransactions.collectAsStateWithLifecycle()
+        com.example.ui.screens.settings.components.KhataScannerDialog(
+            hotels = hotels,
+            initialHotelId = if (khataTargetHotelId > 0) khataTargetHotelId else activeHotelId,
+            allMenus = allMenusForKhata,
+            allTransactions = allTxsForKhata,
+            onImportTransactions = { txs, onDone -> viewModel.importKhataTransactions(txs, onDone) },
+            onDismiss = { showKhataScanner = false }
         )
     }
 }

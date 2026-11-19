@@ -169,15 +169,7 @@ fun AddMealFlowModal(
         }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        com.example.ui.components.DialogEdgeToEdge()
-        Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalAppTheme provides themeMode,
             LocalAppBgPreset provides bgPreset,
@@ -878,5 +870,4 @@ fun AddMealFlowModal(
                 }
             }
         }
-    }
 }

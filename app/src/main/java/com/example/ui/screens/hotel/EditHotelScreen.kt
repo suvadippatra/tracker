@@ -104,15 +104,11 @@ fun EditHotelModal(
     val customBgUri = userProfile?.customBgUri ?: ""
     val isLiquidGlass = userProfile?.enableLiquidGlassTheme ?: false
 
-    Dialog(
-        onDismissRequest = { handleBack() },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures { } }
     ) {
-        com.example.ui.components.DialogEdgeToEdge()
-        Box(modifier = Modifier.fillMaxSize()) {
         
         androidx.compose.runtime.CompositionLocalProvider(
             com.example.ui.components.LocalAppTheme provides themeMode,
@@ -399,6 +395,5 @@ fun EditHotelModal(
             }
         }
     }
-}
 }
 }
