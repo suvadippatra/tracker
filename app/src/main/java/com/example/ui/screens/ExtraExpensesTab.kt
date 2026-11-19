@@ -1056,15 +1056,9 @@ fun ExtraExpensesTab(viewModel: FinancialViewModel) {
 
             BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 val isWide = maxWidth >= 600.dp
-                val mobileExpensesListState = androidx.compose.runtime.saveable.rememberSaveable(
-                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
-                val tabletLeftListState = androidx.compose.runtime.saveable.rememberSaveable(
-                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
-                val tabletRightListState = androidx.compose.runtime.saveable.rememberSaveable(
-                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val mobileExpensesListState = rememberPersistedLazyListState("extras_tab_mobile")
+                val tabletLeftListState = rememberPersistedLazyListState("extras_tab_tablet_left")
+                val tabletRightListState = rememberPersistedLazyListState("extras_tab_tablet_right")
 
                 val displayCount = if (isWide) {
                     val tabletFitCount = ((maxHeight - 210.dp) / 68.dp).toInt().coerceAtLeast(8)
@@ -2062,7 +2056,9 @@ fun ExtraExpenseDetailedHistoryScreen(
                                     Triple(dateStr, Pair(expSum, incSum), Triple(expExpr, incExpr, ordered))
                                 }
                             }
+                            val dayHistoryListState = rememberPersistedLazyListState("extras_history_day_view")
                             LazyColumn(
+                                state = dayHistoryListState,
                                 modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
@@ -2162,7 +2158,9 @@ fun ExtraExpenseDetailedHistoryScreen(
                                 }
                             }
                         } else {
+                            val flatHistoryListState = rememberPersistedLazyListState("extras_history_flat_view")
                             LazyColumn(
+                                state = flatHistoryListState,
                                 modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
                             ) {
                                 items(filteredExpenses, key = { it.id }, contentType = { "past_expense_item" }) { expense ->
@@ -2725,7 +2723,27 @@ fun UpiAutoDetectedPaymentPopupDialog(
     var amountStr by remember(detected.id) { mutableStateOf(detected.amount.toString().removeSuffix(".0")) }
     var txType by remember(detected.id) { mutableStateOf(detected.transactionType) }
     var category by remember(detected.id) { mutableStateOf(if (detected.transactionType == "INCOME") "Transfer" else "Shopping") }
-    var note by remember(detected.id) { mutableStateOf("Auto-detected from ${detected.appName}: ${detected.rawText}") }
+    var note by remember(detected.id) {
+        mutableStateOf(
+            buildString {
+                append("Auto-detected from ${detected.appName}")
+                if (detected.vpa.isNotBlank()) append(" • VPA: ${detected.vpa}")
+                if (detected.upiRefNumber.isNotBlank()) append(" • RRN: ${detected.upiRefNumber}")
+                if (detected.rawText.isNotBlank()) append("\n${detected.rawText}")
+            }
+        )
+    }
+    LaunchedEffect(detected.upiRefNumber, detected.vpa, detected.counterparty) {
+        if (detected.counterparty.isNotBlank() && (title.endsWith("Payment") || title.endsWith("UPI"))) {
+            title = detected.counterparty
+        }
+        if (detected.upiRefNumber.isNotBlank() && !note.contains(detected.upiRefNumber)) {
+            note = "$note\nRRN: ${detected.upiRefNumber}"
+        }
+        if (detected.vpa.isNotBlank() && !note.contains(detected.vpa)) {
+            note = "$note\nVPA: ${detected.vpa}"
+        }
+    }
     var selectedAccountId by remember(accounts, defaultBankAccountId) {
         mutableStateOf(
             defaultBankAccountId?.takeIf { id -> accounts.any { it.id == id } }
@@ -2861,6 +2879,25 @@ fun UpiAutoDetectedPaymentPopupDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (detected.vpa.isNotBlank() || detected.upiRefNumber.isNotBlank()) {
+                    val metaParts = buildList {
+                        if (detected.vpa.isNotBlank()) add("VPA: ${detected.vpa}")
+                        if (detected.upiRefNumber.isNotBlank()) add("RRN: ${detected.upiRefNumber}")
+                    }.joinToString("  •  ")
+                    Surface(
+                        color = AccentGreen.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = metaParts,
+                            color = AccentGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

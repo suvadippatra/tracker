@@ -276,7 +276,9 @@ fun BinScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // List items container
+            val binListState = rememberPersistedLazyListState("bin_screen_$activeSection")
             LazyColumn(
+                state = binListState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)

@@ -99,7 +99,9 @@ fun UtilityConfigurationScreen(
                             }
                         }
                     ) { padding ->
+                        val utilityConfigListState = rememberPersistedLazyListState("utility_config")
                         LazyColumn(
+                            state = utilityConfigListState,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)

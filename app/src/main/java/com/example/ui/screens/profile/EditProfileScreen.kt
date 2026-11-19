@@ -145,7 +145,9 @@ fun OwnerProfileScreen(
                             }
                         }
                     ) { padding ->
+                val editProfileListState = rememberPersistedLazyListState("edit_profile")
                 LazyColumn(
+                    state = editProfileListState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)

@@ -34,6 +34,11 @@ import com.example.ui.screens.settings.subscreens.AppearanceSettingsScreen
 import com.example.ui.screens.settings.subscreens.SecuritySettingsScreen
 import com.example.ui.screens.settings.subscreens.DataBackupSettingsScreen
 import com.example.ui.screens.settings.subscreens.AboutSettingsScreen
+import com.example.ui.screens.settings.subscreens.HelpGuideScreen
+import com.example.service.upi.PermissionAndBatteryHelper
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import com.example.data.model.UserProfileEntity
 import com.example.data.model.BankAccountEntity
@@ -65,13 +70,17 @@ fun SettingsScreen(
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val isBn = userProfile?.language == "bn"
 
-    // Intercept back button when inside a subscreen so it navigates to "main" rather than closing the whole app
-    androidx.activity.compose.BackHandler(enabled = true) {
-        if (currentScreen != "main") {
-            currentScreen = "main"
-        } else {
-            onDismiss()
+    // Intercept back button when inside a subscreen so it navigates smoothly up the Settings stack
+    val navigateBackInSettings: () -> Unit = {
+        when (currentScreen) {
+            "help" -> currentScreen = "about"
+            "main" -> onDismiss()
+            else -> currentScreen = "main"
         }
+    }
+
+    androidx.activity.compose.BackHandler(enabled = true) {
+        navigateBackInSettings()
     }
 
     AppThemeProvider(viewModel) {
@@ -94,19 +103,14 @@ fun SettingsScreen(
                         "data" -> if (isBn) "ডাটা ও ব্যাকআপ" else "Data & Backups"
                         "bin" -> if (isBn) "রিসাইকেল বিন" else "Recycle Bin"
                         "about" -> if (isBn) "অ্যাপ সম্পর্কিত ও সহায়িকা" else "About & Help"
+                        "help" -> if (isBn) "ব্যবহার নির্দেশিকা" else "Help & Guide"
                         "other_tools" -> if (isBn) "অন্যান্য টুলস" else "View Another Tools"
                         else -> "Settings"
                     }
                     Box(modifier = Modifier.fillMaxWidth().dialogSafeTopPadding(extraTop = 4.dp)) {
                         SettingsPageHeader(
                             title = headerTitle,
-                            onBack = {
-                                if (currentScreen != "main") {
-                                    currentScreen = "main"
-                                } else {
-                                    onDismiss()
-                                }
-                            }
+                            onBack = navigateBackInSettings
                         )
                     }
                 }
@@ -124,39 +128,49 @@ fun SettingsScreen(
                             .fillMaxWidth()
                     ) {
                         val fastMode = isHeavyEffectsDisabled() || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P
-                        val settingsMainListState = androidx.compose.runtime.saveable.rememberSaveable(
-                            saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                        ) { androidx.compose.foundation.lazy.LazyListState() }
+                        val settingsMainListState = rememberPersistedLazyListState("settings_main")
+                        val dur = if (fastMode) 90 else 150
 
-                        AnimatedContent(
-                            targetState = currentScreen,
-                            transitionSpec = {
-                                val dur = if (fastMode) 90 else 150
-                                if (targetState != "main" && initialState == "main") {
-                                    (slideInHorizontally(tween(dur)) { it / 8 } + fadeIn(tween(dur))) togetherWith
-                                        fadeOut(tween(dur / 2))
-                                } else {
-                                    (slideInHorizontally(tween(dur)) { -it / 10 } + fadeIn(tween(dur))) togetherWith
-                                        fadeOut(tween(dur / 2))
+                        // Layer 0: Always keep SettingsMainList mounted so pressing Back from any
+                        // subpage restores the exact pixel scroll offset without jumping to top.
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            SettingsMainList(
+                                listState = settingsMainListState,
+                                prefLanguage = userProfile?.language ?: "en",
+                                onNavigate = { currentScreen = it },
+                                onOpenBin = { currentScreen = "bin" },
+                                onOpenOwnerProfile = onOpenOwnerProfile
+                            )
+                        }
+
+                        // Layer 1: Active subpage rendered cleanly over the preserved main list
+                        AnimatedVisibility(
+                            visible = currentScreen != "main",
+                            enter = slideInHorizontally(tween(dur)) { it / 8 } + fadeIn(tween(dur)),
+                            exit = slideOutHorizontally(tween(dur)) { it / 10 } + fadeOut(tween(dur / 2))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(getAppBackgroundGradient())
+                            ) {
+                                when (currentScreen) {
+                                    "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
+                                    "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
+                                    "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                                    "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
+                                    "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
+                                    "about" -> AboutSettingsScreen(
+                                        viewModel = viewModel,
+                                        onBack = { currentScreen = "main" },
+                                        onOpenHelp = { currentScreen = "help" }
+                                    )
+                                    "help" -> HelpGuideScreen(
+                                        prefLanguage = userProfile?.language ?: "en",
+                                        onBack = { currentScreen = "about" }
+                                    )
+                                    "other_tools" -> AnotherToolsBlankScreen(onBack = { currentScreen = "main" })
                                 }
-                            },
-                            label = "settings_subscreen_transition"
-                        ) { screen ->
-                            when (screen) {
-                                "main" -> SettingsMainList(
-                                    listState = settingsMainListState,
-                                    prefLanguage = userProfile?.language ?: "en",
-                                    onNavigate = { currentScreen = it },
-                                    onOpenBin = { currentScreen = "bin" },
-                                    onOpenOwnerProfile = onOpenOwnerProfile
-                                )
-                                "profile" -> ProfileSettingsScreen(viewModel, onOpenOwnerProfile, onBack = { currentScreen = "main" })
-                                "appearance" -> AppearanceSettingsScreen(viewModel, onOpenUtilityConfig, onBack = { currentScreen = "main" })
-                                "security" -> SecuritySettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                                "data" -> DataBackupSettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                                "bin" -> BinScreen(viewModel = viewModel, onDismiss = { currentScreen = "main" }, showHeader = false)
-                                "about" -> AboutSettingsScreen(viewModel, onBack = { currentScreen = "main" })
-                                "other_tools" -> AnotherToolsBlankScreen(onBack = { currentScreen = "main" })
                             }
                         }
                     }
@@ -261,28 +275,106 @@ fun SettingsMainList(
 
         item {
             val context = androidx.compose.ui.platform.LocalContext.current
+            val lifecycleOwner = LocalLifecycleOwner.current
             LaunchedEffect(Unit) {
                 com.example.service.DetectedUpiPaymentBus.syncEnabledState(context)
             }
             val upiAutoDetectEnabled by com.example.service.DetectedUpiPaymentBus.isAutoDetectEnabledFlow.collectAsStateWithLifecycle()
-            val hasNotifPermission = remember(upiAutoDetectEnabled) {
-                com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)
+            var hasNotifPermission by remember {
+                mutableStateOf(PermissionAndBatteryHelper.isNotificationListenerEnabled(context))
+            }
+            var smsFallbackEnabled by remember {
+                mutableStateOf(PermissionAndBatteryHelper.isSmsFallbackEnabled(context))
+            }
+            var hasSmsPermission by remember {
+                mutableStateOf(PermissionAndBatteryHelper.hasSmsPermissions(context))
+            }
+            var isBatteryUnrestricted by remember {
+                mutableStateOf(PermissionAndBatteryHelper.isIgnoringBatteryOptimizations(context))
+            }
+
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        hasNotifPermission = PermissionAndBatteryHelper.isNotificationListenerEnabled(context)
+                        hasSmsPermission = PermissionAndBatteryHelper.hasSmsPermissions(context)
+                        smsFallbackEnabled = PermissionAndBatteryHelper.isSmsFallbackEnabled(context)
+                        isBatteryUnrestricted = PermissionAndBatteryHelper.isIgnoringBatteryOptimizations(context)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
+
+            val smsPermLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestMultiplePermissions()
+            ) { results ->
+                val granted = results.values.all { it } || PermissionAndBatteryHelper.hasSmsPermissions(context)
+                hasSmsPermission = granted
+                if (granted) {
+                    PermissionAndBatteryHelper.setSmsFallbackEnabled(context, true)
+                    smsFallbackEnabled = true
+                } else {
+                    PermissionAndBatteryHelper.setSmsFallbackEnabled(context, false)
+                    smsFallbackEnabled = false
+                }
             }
 
             PixelSettingsGroup(title = if (prefLanguage == "bn") "স্মার্ট অটোমেশন ও টুলস" else "Smart Automation & Tools") {
                 PixelSettingsSwitchItem(
                     icon = Icons.Default.Notifications,
-                    title = if (prefLanguage == "bn") "UPI পেমেন্ট অটো-ডিটেক্ট পপআপ" else "UPI Payment Auto-Detection",
+                    title = if (prefLanguage == "bn") "UPI পেমেন্ট অটো-ডিটেক্ট (অফলাইন)" else "UPI Notification Auto-Detect",
                     subtitle = if (hasNotifPermission) {
-                        if (prefLanguage == "bn") "পেমেন্ট বা ব্যাংক এসএমএস থেকে স্বয়ংক্রিয়ভাবে পপআপ দেখাবে" else "Auto-detects UPI & bank SMS payment alerts"
+                        if (prefLanguage == "bn") "PhonePe, GPay, Paytm ও ব্যাংক নোটিফিকেশন লোকালি শনাক্ত করে" else "On-device listener for PhonePe, GPay, Paytm & bank alerts"
                     } else {
-                        if (prefLanguage == "bn") "নোটিফিকেশন অ্যাক্সেস চালু করতে সুইচ অন করুন" else "Toggle ON to grant Notification Access for UPI alerts"
+                        if (prefLanguage == "bn") "নোটিফিকেশন অ্যাক্সেস চালু করতে সুইচ অন করুন" else "Toggle ON to grant Notification Access (100% on-device)"
                     },
                     checked = upiAutoDetectEnabled && hasNotifPermission,
                     onCheckedChange = { enabled ->
                         com.example.service.DetectedUpiPaymentBus.setAutoDetectEnabled(context, enabled)
-                        if (enabled && !com.example.service.DetectedUpiPaymentBus.isNotificationListenerEnabled(context)) {
-                            com.example.service.DetectedUpiPaymentBus.openNotificationListenerSettings(context)
+                        if (enabled && !PermissionAndBatteryHelper.isNotificationListenerEnabled(context)) {
+                            PermissionAndBatteryHelper.openNotificationListenerSettings(context)
+                        }
+                    },
+                    showDivider = true
+                )
+                PixelSettingsSwitchItem(
+                    icon = Icons.Default.Sms,
+                    title = if (prefLanguage == "bn") "ব্যাংক SMS ব্যাকআপ ও RRN মার্জ" else "Bank SMS Fallback Listener",
+                    subtitle = if (smsFallbackEnabled && hasSmsPermission) {
+                        if (prefLanguage == "bn") "HDFC, SBI, ICICI, Axis SMS থেকে VPA ও ১২-ডিজিট RRN মার্জ সক্রিয়" else "Active: merges Bank SMS VPA & 12-digit RRN (2-min dedup)"
+                    } else {
+                        if (prefLanguage == "bn") "ঐচ্ছিক: ব্যাংক SMS থেকে পেমেন্ট শনাক্ত ও RRN যুক্ত করুন" else "Optional fallback for bank SMS alerts + periodic sync"
+                    },
+                    checked = smsFallbackEnabled && hasSmsPermission,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            if (PermissionAndBatteryHelper.hasSmsPermissions(context)) {
+                                PermissionAndBatteryHelper.setSmsFallbackEnabled(context, true)
+                                smsFallbackEnabled = true
+                            } else {
+                                smsPermLauncher.launch(PermissionAndBatteryHelper.SMS_PERMISSIONS)
+                            }
+                        } else {
+                            PermissionAndBatteryHelper.setSmsFallbackEnabled(context, false)
+                            smsFallbackEnabled = false
+                        }
+                    },
+                    showDivider = true
+                )
+                PixelSettingsItem(
+                    icon = Icons.Default.Speed,
+                    title = if (prefLanguage == "bn") "ব্যাকগ্রাউন্ড ও ব্যাটারি অপ্টিমাইজেশন" else "Background Survival & Battery",
+                    subtitle = if (isBatteryUnrestricted) {
+                        if (prefLanguage == "bn") "সচল আছে (${PermissionAndBatteryHelper.getManufacturerLabel()}) • ব্যাকগ্রাউন্ড সেটিংস দেখুন" else "Unrestricted (${PermissionAndBatteryHelper.getManufacturerLabel()}) • Tap for OEM auto-start"
+                    } else {
+                        if (prefLanguage == "bn") "${PermissionAndBatteryHelper.getManufacturerLabel()}-এর জন্য ব্যাটারি ছাড় চালু করুন" else "Exempt Traker on ${PermissionAndBatteryHelper.getManufacturerLabel()} for reliable background alerts"
+                    },
+                    onClick = {
+                        if (!PermissionAndBatteryHelper.isIgnoringBatteryOptimizations(context)) {
+                            PermissionAndBatteryHelper.requestIgnoreBatteryOptimizations(context)
+                        } else {
+                            PermissionAndBatteryHelper.openOemBackgroundSettings(context)
                         }
                     },
                     showDivider = true
@@ -890,31 +982,25 @@ fun LegalInfoDialog(
                             fontSize = 18.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = AppTextColor()
-                            )
-                        }
                     }
                 }
             ) { innerPadding ->
+                val legalScrollState = rememberPersistedScrollState("legal_dialog_$type")
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .verticalScroll(legalScrollState)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = getCardBackground(),
                         shadowElevation = if (isLight) 4.dp else 6.dp,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .widthIn(max = 840.dp)
+                            .fillMaxWidth()
                     ) {
                         Text(
                             text = content,

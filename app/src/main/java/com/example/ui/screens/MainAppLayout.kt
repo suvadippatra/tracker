@@ -504,6 +504,16 @@ fun MainAppLayout(viewModel: FinancialViewModel) {
                     notes = note,
                     attachments = attachList
                 )
+                val savedRecordId = activeUpiPayment.roomRecordId
+                if (savedRecordId > 0L) {
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        runCatching {
+                            com.example.service.upi.UpiTransactionRepository
+                                .create(globalContext)
+                                .markImportedToExtras(savedRecordId)
+                        }
+                    }
+                }
                 com.example.service.DetectedUpiPaymentBus.dismissPayment(activeUpiPayment.id, globalContext)
             },
             onDismiss = {

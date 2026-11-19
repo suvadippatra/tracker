@@ -112,12 +112,8 @@ fun BillTrackingTab(
                 }
             }
             is MeterReadingUiState.Success -> {
-                val dailyReadingListState = androidx.compose.runtime.saveable.rememberSaveable(
-                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
-                val billSummaryListState = androidx.compose.runtime.saveable.rememberSaveable(
-                    saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val dailyReadingListState = rememberPersistedLazyListState("bill_tab_daily_readings")
+                val billSummaryListState = rememberPersistedLazyListState("bill_tab_summary")
 
                 if (isWide) {
                     val columnMaxHeight = maxHeight

@@ -834,12 +834,8 @@ fun StickyNotesTab(viewModel: FinancialViewModel) {
     val containerWidth = if (isTablet) (screenWidthDp - 96.dp).coerceAtLeast(320.dp) else screenWidthDp
     val isWallMode = screenWidthDp >= 600.dp || screenWidthDp > screenHeightDp
 
-    val stickyWallListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
-    val stickyMobileListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val stickyWallListState = rememberPersistedLazyListState("sticky_notes_wall")
+    val stickyMobileListState = rememberPersistedLazyListState("sticky_notes_mobile")
 
     Box(
         modifier = Modifier

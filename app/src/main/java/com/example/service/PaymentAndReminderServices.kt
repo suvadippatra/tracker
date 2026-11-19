@@ -24,6 +24,17 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
 
+import android.app.Notification
+import com.example.data.model.UpiTransactionType
+import com.example.service.upi.CaptureSource
+import com.example.service.upi.TransactionParser
+import com.example.service.upi.UpiTransactionRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+
 data class DetectedUpiPayment(
     val id: String = UUID.randomUUID().toString(),
     val appName: String,
@@ -32,7 +43,10 @@ data class DetectedUpiPayment(
     val transactionType: String, // "EXPENSE" or "INCOME"
     val counterparty: String,
     val rawText: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val upiRefNumber: String = "",
+    val vpa: String = "",
+    val roomRecordId: Long = 0L
 )
 
 object DetectedUpiPaymentBus {
@@ -95,7 +109,10 @@ object DetectedUpiPaymentBus {
                         transactionType = obj.optString("transactionType", "EXPENSE"),
                         counterparty = obj.optString("counterparty", ""),
                         rawText = obj.optString("rawText", ""),
-                        timestamp = ts
+                        timestamp = ts,
+                        upiRefNumber = obj.optString("upiRefNumber", ""),
+                        vpa = obj.optString("vpa", ""),
+                        roomRecordId = obj.optLong("roomRecordId", 0L)
                     )
                 )
             }
@@ -121,6 +138,9 @@ object DetectedUpiPaymentBus {
                 put("counterparty", p.counterparty)
                 put("rawText", p.rawText)
                 put("timestamp", p.timestamp)
+                put("upiRefNumber", p.upiRefNumber)
+                put("vpa", p.vpa)
+                put("roomRecordId", p.roomRecordId)
             })
         }
         ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -183,6 +203,43 @@ object DetectedUpiPaymentBus {
         persistPendingPayments(ctx, updated)
         if (ctx != null) {
             showUpiDetectedNotification(ctx, payment)
+        }
+    }
+
+    fun enrichPendingPayment(
+        context: Context?,
+        roomRecordId: Long,
+        amount: Double,
+        transactionType: String,
+        enrichedCounterparty: String,
+        enrichedAppName: String,
+        enrichedUpiRef: String,
+        enrichedVpa: String
+    ) {
+        val ctx = resolveContext(context)
+        val current = _pendingPayments.value
+        if (current.isEmpty()) return
+        var matched = false
+        val updated = current.map { item ->
+            val isMatch = (roomRecordId > 0L && item.roomRecordId == roomRecordId) ||
+                (item.amount == amount && item.transactionType == transactionType &&
+                    kotlin.math.abs(System.currentTimeMillis() - item.timestamp) <= 180_000L)
+            if (isMatch) {
+                matched = true
+                item.copy(
+                    appName = enrichedAppName.ifBlank { item.appName },
+                    counterparty = enrichedCounterparty.ifBlank { item.counterparty },
+                    upiRefNumber = enrichedUpiRef.ifBlank { item.upiRefNumber },
+                    vpa = enrichedVpa.ifBlank { item.vpa },
+                    roomRecordId = if (roomRecordId > 0L) roomRecordId else item.roomRecordId
+                )
+            } else {
+                item
+            }
+        }
+        if (matched) {
+            _pendingPayments.value = updated
+            persistPendingPayments(ctx, updated)
         }
     }
 
@@ -291,102 +348,26 @@ object DetectedUpiPaymentBus {
 
 class PaymentNotificationListenerService : NotificationListenerService() {
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     companion object {
-        private val SUPPORTED_UPI_PACKAGES = mapOf(
-            "com.google.android.apps.nbu.paisa.user" to "Google Pay",
-            "com.phonepe.app" to "PhonePe",
-            "net.one97.paytm" to "Paytm",
-            "com.bharatpe.app" to "BharatPe",
-            "in.org.npci.upiapp" to "BHIM UPI",
-            "in.amazon.mShop.android.shopping" to "Amazon Pay",
-            "com.whatsapp" to "WhatsApp Pay",
-            "com.dreamplug.androidapp" to "CRED UPI",
-            "com.mobikwik_new" to "MobiKwik",
-            "com.freecharge.android" to "Freecharge",
-            "com.csam.icici.bank.imobile" to "iMobile Pay",
-            "com.sbi.lotusintouch" to "YONO SBI",
-            "com.naviapp" to "Navi UPI",
-            "money.super.payments" to "super.money",
-            "indwin.c3.shareapp" to "Slice UPI",
-            "money.jupiter" to "Jupiter",
-            "com.epifi.paisa" to "Fi Money",
-            "com.google.android.apps.messaging" to "Bank SMS Alert",
-            "com.android.mms" to "Bank SMS Alert",
-            "com.samsung.android.messaging" to "Bank SMS Alert"
-        )
-
-        private val AMOUNT_REGEX = Regex(
-            """(?:₹|Rs\.?|INR)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)""",
-            RegexOption.IGNORE_CASE
-        )
-
-        private val BANK_PACKAGE_KEYWORDS = listOf(
-            "bank", "hdfc", "sbi", "icici", "axis", "kotak", "pnb", "canara",
-            "union", "idfc", "indus", "yesbank", "messaging", "mms", "sms"
-        )
-
         fun parseUpiNotification(packageName: String, title: String, text: String): DetectedUpiPayment? {
-            if (packageName == "com.tracker.suva" || packageName == "com.example") return null
-
-            val combined = "$title $text".trim()
-            if (combined.length < 6) return null
-            val lower = combined.lowercase(Locale.ROOT)
-            val pkgLower = packageName.lowercase(Locale.ROOT)
-
-            val appName = SUPPORTED_UPI_PACKAGES[packageName] ?: when {
-                pkgLower.contains("paisa") || pkgLower.contains("gpay") -> "Google Pay"
-                pkgLower.contains("phonepe") -> "PhonePe"
-                pkgLower.contains("paytm") -> "Paytm"
-                pkgLower.contains("bharatpe") -> "BharatPe"
-                pkgLower.contains("upi") -> "UPI App"
-                BANK_PACKAGE_KEYWORDS.any { pkgLower.contains(it) } -> "Bank / SMS Alert"
-                (lower.contains("upi") || lower.contains("vpa") || lower.contains("a/c") || lower.contains("acct")) &&
-                    (lower.contains("debited") || lower.contains("credited") || lower.contains("paid") || lower.contains("sent") || lower.contains("received")) -> "UPI / Bank Alert"
-                else -> return null
-            }
-
-            val isPaid = lower.contains("paid") || lower.contains("sent") || lower.contains("debited") || lower.contains("payment of") || lower.contains("spent") || lower.contains("trf to") || lower.contains("withdrawn")
-            val isReceived = lower.contains("received") || lower.contains("credited") || lower.contains("added to your") || lower.contains("deposited")
-            if (!isPaid && !isReceived) return null
-            if (lower.contains("failed") || lower.contains("declined") || lower.contains("pending") || lower.contains("request") || lower.contains("otp") || lower.contains("due on") || lower.contains("will be debited")) return null
-
-            val match = AMOUNT_REGEX.find(combined) ?: return null
-            val rawAmt = match.groupValues[1].replace(",", "")
-            val amount = rawAmt.toDoubleOrNull() ?: return null
-            if (amount <= 0.0) return null
-
-            val txType = if (isReceived && !isPaid) "INCOME" else "EXPENSE"
-
-            var counterparty = ""
-            val toFromRegex = Regex("""(?:paid to|sent to|trf to|to vpa|received from|from|to)\s+([A-Za-z0-9 .@&_'-]{2,38})""", RegexOption.IGNORE_CASE)
-            val cpMatch = toFromRegex.find(combined)
-            if (cpMatch != null) {
-                counterparty = cpMatch.groupValues[1]
-                    .substringBefore(" on ")
-                    .substringBefore(" via ")
-                    .substringBefore(" using ")
-                    .substringBefore(" Ref")
-                    .substringBefore(" UTR")
-                    .substringBefore(" UPI")
-                    .substringBefore(" Avl")
-                    .trim()
-            }
-            if (counterparty.isBlank()) {
-                counterparty = title
-                    .replace(AMOUNT_REGEX, "")
-                    .replace("Paid", "", ignoreCase = true)
-                    .replace("Sent", "", ignoreCase = true)
-                    .trim()
-                    .ifBlank { "$appName Payment" }
-            }
-
-            return DetectedUpiPayment(
-                appName = appName,
+            val parsed = TransactionParser.parseNotification(
                 packageName = packageName,
-                amount = amount,
-                transactionType = txType,
-                counterparty = counterparty.take(40),
-                rawText = combined.take(240)
+                title = title,
+                text = text,
+                bigText = null
+            ) ?: return null
+            return DetectedUpiPayment(
+                appName = parsed.sourceAppOrBank,
+                packageName = packageName,
+                amount = parsed.amount,
+                transactionType = if (parsed.transactionType == UpiTransactionType.CREDIT) "INCOME" else "EXPENSE",
+                counterparty = parsed.counterpartyOrReceiverId,
+                rawText = parsed.rawMessage,
+                timestamp = parsed.timestamp,
+                upiRefNumber = parsed.upiRefNumber.orEmpty(),
+                vpa = parsed.vpa.orEmpty()
             )
         }
     }
@@ -395,6 +376,11 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         super.onCreate()
         DetectedUpiPaymentBus.syncEnabledState(applicationContext)
         DetectedUpiPaymentBus.loadPendingPayments(applicationContext)
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
     }
 
     override fun onListenerConnected() {
@@ -418,23 +404,47 @@ class PaymentNotificationListenerService : NotificationListenerService() {
         runCatching {
             if (!DetectedUpiPaymentBus.syncEnabledState(applicationContext)) return
             val pkg = sbn.packageName ?: return
-            val extras = sbn.notification?.extras ?: return
-            val title = extras.getCharSequence("android.title")?.toString() ?: ""
-            val bigText = extras.getCharSequence("android.bigText")?.toString()
-            val plainText = extras.getCharSequence("android.text")?.toString()
-            val subText = extras.getCharSequence("android.subText")?.toString()
-            val textLines = extras.getCharSequenceArray("android.textLines")
+            if (!TransactionParser.isAllowedNotificationPackage(pkg)) return
+
+            val notification = sbn.notification ?: return
+            // Ignore ongoing/sticky system banners and group summary notifications
+            if ((notification.flags and Notification.FLAG_ONGOING_EVENT) != 0) return
+            if ((notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
+
+            val extras = notification.extras ?: return
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+            val plainText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+            val textLines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
                 ?.mapNotNull { it?.toString()?.trim() }
                 ?.filter { it.isNotEmpty() }
                 ?.joinToString(" ")
-            val combinedText = listOfNotNull(bigText, plainText, textLines, subText)
+
+            val secondaryText = listOfNotNull(plainText, textLines, subText)
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
                 .distinct()
                 .joinToString(" ")
-            val detected = parseUpiNotification(pkg, title, combinedText)
-            if (detected != null) {
-                DetectedUpiPaymentBus.postDetectedPayment(applicationContext, detected)
+
+            val parsed = TransactionParser.parseNotification(
+                packageName = pkg,
+                title = title,
+                text = secondaryText,
+                bigText = bigText,
+                timestamp = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
+            ) ?: return
+
+            val appContext = applicationContext
+            serviceScope.launch {
+                runCatching {
+                    UpiTransactionRepository.create(appContext).ingestTransaction(
+                        context = appContext,
+                        parsed = parsed,
+                        source = CaptureSource.NOTIFICATION,
+                        emitToBus = true
+                    )
+                }
             }
         }
     }

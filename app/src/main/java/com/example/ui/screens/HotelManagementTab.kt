@@ -254,15 +254,9 @@ fun HotelManagementTab(viewModel: FinancialViewModel) {
         val isWide = maxWidth >= 600.dp
         val columnMaxHeight = maxHeight
 
-        val mobileListState = androidx.compose.runtime.saveable.rememberSaveable(
-            saver = androidx.compose.foundation.lazy.LazyListState.Saver
-        ) { androidx.compose.foundation.lazy.LazyListState() }
-        val tabletLeftListState = androidx.compose.runtime.saveable.rememberSaveable(
-            saver = androidx.compose.foundation.lazy.LazyListState.Saver
-        ) { androidx.compose.foundation.lazy.LazyListState() }
-        val tabletRightListState = androidx.compose.runtime.saveable.rememberSaveable(
-            saver = androidx.compose.foundation.lazy.LazyListState.Saver
-        ) { androidx.compose.foundation.lazy.LazyListState() }
+        val mobileListState = rememberPersistedLazyListState("hotel_tab_mobile")
+        val tabletLeftListState = rememberPersistedLazyListState("hotel_tab_tablet_left")
+        val tabletRightListState = rememberPersistedLazyListState("hotel_tab_tablet_right")
 
         if (isWide) {
             // WIDESCREEN TABLET LAYOUT: Two columns side-by-side
@@ -1598,7 +1592,9 @@ fun MealHistoryModal(
                         }
                     }
                     
+                    val mealHistoryListState = rememberPersistedLazyListState("hotel_meal_history")
                     LazyColumn(
+                        state = mealHistoryListState,
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {

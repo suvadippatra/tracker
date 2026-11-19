@@ -73,9 +73,7 @@ fun AppearanceSettingsScreen(
         )
     }
 
-    val appearanceListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val appearanceListState = rememberPersistedLazyListState("settings_appearance")
 
     LazyColumn(
         state = appearanceListState,

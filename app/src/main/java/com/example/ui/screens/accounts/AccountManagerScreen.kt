@@ -124,7 +124,9 @@ fun AccountManagerScreen(
                                 }
                             }
             ) { innerPadding ->
+                val accountManagerListState = rememberPersistedLazyListState("account_manager")
                 LazyColumn(
+                    state = accountManagerListState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)

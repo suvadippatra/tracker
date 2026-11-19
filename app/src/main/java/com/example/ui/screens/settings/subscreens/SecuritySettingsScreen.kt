@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.rememberPersistedLazyListState
 import com.example.ui.screens.RecoverySetupDialog
 import com.example.ui.screens.SecurityPinDialog
 import com.example.ui.screens.SecurityPinMode
@@ -111,9 +112,7 @@ fun SecuritySettingsScreen(
         )
     }
 
-    val securityListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val securityListState = rememberPersistedLazyListState("settings_security")
 
     LazyColumn(
         state = securityListState,

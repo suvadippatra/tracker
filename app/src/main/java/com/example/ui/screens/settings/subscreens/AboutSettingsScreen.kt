@@ -24,6 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.ui.components.*
@@ -31,6 +34,8 @@ import com.example.ui.screens.LegalInfoDialog
 import com.example.ui.screens.settings.components.PixelSettingsGroup
 import com.example.ui.screens.settings.components.PixelSettingsItem
 import com.example.ui.viewmodel.FinancialViewModel
+import com.example.utils.GitHubUpdateManager
+import com.example.utils.GitHubUpdateState
 
 private data class HelpGuideQuickItem(
     val icon: ImageVector,
@@ -50,13 +55,16 @@ private data class PublicRepoReference(
 @Composable
 fun AboutSettingsScreen(
     viewModel: FinancialViewModel,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onOpenHelp: () -> Unit = {}
 ) {
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val prefLanguage = userProfile.language
+    val isBn = prefLanguage == "bn"
     val appVersion = BuildConfig.VERSION_NAME.ifBlank { "0.0.1" }
     val isLight = isAppLightMode()
     val appAccent = AppAccentColor()
+    val updateState by GitHubUpdateManager.state.collectAsStateWithLifecycle()
 
     var activeLegalDialog by remember { mutableStateOf<String?>(null) }
 
@@ -78,6 +86,22 @@ fun AboutSettingsScreen(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // If user just granted "Install unknown apps" permission, resume APK installation automatically
+    DisposableEffect(lifecycleOwner, updateState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && updateState is GitHubUpdateState.PermissionRequired) {
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
+                    context.packageManager.canRequestPackageInstalls()
+                ) {
+                    GitHubUpdateManager.retryInstall(context)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val quickHelpItems = remember {
         listOf(
@@ -133,10 +157,10 @@ fun AboutSettingsScreen(
                 urlOrSource = "android.speech / android.service.notification"
             ),
             PublicRepoReference(
-                name = "Room SQLite & Java ZIP Archive Stream",
-                category = "Local Database (v36) & .zip Media Backup Bundler",
+                name = "Room SQLite, WorkManager & Java ZIP Stream",
+                category = "Local Database (v37), On-Device UPI/SMS Deduplication & .zip Media Bundler",
                 license = "Apache 2.0",
-                urlOrSource = "androidx.room / java.util.zip"
+                urlOrSource = "androidx.room / androidx.work / java.util.zip"
             ),
             PublicRepoReference(
                 name = "ZXing, CameraX, ExifInterface & Coil",
@@ -147,9 +171,7 @@ fun AboutSettingsScreen(
         )
     }
 
-    val aboutListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val aboutListState = rememberPersistedLazyListState("settings_about")
 
     LazyColumn(
         state = aboutListState,
@@ -271,6 +293,293 @@ fun AboutSettingsScreen(
                                 accent = appAccent,
                                 isLight = isLight
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1.5 In-App GitHub Release Updater (suvadippatra/tracker)
+        item(key = "github_updater_card") {
+            PixelSettingsGroup(
+                title = if (isBn) "অ্যাপ আপডেট (GitHub)" else "App Updates"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    when (val st = updateState) {
+                        is GitHubUpdateState.Idle -> {
+                            Button(
+                                onClick = { GitHubUpdateManager.checkAndDownloadLatest(context) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .testTag("check_github_update_btn"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = appAccent,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isBn) "আপডেট খুঁজুন ও ডাউনলোড করুন" else "Check & Download Update",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp
+                                )
+                            }
+                        }
+
+                        is GitHubUpdateState.Checking -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = appAccent
+                                )
+                                Text(
+                                    text = if (isBn) "সর্বশেষ কম্পাইলড রিলিজ খোঁজা হচ্ছে..." else "Checking GitHub for latest compiled APK...",
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        is GitHubUpdateState.Downloading -> {
+                            val pctInt = (st.progress * 100f).toInt().coerceIn(0, 100)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBn) "ডাউনলোড হচ্ছে ${st.versionTag}" else "Downloading ${st.versionTag}",
+                                    color = AppTextColor(),
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "$pctInt%",
+                                    color = appAccent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (st.totalBytes > 0L) {
+                                LinearProgressIndicator(
+                                    progress = { st.progress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(7.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = appAccent
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(7.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = appAccent
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${st.fileName} (${GitHubUpdateManager.formatBytes(st.downloadedBytes)}" +
+                                        if (st.totalBytes > 0L) " / ${GitHubUpdateManager.formatBytes(st.totalBytes)})" else ")",
+                                    color = AppSecondaryTextColor(),
+                                    fontSize = 11.5.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = { GitHubUpdateManager.cancelDownload() },
+                                    modifier = Modifier.defaultMinSize(minHeight = 40.dp)
+                                ) {
+                                    Text(if (isBn) "বাতিল" else "Cancel", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+
+                        is GitHubUpdateState.ReadyToInstall -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (isBn) {
+                                        "${st.versionTag} ডাউনলোড সম্পূর্ণ (${st.fileName})"
+                                    } else {
+                                        "${st.versionTag} ready to install (${st.fileName})"
+                                    },
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Button(
+                                    onClick = { GitHubUpdateManager.retryInstall(context) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .testTag("install_downloaded_apk_btn"),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2E7D32),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isBn) "এখনই ইনস্টল করুন" else "Install APK", fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = { GitHubUpdateManager.checkAndDownloadLatest(context) },
+                                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Re-check", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        is GitHubUpdateState.PermissionRequired -> {
+                            Text(
+                                text = if (isBn) {
+                                    "APK ইনস্টল করার জন্য 'Install unknown apps' অনুমতি চালু করুন (${st.fileName})"
+                                } else {
+                                    "Allow 'Install unknown apps' for Traker to install ${st.fileName}"
+                                },
+                                color = Color(0xFFE65100),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Button(
+                                onClick = { GitHubUpdateManager.openInstallPermissionSettings(context) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .testTag("grant_install_permission_btn"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = appAccent,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isBn) "ইনস্টল অনুমতি দিন" else "Allow APK Installs",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        is GitHubUpdateState.UpToDate -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (isBn) {
+                                        "আপনার অ্যাপটি আপ-টু-ডেট (সর্বশেষ: ${st.latestVersion})"
+                                    } else {
+                                        "You are on the latest version (${st.latestVersion})"
+                                    },
+                                    color = AppTextColor(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                FilledTonalButton(
+                                    onClick = { GitHubUpdateManager.downloadSpecificRelease(context, st.releaseInfo) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .testTag("download_latest_compiled_apk_btn"),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isBn) "সর্বশেষ APK ডাউনলোড" else "Download Latest APK",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { GitHubUpdateManager.checkAndDownloadLatest(context) },
+                                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Re-check", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+
+                        is GitHubUpdateState.Error -> {
+                            Text(
+                                text = st.message,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Button(
+                                onClick = { GitHubUpdateManager.checkAndDownloadLatest(context) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .testTag("retry_github_update_btn"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = appAccent,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(if (isBn) "আবার চেষ্টা করুন" else "Retry Update Check", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -464,9 +773,9 @@ fun AboutSettingsScreen(
             PixelSettingsGroup(title = if (prefLanguage == "bn") "আইনি ও গোপনীয়তা" else "Legal & Privacy") {
                 PixelSettingsItem(
                     icon = Icons.Default.HelpOutline,
-                    title = if (prefLanguage == "bn") "সংক্ষিপ্ত ব্যবহার নির্দেশিকা" else "App Overview & Guide",
-                    subtitle = if (prefLanguage == "bn") "ফিচার ও শর্টকাট তালিকা" else "Concise summary of features & shortcuts",
-                    onClick = { activeLegalDialog = "info" },
+                    title = if (prefLanguage == "bn") "বিস্তারিত ব্যবহার নির্দেশিকা (Help)" else "Help & User Documentation",
+                    subtitle = if (prefLanguage == "bn") "মডিউল, বাটন ও শর্টকাট গাইড" else "Interactive module guide & control reference",
+                    onClick = onOpenHelp,
                     showDivider = true
                 )
                 PixelSettingsItem(

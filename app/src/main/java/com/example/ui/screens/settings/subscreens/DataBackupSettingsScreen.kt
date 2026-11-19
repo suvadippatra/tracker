@@ -293,7 +293,10 @@ fun DataBackupSettingsScreen(
         }
     }
 
+    val backupListState = rememberPersistedLazyListState("settings_data_backup")
+
     LazyColumn(
+        state = backupListState,
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),

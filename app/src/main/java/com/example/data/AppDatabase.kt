@@ -47,9 +47,10 @@ import com.example.data.dao.OwnerAccountDao
         com.example.data.model.HotelPaymentEntity::class,
         com.example.data.model.ExpenseEntity::class,
         StickyNoteEntity::class,
-        com.example.data.model.MenuModificationHistoryEntity::class
+        com.example.data.model.MenuModificationHistoryEntity::class,
+        com.example.data.model.UpiTransactionEntity::class
     ],
-    version = 36,
+    version = 37,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -67,8 +68,33 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun hotelPaymentDao(): com.example.data.dao.HotelPaymentDao
     abstract fun stickyNoteDao(): StickyNoteDao
     abstract fun syncDao(): com.example.data.dao.SyncDao
+    abstract fun upiTransactionDao(): com.example.data.dao.UpiTransactionDao
 
     companion object {
+
+        val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `upi_transactions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `amount` REAL NOT NULL,
+                        `transactionType` TEXT NOT NULL,
+                        `counterpartyOrReceiverId` TEXT NOT NULL,
+                        `sourceAppOrBank` TEXT NOT NULL,
+                        `upiRefNumber` TEXT DEFAULT NULL,
+                        `rawMessage` TEXT NOT NULL DEFAULT '',
+                        `captureSource` TEXT NOT NULL DEFAULT 'NOTIFICATION',
+                        `timestamp` INTEGER NOT NULL,
+                        `isImportedToExtras` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_upi_transactions_timestamp` ON `upi_transactions` (`timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_upi_transactions_upiRefNumber` ON `upi_transactions` (`upiRefNumber`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_upi_transactions_amount_transactionType_timestamp` ON `upi_transactions` (`amount`, `transactionType`, `timestamp`)")
+            }
+        }
 
         val MIGRATION_35_36 = object : Migration(35, 36) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -336,7 +362,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31,
                     MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35,
-                    MIGRATION_35_36
+                    MIGRATION_35_36, MIGRATION_36_37
                 )
                 .build()
                 INSTANCE = instance

@@ -531,9 +531,7 @@ fun ProfileSettingsScreen(
         )
     }
 
-    val profileListState = androidx.compose.runtime.saveable.rememberSaveable(
-        saver = androidx.compose.foundation.lazy.LazyListState.Saver
-    ) { androidx.compose.foundation.lazy.LazyListState() }
+    val profileListState = rememberPersistedLazyListState("settings_profile")
 
     LazyColumn(
         state = profileListState,
